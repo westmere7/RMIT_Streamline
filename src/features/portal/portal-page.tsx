@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
+import { useVisitorScale } from "@/components/shared/view-controls";
 import { Lock } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -74,6 +75,10 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     retry: false,
     staleTime: 60_000,
   });
+
+  // The visitor's own size for the board, kept apart from the booking form's,
+  // which starts from the size the team set for the form.
+  const boardScale = useVisitorScale(`streamline.portal-scale:${token}:board`);
 
   const needsPassword = gate.data?.needsPassword ?? false;
   // The period the link opens on is the team's setting; one named in the
@@ -223,9 +228,10 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   return (
     <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
       {/* One window tall: the board scrolls its own rows under a header that stays put. */}
-      <PortalShell fill>
+      <PortalShell fill scale={boardScale.value}>
         <PortalHeader
           token={token}
+          scale={boardScale}
           portalName={context?.portalName ?? gate.data.portalName}
           viewerName={context?.viewerName ?? null}
           servedAt={page.data?.servedAt ?? null}

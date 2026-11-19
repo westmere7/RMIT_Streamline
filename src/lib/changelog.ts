@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.107.0",
+    date: "2026-11-19",
+    title: "Theme and size on every visitor page",
+    changes: [
+      "The portal, both booking links, shared boards and tasks, and the shared dashboard all carry the same small control: light, dark or system, then − size +.",
+      "Visitors can now make the portal board, shared pages and the shared dashboard larger or smaller, as they already could the booking form.",
+      "Shared boards and tasks show RMIT's logo in the header.",
+    ],
+  },
+  {
     version: "0.106.1",
     date: "2026-11-19",
     title: "Share switch says where it stands",

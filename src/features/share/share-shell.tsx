@@ -11,12 +11,34 @@ import { Label } from "@/components/ui/label";
 import type { Activity, AuthProvider, AuthSession, PublicBoardPayload, User } from "@/domain";
 import { createMemoryRepositories, shareGuestUser } from "@/data/memory";
 import { AuthContextProvider, type AuthContextValue } from "@/features/auth/auth-context";
-import { AuthShell } from "@/features/auth/components/auth-shell";
+import { AuthShell, RmitLogo } from "@/features/auth/components/auth-shell";
+import { useAppThemeControl, ViewControls, type ViewScaleControl } from "@/components/shared/view-controls";
 import { DataProviderContext, type DataContextValue } from "@/features/data/data-context";
 import { WorkspaceContextProvider, type WorkspaceContextValue } from "@/features/workspace/workspace-context";
 import { buildPermissionContext } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { createServices } from "@/services";
+
+/**
+ * The far end of a shared page's header: whose work it is (RMIT's logo, alone)
+ * and the reader's view, theme and size, in the pill every visitor page uses.
+ *
+ * The theme is the viewer's own app theme, not a setting of the link: a shared
+ * link has none, and these pages already follow it.
+ */
+export function SharedHeaderEnd({ scale }: { scale: ViewScaleControl }) {
+  const theme = useAppThemeControl();
+  return (
+    // On a phone it takes a row of its own above the title, which otherwise had no room left.
+    <div className="relative flex shrink-0 items-center gap-3 max-sm:order-first max-sm:w-full sm:gap-4 sm:pl-1">
+      <RmitLogo className="h-6 sm:h-7" />
+      <ViewControls theme={theme} scale={scale} className="max-sm:ml-auto" />
+    </div>
+  );
+}
+
+/** Where a visitor's size for shared boards and tasks is kept. */
+export const SHARE_SCALE_KEY = "streamline.share-scale";
 
 /** How often a shared page looks for changes. */
 export const SHARE_REFRESH_MS = 4_000;

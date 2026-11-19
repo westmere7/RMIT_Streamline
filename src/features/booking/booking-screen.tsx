@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, LoaderCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
+import { useAppThemeControl, usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
 import { RmitPixel, AuthShell } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
@@ -37,6 +38,10 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
     // Without a key there is nothing to ask with until the session is known.
     enabled: bookingKey !== null || signedIn,
   });
+  // The reader's view, as on every visitor page: their own app theme, and a size kept per workspace.
+  const theme = useAppThemeControl();
+  const scale = useVisitorScale(`streamline.booking-scale:${workspaceSlug}`);
+  usePageZoom(scale.value);
 
   return (
     <AuthShell
@@ -47,6 +52,8 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
       progress={form.isLoading || status === "loading"}
       width="2xl"
       fill
+      scale={scale.value / 100}
+      extras={(tone) => <ViewControls tone={tone} theme={theme} scale={scale} />}
     >
       {needsSignIn ? (
         <div className="p-7 sm:p-8">

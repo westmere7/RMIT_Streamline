@@ -1,9 +1,10 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, Eye, KeyRound, LoaderCircle, LockKeyhole, Maximize2, Minimize2, Moon, Sun } from "lucide-react";
+import { CalendarClock, Eye, KeyRound, LoaderCircle, LockKeyhole, Maximize2, Minimize2 } from "lucide-react";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
+import { pageZoomStyle, useAppThemeControl, usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,6 @@ import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
 import { DashboardSkeleton } from "@/features/dashboard/dashboard-skeleton";
 import { formatShortDate } from "@/lib/dates/dates";
-import { resolveTheme, useThemePreference } from "@/lib/theme";
 import { ShareAccessError } from "@/services";
 
 /**
@@ -101,6 +101,10 @@ function PublicDashboardLoading() {
 
 function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboardPayload; refreshing: boolean }) {
   useLinksStayHere();
+  // The reader's view, as on every visitor page. There is no account here, so the size is this browser's.
+  const theme = useAppThemeControl();
+  const scale = useVisitorScale("streamline.dashboard-scale");
+  usePageZoom(scale.value);
   // Most of these end up on a wall or a spare monitor, where the browser's own
   // chrome is the only thing on the screen not reporting anything.
   const root = React.useRef<HTMLDivElement>(null);
@@ -116,7 +120,7 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
   };
 
   return (
-    <div ref={root} className="flex h-dvh min-h-0 flex-col bg-background" data-testid="public-dashboard">
+    <div ref={root} className="flex h-dvh min-h-0 flex-col bg-background" style={pageZoomStyle(scale.value)} data-testid="public-dashboard">
       <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-4 py-3 sm:px-6">
         <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary opacity-[0.06]" style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
         <BrandMark className="relative size-9 rounded-xl" />
@@ -136,6 +140,7 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
             </span>
           </SimpleTooltip>
         )}
+        <ViewControls theme={theme} scale={scale} className="relative" />
       </header>
       {/* A visitor has no account, so their preferences belong to the link
           rather than to a person; one key per token keeps two open dashboards
@@ -157,24 +162,10 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
                 {fullscreen ? <Minimize2 /> : <Maximize2 />}
               </Button>
             </SimpleTooltip>
-            <ThemeButton />
           </>
         }
       />
     </div>
-  );
-}
-
-/** Light or dark for the wall the dashboard hangs on. */
-function ThemeButton() {
-  const [preference, setPreference] = useThemePreference();
-  const dark = resolveTheme(preference) !== "light";
-  return (
-    <SimpleTooltip label={dark ? "Light theme" : "Dark theme"} side="bottom">
-      <Button variant="outline" size="icon-sm" className="rounded-full" aria-label={dark ? "Switch to light theme" : "Switch to dark theme"} onClick={() => setPreference(dark ? "light" : "dark")}>
-        {dark ? <Sun /> : <Moon />}
-      </Button>
-    </SimpleTooltip>
   );
 }
 

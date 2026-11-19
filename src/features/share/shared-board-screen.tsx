@@ -3,13 +3,14 @@
 import { CalendarClock, Eye } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { pageZoomStyle, usePageZoom, useVisitorScale, type ViewScaleControl } from "@/components/shared/view-controls";
+import { SHARE_SCALE_KEY, SharedHeaderEnd } from "@/features/share/share-shell";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { ErrorState } from "@/components/shared/error-state";
 import { Badge } from "@/components/ui/badge";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { BOARD_VIEWS, type BoardViewKind, type PublicBoardPayload } from "@/domain";
-import { BrandMark } from "@/features/auth/components/auth-shell";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
@@ -52,6 +53,9 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // One size for every shared page this visitor opens: there is no account to keep it on.
+  const scale = useVisitorScale(SHARE_SCALE_KEY);
+  usePageZoom(scale.value);
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
@@ -128,8 +132,8 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
   if (!contextValue && !snapshot.isError) return <FullPageLoader label="Opening the shared board…" />;
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col bg-canvas" data-testid="shared-board">
-      <SharedBoardHeader payload={payload} />
+    <div className="flex h-dvh min-h-0 flex-col bg-canvas" style={pageZoomStyle(scale.value)} data-testid="shared-board">
+      <SharedBoardHeader payload={payload} scale={scale} />
       {snapshot.isError && <ErrorState title="Something went wrong while opening this board." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
@@ -179,15 +183,15 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
 }
 
 /** Says whose board this is, what it is called, and that nothing here can be changed. */
-function SharedBoardHeader({ payload }: { payload: PublicBoardPayload }) {
+function SharedBoardHeader({ payload, scale }: { payload: PublicBoardPayload; scale: ViewScaleControl }) {
   const board = payload.board;
   return (
-    <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-5 py-3.5 sm:px-7">
+    <header className="relative flex shrink-0 flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-border/60 px-5 py-3.5 sm:px-7">
       <span aria-hidden className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 opacity-[0.10]", colorClasses(board.color).dot)} style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
       <span className={cn("relative hidden size-9 shrink-0 items-center justify-center rounded-xl shadow-xs sm:flex", colorClasses(board.color).solid)}>
         <DynamicIcon name={board.icon} className="size-4.5" />
       </span>
-      <div className="relative min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1 max-sm:basis-full">
         <h1 className="flex min-w-0 items-center gap-2 text-[17px] font-semibold tracking-tight">
           <span className="truncate">{board.name}</span>
           <Badge variant="outline" className="gap-1 shrink-0" data-testid="share-view-only">
@@ -206,9 +210,7 @@ function SharedBoardHeader({ payload }: { payload: PublicBoardPayload }) {
           </span>
         </SimpleTooltip>
       )}
-      <span className="relative flex items-center gap-2 pl-1">
-        <BrandMark className="size-8 rounded-lg" />
-      </span>
+      <SharedHeaderEnd scale={scale} />
     </header>
   );
 }

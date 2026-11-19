@@ -2,7 +2,8 @@
 
 import { CalendarClock, Eye } from "lucide-react";
 import * as React from "react";
-import { BrandMark } from "@/features/auth/components/auth-shell";
+import { pageZoomStyle, usePageZoom, useVisitorScale, type ViewScaleControl } from "@/components/shared/view-controls";
+import { SHARE_SCALE_KEY, SharedHeaderEnd } from "@/features/share/share-shell";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ErrorState } from "@/components/shared/error-state";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
@@ -30,6 +31,9 @@ import { cn } from "@/lib/utils";
  */
 export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
   const board = payload.board;
+  // One size for every shared page this visitor opens: there is no account to keep it on.
+  const scale = useVisitorScale(SHARE_SCALE_KEY);
+  usePageZoom(scale.value);
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
@@ -67,8 +71,8 @@ export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
   if (!contextValue && !snapshot.isError) return <FullPageLoader label="Opening the shared task…" />;
 
   return (
-    <div className="flex h-dvh min-h-0 flex-col bg-canvas" data-testid="shared-item">
-      <SharedItemHeader payload={payload} />
+    <div className="flex h-dvh min-h-0 flex-col bg-canvas" style={pageZoomStyle(scale.value)} data-testid="shared-item">
+      <SharedItemHeader payload={payload} scale={scale} />
       {snapshot.isError && <ErrorState title="Something went wrong while opening this task." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
@@ -83,10 +87,10 @@ export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
 }
 
 /** Says which board the task came from, and that nothing here can be changed. */
-function SharedItemHeader({ payload }: { payload: PublicItemPayload }) {
+function SharedItemHeader({ payload, scale }: { payload: PublicItemPayload; scale: ViewScaleControl }) {
   const board = payload.board;
   return (
-    <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-5 py-3.5 sm:px-7">
+    <header className="relative flex shrink-0 flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-border/60 px-5 py-3.5 sm:px-7">
       <span
         aria-hidden
         className={cn("pointer-events-none absolute inset-x-0 top-0 h-20 opacity-[0.10]", colorClasses(board.color).dot)}
@@ -95,7 +99,7 @@ function SharedItemHeader({ payload }: { payload: PublicItemPayload }) {
       <span className={cn("relative hidden size-9 shrink-0 items-center justify-center rounded-xl shadow-xs sm:flex", colorClasses(board.color).solid)}>
         <DynamicIcon name={board.icon} className="size-4.5" />
       </span>
-      <div className="relative min-w-0 flex-1">
+      <div className="relative min-w-0 flex-1 max-sm:basis-full">
         <h1 className="flex min-w-0 items-center gap-2 text-[17px] font-semibold tracking-tight">
           <span className="truncate">{board.name}</span>
           <Badge variant="outline" className="shrink-0 gap-1" data-testid="share-view-only">
@@ -111,9 +115,7 @@ function SharedItemHeader({ payload }: { payload: PublicItemPayload }) {
           </span>
         </SimpleTooltip>
       )}
-      <span className="relative flex items-center gap-2 pl-1">
-        <BrandMark className="size-8 rounded-lg" />
-      </span>
+      <SharedHeaderEnd scale={scale} />
     </header>
   );
 }

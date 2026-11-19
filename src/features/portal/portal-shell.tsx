@@ -1,12 +1,13 @@
 "use client";
 
-import { CalendarRange, Check, ChevronDown, LoaderCircle, Moon, Sun, SunMoon, Users } from "lucide-react";
+import { CalendarRange, Check, ChevronDown, LoaderCircle, Users } from "lucide-react";
 import * as React from "react";
 import { BrandMark, RmitLogo } from "@/features/auth/components/auth-shell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
 import { isPortalTheme, PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
 import { colorClasses } from "@/lib/colors";
+import { pageZoomStyle, usePageZoom, ViewControls, type ViewScaleControl, type ViewThemeControl } from "@/components/shared/view-controls";
 import { applyThemePreference, readThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -18,11 +19,22 @@ import { cn } from "@/lib/utils";
  * invitation to try doors that are locked. What they get is the team's name,
  * whose work they are looking at, and the two things they came for.
  */
-export function PortalShell({ children, fill = false }: { children: React.ReactNode; fill?: boolean }) {
+export function PortalShell({ children, fill = false, scale = 100 }: { children: React.ReactNode; fill?: boolean; /** The visitor's size, in percent. */ scale?: number }) {
   // One window tall, always: the board has a sticky header row, a horizontal
   // scrollport and a panel beside them, and the booking form keeps its action
   // bar pinned at its own foot — both need the page itself to stay still.
-  return <div className={cn("bg-canvas text-foreground", fill ? "flex h-dvh min-h-0 flex-col overflow-hidden" : "min-h-dvh")}>{children}</div>;
+  usePageZoom(scale);
+  return (
+    <div className={cn("bg-canvas text-foreground", fill ? "flex h-dvh min-h-0 flex-col overflow-hidden" : "min-h-dvh")} style={pageZoomStyle(scale, fill ? "height" : "minHeight")}>
+      {children}
+    </div>
+  );
+}
+
+/** The portal's theme as a view control: the link's, switchable when the link allows it, or nothing. */
+export function usePortalThemeControl(): ViewThemeControl | null {
+  const context = React.useContext(PortalThemeContext);
+  return context?.allowSwitch ? { value: context.theme, set: context.set } : null;
 }
 
 /**
@@ -147,34 +159,6 @@ function parseThemeChoice(raw: string | null): ThemeChoice | null {
   }
 }
 
-/** The visitor's own theme switch, for whichever portal page is showing. Nothing when the link does not allow it. */
-export function PortalThemeSwitch({ className }: { className?: string }) {
-  const themeContext = React.useContext(PortalThemeContext);
-  if (!themeContext?.allowSwitch) return null;
-  return (
-    <div role="radiogroup" aria-label="Theme" className={cn("inline-flex shrink-0 items-center rounded-full border border-border/70 p-0.5", className)}>
-      {(["light", "dark", "system"] as const).map((option) => {
-        const Icon = THEME_ICONS[option];
-        const active = themeContext.theme === option;
-        return (
-          <button
-            key={option}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={`${option} theme`}
-            onClick={() => themeContext.set(option)}
-            className={cn("flex size-11 items-center justify-center rounded-full transition-colors sm:size-9", active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-            data-testid={`portal-theme-${option}`}
-          >
-            <Icon className="size-4" />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 /**
  * Whether the page is current, as a glyph.
  *
@@ -277,7 +261,6 @@ function subscribeToStorage(key: string, onChange: () => void): () => void {
   return () => window.removeEventListener("storage", listener);
 }
 
-export const THEME_ICONS: Record<PortalTheme, React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon, system: SunMoon };
 
 /** The portal page's theme and, when the link allows it, the way to change it. Null outside a PortalThemeScope. */
 export function usePortalTheme() {
@@ -355,8 +338,11 @@ export function PortalHeader({
   stakeholders,
   stakeholderId,
   onStakeholder,
+  scale,
 }: {
   token: string;
+  /** The visitor's size, held by the page that zooms with it. */
+  scale: ViewScaleControl;
   portalName: string;
   viewerName: string | null;
   servedAt: string | null;
@@ -428,7 +414,7 @@ export function PortalHeader({
         <div className="flex flex-1 items-center justify-end gap-3">
           <FreshnessMark stale={stale} servedAt={servedAt} />
 
-        <PortalThemeSwitch />
+        <ViewControls theme={usePortalThemeControl()} scale={scale} />
 
         {viewerName ? (
           <span className="shrink-0 rounded-full bg-surface-strong/70 px-2.5 py-1 text-2xs font-medium" data-testid="portal-viewer">

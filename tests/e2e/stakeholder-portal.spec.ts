@@ -330,7 +330,7 @@ test.describe("the stakeholder portal", () => {
 
     // A visitor switches the board to dark; the choice holds while the setting stands.
     await page.goto(portalPath);
-    await page.getByTestId("portal-theme-dark").click();
+    await page.getByTestId("view-theme-dark").click();
     await expect(page.locator("html.dark")).toHaveCount(1);
     await page.reload();
     await expect(page.locator("html.dark")).toHaveCount(1);
@@ -354,7 +354,7 @@ test.describe("the stakeholder portal", () => {
   test("keeps its theme to itself", async ({ page }) => {
     const portalPath = await openPortal(page);
     await page.goto(portalPath);
-    await page.getByTestId("portal-theme-dark").click();
+    await page.getByTestId("view-theme-dark").click();
     await expect(page.locator("div.dark").first()).toBeVisible();
 
     // The application's own preference is untouched.
