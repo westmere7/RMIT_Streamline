@@ -1,6 +1,6 @@
 "use client";
 
-import { LookPicker } from "@/components/shared/look-picker";
+import { LookFields, LookTile } from "@/components/shared/look-picker";
 import { SettingsDialogFrame } from "@/components/shared/settings-dialog-frame";
 import { BoardAccessField, accessSummary, teamEditorsOf } from "@/features/boards/components/board-visibility-field";
 import { boardAccessOf, teamAccessFor } from "@/lib/permissions/permissions";
@@ -86,7 +86,7 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
       <div className="grid gap-1.5">
         <Label htmlFor="bs-name">Board name</Label>
         <div className="flex items-center gap-2">
-          <LookPicker color={board.color} icon={board.icon} onColor={(color) => actions.updateBoard.mutate({ color })} onIcon={(icon) => actions.updateBoard.mutate({ icon })} disabled={!manage} testId="board-look" />
+          <LookTile color={board.color} icon={board.icon} testId="board-look" />
           <Input id="bs-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!manage} />
         </div>
       </div>
@@ -118,6 +118,9 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+      <div className="border-t pt-4">
+        <LookFields color={board.color} icon={board.icon} onColor={(color) => actions.updateBoard.mutate({ color })} onIcon={(icon) => actions.updateBoard.mutate({ icon })} disabled={!manage} />
       </div>
     </div>
   );

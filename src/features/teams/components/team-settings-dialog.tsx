@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
-import { LookPicker } from "@/components/shared/look-picker";
+import { LookFields, LookTile } from "@/components/shared/look-picker";
 import { SettingsDialogFrame } from "@/components/shared/settings-dialog-frame";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,7 @@ function GeneralSection({ team }: { team: Team }) {
       <div className="grid gap-1.5">
         <Label htmlFor="ts-name">Team name</Label>
         <div className="flex items-center gap-2">
-          <LookPicker color={team.color} icon={team.icon} onColor={(color) => update.mutate({ color })} onIcon={(icon) => update.mutate({ icon })} disabled={!manage} testId="team-look" />
+          <LookTile color={team.color} icon={team.icon} testId="team-look" />
           <Input id="ts-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!manage} maxLength={60} />
         </div>
       </div>
@@ -113,6 +113,9 @@ function GeneralSection({ team }: { team: Team }) {
         </Button>
       )}
       {team.system && <p className="text-2xs text-muted-foreground">A built-in team: rename or restyle it as you like. It cannot be archived.</p>}
+      <div className="border-t pt-4">
+        <LookFields color={team.color} icon={team.icon} onColor={(color) => update.mutate({ color })} onIcon={(icon) => update.mutate({ icon })} disabled={!manage} />
+      </div>
     </div>
   );
 }

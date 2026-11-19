@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.116.3",
+    date: "2026-11-19",
+    title: "Colour and icon in full",
+    changes: [
+      "Team and board settings show the full colour and icon pickers on their General tab, with the look beside the name.",
+    ],
+  },
+  {
     version: "0.116.2",
     date: "2026-11-19",
     title: "Team settings keep your changes",
