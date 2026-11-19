@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.116.2",
+    date: "2026-11-19",
+    title: "Team settings keep your changes",
+    changes: [
+      "Team settings opened from the sidebar or Settings showed the team as it was when opened, so a change seemed not to stick. They now always show it as it is.",
+    ],
+  },
+  {
     version: "0.116.1",
     date: "2026-11-19",
     title: "Settings in tabs",

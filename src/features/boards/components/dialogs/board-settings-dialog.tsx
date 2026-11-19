@@ -42,7 +42,7 @@ const SECTIONS: Array<{ id: BoardSettingsSection; label: string; danger?: boolea
 ];
 
 export function BoardSettingsDialog({
-  board,
+  board: given,
   section,
   onSectionChange,
   onRequestDelete,
@@ -53,6 +53,10 @@ export function BoardSettingsDialog({
   onRequestDelete: () => void;
 }) {
   const ws = useWorkspace();
+  // The board as it is now, not as it was when the dialog was opened: a
+  // caller may hold on to the copy it opened with, and every change made here
+  // would then seem not to stick.
+  const board = ws.boardById(given.id) ?? given;
   const manage = canManageBoard(ws.permissions, board);
   return (
     <SettingsDialogFrame title="Board settings" description={board.name} sections={SECTIONS} section={section} onSectionChange={onSectionChange} testId="board-settings">
