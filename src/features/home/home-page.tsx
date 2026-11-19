@@ -1,5 +1,7 @@
 "use client";
 
+import { RelativeTime } from "@/components/shared/relative-time";
+import { useRecentTasks } from "@/features/items/item-visits";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock, ListTodo } from "lucide-react";
 import Link from "next/link";
@@ -136,6 +138,7 @@ function HomeDesktop() {
                   ))}
                 </ul>
               )}
+              <RecentTasks />
             </section>
 
             <section>
@@ -248,4 +251,34 @@ function BoardCard({ board }: { board: Board }) {
   );
 }
 
-
+/** The tasks this person opened most recently, under the boards they visited: back to one in a click. */
+function RecentTasks() {
+  const ws = useWorkspace();
+  const tasks = useRecentTasks(6);
+  if (tasks.isLoading) {
+    return (
+      <div className="mt-3 space-y-1.5" aria-busy aria-label="Loading recently visited tasks">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-11 rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+  if (!tasks.data || tasks.data.length === 0) return null;
+  return (
+    <ul className="mt-3 divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs" data-testid="home-recent-tasks">
+      {tasks.data.map(({ item, board, visitedAt }) => (
+        <li key={item.id}>
+          <Link href={ws.boardPath(board, { itemId: item.id })} className="flex min-h-11 items-center gap-3 px-3.5 py-2 text-[13px] hover:bg-accent">
+            <DynamicIcon name={board.icon} className={cn("size-4 shrink-0", colorClasses(board.color).text)} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{item.name}</span>
+              <span className="block truncate text-2xs text-muted-foreground">{board.name}</span>
+            </span>
+            <RelativeTime iso={visitedAt} className="shrink-0 text-2xs text-muted-foreground" />
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}

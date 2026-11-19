@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.117.0",
+    date: "2026-11-19",
+    title: "Recently visited tasks",
+    changes: [
+      "Home lists the tasks you opened most recently under Recently visited, with their board and when you looked.",
+    ],
+  },
+  {
     version: "0.116.5",
     date: "2026-11-19",
     title: "Home, rearranged",

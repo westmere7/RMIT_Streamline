@@ -325,6 +325,11 @@ export function createMemoryRepositories(
       update: readOnly("changing a link"),
       delete: readOnly("removing a link"),
     },
+    itemVisits: {
+      // A visitor has no Home to list them on.
+      record: async () => undefined,
+      listRecent: async () => [],
+    },
     itemReads: {
       listByUser: async () => ({}),
       // A visitor has nowhere to keep this, and nothing on the page shows it.

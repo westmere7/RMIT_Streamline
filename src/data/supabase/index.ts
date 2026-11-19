@@ -22,6 +22,7 @@ import {
   SupabaseAdminRepository,
   SupabaseCommentRepository,
   SupabaseItemReadRepository,
+  SupabaseItemVisitRepository,
   SupabaseNotificationPreferencesRepository,
   SupabaseNotificationRepository,
 } from "./repositories/misc-repositories";
@@ -70,6 +71,7 @@ export function createSupabaseRepositories(): Repositories {
     boardShares: new SupabaseBoardShareRepository(),
     dashboardShares: new SupabaseDashboardShareRepository(),
     itemReads: new SupabaseItemReadRepository(),
+    itemVisits: new SupabaseItemVisitRepository(),
     messages: new SupabaseMessageRepository(),
     activities: new SupabaseActivityRepository(),
     automations: new SupabaseAutomationRepository(),

@@ -50,6 +50,7 @@ import { useItemLinks } from "@/features/items/link-hooks";
 import { ShareItemDialog, useItemShareStatus } from "@/features/items/share-item-dialog";
 import { ItemAssetsTab } from "@/features/items/item-assets-tab";
 import { useMarkItemSeen } from "@/features/comments/updates";
+import { useRecordItemVisit } from "@/features/items/item-visits";
 import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
@@ -263,6 +264,9 @@ export function ItemDetailPanel({
    */
   const settledItemId = React.useDeferredValue(loading ? "" : itemId, "");
   const ready = !!item && settledItemId === itemId;
+  // Opening a task is visiting it (Home's recently visited tasks); not on a
+  // shared link or the portal, where the reader has no Home.
+  useRecordItemVisit(itemId, ready && !shared && !hideMenu);
   // Looking at the Updates tab is catching up: record it, and again whenever
   // another update arrives while the tab stays open.
   const markSeen = useMarkItemSeen();

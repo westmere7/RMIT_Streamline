@@ -21,6 +21,7 @@ import type {
   DataExport,
   DeliverableNotification,
   ItemReadRepository,
+  ItemVisitRepository,
   NotificationPreferencesRepository,
   NotificationRepository,
 } from "@/data/repositories";
@@ -121,6 +122,17 @@ export class SupabaseItemReadRepository implements ItemReadRepository {
 
   async markSeen(userId: string, itemId: string, seenAt: string): Promise<void> {
     assertOk(await db().from("item_reads").upsert({ user_id: userId, item_id: itemId, seen_at: seenAt }, { onConflict: "user_id,item_id" }), "item_reads.markSeen");
+  }
+}
+
+export class SupabaseItemVisitRepository implements ItemVisitRepository {
+  async record(userId: string, itemId: string): Promise<void> {
+    assertOk(await db().from("item_visits").upsert({ user_id: userId, item_id: itemId, visited_at: new Date().toISOString() }, { onConflict: "user_id,item_id" }), "item_visits.record");
+  }
+
+  async listRecent(userId: string, limit: number): Promise<Array<{ itemId: string; visitedAt: string }>> {
+    const result = await db().from("item_visits").select("item_id, visited_at").eq("user_id", userId).order("visited_at", { ascending: false }).limit(limit);
+    return unwrapList<{ item_id: string; visited_at: string }>(result, "item_visits.listRecent").map((row) => ({ itemId: row.item_id, visitedAt: row.visited_at }));
   }
 }
 

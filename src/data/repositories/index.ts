@@ -688,6 +688,16 @@ export interface ItemReadRepository {
   markSeen(userId: EntityId, itemId: EntityId, seenAt: string): Promise<void>;
 }
 
+/**
+ * When each person last opened each task (migration 0124), for the recently
+ * visited tasks on Home. Strictly their own.
+ */
+export interface ItemVisitRepository {
+  record(userId: EntityId, itemId: EntityId): Promise<void>;
+  /** Their most recent visits, newest first. */
+  listRecent(userId: EntityId, limit: number): Promise<Array<{ itemId: EntityId; visitedAt: string }>>;
+}
+
 export interface NotificationRepository {
   listByUser(userId: EntityId): Promise<Notification[]>;
   create(input: DeliverableNotification): Promise<Notification>;
@@ -777,6 +787,7 @@ export interface Repositories {
   itemShares: ItemShareRepository;
   dashboardShares: DashboardShareRepository;
   itemReads: ItemReadRepository;
+  itemVisits: ItemVisitRepository;
   messages: MessageRepository;
   activities: ActivityRepository;
   automations: AutomationRepository;

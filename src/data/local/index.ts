@@ -21,6 +21,7 @@ import { LocalStakeholderPortalRepository } from "./repositories/stakeholder-por
 import { LocalWorkspaceListRepository } from "./repositories/workspace-list-repository";
 import { LocalItemLinkRepository } from "./repositories/item-link-repository";
 import { LocalItemReadRepository } from "./repositories/item-read-repository";
+import { LocalItemVisitRepository } from "./repositories/item-visit-repository";
 import { LocalItemRepository } from "./repositories/item-repository";
 import { LocalMessageRepository } from "./repositories/message-repository";
 import { LocalNotificationPreferencesRepository, LocalNotificationRepository } from "./repositories/notification-repository";
@@ -80,6 +81,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     itemShares: new LocalItemShareRepository(connection),
     dashboardShares: new LocalDashboardShareRepository(connection),
     itemReads: new LocalItemReadRepository(connection),
+    itemVisits: new LocalItemVisitRepository(),
     messages: new LocalMessageRepository(connection),
     activities: new LocalActivityRepository(connection),
     notifications: new LocalNotificationRepository(connection),
