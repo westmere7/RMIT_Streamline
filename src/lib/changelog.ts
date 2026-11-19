@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.111.2",
+    date: "2026-11-19",
+    title: "Who published the form, with a face",
+    changes: [
+      "The published form's cards (Portal and Booking, and the editor) show who published it after the time, as their avatar and name; it opens their profile.",
+    ],
+  },
+  {
     version: "0.111.1",
     date: "2026-11-19",
     title: "Form editor: outline on every step",

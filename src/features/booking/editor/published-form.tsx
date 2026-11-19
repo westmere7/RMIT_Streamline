@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { BookingFormTemplate } from "@/domain";
 import { templateQuestionCount } from "@/domain";
+import { PersonChip } from "@/features/members/person-chip";
 
 /** What is known about the form stakeholders are being served. */
 export interface PublishedFormInfo {
@@ -17,7 +18,7 @@ export interface PublishedFormInfo {
   name: string | null;
   /** Null when it was published before that was recorded. */
   publishedAt: string | null;
-  /** Who published it, by name; null before that was recorded (migration 0119). */
+  /** Who published it (their user id); null before that was recorded (migration 0119). */
   publishedBy?: string | null;
   /** Tasks booked through it since it was published. */
   bookings: number;
@@ -30,17 +31,27 @@ export function defaultPublishName(teamName: string, at: Date = new Date()): str
   return `${teamName} · ${format(at, "d MMM yyyy, HH:mm")}`;
 }
 
-/** The published form in three lines: what it is called, what it asks, and how much it has been used. Clicking it opens that form. */
+/**
+ * The published form in three lines: what it is called, what it asks, and how
+ * much it has been used. Clicking it opens that form. A div acting as the
+ * button, since it holds a link of its own (who published it).
+ */
 export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; onOpen: () => void }) {
   const services = info.template.services.length;
   const when = info.publishedAt ? new Date(info.publishedAt) : null;
   const title = info.name ?? (info.builtIn ? "Built-in form" : "Published form");
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onOpen();
+      }}
       aria-label={`Open the published form, ${title}`}
-      className="block w-full rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:border-ring/60 hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
+      className="block w-full cursor-pointer rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:border-ring/60 hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
       data-testid="booking-published-form"
     >
       <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">Published form</p>
@@ -56,7 +67,21 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
         </li>
         <li className="flex items-center gap-1.5">
           <CalendarClock className="size-3 shrink-0" aria-hidden />
-          <span data-testid="booking-published-at">{when && !Number.isNaN(when.getTime()) ? `Published ${format(when, "d MMM yyyy, HH:mm")}${info.publishedBy ? ` by ${info.publishedBy}` : ""}` : "Publish time not recorded"}</span>
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1" data-testid="booking-published-at">
+            {when && !Number.isNaN(when.getTime()) ? (
+              <>
+                Published {format(when, "d MMM yyyy, HH:mm")}
+                {info.publishedBy && (
+                  <>
+                    {" "}
+                    by <PersonChip userId={info.publishedBy} testId="booking-published-by" />
+                  </>
+                )}
+              </>
+            ) : (
+              "Publish time not recorded"
+            )}
+          </span>
         </li>
         <li className="flex items-center gap-1.5">
           <ClipboardCheck className="size-3 shrink-0" aria-hidden />
@@ -65,7 +90,7 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
           </span>
         </li>
       </ul>
-    </button>
+    </div>
   );
 }
 

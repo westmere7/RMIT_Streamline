@@ -47,6 +47,7 @@ import {
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 import { useServices } from "@/features/data/data-context";
 import { copyToClipboard } from "@/features/members/hooks";
+import { PersonChip } from "@/features/members/person-chip";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
@@ -444,7 +445,7 @@ function PublishedFormSummary({ booked }: { booked: number | null }) {
   // the time is said on the line below, so the name drops its copy of it.
   const name = (ws.workspace.bookingFormName ?? (ws.workspace.bookingForm ? "Published form" : "Built-in form")).replace(/\s+·\s+\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/, "");
   const at = ws.workspace.bookingFormPublishedAt ? new Date(ws.workspace.bookingFormPublishedAt) : null;
-  const by = ws.userById(ws.workspace.bookingFormPublishedBy)?.displayName ?? null;
+  const by = ws.workspace.bookingFormPublishedBy ?? null;
   const template = form.data?.template ?? null;
   const serviceCount = template?.services.length ?? 0;
   return (
@@ -457,9 +458,16 @@ function PublishedFormSummary({ booked }: { booked: number | null }) {
             {name}
           </span>
         </p>
-        <p className="mt-0.5 truncate text-2xs text-muted-foreground">
-          {template ? `${templateQuestionCount(template)} questions · ${serviceCount === 1 ? "1 service" : `${serviceCount} services`}` : "Reading the form…"}
-          {at && !Number.isNaN(at.getTime()) ? ` · published ${format(at, "d MMM yyyy, HH:mm")}${by ? ` by ${by}` : ""}` : ""}
+        <p className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1 text-2xs text-muted-foreground">
+          <span>{template ? `${templateQuestionCount(template)} questions · ${serviceCount === 1 ? "1 service" : `${serviceCount} services`}` : "Reading the form…"}</span>
+          {at && !Number.isNaN(at.getTime()) && (
+            <span>· published {format(at, "d MMM yyyy, HH:mm")}</span>
+          )}
+          {at && !Number.isNaN(at.getTime()) && ws.userById(by) && (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              by <PersonChip userId={by} testId="portal-booking-published-by" />
+            </span>
+          )}
         </p>
         {booked !== null && (
           <p className="mt-1.5 text-[13px]" data-testid="portal-link-booking-figure">

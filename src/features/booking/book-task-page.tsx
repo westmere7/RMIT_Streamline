@@ -231,7 +231,7 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
                 published={{
                   name: ws.workspace.bookingFormName ?? null,
                   publishedAt: ws.workspace.bookingFormPublishedAt ?? null,
-                  publishedBy: ws.userById(ws.workspace.bookingFormPublishedBy)?.displayName ?? null,
+                  publishedBy: ws.userById(ws.workspace.bookingFormPublishedBy) ? ws.workspace.bookingFormPublishedBy : null,
                   bookings: ws.workspace.bookingFormBookings ?? 0,
                   builtIn: !ws.workspace.bookingForm,
                 }}
