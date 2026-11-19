@@ -37,7 +37,7 @@ export async function selfJoin(key: string, input: z.infer<typeof selfJoinSchema
     const member = await admin.from("workspace_members").select("status").eq("workspace_id", workspace.id).eq("user_id", known.id).maybeSingle();
     if (member.error) throw new HttpError(500, `workspace_members.lookup: ${member.error.message}`);
     const status = (member.data as { status: string } | null)?.status ?? null;
-    throw new HttpError(409, SELF_JOIN_MESSAGES[status === "ACTIVE" ? "member" : status ? "pending" : "known"]);
+    throw new HttpError(409, SELF_JOIN_MESSAGES[status === "ACTIVE" ? "member" : status === "AWAITING_APPROVAL" ? "waiting" : status ? "pending" : "known"]);
   }
 
   // Recorded as added by the workspace's owner: the link is theirs to hand out.
@@ -49,6 +49,9 @@ export async function selfJoin(key: string, input: z.infer<typeof selfJoinSchema
   const result = await inviteMember({ workspaceId: workspace.id, email: input.email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] }, ownerId);
   // Only a brand-new email reaches this far, and a new person always gets a link.
   if (!result.invitation) throw new HttpError(409, SELF_JOIN_MESSAGES.known);
+  // Nobody chose this person yet: finishing the link leaves them waiting for an admin.
+  const flagged = await admin.from("workspace_invitations").update({ needs_approval: true }).eq("id", result.invitation.id);
+  if (flagged.error) throw new HttpError(500, `workspace_invitations.needsApproval: ${flagged.error.message}`);
   return { token: result.invitation.token };
 }
 

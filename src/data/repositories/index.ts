@@ -86,6 +86,12 @@ export interface WorkspaceRepository {
    * could not be shown; anyone outside the workspace hears "missing".
    */
   accessTo(kind: AccessKind, workspaceId: EntityId, ref: string): Promise<AccessAnswer>;
+  /**
+   * The workspaces this person joined through a join link and is waiting to
+   * be let into (migration 0122 my_waiting_workspaces). They can read nothing
+   * else there yet, their own seat included.
+   */
+  listWaiting(userId: EntityId): Promise<Array<{ workspaceId: EntityId; name: string; slug: string }>>;
   getById(id: EntityId): Promise<Workspace | null>;
   getBySlug(slug: string): Promise<Workspace | null>;
   update(id: EntityId, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace>;
@@ -190,7 +196,8 @@ export interface OnboardingRepository {
   /** What the join page may show for a token; safe to call signed out. */
   preview(token: string): Promise<InvitationPreview>;
   /** Sets the password and profile, activates the membership and burns the token. Returns the sign-in email. */
-  complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId }>;
+  /** `waiting`: finished through the join link, so waiting for an admin (migration 0122). */
+  complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId; waiting?: boolean }>;
 }
 
 export interface TeamRepository {

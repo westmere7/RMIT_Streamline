@@ -299,7 +299,7 @@ export class WorkspaceService {
   }
 
   /** The invited person sets their password and details; their membership becomes ACTIVE. */
-  async completeOnboarding(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId }> {
+  async completeOnboarding(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId; waiting?: boolean }> {
     return this.repos.onboarding.complete(input);
   }
 
@@ -354,6 +354,19 @@ export class WorkspaceService {
     // workspaces they are in themselves, and would miss the others.
     if (!(await this.repos.workspaces.listDirectory()).includes(userId)) await this.repos.users.update(userId, { deactivatedAt: new Date().toISOString() });
     return member;
+  }
+
+  /**
+   * Lets in someone who joined through the join link (AWAITING_APPROVAL), or
+   * turns them away: declined, they are deactivated like anyone else, and can
+   * be reactivated from Members later.
+   */
+  async decideJoiner(memberId: EntityId, userId: EntityId, approve: boolean): Promise<WorkspaceMember> {
+    const seat = (await this.repos.workspaces.listMembershipsForUser(userId)).find((m) => m.id === memberId);
+    if (!seat) throw new NotFoundError("WorkspaceMember", memberId);
+    if (seat.status !== "AWAITING_APPROVAL") throw new Error("They are not waiting for approval.");
+    if (!approve) return this.setMemberActive(memberId, userId, false);
+    return this.repos.workspaces.updateMember(memberId, { status: "ACTIVE", joinedAt: new Date().toISOString() });
   }
 
   // ---- Teams ---------------------------------------------------------------

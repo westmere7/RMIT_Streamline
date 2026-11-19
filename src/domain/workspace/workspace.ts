@@ -90,7 +90,8 @@ export interface Workspace extends Timestamps {
   showPortalMenu?: boolean | null;
 }
 
-export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "DEACTIVATED";
+/** AWAITING_APPROVAL: joined through the join link, finished onboarding, not yet let in by an admin (migration 0122). */
+export type WorkspaceMemberStatus = "ACTIVE" | "INVITED" | "AWAITING_APPROVAL" | "DEACTIVATED";
 
 export interface WorkspaceMember {
   id: EntityId;

@@ -43,8 +43,11 @@ export function useNotifications(userId: string) {
   });
 }
 
-/** A notification that still leads somewhere, and the board it opens on. */
-export type InboxNotification = Notification & { target: Board };
+/**
+ * A notification that still leads somewhere, and the board it opens on. Null
+ * for one about a person (someone waiting to join), which opens Members.
+ */
+export type InboxNotification = Notification & { target: Board | null };
 
 /**
  * The notifications that still lead somewhere, with the board each one opens.
@@ -78,6 +81,10 @@ export function useInboxNotifications(userId: string) {
     const boardOfItem = items.isSuccess ? items.data : null;
     const reachable: InboxNotification[] = [];
     for (const n of notifications.data) {
+      if (n.entityType === "USER") {
+        reachable.push({ ...n, target: null });
+        continue;
+      }
       const target = targetBoard(n, ws, boardOfItem);
       if (target) reachable.push({ ...n, target });
     }

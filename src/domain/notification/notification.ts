@@ -9,7 +9,9 @@ export type NotificationType =
   | "BOARD_INVITE"
   | "ITEM_LINKED"
   | "TASK_BOOKED"
-  | "SUBSCRIPTION";
+  | "SUBSCRIPTION"
+  /** Someone joined through the join link and waits for an admin (migration 0122). */
+  | "MEMBER_JOINED";
 
 export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "MENTION",
@@ -20,10 +22,11 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = [
   "DUE_DATE_CHANGED",
   "ITEM_LINKED",
   "TASK_BOOKED",
+  "MEMBER_JOINED",
   "SUBSCRIPTION",
 ];
 
-export type NotificationEntityType = "ITEM" | "BOARD" | "COMMENT";
+export type NotificationEntityType = "ITEM" | "BOARD" | "COMMENT" | "USER";
 
 /**
  * How something reaches the inbox.
@@ -93,6 +96,7 @@ export const DEFAULT_TYPE_DELIVERY: Record<NotificationType, NotificationDeliver
   DUE_DATE_CHANGED: "UPDATE",
   ITEM_LINKED: "UPDATE",
   TASK_BOOKED: "NOTIFICATION",
+  MEMBER_JOINED: "NOTIFICATION",
   SUBSCRIPTION: "UPDATE",
 };
 
@@ -105,6 +109,7 @@ export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   DUE_DATE_CHANGED: "Due date changes",
   ITEM_LINKED: "Linked items",
   TASK_BOOKED: "Task bookings",
+  MEMBER_JOINED: "People waiting to join",
   SUBSCRIPTION: "Things I follow",
 };
 
@@ -117,6 +122,7 @@ export const NOTIFICATION_TYPE_DESCRIPTIONS: Record<NotificationType, string> = 
   DUE_DATE_CHANGED: "A date on an item you own moves.",
   ITEM_LINKED: "A change reaches your item through a link.",
   TASK_BOOKED: "A task is booked through the form (admins only).",
+  MEMBER_JOINED: "Someone joins through the join link and waits for approval (admins only).",
   SUBSCRIPTION: "A change on a board or task you follow.",
 };
 

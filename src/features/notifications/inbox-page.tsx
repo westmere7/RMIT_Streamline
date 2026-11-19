@@ -1,6 +1,6 @@
 "use client";
 
-import { AtSign, Bell, BellRing, CalendarDays, CheckCheck, CircleDot, ClipboardList, Inbox, Link2, MessageSquare, Settings2, Trash2, UserPlus } from "lucide-react";
+import { AtSign, Bell, BellRing, CalendarDays, CheckCheck, CircleDot, ClipboardList, Inbox, Link2, MessageSquare, Settings2, Trash2, UserCheck, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -17,6 +17,7 @@ import { type InboxNotification, useInboxNotifications, useNotificationMutations
 import { InboxSkeleton } from "@/features/notifications/inbox-skeleton";
 import { NotificationSettingsDialog } from "@/features/notifications/notification-settings-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const TYPE_ICONS: Record<NotificationType, React.ComponentType<{ className?: string }>> = {
@@ -28,6 +29,7 @@ const TYPE_ICONS: Record<NotificationType, React.ComponentType<{ className?: str
   BOARD_INVITE: Bell,
   ITEM_LINKED: Link2,
   TASK_BOOKED: ClipboardList,
+  MEMBER_JOINED: UserCheck,
   SUBSCRIPTION: BellRing,
 };
 
@@ -63,7 +65,9 @@ export function InboxPage() {
 
   const open = (n: InboxNotification) => {
     if (n.readAt === null) markRead.mutate({ id: n.id, read: true });
-    router.push(n.entityType === "ITEM" ? ws.boardPath(n.target, { itemId: n.entityId }) : ws.boardPath(n.target));
+    // Someone waiting to join opens Members on the people waiting; the rest open their board.
+    if (!n.target) router.push(`${routes.members(ws.slug)}?status=AWAITING_APPROVAL`);
+    else router.push(n.entityType === "ITEM" ? ws.boardPath(n.target, { itemId: n.entityId }) : ws.boardPath(n.target));
   };
 
   // "You are all caught up" is the one thing this line must not say while the
@@ -197,7 +201,7 @@ export function InboxPage() {
                           {n.body && <span className="block truncate text-xs text-muted-foreground">{n.body}</span>}
                           <span className="mt-0.5 block text-2xs text-muted-foreground">
                             <RelativeTime iso={n.createdAt} />
-                            {` · ${n.target.name}`}
+                            {` · ${n.target?.name ?? "Members"}`}
                           </span>
                         </span>
                       </button>

@@ -25,6 +25,12 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     return result.data === "ok" || result.data === "denied" ? result.data : "missing";
   }
 
+  async listWaiting(): Promise<Array<{ workspaceId: string; name: string; slug: string }>> {
+    const result = await db().rpc("my_waiting_workspaces");
+    if (result.error) return [];
+    return ((result.data ?? []) as Array<{ workspace_id: string; workspace_name: string; workspace_slug: string }>).map((row) => ({ workspaceId: row.workspace_id, name: row.workspace_name, slug: row.workspace_slug }));
+  }
+
   async getBySlug(slug: string): Promise<Workspace | null> {
     const result = await db().from("workspaces").select(WORKSPACE).eq("slug", slug).maybeSingle();
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getBySlug");

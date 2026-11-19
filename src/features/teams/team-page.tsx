@@ -1,8 +1,9 @@
 "use client";
 
+import { TeamMembersEditor } from "@/features/teams/components/team-members-editor";
 import { UnavailableState } from "@/features/workspace/unavailable-state";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, FileSpreadsheet, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
+import { Archive, FileSpreadsheet, Pencil, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
@@ -11,11 +12,8 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { BoardItemCount } from "@/features/boards/board-item-count";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { SectionHeading } from "@/components/shared/page-header";
-import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CreateBoardDialog } from "@/features/boards/components/create-board-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
 import { useTrackers } from "@/features/trackers/hooks";
@@ -47,20 +45,8 @@ export function TeamPage() {
   const [createDocOpen, setCreateDocOpen] = React.useState(false);
   const docsQuery = useDocs();
   const teamDocs = (docsQuery.data ?? []).filter((d) => d.teamId === params.teamId).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  const [addOpen, setAddOpen] = React.useState(false);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
-  const addMember = useMutation({
-    mutationFn: (userId: string) => services.workspace.addTeamMember(team!.id, userId),
-    onSuccess: async (_m, userId) => {
-      await invalidate();
-      toast.success(`${ws.userById(userId)?.firstName ?? "Member"} added to ${team?.name}`);
-    },
-  });
-  const removeMember = useMutation({
-    mutationFn: (userId: string) => services.workspace.removeTeamMember(team!.id, userId),
-    onSuccess: invalidate,
-  });
   const archive = useMutation({
     mutationFn: () => services.workspace.archiveTeam(team!.id, true),
     onSuccess: async () => {
@@ -83,9 +69,7 @@ export function TeamPage() {
   }
 
   const manage = canManageTeam(ws.permissions, team.id);
-  const members = ws.teamMembers.filter((m) => m.teamId === team.id).map((m) => ({ membership: m, user: ws.userById(m.userId) }));
   const boards = ws.boardsForTeam(team.id).filter((b) => canViewBoard(ws.permissions, b));
-  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.user?.id === u.id));
   const colors = colorClasses(team.color);
 
   return (
@@ -220,73 +204,7 @@ export function TeamPage() {
           </section>
 
           <section>
-            <SectionHeading
-              action={
-                manage && (
-                  <Popover open={addOpen} onOpenChange={setAddOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <Plus /> Add
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="end" className="w-64 p-0">
-                      <Command>
-                        <CommandInput placeholder="Search people…" />
-                        <CommandList>
-                          <CommandEmpty>Everyone is already in this team.</CommandEmpty>
-                          <CommandGroup>
-                            {candidates.map((user) => (
-                              <CommandItem
-                                key={user.id}
-                                value={`${user.displayName} ${user.email}`}
-                                onSelect={() => {
-                                  addMember.mutate(user.id);
-                                  setAddOpen(false);
-                                }}
-                              >
-                                <UserAvatar user={user} size="xs" tooltip={false} />
-                                <span className="truncate">{user.displayName}</span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                )
-              }
-            >
-              Members · {members.length}
-            </SectionHeading>
-            <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">
-              {members.map(({ membership, user }) => (
-                <li key={membership.id} className="group flex h-11 items-center gap-2.5 px-3 text-[13px]">
-                  <UserAvatar user={user} size="md" tooltip={false} />
-                  <span className="min-w-0 flex-1">
-                    {user ? (
-                      <Link href={routes.person(ws.slug, user.id)} className="block truncate font-medium hover:underline max-md:flex max-md:min-h-11 max-md:items-center">
-                        {user.displayName}
-                      </Link>
-                    ) : (
-                      <span className="block truncate font-medium">Unknown</span>
-                    )}
-                    <span className="block truncate text-2xs text-muted-foreground">{user?.jobTitle}</span>
-                  </span>
-                  {membership.role === "LEAD" && <Badge variant="primary">Lead</Badge>}
-                  {manage && user && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      aria-label={`Remove ${user.displayName}`}
-                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
-                      onClick={() => removeMember.mutate(user.id)}
-                    >
-                      {membership.role === "LEAD" ? <UserMinus /> : <X />}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <TeamMembersEditor team={team} heading={(add, count) => <SectionHeading action={add}>Members · {count}</SectionHeading>} />
           </section>
         </div>
       </div>

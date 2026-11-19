@@ -409,8 +409,12 @@ export async function previewInvitation(token: string): Promise<InvitationPrevie
   return (await resolveToken(getSupabaseAdminClient(), token)).preview;
 }
 
-/** Sets the password and profile, activates the membership and burns the token. */
-export async function completeOnboarding(token: string, input: z.infer<typeof completeSchema>): Promise<{ email: string; userId: string }> {
+/**
+ * Sets the password and profile, activates the membership and burns the token.
+ * A link the join link made activates nothing: the person waits as
+ * AWAITING_APPROVAL and the workspace's admins are told (migration 0122).
+ */
+export async function completeOnboarding(token: string, input: z.infer<typeof completeSchema>): Promise<{ email: string; userId: string; waiting: boolean }> {
   const admin = getSupabaseAdminClient();
   const { preview, resolved } = await resolveToken(admin, token);
   if (!resolved) throw new HttpError(410, invitationStatusMessage(preview.status));
@@ -436,7 +440,8 @@ export async function completeOnboarding(token: string, input: z.infer<typeof co
     .eq("id", profile.id);
   if (updatedProfile.error) fail("profiles.update", updatedProfile.error);
 
-  const activated = await admin.from("workspace_members").update({ status: "ACTIVE", joined_at: now }).eq("id", member.id);
+  const waiting = invitation.needsApproval === true;
+  const activated = await admin.from("workspace_members").update({ status: waiting ? "AWAITING_APPROVAL" : "ACTIVE", joined_at: now }).eq("id", member.id);
   if (activated.error) fail("workspace_members.activate", activated.error);
 
   const burned = await admin.from("workspace_invitations").update({ accepted_at: now }).eq("id", invitation.id);
@@ -450,5 +455,36 @@ export async function completeOnboarding(token: string, input: z.infer<typeof co
   const revived = await admin.from("profiles").update({ deactivated_at: null }).eq("id", profile.id).not("deactivated_at", "is", null);
   if (revived.error) fail("profiles.reactivate", revived.error);
 
-  return { email: profile.email, userId: profile.id };
+  if (waiting) await notifyAdminsOfJoiner(admin, invitation.workspaceId, profile.id, displayName);
+  return { email: profile.email, userId: profile.id, waiting };
+}
+
+/**
+ * Tells the workspace's admins that someone joined and is waiting for them,
+ * as each has chosen (Notification settings → People waiting to join).
+ * Best effort: the person has joined either way, and Members lists them.
+ */
+async function notifyAdminsOfJoiner(admin: Admin, workspaceId: string, userId: string, displayName: string): Promise<void> {
+  const admins = await admin.from("workspace_members").select("user_id").eq("workspace_id", workspaceId).eq("status", "ACTIVE").in("role", ["OWNER", "ADMIN"]);
+  if (admins.error) return;
+  const ids = ((admins.data ?? []) as Array<{ user_id: string }>).map((row) => row.user_id);
+  if (ids.length === 0) return;
+  const prefs = await admin.from("notification_preferences").select("user_id, types").in("user_id", ids);
+  const chosen = new Map(((prefs.data ?? []) as Array<{ user_id: string; types: Record<string, string> | null }>).map((row) => [row.user_id, row.types?.MEMBER_JOINED]));
+  const rows = ids
+    .map((id) => ({ id, delivery: chosen.get(id) ?? "NOTIFICATION" }))
+    .filter((row) => row.delivery !== "OFF")
+    .map((row) => ({
+      user_id: row.id,
+      workspace_id: workspaceId,
+      type: "MEMBER_JOINED",
+      delivery: row.delivery === "UPDATE" ? "UPDATE" : "NOTIFICATION",
+      title: `${displayName} joined and is waiting for approval`,
+      body: "Approve them in Members to let them in.",
+      entity_type: "USER",
+      entity_id: userId,
+      board_id: null,
+      actor_id: userId,
+    }));
+  if (rows.length) await admin.from("notifications").insert(rows);
 }

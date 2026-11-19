@@ -27,9 +27,47 @@ describe("the workspace join link", () => {
     const invitation = (await services.repos.onboarding.listInvitations(SEED_WORKSPACE_ID)).find((i) => i.token === token)!;
     expect(invitation.createdBy).toBe(SEED_USER_IDS.danh);
 
-    // They finish as anyone invited does.
-    await services.workspace.completeOnboarding({ token, password: "correct horse battery", firstName: "Nga", lastName: "Ma", jobTitle: "Designer" });
-    expect((await services.repos.workspaces.listMembers(SEED_WORKSPACE_ID)).find((m) => m.userId === user!.id)!.status).toBe("ACTIVE");
+    expect(invitation.needsApproval).toBe(true);
+
+    // They finish as anyone invited does, but nobody chose them yet: they wait
+    // for an admin, who is told (migration 0122).
+    const done = await services.workspace.completeOnboarding({ token, password: "correct horse battery", firstName: "Nga", lastName: "Ma", jobTitle: "Designer" });
+    expect(done.waiting).toBe(true);
+    const seat = () => services.repos.workspaces.listMembers(SEED_WORKSPACE_ID).then((members) => members.find((m) => m.userId === user!.id)!);
+    expect((await seat()).status).toBe("AWAITING_APPROVAL");
+    expect(await services.repos.workspaces.listWaiting(user!.id)).toEqual([{ workspaceId: SEED_WORKSPACE_ID, name: expect.any(String), slug: expect.any(String) }]);
+    const told = (await services.repos.notifications.listByUser(SEED_USER_IDS.danh)).filter((n) => n.type === "MEMBER_JOINED");
+    expect(told).toHaveLength(1);
+    expect(told[0]).toMatchObject({ entityType: "USER", entityId: user!.id, workspaceId: SEED_WORKSPACE_ID, boardId: null });
+    expect(told[0]!.title).toContain("Nga Ma");
+
+    // Using the join link again says so.
+    await expect(services.workspace.selfJoin({ key, email: "nga.ma@example.com", firstName: "Nga", lastName: "Ma" })).rejects.toThrow(SELF_JOIN_MESSAGES.waiting);
+
+    // An admin lets them in.
+    await services.workspace.decideJoiner((await seat()).id, user!.id, true);
+    expect((await seat()).status).toBe("ACTIVE");
+    expect(await services.repos.workspaces.listWaiting(user!.id)).toEqual([]);
+    await expect(services.workspace.decideJoiner((await seat()).id, user!.id, true)).rejects.toThrow("not waiting");
+  });
+
+  it("can turn someone waiting away, as a deactivation", async () => {
+    const services = await setup("decline");
+    const key = (await services.workspace.setJoinLink(SEED_WORKSPACE_ID, true)).joinKey!;
+    const { token } = await services.workspace.selfJoin({ key, email: "no.thanks@example.com", firstName: "No", lastName: "Thanks" });
+    await services.workspace.completeOnboarding({ token, password: "correct horse battery", firstName: "No", lastName: "Thanks", jobTitle: null });
+    const user = await services.repos.users.getByEmail("no.thanks@example.com");
+    const seat = (await services.repos.workspaces.listMembers(SEED_WORKSPACE_ID)).find((m) => m.userId === user!.id)!;
+    await services.workspace.decideJoiner(seat.id, user!.id, false);
+    expect((await services.repos.workspaces.listMembers(SEED_WORKSPACE_ID)).find((m) => m.userId === user!.id)!.status).toBe("DEACTIVATED");
+  });
+
+  it("lets in at once someone an admin added, as before", async () => {
+    const services = await setup("added");
+    const { invitation, user } = await services.workspace.inviteMember({ workspaceId: SEED_WORKSPACE_ID, invitedBy: SEED_USER_IDS.danh, email: "chosen@example.com", firstName: "Chosen", lastName: "One", jobTitle: null, role: "MEMBER", teamIds: [] });
+    const done = await services.workspace.completeOnboarding({ token: invitation!.token, password: "correct horse battery", firstName: "Chosen", lastName: "One", jobTitle: null });
+    expect(done.waiting).toBe(false);
+    expect((await services.repos.workspaces.listMembers(SEED_WORKSPACE_ID)).find((m) => m.userId === user.id)!.status).toBe("ACTIVE");
   });
 
   it("turns away an email it already knows, saying what to do instead", async () => {

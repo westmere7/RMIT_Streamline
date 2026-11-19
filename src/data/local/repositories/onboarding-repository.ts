@@ -153,13 +153,15 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     const known = await db.getFromIndex("users", "byEmail", email);
     if (known) {
       const member = memberships.find((m) => m.userId === known.id);
-      throw new Error(SELF_JOIN_MESSAGES[member?.status === "ACTIVE" ? "member" : member ? "pending" : "known"]);
+      throw new Error(SELF_JOIN_MESSAGES[member?.status === "ACTIVE" ? "member" : member?.status === "AWAITING_APPROVAL" ? "waiting" : member ? "pending" : "known"]);
     }
     // Recorded as added by the workspace's owner: the link is theirs to hand out.
     const owner = memberships.find((m) => m.role === "OWNER" && m.status === "ACTIVE") ?? memberships.find((m) => m.role === "OWNER");
     const result = await this.invite({ workspaceId: workspace.id, invitedBy: owner?.userId ?? "", email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
     // Only a brand-new email reaches this far, and a new person always gets a link.
     if (!result.invitation) throw new Error(SELF_JOIN_MESSAGES.known);
+    // Nobody chose this person yet: finishing the link leaves them waiting for an admin.
+    await db.put("workspaceInvitations", { ...result.invitation, needsApproval: true });
     return { token: result.invitation.token };
   }
 
@@ -287,7 +289,7 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     };
   }
 
-  async complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: string }> {
+  async complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: string; waiting: boolean }> {
     const db = await this.conn.getDb();
     const invitation = (await db.getFromIndex("workspaceInvitations", "byToken", input.token)) ?? null;
     const status = invitationStatus(invitation);
@@ -319,18 +321,39 @@ export class LocalOnboardingRepository implements OnboardingRepository {
       updatedAt: now,
     };
 
-    const tx = db.transaction(["users", "workspaceMembers", "workspaceInvitations", "credentials"], "readwrite");
+    // A link the join link made lets nobody in: they wait for an admin, who is told.
+    const waiting = invitation.needsApproval === true;
+    const tx = db.transaction(["users", "workspaceMembers", "workspaceInvitations", "credentials", "notifications"], "readwrite");
     // Joined now: an account switched off while they were pending is back on.
     await tx.objectStore("users").put({ ...updatedUser, deactivatedAt: null });
     await tx.objectStore("credentials").put({ userId: user.id, salt, hash, createdAt: now });
-    await tx.objectStore("workspaceMembers").put({ ...member, status: "ACTIVE", joinedAt: now });
+    await tx.objectStore("workspaceMembers").put({ ...member, status: waiting ? "AWAITING_APPROVAL" : "ACTIVE", joinedAt: now });
+    if (waiting) {
+      for (const seat of members.filter((m) => m.status === "ACTIVE" && (m.role === "OWNER" || m.role === "ADMIN"))) {
+        await tx.objectStore("notifications").put({
+          id: newId(),
+          userId: seat.userId,
+          workspaceId: invitation.workspaceId,
+          type: "MEMBER_JOINED",
+          delivery: "NOTIFICATION",
+          title: `${updatedUser.displayName} joined and is waiting for approval`,
+          body: "Approve them in Members to let them in.",
+          entityType: "USER",
+          entityId: user.id,
+          boardId: null,
+          actorId: user.id,
+          readAt: null,
+          createdAt: now,
+        });
+      }
+    }
     await tx.objectStore("workspaceInvitations").put({ ...invitation, acceptedAt: now });
     // Every other link they still have, in any workspace, would set the password again.
     for (const other of await tx.objectStore("workspaceInvitations").index("byUser").getAll(user.id)) {
       if (other.id !== invitation.id && invitationStatus(other) === "PENDING") await tx.objectStore("workspaceInvitations").put({ ...other, revokedAt: now });
     }
     await tx.done;
-    return { email: user.email, userId: user.id };
+    return { email: user.email, userId: user.id, waiting };
   }
 
   /** Used by LocalAuthProvider: whether a password set through onboarding matches. Null when none is stored. */

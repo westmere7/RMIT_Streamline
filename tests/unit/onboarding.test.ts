@@ -111,7 +111,7 @@ describe("onboarding through the local store", () => {
 
     // Completing sets the password, tidies the profile and activates the membership.
     const result = await services.workspace.completeOnboarding({ token: invitation!.token, password: "correct horse battery", firstName: "Samuel", lastName: "Rivera", jobTitle: "Senior Producer" });
-    expect(result).toEqual({ email: user.email, userId: user.id });
+    expect(result).toEqual({ email: user.email, userId: user.id, waiting: false });
 
     const updated = await repos.users.getById(user.id);
     expect(updated).toMatchObject({ firstName: "Samuel", displayName: "Samuel Rivera", jobTitle: "Senior Producer" });

@@ -51,7 +51,7 @@ export class SupabaseOnboardingRepository implements OnboardingRepository {
     return callApi<InvitationPreview>(`/api/join/${encodeURIComponent(token)}`, { method: "GET" }, { auth: "none" });
   }
 
-  async complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: string }> {
+  async complete(input: CompleteOnboardingInput): Promise<{ email: string; userId: string; waiting?: boolean }> {
     const { token, ...body } = input;
     return callApi<{ email: string; userId: string }>(`/api/join/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify(body) }, { auth: "none" });
   }

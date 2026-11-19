@@ -8,7 +8,11 @@ import { Controller, useForm, type Control } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ColorPicker } from "@/components/shared/color-picker";
+import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { IconPicker } from "@/components/shared/icon-picker";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { colorClasses } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -21,6 +25,7 @@ import { useCurrentUser } from "@/features/auth/auth-context";
 import { BookingBoardSetting } from "@/features/booking/booking-board-setting";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { TeamMembersEditor } from "@/features/teams/components/team-members-editor";
 import { canEditTeamAccess } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
@@ -121,7 +126,11 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
         <form id="team-form" className="grid gap-4" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
           <div className="grid gap-1.5">
             <Label htmlFor="team-name">Team name</Label>
-            <Input id="team-name" autoFocus placeholder="e.g. Motion" {...form.register("name")} aria-invalid={!!form.formState.errors.name} />
+            {/* Its colour and icon, as one small picker beside the name: a team's look is a glance, not a panel. */}
+            <div className="flex items-center gap-2">
+              <TeamLookPicker control={form.control} />
+              <Input id="team-name" autoFocus placeholder="e.g. Motion" {...form.register("name")} aria-invalid={!!form.formState.errors.name} />
+            </div>
             {form.formState.errors.name && <p className="text-2xs text-destructive">{form.formState.errors.name.message}</p>}
           </div>
           <div className="grid gap-1.5">
@@ -135,15 +144,21 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
             />
             {form.formState.errors.description && <p className="text-2xs text-destructive">{form.formState.errors.description.message}</p>}
           </div>
-          <div className="grid gap-1.5">
-            <Label>Colour</Label>
-            <Controller control={form.control} name="color" render={({ field }) => <ColorPicker value={field.value} onChange={field.onChange} />} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Icon</Label>
-            <Controller control={form.control} name="icon" render={({ field }) => <IconPicker value={field.value} onChange={field.onChange} className="grid-cols-11" />} />
-          </div>
           {access && <BoardAccessFields control={form.control} />}
+          {/* Who is on it, here as well as on the team's page; saved as each change is made. */}
+          {team && (
+            <div className="grid gap-1.5" data-testid="team-dialog-members">
+              <TeamMembersEditor
+                team={team}
+                heading={(add, count) => (
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>Members · {count}</Label>
+                    {add}
+                  </div>
+                )}
+              />
+            </div>
+          )}
           {team && !team.system && (
             <Controller control={form.control} name="bookingBoardId" render={({ field }) => <BookingBoardSetting team={team} value={field.value} onChange={field.onChange} />} />
           )}
@@ -168,7 +183,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
  */
 function BoardAccessFields({ control }: { control: Control<FormValues> }) {
   return (
-    <div className="grid gap-3 rounded-lg border border-border/70 p-3" data-testid="team-board-access">
+    <div className="grid gap-4" data-testid="team-board-access">
       <div className="grid gap-1.5">
         <Label htmlFor="team-board-visibility">Who sees its boards</Label>
         <Controller
@@ -201,5 +216,42 @@ function BoardAccessFields({ control }: { control: Control<FormValues> }) {
         )}
       />
     </div>
+  );
+}
+
+/** The team's colour and icon: shown as the icon on its colour, picked in a small popover. */
+function TeamLookPicker({ control }: { control: Control<FormValues> }) {
+  return (
+    <Controller
+      control={control}
+      name="color"
+      render={({ field: color }) => (
+        <Controller
+          control={control}
+          name="icon"
+          render={({ field: icon }) => (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Colour and icon"
+                  title="Colour and icon"
+                  className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg text-white transition-[box-shadow] hover:ring-2 hover:ring-ring/50 focus-visible:ring-2 focus-visible:ring-ring", colorClasses(color.value).solid)}
+                  data-testid="team-look"
+                >
+                  <DynamicIcon name={icon.value} className="size-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 space-y-3 p-3">
+                <ColorPicker value={color.value} onChange={color.onChange} />
+                <div className="scrollbar-thin max-h-52 overflow-y-auto">
+                  <IconPicker value={icon.value} onChange={icon.onChange} />
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        />
+      )}
+    />
   );
 }

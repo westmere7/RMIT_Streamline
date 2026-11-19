@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.115.0",
+    date: "2026-11-19",
+    title: "Approving new members",
+    changes: [
+      "People who join through the workspace join link now wait for an admin: they see a waiting screen until approved, admins get an inbox item, and Members shows them with Approve (Decline in the row menu). People an admin adds are let in as before.",
+      "Edit team lists the team's members to add and remove, and its colour and icon are one small picker beside the name. The board access settings sit in the dialog without a box.",
+      "Being added to a team shows its boards, trackers and docs at once, without a refresh.",
+    ],
+  },
+  {
     version: "0.114.1",
     date: "2026-11-19",
     title: "Team access, follow-ups",

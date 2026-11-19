@@ -36,7 +36,7 @@ export function SelfJoinScreen({ joinKey }: { joinKey: string }) {
   return (
     <AuthShell
       headline="Join the team."
-      lead="Tell us who you are. Next you set a password, and you are in."
+      lead="Tell us who you are. Next you set a password, then an admin lets you in."
       footnote="From brief to report, in one place."
       cardTestId="self-join-card"
       progress={preview.isLoading}

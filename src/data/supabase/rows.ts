@@ -179,9 +179,10 @@ export interface WorkspaceInvitationRow {
   expires_at: string;
   accepted_at: string | null;
   revoked_at: string | null;
+  needs_approval?: boolean | null;
 }
 
-export const INVITATION_COLUMNS = "id, workspace_id, user_id, token, created_by, created_at, expires_at, accepted_at, revoked_at";
+export const INVITATION_COLUMNS = "id, workspace_id, user_id, token, created_by, created_at, expires_at, accepted_at, revoked_at, needs_approval";
 
 export function toWorkspaceInvitation(row: WorkspaceInvitationRow): WorkspaceInvitation {
   return {
@@ -194,6 +195,7 @@ export function toWorkspaceInvitation(row: WorkspaceInvitationRow): WorkspaceInv
     expiresAt: row.expires_at,
     acceptedAt: row.accepted_at,
     revokedAt: row.revoked_at,
+    needsApproval: row.needs_approval === true,
   };
 }
 

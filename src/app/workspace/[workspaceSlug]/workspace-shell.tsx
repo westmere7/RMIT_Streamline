@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { renderPersonCard } from "@/features/members/person-card";
+import { WaitingScreen, useWaitingWorkspaces } from "@/features/workspace/waiting-screen";
 import { WorkspaceProvider } from "@/features/workspace/workspace-context";
 import { rememberWorkspace } from "@/features/workspace/workspaces";
 import { queryKeys } from "@/lib/query/keys";
@@ -43,6 +44,11 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   // The workspace to come back to next time: this one, once it has let them in.
   const admitted = membershipQuery.data?.status === "ACTIVE";
+  // Someone who joined through the join link and is not let in yet can read
+  // nothing here, the workspace included; this says whether that is why.
+  const shut = workspaceQuery.data === null || (!!membershipQuery.data && membershipQuery.data.status !== "ACTIVE") || membershipQuery.data === null;
+  const waiting = useWaitingWorkspaces(status === "signed-in" && shut);
+  const waitingHere = waiting.data?.find((w) => w.slug === slug) ?? null;
   useEffect(() => {
     if (admitted) rememberWorkspace(slug);
   }, [admitted, slug]);
@@ -50,6 +56,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   if (status === "loading" || status === "signed-out" || !user) return <FullPageLoader label="Checking your session…" />;
   if (workspaceQuery.isLoading) return <FullPageLoader label="Opening workspace…" />;
   if (workspaceQuery.isError) return <ErrorState title="Could not load this workspace." error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />;
+
+  if (shut && waiting.isLoading) return <FullPageLoader label="Opening workspace…" />;
+  if (waitingHere) return <WaitingScreen workspaceName={waitingHere.name} workspaceId={waitingHere.workspaceId} />;
 
   const workspace = workspaceQuery.data;
   if (!workspace) {

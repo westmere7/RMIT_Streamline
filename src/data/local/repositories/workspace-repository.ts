@@ -83,6 +83,17 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
     return row && row.workspaceId === workspaceId ? "denied" : "missing";
   }
 
+  async listWaiting(userId: string): Promise<Array<{ workspaceId: string; name: string; slug: string }>> {
+    const db = await this.conn.getDb();
+    const seats = (await db.getAll("workspaceMembers")).filter((m) => m.userId === userId && m.status === "AWAITING_APPROVAL");
+    const out: Array<{ workspaceId: string; name: string; slug: string }> = [];
+    for (const seat of seats) {
+      const workspace = await db.get("workspaces", seat.workspaceId);
+      if (workspace) out.push({ workspaceId: workspace.id, name: workspace.name, slug: workspace.slug });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
   async getBySlug(slug: string): Promise<Workspace | null> {
     const db = await this.conn.getDb();
     return (await db.getFromIndex("workspaces", "bySlug", slug)) ?? null;

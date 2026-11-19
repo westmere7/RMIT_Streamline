@@ -52,8 +52,11 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
       { table: "teams", filter: ws, keys: [context, ["teams"]] },
       // No workspace column on either — both hang off a team or a board — so
       // RLS is what scopes them.
-      { table: "team_members", keys: [context] },
-      { table: "board_members", keys: [queryKeys.boardMembersAll(workspaceId), ["board-members"]] },
+      // Joining or leaving a team, or a board, changes which boards (and, for
+      // a team kept to itself, which trackers and docs) this person may read:
+      // rows they could not read before are not in hand until read again.
+      { table: "team_members", keys: [context, queryKeys.boards(workspaceId), queryKeys.trackers(workspaceId), queryKeys.docs(workspaceId)] },
+      { table: "board_members", keys: [queryKeys.boardMembersAll(workspaceId), ["board-members"], queryKeys.boards(workspaceId)] },
       { table: "boards", filter: ws, keys: [queryKeys.boards(workspaceId), context] },
       { table: "board_favourites", filter: me, keys: [queryKeys.favourites(userId)] },
       // The workspace's vocabulary: asset types, stakeholder groups. Renaming

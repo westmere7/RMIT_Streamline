@@ -64,9 +64,9 @@ import { cn } from "@/lib/utils";
 const ROLE_LABEL: Record<WorkspaceRole, string> = { OWNER: "Owner", ADMIN: "Admin", MEMBER: "Member", GUEST: "Guest" };
 /** The roles a workspace hands out. Owner is not one: Owners are made from their own menu entry, and are Owners of every workspace. */
 const ASSIGNABLE_ROLES = WORKSPACE_ROLES.filter((role): role is Exclude<WorkspaceRole, "OWNER"> => role !== "OWNER");
-const STATUS_LABEL: Record<WorkspaceMember["status"], string> = { ACTIVE: "Active", INVITED: "Pending onboarding", DEACTIVATED: "Deactivated" };
+const STATUS_LABEL: Record<WorkspaceMember["status"], string> = { ACTIVE: "Active", INVITED: "Pending onboarding", AWAITING_APPROVAL: "Waiting for approval", DEACTIVATED: "Deactivated" };
 /** Status sort order: active people first, then people still onboarding, then deactivated. */
-const STATUS_ORDER: WorkspaceMember["status"][] = ["ACTIVE", "INVITED", "DEACTIVATED"];
+const STATUS_ORDER: WorkspaceMember["status"][] = ["AWAITING_APPROVAL", "ACTIVE", "INVITED", "DEACTIVATED"];
 const NO_TEAM = "__none__";
 
 /** Beyond this many members the list is split into pages. */
@@ -141,8 +141,45 @@ function joinedLabel(member: WorkspaceMember): string {
  * Only the exceptions get a chip. Nearly everyone is active, so a green chip on
  * every row said nothing; pending and deactivated people stand out instead.
  */
-function StatusChip({ member, invitation }: { member: WorkspaceMember; invitation: WorkspaceInvitation | null }) {
+/**
+ * Letting in someone who joined through the join link, or turning them away
+ * (declined, they are deactivated, and can be reactivated later).
+ */
+function useDecideJoiner(member: WorkspaceMember, firstName: string) {
+  const ws = useWorkspace();
+  const services = useServices();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (approve: boolean) => services.workspace.decideJoiner(member.id, member.userId, approve),
+    onSuccess: async (_r, approve) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
+      toast.success(approve ? `${firstName} is in` : `${firstName} was turned away`);
+    },
+    onError: (error) => toast.error(error instanceof Error && error.message ? error.message : `Could not decide on ${firstName}`),
+  });
+}
+
+/** Someone waiting to be let in: the one thing to do about them, on their row. */
+function ApproveButton({ member, firstName }: { member: WorkspaceMember; firstName: string }) {
+  const decide = useDecideJoiner(member, firstName);
+  return (
+    <Button size="sm" className="h-7 px-2.5" disabled={decide.isPending} onClick={() => decide.mutate(true)} data-testid="member-approve">
+      Approve
+    </Button>
+  );
+}
+
+function StatusChip({ member, invitation, manage = false, firstName = "" }: { member: WorkspaceMember; invitation: WorkspaceInvitation | null; manage?: boolean; firstName?: string }) {
   if (member.status === "ACTIVE") return null;
+  if (member.status === "AWAITING_APPROVAL") {
+    return manage ? (
+      <ApproveButton member={member} firstName={firstName} />
+    ) : (
+      <Badge variant="warning" data-testid="member-status">
+        Waiting
+      </Badge>
+    );
+  }
   if (member.status === "DEACTIVATED") {
     return (
       <Badge variant="muted" data-testid="member-status">
@@ -177,7 +214,11 @@ export function MembersPage() {
   const ws = useWorkspace();
   const searchParams = useSearchParams();
   const [query, setQuery] = React.useState(searchParams.get("q") ?? "");
-  const [statuses, setStatuses] = React.useState<Set<WorkspaceMember["status"]>>(new Set());
+  // ?status=AWAITING_APPROVAL, from the inbox item about someone waiting to join.
+  const [statuses, setStatuses] = React.useState<Set<WorkspaceMember["status"]>>(() => {
+    const asked = searchParams.get("status");
+    return new Set(asked && asked in STATUS_LABEL ? [asked as WorkspaceMember["status"]] : []);
+  });
   const [roles, setRoles] = React.useState<Set<WorkspaceRole>>(new Set());
   const [teamFilter, setTeamFilter] = React.useState<string | null>(null);
   const [sort, setSort] = React.useState<Sort>({ key: "name", direction: "asc" });
@@ -283,6 +324,7 @@ export function MembersPage() {
 
   const activeCount = ws.members.filter((m) => m.status === "ACTIVE").length;
   const pendingCount = ws.members.filter((m) => m.status === "INVITED").length;
+  const waitingCount = ws.members.filter((m) => m.status === "AWAITING_APPROVAL").length;
   const liveTeams = ws.teams.filter((t) => t.archivedAt === null).sort((a, b) => a.name.localeCompare(b.name));
   const allOnPageSelected = pageRows.length > 0 && pageRows.every((r) => selected.has(r.member.id));
   const someOnPageSelected = pageRows.some((r) => selected.has(r.member.id));
@@ -297,6 +339,7 @@ export function MembersPage() {
           <span data-testid="members-summary">
             {activeCount} active {activeCount === 1 ? "member" : "members"}
             {pendingCount > 0 && ` · ${pendingCount} pending onboarding`}
+            {waitingCount > 0 && ` · ${waitingCount} waiting for approval`}
           </span>
         }
         actions={
@@ -765,7 +808,7 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
         <HoursCell member={member} name={user.firstName || user.displayName} editable={manage && member.status !== "DEACTIVATED"} />
       </td>
       <td className="px-3">
-        <StatusChip member={member} invitation={invitation} />
+        <StatusChip member={member} invitation={invitation} manage={manage} firstName={user.firstName || user.displayName} />
       </td>
       <td className="truncate px-3 tabular">
         {/* The Pending chip already says it is an invitation, so the date alone, muted. */}
@@ -883,7 +926,7 @@ function MobileMemberCard({ row, manage, invitation }: { row: Row; manage: boole
           </span>
           <span className="block truncate text-[13px] text-muted-foreground">{[user.jobTitle ?? user.email, department].filter(Boolean).join(" · ")}</span>
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <StatusChip member={member} invitation={invitation} />
+            <StatusChip member={member} invitation={invitation} manage={manage} firstName={user.firstName || user.displayName} />
             <Badge variant="outline">{ROLE_LABEL[member.role]}</Badge>
             {teams.map((t) => (
               <Badge key={t.id} variant="muted">
@@ -1066,6 +1109,8 @@ function MemberActions({ row: { member, user, teams, workspaces }, invitation, c
     },
     onError: refused(`Could not remove ${user.firstName}`),
   });
+  const decide = useDecideJoiner(member, user.firstName || user.displayName);
+  const awaiting = member.status === "AWAITING_APPROVAL";
   const setActive = useMutation({
     mutationFn: (active: boolean) => services.workspace.setMemberActive(member.id, user.id, active),
     onSuccess: async (_r, active) => {
@@ -1080,6 +1125,18 @@ function MemberActions({ row: { member, user, teams, workspaces }, invitation, c
 
   const items = (k: MenuKit) => (
     <>
+      {awaiting && (
+        <>
+          <k.Label>Waiting for approval</k.Label>
+          <k.Item onSelect={() => decide.mutate(true)} data-testid="member-menu-approve">
+            Approve
+          </k.Item>
+          <k.Item variant="destructive" onSelect={() => decide.mutate(false)} data-testid="member-decline">
+            Decline
+          </k.Item>
+          <k.Separator />
+        </>
+      )}
       {pending && (
         <>
           <k.Label>Invitation</k.Label>
@@ -1139,7 +1196,7 @@ function MemberActions({ row: { member, user, teams, workspaces }, invitation, c
       </k.Sub>
       <k.Separator />
       {/* Whether they can get in, and every way out: the ways out last, from least to most. */}
-      {pending ? (
+      {awaiting ? null : pending ? (
         <k.Item variant="destructive" onSelect={() => setConfirmCancel(true)} data-testid="cancel-invitation">
           Cancel invitation
         </k.Item>

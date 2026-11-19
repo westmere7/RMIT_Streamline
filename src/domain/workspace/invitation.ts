@@ -21,6 +21,8 @@ export interface WorkspaceInvitation {
   expiresAt: string;
   acceptedAt: string | null;
   revokedAt: string | null;
+  /** Made by the workspace's join link: finishing it leaves the person waiting for an admin (migration 0122). */
+  needsApproval?: boolean;
 }
 
 /** How long a freshly generated link stays usable. */
@@ -127,12 +129,13 @@ export interface SelfJoinInput {
  * that already has a password, would let anybody who knows a colleague's
  * address set theirs.
  */
-export type SelfJoinRefusal = "off" | "member" | "pending" | "known";
+export type SelfJoinRefusal = "off" | "member" | "pending" | "waiting" | "known";
 
 export const SELF_JOIN_MESSAGES: Record<SelfJoinRefusal, string> = {
   off: "This join link is not working any more. Ask the team for the current one.",
   member: "This email already has an account here. Sign in with it instead.",
   pending: "An invitation for this email is already waiting. Ask a workspace admin for your personal join link.",
+  waiting: "You have joined already. Sign in to see whether an admin has let you in.",
   known: "This email already has a Streamline account. Ask a workspace admin to add you.",
 };
 

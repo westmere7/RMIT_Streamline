@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/features/auth/auth-context";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { useServices } from "@/features/data/data-context";
+import { useWaitingWorkspaces } from "@/features/workspace/waiting-screen";
 import { pickWorkspace } from "@/features/workspace/workspaces";
 import { routes } from "@/lib/routes";
 
@@ -25,13 +26,19 @@ export default function RootPage() {
     enabled: !!user,
   });
 
+  // Nowhere to go yet may mean waiting to be let in somewhere (joined through
+  // a join link): that workspace's page says so, and opens once approved.
+  const none = !!workspaces.data && !pickWorkspace(workspaces.data);
+  const waiting = useWaitingWorkspaces(none);
+
   useEffect(() => {
     if (status === "signed-out") router.replace(routes.login());
     else if (status === "signed-in" && workspaces.data) {
       const first = pickWorkspace(workspaces.data);
-      router.replace(first ? routes.workspace(first.slug) : routes.login());
+      if (first) router.replace(routes.workspace(first.slug));
+      else if (waiting.data) router.replace(waiting.data[0] ? routes.workspace(waiting.data[0].slug) : routes.login());
     }
-  }, [status, workspaces.data, router]);
+  }, [status, workspaces.data, waiting.data, router]);
 
   const destination = workspaces.data ? pickWorkspace(workspaces.data) : null;
   return <FullPageLoader label={status === "signed-in" ? (destination ? `Opening ${destination.name}…` : "Opening workspace…") : "Checking your session…"} />;
