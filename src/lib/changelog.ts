@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.117.1",
+    date: "2026-11-19",
+    title: "Tracker beside Block",
+    changes: [
+      "On a task's Assets tab, Tracker sits beside Block to keep the assets in a tracker sheet; the dashed prompt above the list is gone.",
+    ],
+  },
+  {
     version: "0.117.0",
     date: "2026-11-19",
     title: "Recently visited tasks",

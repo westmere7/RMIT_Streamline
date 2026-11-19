@@ -7,7 +7,7 @@ import { groupAssetBlocks } from "@/domain";
 import { AssetComposer } from "@/features/assets/asset-composer";
 import { copyOfAssetLine, useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
 import { MyAssetsStrip, MyAssetsToggle } from "@/features/items/my-assets-filter";
-import { ItemTrackerSheet } from "@/features/items/item-tracker-sheet";
+import { ItemTrackerSheet, UseTrackerSheetButton } from "@/features/items/item-tracker-sheet";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
@@ -80,6 +80,12 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
           onlyMine ? (
             <>
               <MyAssetsStrip shown={mineAll.length} total={all.length} onShowAll={() => setOnlyMine(false)} />
+              {toggle}
+            </>
+          ) : canEdit && sheetLines.length === 0 ? (
+            <>
+              {/* Beside Block: keep the assets in a tracker sheet instead. Only while there is none. */}
+              <UseTrackerSheetButton item={item} />
               {toggle}
             </>
           ) : (

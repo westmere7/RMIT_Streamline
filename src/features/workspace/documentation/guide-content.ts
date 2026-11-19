@@ -380,7 +380,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Reorder lines into production order.",
         "Tick each line off when it is delivered, checking the quantity delivered.",
       ] },
-      { title: "Long lists in a tracker sheet", paragraphs: ["A task with many deliverables can keep them in a tracker sheet instead: choose Use a tracker sheet on its Assets tab. The sheet's rows then appear in their own section above the task's own lines, counted the same way. Tick them off here or in the sheet; change anything else in the sheet, from Open sheet. See Trackers and spreadsheet files."] },
+      { title: "Long lists in a tracker sheet", paragraphs: ["A task with many deliverables can keep them in a tracker sheet instead: choose Tracker, beside Block, on its Assets tab. The sheet's rows then appear in their own section above the task's own lines, counted the same way. Tick them off here or in the sheet; change anything else in the sheet, from Open sheet. See Trackers and spreadsheet files."] },
       { title: "Your part", paragraphs: ["When any line on a task is yours, To-do beside Block narrows the list to just those lines, and Only yours shows how many of the task's lines are showing. Press To-do again or Show all to see every line. Adding is off while the list is narrowed."] },
       { title: "Owners and the PIC", paragraphs: ["Putting someone in charge of a line adds them to the task's PIC. Board settings → Assets turns that off, or turns on removing them again once they have no lines left. Removal only takes off people it added: anyone put on the PIC by hand stays."] },
       { title: "The recap", paragraphs: ["The Assets recap summarises the deliverables: how many are done, the total quantity, what is overdue, and who owns them. A line without a quantity counts as one. Done lines are left out of overdue and next due. To change the recap, change the deliverables."] },
@@ -661,7 +661,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "Two people can edit one sheet at once: each person's changes are merged into the other's as they save, cell by cell.",
       ] },
       { title: "Track a task's assets in a sheet", steps: [
-        "Open the sheet and choose Use for a task, or choose Use a tracker sheet on the task's Assets tab.",
+        "Open the sheet and choose Use for a task, or choose Tracker, beside Block, on the task's Assets tab.",
         "Pick the task. A sheet holds one task's assets, and a task takes its assets from one sheet.",
         "Check the columns, each shown with its letter: which names each asset, and which give its type, quantity, PIC, due date, and whether it is done. Any column can play any part, but only one column plays each. Spec and link columns are copied onto each asset; drag the spec columns into the order they should read, and add a divider or a line break between them.",
         "Where the sheet has no column for a part, choose New column in that part’s list and one is made for it. Or give a column its part from its header menu, under Asset role. Picking a part another column has moves it. If some of the column's cells cannot be read that way, such as text in a Due date column, you are warned first: those assets get nothing from them, and the sheet keeps them.",

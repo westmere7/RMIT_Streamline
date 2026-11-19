@@ -31,33 +31,47 @@ import { cn } from "@/lib/utils";
 export function ItemTrackerSheet({ item, lines, canEdit, filtered = false }: { item: Item; lines: ItemAsset[]; canEdit: boolean; filtered?: boolean }) {
   const linked = useItemTrackerSheet(item.id);
   const sheet = linked.data ?? null;
-  const [picking, setPicking] = React.useState(false);
   const [settings, setSettings] = React.useState<TrackerSheet | null>(null);
 
   if (linked.isLoading) return null;
   // Under To-do, a sheet with none of the viewer's lines is left out rather than shown empty.
   if (filtered && lines.length === 0) return null;
+  // No sheet and no lines: nothing to show here; Tracker, beside Block, picks one.
   // Lines shared in from a linked task's sheet still show, under their own sheet.
-  if (!sheet && lines.length === 0) {
-    if (!canEdit) return null;
-    return (
-      <>
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-[13px] text-muted-foreground" data-testid="tracker-sheet-empty">
-          <FileSpreadsheet className="size-4 shrink-0" aria-hidden />
-          <span className="min-w-0 flex-1">Keep this task&rsquo;s assets in a tracker sheet instead.</span>
-          <Button size="sm" variant="outline" onClick={() => setPicking(true)} data-testid="use-tracker-sheet">
-            Use a tracker sheet
-          </Button>
-        </div>
-        <PickSheetDialog open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} />
-        {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} />}
-      </>
-    );
-  }
+  if (!sheet && lines.length === 0) return null;
   return (
     <>
       <SheetSection item={item} sheet={sheet} lines={lines} canEdit={canEdit} onSettings={sheet ? () => setSettings(sheet) : null} />
       {settings && <TaskAssetsDialog sheet={settings} open onOpenChange={(open) => !open && setSettings(null)} />}
+    </>
+  );
+}
+
+/**
+ * Keeping the task's assets in a tracker sheet instead: a button beside Block
+ * on the Assets tab, picking the sheet and opening its asset settings. Nothing
+ * once the task has one.
+ */
+export function UseTrackerSheetButton({ item, disabled }: { item: Item; disabled?: boolean }) {
+  const linked = useItemTrackerSheet(item.id);
+  const [picking, setPicking] = React.useState(false);
+  const [settings, setSettings] = React.useState<TrackerSheet | null>(null);
+  if (linked.isLoading || linked.data) return null;
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        className="h-auto shrink-0 self-stretch rounded-xl px-3 shadow-xs"
+        onClick={() => setPicking(true)}
+        disabled={disabled}
+        title="Keep this task's assets in a tracker sheet"
+        data-testid="use-tracker-sheet"
+      >
+        <FileSpreadsheet /> Tracker
+      </Button>
+      <PickSheetDialog open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} />
+      {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} />}
     </>
   );
 }
