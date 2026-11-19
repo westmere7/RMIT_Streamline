@@ -77,6 +77,16 @@ describe("the stakeholder portal", () => {
     expect(admin.departments.some((row) => row.requests > 0)).toBe(true);
   });
 
+  // Home's two links: the token and which doors serve, nothing else.
+  it("gives Home the token and whether each link is serving", async () => {
+    expect(await services.portals.links(WS)).toBeNull();
+    const { portal } = await twoDepartments();
+    const links = await services.portals.links(WS);
+    expect(links).toEqual({ token: portal.token, enabled: portal.enabled, allowBooking: portal.allowBooking });
+    await services.portals.setEnabled(WS, !portal.enabled);
+    expect((await services.portals.links(WS))!.enabled).toBe(!portal.enabled);
+  });
+
   it("keeps the stakeholder and its requests through a rename, and the link still opens", async () => {
     const { first, portal } = await twoDepartments();
     const lists = await services.lists.lists(WS);

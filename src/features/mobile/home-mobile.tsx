@@ -22,6 +22,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { NotificationPrompt } from "@/features/notifications/notification-prompt";
+import { PortalLinks } from "@/features/portal/portal-links";
 
 function greeting(now: Date): string {
   const h = now.getHours();
@@ -130,19 +131,10 @@ export function HomeMobile() {
           </>
         )}
 
-        {ws.workspace.showPortalMenu !== false && (
-          <>
-            <Heading title="Portal and Booking" href={routes.book(ws.slug)} action="Open" icon={ClipboardPen} />
-            <Link
-              href={routes.book(ws.slug)}
-              className="flex min-h-14 items-center gap-3 rounded-xl border border-border/70 bg-card px-3 py-2 active:bg-accent/70"
-            >
-              <ClipboardPen aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 text-[13px] text-muted-foreground">Ask the creative team for work.</span>
-              <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground/70" />
-            </Link>
-          </>
-        )}
+        <PortalLinks
+          heading={<Heading title="Portal and Booking" href={routes.book(ws.slug)} action="Manage" icon={ClipboardPen} />}
+          className="rounded-xl border border-border/70 bg-card p-1"
+        />
 
         <Heading title="Recent activity" icon={Clock} />
         <div className="rounded-xl border border-border/70 bg-card px-3 py-1">

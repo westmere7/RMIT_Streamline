@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.111.0",
+    date: "2026-11-19",
+    title: "Portal links on Home",
+    changes: [
+      "Home lists the Portal and the Booking form, to open or copy, with Manage going to Portal and Booking. Shown to admins and members, on the phone too.",
+    ],
+  },
+  {
     version: "0.110.7",
     date: "2026-11-19",
     title: "Form editor: lighter frame",

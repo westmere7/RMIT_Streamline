@@ -450,6 +450,18 @@ export class StakeholderPortalService {
   }
 
   /**
+   * Just the two links, for Home: the portal's token and whether each door is
+   * serving. One small read (migration 0118's function, open to admins and
+   * members alike), none of the overview's counts or columns. Null before an
+   * admin has set the portal up, and for a guest.
+   */
+  async links(workspaceId: EntityId): Promise<{ token: string; enabled: boolean; allowBooking: boolean } | null> {
+    const found = await this.repos.stakeholderPortals.getUnifiedPortalForMember(workspaceId);
+    if (!found) return null;
+    return { token: found.portal.token, enabled: found.portal.enabled, allowBooking: found.portal.allowBooking };
+  }
+
+  /**
    * The department's requests, as a board.
    *
    * Same authorisation, same projection, same allowlist as `tasks` — this only

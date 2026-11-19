@@ -29,6 +29,7 @@ import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
 import { sectionFor } from "@/services/my-work-service";
 import { NotificationPrompt } from "@/features/notifications/notification-prompt";
+import { PortalLinks } from "@/features/portal/portal-links";
 
 function greeting(now: Date): string {
   const h = now.getHours();
@@ -172,6 +173,20 @@ function HomeDesktop() {
           </div>
 
           <aside className="space-y-8">
+            <PortalLinks
+              heading={
+                <SectionHeading
+                  action={
+                    <Link href={routes.book(ws.slug)} className="flex items-center gap-1 text-2xs font-medium text-muted-foreground hover:text-foreground">
+                      Manage <ArrowRight className="size-3" />
+                    </Link>
+                  }
+                >
+                  Portal and Booking
+                </SectionHeading>
+              }
+            />
+
             <section>
               <SectionHeading>Favourites</SectionHeading>
               {favouriteBoards.length === 0 ? (
