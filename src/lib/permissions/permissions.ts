@@ -38,7 +38,9 @@ export function buildPermissionContext(input: {
     boardRoles: new Map(
       input.boardMembers.filter((m) => m.userId === input.userId).map((m) => [m.boardId, m.role] as const),
     ),
-    teamAccess: new Map((input.teams ?? []).map((team) => [team.id, { boardVisibility: team.boardVisibility, membersCanEdit: team.membersCanEdit }] as const)),
+    // Only when the teams were given: then a team missing from them is one this
+    // person may not read, which is a team kept to itself.
+    teamAccess: input.teams ? new Map(input.teams.map((team) => [team.id, { boardVisibility: team.boardVisibility, membersCanEdit: team.membersCanEdit }] as const)) : undefined,
   };
 }
 
@@ -55,7 +57,18 @@ export function canSeeTeam(ctx: PermissionContext, team: Pick<Team, "id" | "boar
 /** The same, for something filed under a team by id (a tracker, a doc). */
 export function canSeeTeamId(ctx: PermissionContext, teamId: string | null | undefined): boolean {
   if (!teamId) return true;
-  return ctx.teamAccess?.get(teamId)?.boardVisibility !== "TEAM" || isWorkspaceAdmin(ctx) || ctx.teamIds.has(teamId);
+  return teamAccessOf(ctx, teamId).boardVisibility !== "TEAM" || isWorkspaceAdmin(ctx) || ctx.teamIds.has(teamId);
+}
+
+/**
+ * A team's settings as this person knows them. With the teams known, one not
+ * among them is hidden from this person (Supabase leaves it out), so it reads
+ * as kept to itself; without them, as the default.
+ */
+function teamAccessOf(ctx: PermissionContext, teamId: string): TeamAccess {
+  const known = ctx.teamAccess?.get(teamId);
+  if (known) return known;
+  return ctx.teamAccess ? { boardVisibility: "TEAM", membersCanEdit: false } : { boardVisibility: "WORKSPACE", membersCanEdit: false };
 }
 
 /** Who may change a team's board access: workspace admins only (policies/0028's trigger). */
@@ -175,12 +188,12 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
   // otherwise; everyone else reads when the team shows its boards to the
   // workspace, and gets nothing when it keeps them to itself.
   if (board.teamId && !board.system && board.visibility !== "PRIVATE") {
-    const team = ctx.teamAccess?.get(board.teamId);
+    const team = teamAccessOf(ctx, board.teamId);
     if (ctx.teamIds.has(board.teamId)) {
-      if (team?.membersCanEdit) return "EDITOR";
+      if (team.membersCanEdit) return "EDITOR";
       if (ctx.workspaceRole !== "GUEST") return "VIEWER";
     }
-    return (team?.boardVisibility ?? "WORKSPACE") === "WORKSPACE" && ctx.workspaceRole !== "GUEST" ? "VIEWER" : null;
+    return (team.boardVisibility ?? "WORKSPACE") === "WORKSPACE" && ctx.workspaceRole !== "GUEST" ? "VIEWER" : null;
   }
 
   // Anything else (no team, or built in): its own visibility, reading only.

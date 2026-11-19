@@ -1,5 +1,5 @@
 import type { Workspace, WorkspaceMember } from "@/domain";
-import type { WorkspaceRepository } from "@/data/repositories";
+import type { AccessAnswer, AccessKind, WorkspaceRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
@@ -64,6 +64,23 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
   async getById(id: string): Promise<Workspace | null> {
     const db = await this.conn.getDb();
     return (await db.get("workspaces", id)) ?? null;
+  }
+
+  /**
+   * The local store has no rows anybody is refused, only rows a page chose
+   * not to show; so a row that exists, asked about, is one this person may not open.
+   */
+  async accessTo(kind: AccessKind, workspaceId: string, ref: string): Promise<AccessAnswer> {
+    const db = await this.conn.getDb();
+    const row =
+      kind === "board"
+        ? (await db.getAll("boards")).find((b) => b.workspaceId === workspaceId && b.slug === ref)
+        : kind === "team"
+          ? await db.get("teams", ref)
+          : kind === "tracker"
+            ? await db.get("trackers", ref)
+            : await db.get("docs", ref);
+    return row && row.workspaceId === workspaceId ? "denied" : "missing";
   }
 
   async getBySlug(slug: string): Promise<Workspace | null> {

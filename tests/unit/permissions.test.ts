@@ -124,6 +124,13 @@ describe("board permissions", () => {
     const outsider = ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-1", boardVisibility: "TEAM", membersCanEdit: false }] });
     expect(canSeeTeamId(outsider, "team-1")).toBe(false);
     expect(canSeeTeamId(outsider, null)).toBe(true);
+    // With the teams known, one missing from them is one this person may not
+    // read (Supabase leaves a team kept to itself out): hidden, and its boards
+    // closed unless they were added.
+    const knowsOthers = ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-2", boardVisibility: "WORKSPACE", membersCanEdit: false }] });
+    expect(canSeeTeamId(knowsOthers, "team-1")).toBe(false);
+    expect(boardRoleFor(knowsOthers, board())).toBeNull();
+    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER", boardRoles: [["board-1", "VIEWER"]], teams: [] }), board())).toBe("VIEWER");
     // Only admins change it.
     expect(canEditTeamAccess(ctx({ userId: "u", role: "MEMBER", teamIds: ["team-1"] }))).toBe(false);
     expect(canEditTeamAccess(ctx({ userId: "u", role: "ADMIN" }))).toBe(true);

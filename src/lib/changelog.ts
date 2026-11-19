@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.114.1",
+    date: "2026-11-19",
+    title: "Team access, follow-ups",
+    changes: [
+      "A team made team-only disappears for everyone outside it straight away, without a refresh.",
+      "Someone added to a board of a team-only team still sees the team, holding just the boards they can open.",
+      "A team, board, tracker or doc you can't open says \"You don't have access\" instead of \"not found\".",
+    ],
+  },
+  {
     version: "0.114.0",
     date: "2026-11-19",
     title: "Teams decide board access",

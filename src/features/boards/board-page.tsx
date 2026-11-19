@@ -1,11 +1,10 @@
 "use client";
 
+import { NoAccessState, UnavailableState } from "@/features/workspace/unavailable-state";
 import { Archive, SquareKanban, Lock, LockOpen } from "lucide-react";
-import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { flushSync } from "react-dom";
-import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
@@ -88,20 +87,17 @@ export function BoardPage() {
 
   if (!board) {
     return (
-      <EmptyState
+      <UnavailableState
+        kind="board"
+        refId={params.boardSlug}
         icon={SquareKanban}
-        title="Board not found"
-        description="It may have been renamed or deleted."
-        action={
-          <Button variant="outline" asChild>
-            <Link href={routes.workspace(ws.slug)}>Back to home</Link>
-          </Button>
-        }
+        missing={{ title: "Board not found", description: "It may have been renamed or deleted." }}
+        back={{ href: routes.workspace(ws.slug), label: "Back to home" }}
       />
     );
   }
   if (!canViewBoard(ws.permissions, board)) {
-    return <EmptyState icon={Lock} title="This board is private" description="Ask the board owner to add you as a member." />;
+    return <NoAccessState kind="board" back={{ href: routes.workspace(ws.slug), label: "Back to home" }} />;
   }
   return <BoardScreen key={board.id} boardId={board.id} />;
 }

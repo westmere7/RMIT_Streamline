@@ -1,5 +1,7 @@
 "use client";
 
+import { NoAccessState, UnavailableState } from "@/features/workspace/unavailable-state";
+import { canSeeTeamId } from "@/lib/permissions/permissions";
 import type { JSONContent } from "@tiptap/core";
 import { ArrowLeft, Check, Download, FileText, FileUp, Loader2, MoreHorizontal, Smile, Trash2, Users } from "lucide-react";
 import Link from "next/link";
@@ -7,7 +9,6 @@ import { useParams, useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -48,17 +49,18 @@ export function DocPage() {
   }
   if (!doc.data) {
     return (
-      <EmptyState
+      <UnavailableState
+        kind="doc"
+        refId={params.docId}
         icon={FileText}
-        title="Doc not found"
-        description="It may have been deleted."
-        action={
-          <Button variant="outline" asChild>
-            <Link href={routes.docs(ws.slug)}>Back to docs</Link>
-          </Button>
-        }
+        missing={{ title: "Doc not found", description: "It may have been deleted." }}
+        back={{ href: routes.docs(ws.slug), label: "Back to docs" }}
       />
     );
+  }
+  // Read anyway (the local store, or an admin viewing as someone) but closed to this person.
+  if (!canSeeTeamId(ws.permissions, doc.data.teamId)) {
+    return <NoAccessState kind="doc" back={{ href: routes.docs(ws.slug), label: "Back to docs" }} />;
   }
   // Keyed by the doc, so moving from one doc to another starts the page afresh.
   return <DocView key={doc.data.id} doc={doc.data} />;

@@ -74,8 +74,18 @@ export interface UserRepository {
   changeEmail(input: { workspaceId: EntityId; userId: EntityId; email: string }): Promise<void>;
 }
 
+/** What a page that could not show something should say: it is not there, or it is not yours to open. */
+export type AccessAnswer = "ok" | "denied" | "missing";
+export type AccessKind = "team" | "board" | "tracker" | "doc";
+
 export interface WorkspaceRepository {
   list(): Promise<Workspace[]>;
+  /**
+   * Whether a team, board (by slug), tracker or doc of this workspace exists
+   * but is closed to the caller (policies/0029 access_to). Asked only after it
+   * could not be shown; anyone outside the workspace hears "missing".
+   */
+  accessTo(kind: AccessKind, workspaceId: EntityId, ref: string): Promise<AccessAnswer>;
   getById(id: EntityId): Promise<Workspace | null>;
   getBySlug(slug: string): Promise<Workspace | null>;
   update(id: EntityId, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace>;

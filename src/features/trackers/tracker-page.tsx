@@ -1,5 +1,7 @@
 "use client";
 
+import { NoAccessState, UnavailableState } from "@/features/workspace/unavailable-state";
+import { canSeeTeamId } from "@/lib/permissions/permissions";
 import { ArrowLeft, ArrowLeftToLine, ArrowRightToLine, Check, ChevronDown, Copy, CopyPlus, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Package, Pencil, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -87,17 +89,18 @@ export function TrackerPage() {
   }
   if (!tracker.data) {
     return (
-      <EmptyState
+      <UnavailableState
+        kind="tracker"
+        refId={params.trackerId}
         icon={FileSpreadsheet}
-        title="Tracker not found"
-        description="It may have been deleted."
-        action={
-          <Button variant="outline" asChild>
-            <Link href={routes.trackers(ws.slug)}>Back to trackers</Link>
-          </Button>
-        }
+        missing={{ title: "Tracker not found", description: "It may have been deleted." }}
+        back={{ href: routes.trackers(ws.slug), label: "Back to trackers" }}
       />
     );
+  }
+  // Read anyway (the local store, or an admin viewing as someone) but closed to this person.
+  if (!canSeeTeamId(ws.permissions, tracker.data.teamId)) {
+    return <NoAccessState kind="tracker" back={{ href: routes.trackers(ws.slug), label: "Back to trackers" }} />;
   }
   const t = tracker.data;
   const team = ws.teamById(t.teamId);

@@ -59,6 +59,7 @@ export function createMemoryRepositories(
       list: async () => [workspace()],
       getById: async (id) => (id === workspace().id ? workspace() : null),
       getBySlug: async () => null,
+      accessTo: async () => "missing",
       update: readOnly("editing the workspace"),
       create: readOnly("creating a workspace"),
       delete: readOnly("deleting a workspace"),

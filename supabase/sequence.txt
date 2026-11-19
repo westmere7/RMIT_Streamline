@@ -157,3 +157,4 @@ migrations/0118_portal_link_for_members.sql
 migrations/0119_booking_form_published_by.sql
 migrations/0120_team_board_access.sql
 policies/0028_team_board_access_policies.sql
+policies/0029_team_visibility_reaches_everyone.sql

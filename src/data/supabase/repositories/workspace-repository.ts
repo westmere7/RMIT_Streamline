@@ -1,5 +1,5 @@
 import type { Workspace, WorkspaceMember } from "@/domain";
-import type { WorkspaceRepository } from "@/data/repositories";
+import type { AccessAnswer, AccessKind, WorkspaceRepository } from "@/data/repositories";
 import { callApi } from "../api-call";
 import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 import { pruneUndefined, toWorkspace, toWorkspaceMember, WORKSPACE_COLUMNS, type WorkspaceMemberRow, type WorkspaceRow } from "../rows";
@@ -17,6 +17,12 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     const result = await db().from("workspaces").select(WORKSPACE).eq("id", id).maybeSingle();
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getById");
     return row ? toWorkspace(row) : null;
+  }
+
+  async accessTo(kind: AccessKind, workspaceId: string, ref: string): Promise<AccessAnswer> {
+    const result = await db().rpc("access_to", { p_kind: kind, p_workspace_id: workspaceId, p_ref: ref });
+    if (result.error) return "missing";
+    return result.data === "ok" || result.data === "denied" ? result.data : "missing";
   }
 
   async getBySlug(slug: string): Promise<Workspace | null> {

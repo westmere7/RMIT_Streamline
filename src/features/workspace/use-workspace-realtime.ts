@@ -31,7 +31,10 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
     return [
       // Name, rates and the booking key all live on the workspace row, and the
       // dashboard turns the rates into hours.
-      { table: "workspaces", filter: `id=eq.${workspaceId}`, keys: [context, ["workspace"]] },
+      // Also touched when a team is kept to itself (policies/0029): the team's
+      // own row is no longer this reader's to hear about, so this is how its
+      // boards, trackers and docs leave their screen at once.
+      { table: "workspaces", filter: `id=eq.${workspaceId}`, keys: [context, ["workspace"], queryKeys.boards(workspaceId), queryKeys.trackers(workspaceId), queryKeys.docs(workspaceId)] },
       // Someone invited, onboarded, promoted or deactivated: the people picker,
       // the members page and this reader's own permissions all change.
       { table: "workspace_members", filter: ws, keys: [context, ["workspace-members"]] },

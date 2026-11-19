@@ -1,5 +1,6 @@
 "use client";
 
+import { UnavailableState } from "@/features/workspace/unavailable-state";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Archive, FileSpreadsheet, Pencil, Plus, UserMinus, Users, X } from "lucide-react";
 import Link from "next/link";
@@ -9,7 +10,6 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { BoardItemCount } from "@/features/boards/board-item-count";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
-import { EmptyState } from "@/components/shared/empty-state";
 import { SectionHeading } from "@/components/shared/page-header";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,15 @@ export function TeamPage() {
   });
 
   if (!team) {
-    return <EmptyState icon={Users} title="Team not found" description="It may have been removed." action={<Button variant="outline" asChild><Link href={routes.workspace(ws.slug)}>Back to home</Link></Button>} />;
+    return (
+      <UnavailableState
+        kind="team"
+        refId={params.teamId}
+        icon={Users}
+        missing={{ title: "Team not found", description: "It may have been removed." }}
+        back={{ href: routes.workspace(ws.slug), label: "Back to home" }}
+      />
+    );
   }
 
   const manage = canManageTeam(ws.permissions, team.id);

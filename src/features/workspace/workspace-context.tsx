@@ -132,8 +132,12 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
     // RLS; the local store has no such layer, so filter here. So is a team that
     // keeps its boards to itself, from everyone outside it (policies/0028).
     const admin = canSeeSystemEntities(permissions);
-    const teams = ctx.teams.filter((t) => (admin || !t.system) && canSeeTeam(permissions, t));
     const boards = allBoards.filter((b) => !b.system || canViewBoard(permissions, b));
+    // Someone added to one of its boards still sees it by name, holding just
+    // the boards they can open (policies/0029 has_board_in_team).
+    const teams = ctx.teams.filter(
+      (t) => (admin || !t.system) && (canSeeTeam(permissions, t) || boards.some((b) => b.teamId === t.id && canViewBoard(permissions, b))),
+    );
     const usersById = new Map(ctx.users.map((u) => [u.id, u]));
     const activeMemberIds = new Set(ctx.members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
     const teamsById = new Map(teams.map((t) => [t.id, t]));
