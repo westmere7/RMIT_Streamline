@@ -685,6 +685,7 @@ function ServicePanel({
   onRemove: () => void;
   onEditBrief: () => void;
 }) {
+  const ws = useWorkspace();
   const questions = service.blocks.filter(isQuestionBlock).length;
   const key = slug(service.name);
   return (
@@ -732,15 +733,27 @@ function ServicePanel({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALLOCATION_TEAM}>Task Allocation</SelectItem>
-              {form.teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  <span className="flex items-center gap-2">
-                    <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} />
-                    {team.name}
-                    {team.boardName && <span className="text-muted-foreground">· {team.boardName}</span>}
-                  </span>
-                </SelectItem>
-              ))}
+              {form.teams.map((team) => {
+                // The board the team nominated in its settings, read live, so a
+                // change there shows here at once. Without one, the team itself.
+                const nominated = ws.boardById(ws.teamById(team.id)?.bookingBoardId ?? null);
+                return (
+                  <SelectItem key={team.id} value={team.id}>
+                    {nominated ? (
+                      <span className="flex min-w-0 items-center gap-2">
+                        <DynamicIcon name={nominated.icon} className={cn("size-3.5 shrink-0", colorClasses(nominated.color).text)} />
+                        <span className="truncate">{nominated.name}</span>
+                        <span className="truncate text-muted-foreground">{team.name}</span>
+                      </span>
+                    ) : (
+                      <span className="flex min-w-0 items-center gap-2">
+                        <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colorClasses(team.color).text)} />
+                        <span className="truncate">{team.name}</span>
+                      </span>
+                    )}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         </Labeled>

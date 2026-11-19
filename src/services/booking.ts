@@ -704,6 +704,41 @@ export function planStandardFields(columns: readonly BoardColumn[]): Record<Stan
   return plan;
 }
 
+/** Where one answer ends up: a column, the brief, the task's Assets tab, or the description. */
+export type BookingDestination = { kind: "column"; column: BoardColumn } | { kind: "brief" } | { kind: "assets" } | { kind: "description" };
+
+/**
+ * Every standard answer and where `mapBookingToColumns` and the booking service
+ * put it on a board with these columns: the preview in a team's booking
+ * settings. Kept beside the writer, and tested against it, so the two say the
+ * same thing. Assumes the usual booking: the requester known as a person and
+ * the department one on the list.
+ */
+export function bookingDestinations(columns: readonly BoardColumn[], options: { teamOwnsBoard?: boolean } = {}): Record<StandardBookingField, BookingDestination[]> {
+  const plan = planStandardFields(columns);
+  const at = (column: BoardColumn | null | undefined): BookingDestination[] => (column ? [{ kind: "column", column }] : [{ kind: "description" }]);
+  const out = {} as Record<StandardBookingField, BookingDestination[]>;
+  for (const field of STANDARD_BOOKING_FIELDS) out[field] = at(plan[field]);
+  // The person, in the Requester column; the name as text only on a board without one.
+  // The email belongs to that person, so a board without an Email column loses nothing.
+  const requester = columns.find((c) => c.type === "REQUESTER");
+  if (requester) {
+    out.requesterName = at(requester);
+    if (!plan.requesterEmail) out.requesterEmail = at(requester);
+  }
+  // The Department column, by type, whatever it is called.
+  const stakeholder = columns.find((c) => c.type === "STAKEHOLDER");
+  if (stakeholder) out.department = at(stakeholder);
+  // The brief opens with the service, so it is never repeated in the description.
+  out.service = [...(plan.service ? at(plan.service) : []), { kind: "brief" }];
+  // Each asset line is on the Assets tab, with its type; a column for either as well.
+  out.assets = [...(plan.assets ? at(plan.assets) : []), { kind: "assets" }];
+  out.assetTypes = [...(plan.assetTypes ? at(plan.assetTypes) : []), { kind: "assets" }];
+  // On the team's own board the team goes without saying.
+  if (options.teamOwnsBoard) out.team = plan.team ? at(plan.team) : [];
+  return out;
+}
+
 // ---- writing a booking onto a board --------------------------------------------
 
 export interface BookingPlacement {
@@ -730,6 +765,8 @@ export interface PlacementContext {
   stakeholder?: string | null;
   /** The person who asked, for the board's Requester column. */
   requesterId?: string | null;
+  /** The board is the team's own, so naming the team in the description says nothing. */
+  teamOwnsBoard?: boolean;
 }
 
 /** Works out what to write into which column of the receiving board. */
@@ -740,20 +777,27 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
   const template = ctx.template ?? null;
   const service = template ? serviceById(template, request.serviceTypeId) : null;
 
-  const place = (field: StandardBookingField, text: string | null, build: (column: BoardColumn) => ColumnValue | null) => {
+  // `described` is what the description says when no column takes the answer:
+  // the answer itself by default, null when it is already said elsewhere (the
+  // brief, the Assets tab, the Requester).
+  const place = (field: StandardBookingField, text: string | null, build: (column: BoardColumn) => ColumnValue | null, described: string | null = text) => {
     if (text === null || text === "") return;
     const column = plan[field];
     const value = column ? build(column) : null;
     if (column && value && !isEmptyValue(value)) values.push({ columnId: column.id, value });
-    else leftover.push({ field, label: STANDARD_FIELD_LABELS[field], text });
+    else if (described) leftover.push({ field, label: STANDARD_FIELD_LABELS[field], text: described });
   };
 
   // The Requester column holds the person; a board without one takes the name as text.
   const requesterColumn = ctx.requesterId ? columns.find((c) => c.type === "REQUESTER") : undefined;
   if (requesterColumn) values.push({ columnId: requesterColumn.id, value: { type: "REQUESTER", userIds: [ctx.requesterId!] } });
   else place("requesterName", request.requesterName, () => ({ type: "TEXT", text: request.requesterName }));
-  place("requesterEmail", request.requesterEmail, (column) =>
-    column.type === "LINK" ? { type: "LINK", url: `mailto:${request.requesterEmail}`, text: request.requesterEmail } : { type: "TEXT", text: request.requesterEmail },
+  place(
+    "requesterEmail",
+    request.requesterEmail,
+    (column) => (column.type === "LINK" ? { type: "LINK", url: `mailto:${request.requesterEmail}`, text: request.requesterEmail } : { type: "TEXT", text: request.requesterEmail }),
+    // The Requester column holds the person, and the person has the email.
+    requesterColumn ? null : request.requesterEmail,
   );
   // The Department column holds it when the board has one (below); a line in the
   // description saying the same would be the same word twice.
@@ -762,9 +806,17 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
   // The main service only. The sub-services are chips in the brief, where the
   // question they answer is standing right next to them; a column holding both
   // reads as one flat list of words that used to mean two different things.
-  place("service", service?.name ?? null, (column) => (column.type === "TAGS" ? { type: "TAGS", tags: [service!.name] } : { type: "TEXT", text: service!.name }));
-  place("assetTypes", request.assetTypes.length ? request.assetTypes.join(", ") : null, (column) =>
-    column.type === "TAGS" ? { type: "TAGS", tags: request.assetTypes } : { type: "TEXT", text: request.assetTypes.join(", ") },
+  // The brief opens with it, so never the description.
+  place("service", service?.name ?? null, (column) => (column.type === "TAGS" ? { type: "TAGS", tags: [service!.name] } : { type: "TEXT", text: service!.name }), null);
+  // Each asset line keeps its type on the Assets tab (the one type named, for a
+  // line without one); the description names only a type no line carries.
+  const lineTypes = new Set(request.assets.map((a) => a.assetType?.trim() || (request.assetTypes.length === 1 ? request.assetTypes[0]! : "")).filter(Boolean));
+  const looseTypes = request.assetTypes.filter((t) => !lineTypes.has(t));
+  place(
+    "assetTypes",
+    request.assetTypes.length ? request.assetTypes.join(", ") : null,
+    (column) => (column.type === "TAGS" ? { type: "TAGS", tags: request.assetTypes } : { type: "TEXT", text: request.assetTypes.join(", ") }),
+    looseTypes.length ? looseTypes.join(", ") : null,
   );
   // The brief goes to the Brief column and nowhere else. It used to be written
   // to the description as well, which meant every booking arrived as the same
@@ -775,8 +827,9 @@ export function mapBookingToColumns(request: BookingRequest, columns: readonly B
   const briefColumn = plan.brief;
   const briefPlaced = !!brief && !!briefColumn;
   if (briefPlaced) values.push({ columnId: briefColumn!.id, value: briefColumn!.type === "LONG_TEXT" ? { type: "LONG_TEXT", text: richTextToPlain(brief) } : { type: "RICH_TEXT", text: brief } });
-  place("assets", request.assets.length ? formatAssets(request.assets) : null, () => ({ type: "LONG_TEXT", text: formatAssets(request.assets) }));
-  place("team", ctx.team?.name ?? null, (column) => (column.type === "TAGS" ? { type: "TAGS", tags: [ctx.team!.name] } : { type: "TEXT", text: ctx.team!.name }));
+  // Every line is on the Assets tab.
+  place("assets", request.assets.length ? formatAssets(request.assets) : null, () => ({ type: "LONG_TEXT", text: formatAssets(request.assets) }), null);
+  place("team", ctx.team?.name ?? null, (column) => (column.type === "TAGS" ? { type: "TAGS", tags: [ctx.team!.name] } : { type: "TEXT", text: ctx.team!.name }), ctx.teamOwnsBoard ? null : (ctx.team?.name ?? null));
   place("dueDate", request.dueDate, (column) => (column.type === "TIMELINE" ? { type: "TIMELINE", start: null, end: request.dueDate } : { type: "DATE", date: request.dueDate }));
   place("priority", request.priority, (column) => {
     const label = (column.settings as PriorityColumnSettings).labels.find((l) => norm(l.name) === norm(request.priority!));

@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.117.4",
+    date: "2026-11-19",
+    title: "Where bookings land, shown right",
+    changes: [
+      "In the booking form editor, Bookings go to names the board a team picked for its bookings, with the team beside it.",
+      "A booking's description no longer repeats what is already said elsewhere: the service (the brief opens with it), the asset lines and their types (the Assets tab), the email (the Requester's own) and, on a team's own board, the team. It keeps only what a board has no column for.",
+      "A team's Bookings settings show where each answer goes, grouped: the board's columns, the brief, the Assets tab, and anything left for the description.",
+    ],
+  },
+  {
     version: "0.117.3",
     date: "2026-11-19",
     title: "One work type, picked for you",

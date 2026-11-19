@@ -8,6 +8,7 @@ import { boardRoleFor, buildPermissionContext, canViewBoard } from "@/lib/permis
 import { richTextToPlain } from "@/lib/rich-text";
 import { createServices } from "@/services";
 import {
+  bookingDestinations,
   bookingRequestSchema,
   composeBrief,
   describeBooking,
@@ -211,6 +212,52 @@ describe("placing a booking's answers on a board", () => {
     expect(describeBooking(req, placement)).toBe("");
   });
 
+  it("previews where each answer goes exactly as the booking is written", () => {
+    // Govern, a team board as it really is: a Requester and a Department column, no text ones.
+    const types: Array<[string, ColumnType]> = [
+      ["Owner", "PERSON"], ["Status", "STATUS"], ["Due Date", "DATE"], ["Requester", "REQUESTER"], ["Timeline", "TIMELINE"], ["Priority", "PRIORITY"],
+      ["Department", "STAKEHOLDER"], ["Size", "SIZE"], ["Assets recap", "ASSETS_RECAP"], ["Progress", "PROGRESS"], ["Brief", "BRIEF"],
+    ];
+    const boards: Array<[BoardColumn[], boolean]> = [
+      [types.map(([name, type], i) => column(name, type, i)), true],
+      [taskAllocationColumns().map((c, i) => column(c.name, c.type, i, c.settings ?? defaultSettingsFor(c.type))), false],
+      // A bare team board: only what every board has.
+      [[column("Status", "STATUS", 0), column("Owner", "PERSON", 1)], true],
+    ];
+    for (const [columns, teamOwnsBoard] of boards) {
+      const where = bookingDestinations(columns, { teamOwnsBoard });
+      const placement = mapBookingToColumns(request(), columns, { team: { id: "t", name: "Brand" }, template: fixtureBookingFormTemplate(), stakeholder: "Comm.", requesterId: "user-priya", teamOwnsBoard });
+      const written = new Set(placement.values.map((v) => v.columnId));
+      const described = new Set(placement.leftover.map((l) => l.field));
+      for (const [field, places] of Object.entries(where)) {
+        for (const place of places) {
+          if (place.kind === "column") expect(written.has(place.column.id), `${field} → ${place.column.name}`).toBe(true);
+          if (place.kind === "description") expect(described.has(field as never) || (field === "brief" && !placement.briefPlaced), `${field} → description`).toBe(true);
+        }
+        // And nothing lands in the description that the preview put somewhere else.
+        if (described.has(field as never)) expect(places.some((p) => p.kind === "description"), `${field} described`).toBe(true);
+      }
+    }
+    const govern = bookingDestinations(types.map(([name, type], i) => column(name, type, i)), { teamOwnsBoard: true });
+    expect(govern.requesterName).toEqual([{ kind: "column", column: expect.objectContaining({ name: "Requester" }) }]);
+    expect(govern.department).toEqual([{ kind: "column", column: expect.objectContaining({ name: "Department" }) }]);
+    // Said elsewhere, so not in the description: the brief opens with the
+    // service, the asset lines carry their types, the person has the email.
+    expect(govern.assets.map((p) => p.kind)).toEqual(["assets"]);
+    expect(govern.assetTypes.map((p) => p.kind)).toEqual(["assets"]);
+    expect(govern.service.map((p) => p.kind)).toEqual(["brief"]);
+    expect(govern.requesterEmail).toEqual([{ kind: "column", column: expect.objectContaining({ name: "Requester" }) }]);
+    expect(govern.team).toEqual([]);
+    const onGovern = mapBookingToColumns(request(), types.map(([name, type], i) => column(name, type, i)), { team: { id: "t", name: "Brand" }, template: fixtureBookingFormTemplate(), stakeholder: "Comm.", requesterId: "user-priya", teamOwnsBoard: true });
+    expect(onGovern.leftover.map((l) => l.field)).toEqual(["referenceUrl"]);
+  });
+
+  it("names in the description only an asset type no line carries", () => {
+    const req = request({ assetTypes: ["Print", "Video"] });
+    const placement = mapBookingToColumns(req, [column("Status", "STATUS", 0)], { team: null, template: fixtureBookingFormTemplate() });
+    expect(placement.leftover.find((l) => l.field === "assetTypes")?.text).toBe("Video");
+  });
+
   it("adapts to a team board with different columns and keeps the rest in the description", () => {
     // The "Creative Production" template: no requester, email, brief or link columns.
     const columns = [
@@ -237,7 +284,8 @@ describe("placing a booking's answers on a board", () => {
     const byName = new Map(placement.values.map((v) => [columns.find((c) => c.id === v.columnId)!.name, v.value]));
     expect(byName.get("Format")).toEqual({ type: "TEXT", text: "Print, Digital" });
     expect(byName.has("Designer")).toBe(false);
-    expect(placement.leftover.map((l) => l.label)).toEqual(["Requester", "Email", "Department", "Service", "Assets & specs", "Requested team", "Reference"]);
+    // Not the service (the brief opens with it) nor the asset lines (the Assets tab has them).
+    expect(placement.leftover.map((l) => l.label)).toEqual(["Requester", "Email", "Department", "Requested team", "Reference"]);
 
     const description = describeBooking(req, placement);
     // No Brief column on this board, so the description is where the brief
@@ -246,7 +294,7 @@ describe("placing a booking's answers on a board", () => {
     expect(description.startsWith(richTextToPlain(req.brief))).toBe(true);
     expect(description).toContain("Requester: Priya Nair");
     expect(description).toContain("Service: Design");
-    expect(description).toContain("Assets & specs:\n  1. A1 poster ×6 (Print) — 594×841 mm, CMYK, print ready\n  2. Instagram tile");
+    expect(description).not.toContain("Assets & specs");
     expect(description).toContain("Email: priya@rmit.edu.au");
     expect(description).toContain("Reference: https://example.com/brief");
   });
@@ -700,7 +748,8 @@ describe("booking a task", () => {
     if (plan.dueDate) expect(values.find((v) => v.columnId === plan.dueDate!.id)?.value).toEqual({ type: "DATE", date: "2026-10-01" });
     // Whatever found no column is still on the record.
     expect(await briefText(services, item.id)).toContain("Service: Design");
-    if (!plan.requesterEmail) expect(item.description).toContain("priya@rmit.edu.au");
+    // The email is the Requester's own; only a board with neither column keeps it as text.
+    if (!plan.requesterEmail && !columns.some((c) => c.type === "REQUESTER")) expect(item.description).toContain("priya@rmit.edu.au");
   });
 
   it("records who published the form, and nobody for a publish that does not say", async () => {

@@ -347,7 +347,7 @@ export class BookingService {
       }
     }
 
-    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department, requesterId });
+    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department, requesterId, teamOwnsBoard: direct });
     const description = describeBooking(request, placement);
     // The form names the id the item will have so a submission that is retried
     // cannot book the same thing twice. Honoured only if it is still free: an id
