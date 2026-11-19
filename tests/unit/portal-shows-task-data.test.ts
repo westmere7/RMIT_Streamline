@@ -96,6 +96,20 @@ describe("the portal shows the task's own data", () => {
     expect(payload.users.find((u) => u.id === DANH)?.email).toBe("");
   });
 
+  // A task's activity names whoever did it, so the team's people are named on
+  // the link even when they are on none of its work: names and avatars only.
+  it("names the team's members, and nothing more about them", async () => {
+    await services.portals.book(resolved, { submissionKey: "key-data-team", departmentId: department.id, request: request(), booking: services.booking });
+    const members = (await services.repos.workspaces.listMembers(resolved.workspaceId)).filter((m) => m.status === "ACTIVE" && m.role !== "GUEST");
+    expect(members.length).toBeGreaterThan(1);
+    const payload = await services.portals.board(resolved);
+    for (const member of members) {
+      const shown = payload.users.find((u) => u.id === member.userId);
+      expect(shown?.displayName).toBeTruthy();
+      expect(shown?.email).toBe("");
+    }
+  });
+
   it("draws every column the team switched on, filled or not", async () => {
     await services.portals.book(resolved, { submissionKey: "key-data-0003", departmentId: department.id, request: request(), booking: services.booking });
     const payload = await services.portals.board(resolved);

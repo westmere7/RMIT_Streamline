@@ -135,6 +135,12 @@ export interface PortalBoardInput {
    * and a workspace directory is precisely the thing it must not be handed.
    */
   commentAuthors: readonly PortalPerson[];
+  /**
+   * The team's members, named the same way, so a task's activity reads "Linh
+   * ticked off Poster" rather than "Someone". The team chose to show its
+   * people to the link (2026-11-19); names and avatars only, nothing else.
+   */
+  team?: readonly PortalPerson[];
   workspaceName: string;
   now: string;
 }
@@ -171,7 +177,7 @@ function priorityLabelId(priority: PortalPriority | null): string | null {
 }
 
 export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
-  const { portalId, workspaceId, tasks, links, comments, commentAuthors, workspaceName, now } = input;
+  const { portalId, workspaceId, tasks, links, comments, commentAuthors, team = [], workspaceName, now } = input;
   const hidden = new Set<string>(input.layout ? input.layout.filter((entry) => entry.hidden).map((entry) => entry.key) : (input.hiddenColumns ?? []));
   const extras = input.extras;
   const boardId = portalId;
@@ -406,6 +412,7 @@ export function buildPortalBoard(input: PortalBoardInput): PublicBoardPayload {
     const author = authors.get(comment.authorId);
     if (author) rememberPerson(people, author);
   }
+  for (const person of team) rememberPerson(people, person);
 
   return {
     board: {

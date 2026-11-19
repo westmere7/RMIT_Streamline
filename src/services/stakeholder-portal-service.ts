@@ -506,6 +506,11 @@ export class StakeholderPortalService {
         .map((id) => ctx.projection.usersById.get(id))
         .filter((user): user is User => !!user)
         .map(toPortalPerson),
+      team: (await this.repos.workspaces.listMembers(resolved.workspaceId))
+        .filter((member) => member.status === "ACTIVE" && member.role !== "GUEST")
+        .map((member) => ctx.projection.usersById.get(member.userId))
+        .filter((user): user is User => !!user && !user.deactivatedAt)
+        .map(toPortalPerson),
       // The team's own name for itself, which is what the header says.
       workspaceName: workspace?.creativeTeamName?.trim() || workspace?.name || "",
       now: new Date().toISOString(),

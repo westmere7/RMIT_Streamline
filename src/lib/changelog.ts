@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.112.1",
+    date: "2026-11-19",
+    title: "Names in the portal's activity",
+    changes: [
+      "The portal names the team's members, so a task's activity says who did what instead of \"Someone\". Names and avatars only.",
+    ],
+  },
+  {
     version: "0.112.0",
     date: "2026-11-19",
     title: "Rich text descriptions",
