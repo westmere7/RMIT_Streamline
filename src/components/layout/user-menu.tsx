@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, Building2, ChevronsUpDown, Database, Eye, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
+import { Bug, Building2, ChevronsUpDown, Database, Eye, Info, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { AboutDialog } from "@/features/version/about-dialog";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { IS_DEV } from "@/lib/config";
 import { canManageMembers } from "@/lib/permissions/permissions";
@@ -43,6 +44,7 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [resetOpen, setResetOpen] = React.useState(false);
+  const [aboutOpen, setAboutOpen] = React.useState(false);
   const [theme, setTheme] = useThemePreference();
   const unreadMessages = useUnreadMessages().data ?? 0;
   const showDevTools = IS_DEV || providerKind === "local";
@@ -185,12 +187,16 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           <DropdownMenuItem onSelect={reportBug} data-testid="menu-report-bug">
             <Bug /> Report a bug
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setAboutOpen(true)} data-testid="menu-about">
+            <Info /> About
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void signOut().then(() => router.replace(routes.login()))}>
             <LogOut /> Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
       <ConfirmDialog
         open={resetOpen}
         onOpenChange={setResetOpen}

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.116.4",
+    date: "2026-11-19",
+    title: "About in the account menu",
+    changes: [
+      "About is in the account menu, under Report a bug.",
+    ],
+  },
+  {
     version: "0.116.3",
     date: "2026-11-19",
     title: "Colour and icon in full",
