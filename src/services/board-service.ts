@@ -34,6 +34,9 @@ export interface CreateBoardInput {
   description?: string | null;
   teamId: EntityId | null;
   visibility: Board["visibility"];
+  /** Off for a team's board made private; absent means it follows its team. */
+  followsTeam?: boolean;
+  editScope?: Board["editScope"];
   templateId: BoardTemplateId;
   color?: ColorToken;
   icon?: string;
@@ -91,6 +94,8 @@ export class BoardService {
       description: input.description?.trim() || null,
       type: input.visibility === "PRIVATE" ? "PRIVATE" : "MAIN",
       visibility: input.visibility,
+      ...(input.followsTeam !== undefined ? { followsTeam: input.followsTeam } : {}),
+      ...(input.editScope !== undefined ? { editScope: input.editScope } : {}),
       ownerId: actorId,
       color: input.color ?? "blue",
       icon: input.icon ?? "square-kanban",
@@ -169,10 +174,10 @@ export class BoardService {
 
   async updateBoard(
     boardId: EntityId,
-    patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction" | "viewOnly">>,
+    patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction" | "viewOnly" | "followsTeam" | "editScope">>,
     actorId: EntityId,
   ): Promise<Board> {
-    if (patch.teamId !== undefined || patch.visibility !== undefined) {
+    if (patch.teamId !== undefined || patch.visibility !== undefined || patch.followsTeam !== undefined || patch.editScope !== undefined) {
       const current = await this.repos.boards.getById(boardId);
       if (current?.system) throw new Error(`${current.name} is built in: where it sits and who can see it stay as they are.`);
     }

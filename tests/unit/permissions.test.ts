@@ -30,7 +30,7 @@ function ctx(input: {
   role?: "OWNER" | "ADMIN" | "MEMBER" | "GUEST";
   teamIds?: string[];
   boardRoles?: Array<[string, "OWNER" | "EDITOR" | "VIEWER"]>;
-  teams?: Array<{ id: string; boardVisibility: "WORKSPACE" | "TEAM"; membersCanEdit: boolean }>;
+  teams?: Array<{ id: string; boardVisibility: "WORKSPACE" | "TEAM"; boardEdit: "ADDED" | "TEAM" | "VIEWERS" }>;
 }) {
   return buildPermissionContext({
     userId: input.userId,
@@ -87,31 +87,51 @@ describe("board permissions", () => {
     expect(canEditBoard(ctx({ userId: "u", role: "ADMIN" }), board())).toBe(true);
   });
 
-  // The team decides for its boards (migration 0120, policies/0028): who sees
-  // them, and whether its members edit. Same cases as the database rule.
-  it("a team's board follows the team's settings", () => {
-    const teamBoard = board();
-    const as = (role: "ADMIN" | "MEMBER" | "GUEST", inTeam: boolean, team: { boardVisibility: "WORKSPACE" | "TEAM"; membersCanEdit: boolean }) =>
-      boardRoleFor(ctx({ userId: "u", role, teamIds: inTeam ? ["team-1"] : [], teams: [{ id: "team-1", ...team }] }), teamBoard);
+  // Who can see and who can edit (migration 0123, policies/0030): the team's
+  // two settings while a board follows it, else the board's own. Same cases as
+  // the database rule.
+  it("a team's board follows the team's see and edit settings", () => {
+    type See = "WORKSPACE" | "TEAM";
+    type Edit = "ADDED" | "TEAM" | "VIEWERS";
+    const as = (role: "ADMIN" | "MEMBER" | "GUEST", inTeam: boolean, see: See, edit: Edit, boardOverrides: Partial<Board> = {}) =>
+      boardRoleFor(ctx({ userId: "u", role, teamIds: inTeam ? ["team-1"] : [], teams: [{ id: "team-1", boardVisibility: see, boardEdit: edit }] }), board(boardOverrides));
 
-    // Defaults: everyone reads, nobody edits but those added and admins.
-    expect(as("MEMBER", true, { boardVisibility: "WORKSPACE", membersCanEdit: false })).toBe("VIEWER");
-    expect(as("MEMBER", false, { boardVisibility: "WORKSPACE", membersCanEdit: false })).toBe("VIEWER");
-    expect(as("ADMIN", false, { boardVisibility: "WORKSPACE", membersCanEdit: false })).toBe("EDITOR");
-    // Members can edit.
-    expect(as("MEMBER", true, { boardVisibility: "WORKSPACE", membersCanEdit: true })).toBe("EDITOR");
-    expect(as("MEMBER", false, { boardVisibility: "WORKSPACE", membersCanEdit: true })).toBe("VIEWER");
-    // Only this team: outsiders get nothing; the team reads or edits.
-    expect(as("MEMBER", false, { boardVisibility: "TEAM", membersCanEdit: true })).toBeNull();
-    expect(as("MEMBER", true, { boardVisibility: "TEAM", membersCanEdit: false })).toBe("VIEWER");
-    expect(as("MEMBER", true, { boardVisibility: "TEAM", membersCanEdit: true })).toBe("EDITOR");
-    expect(as("ADMIN", false, { boardVisibility: "TEAM", membersCanEdit: false })).toBe("EDITOR");
-    // A guest reads only what they could anyway, and edits when the team lets its members.
-    expect(as("GUEST", true, { boardVisibility: "WORKSPACE", membersCanEdit: false })).toBeNull();
-    expect(as("GUEST", true, { boardVisibility: "WORKSPACE", membersCanEdit: true })).toBe("EDITOR");
-    // The board's own TEAM value no longer counts; only Private does.
-    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-1", boardVisibility: "WORKSPACE", membersCanEdit: false }] }), board({ visibility: "TEAM" }))).toBe("VIEWER");
-    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER", teamIds: ["team-1"], teams: [{ id: "team-1", boardVisibility: "WORKSPACE", membersCanEdit: true }] }), board({ visibility: "PRIVATE" }))).toBeNull();
+    // Everyone sees; only added people (and admins) edit.
+    expect(as("MEMBER", true, "WORKSPACE", "ADDED")).toBe("VIEWER");
+    expect(as("MEMBER", false, "WORKSPACE", "ADDED")).toBe("VIEWER");
+    expect(as("ADMIN", false, "WORKSPACE", "ADDED")).toBe("EDITOR");
+    // The team edits.
+    expect(as("MEMBER", true, "WORKSPACE", "TEAM")).toBe("EDITOR");
+    expect(as("MEMBER", false, "WORKSPACE", "TEAM")).toBe("VIEWER");
+    // Everyone who sees edits.
+    expect(as("MEMBER", false, "WORKSPACE", "VIEWERS")).toBe("EDITOR");
+    // Only the team sees.
+    expect(as("MEMBER", false, "TEAM", "VIEWERS")).toBeNull();
+    expect(as("MEMBER", true, "TEAM", "ADDED")).toBe("VIEWER");
+    expect(as("MEMBER", true, "TEAM", "VIEWERS")).toBe("EDITOR");
+    expect(as("ADMIN", false, "TEAM", "ADDED")).toBe("EDITOR");
+    // Guests only where added, whatever the settings.
+    expect(as("GUEST", true, "WORKSPACE", "VIEWERS")).toBeNull();
+    expect(boardRoleFor(ctx({ userId: "u", role: "GUEST", boardRoles: [["board-1", "EDITOR"]] }), board())).toBe("EDITOR");
+    // The board's own visibility is ignored while it follows the team.
+    expect(as("MEMBER", false, "WORKSPACE", "ADDED", { visibility: "TEAM" })).toBe("VIEWER");
+  });
+
+  it("a board can set its own see and edit instead of its team's", () => {
+    const team = { id: "team-1", boardVisibility: "TEAM" as const, boardEdit: "ADDED" as const };
+    const own = (overrides: Partial<Board>, inTeam: boolean) =>
+      boardRoleFor(ctx({ userId: "u", role: "MEMBER", teamIds: inTeam ? ["team-1"] : [], teams: [team] }), board({ followsTeam: false, ...overrides }));
+    // Seen by the whole workspace though its team keeps to itself.
+    expect(own({ visibility: "WORKSPACE", editScope: "ADDED" }, false)).toBe("VIEWER");
+    expect(own({ visibility: "WORKSPACE", editScope: "VIEWERS" }, false)).toBe("EDITOR");
+    expect(own({ visibility: "WORKSPACE", editScope: "TEAM" }, true)).toBe("EDITOR");
+    // Private: only the added.
+    expect(own({ visibility: "PRIVATE", editScope: "ADDED" }, true)).toBeNull();
+    // A board from before the setting existed: private stays its own, the rest follow.
+    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER", teamIds: ["team-1"], teams: [{ ...team, boardEdit: "TEAM" }] }), board({ visibility: "PRIVATE" }))).toBeNull();
+    // No team: its own settings.
+    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER" }), board({ teamId: null, visibility: "WORKSPACE", editScope: "VIEWERS" }))).toBe("EDITOR");
+    expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER" }), board({ teamId: null, visibility: "WORKSPACE" }))).toBe("VIEWER");
   });
 
   it("hides a team kept to itself from everyone outside it", () => {
@@ -121,13 +141,13 @@ describe("board permissions", () => {
     expect(canSeeTeam(ctx({ userId: "u", role: "ADMIN" }), team)).toBe(true);
     expect(canSeeTeam(ctx({ userId: "u", role: "MEMBER" }), { id: "team-1", boardVisibility: "WORKSPACE" })).toBe(true);
     // Trackers and docs filed under it, by id.
-    const outsider = ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-1", boardVisibility: "TEAM", membersCanEdit: false }] });
+    const outsider = ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-1", boardVisibility: "TEAM", boardEdit: "ADDED" }] });
     expect(canSeeTeamId(outsider, "team-1")).toBe(false);
     expect(canSeeTeamId(outsider, null)).toBe(true);
     // With the teams known, one missing from them is one this person may not
     // read (Supabase leaves a team kept to itself out): hidden, and its boards
     // closed unless they were added.
-    const knowsOthers = ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-2", boardVisibility: "WORKSPACE", membersCanEdit: false }] });
+    const knowsOthers = ctx({ userId: "u", role: "MEMBER", teams: [{ id: "team-2", boardVisibility: "WORKSPACE", boardEdit: "ADDED" }] });
     expect(canSeeTeamId(knowsOthers, "team-1")).toBe(false);
     expect(boardRoleFor(knowsOthers, board())).toBeNull();
     expect(boardRoleFor(ctx({ userId: "u", role: "MEMBER", boardRoles: [["board-1", "VIEWER"]], teams: [] }), board())).toBe("VIEWER");

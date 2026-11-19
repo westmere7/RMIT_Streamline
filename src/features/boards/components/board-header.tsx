@@ -1,5 +1,6 @@
 "use client";
 
+import { boardAccessOf, teamAccessFor } from "@/lib/permissions/permissions";
 import { teamEditorsOf } from "@/features/boards/components/board-visibility-field";
 import { ArrowLeft, Crown, Eye, Globe, History, MoreHorizontal, Pencil, Share2, ShieldCheck, Star, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
@@ -53,6 +54,8 @@ export function BoardHeader({ board }: { board: Board }) {
     ...teamEditorsOf(ws, board),
   ];
   const team = ws.teamById(board.teamId);
+  // Who can see it as things stand: its team's setting while it follows the team, else its own.
+  const seeing = boardAccessOf(board, team ? teamAccessFor(team) : null).see;
   // Everyone on the board can see that it is out in the open; only its managers
   // can change that, so the badge is a button for them and a label for the rest.
   const share = useBoardShareStatus(board.id).data ?? null;
@@ -125,10 +128,10 @@ export function BoardHeader({ board }: { board: Board }) {
               </SimpleTooltip>
             )}
             <BoardAccessBadge permissions={ws.permissions} board={board} />
-            {(board.visibility === "PRIVATE" || (team?.boardVisibility === "TEAM" && !board.system)) && (
-              <SimpleTooltip label={board.visibility === "PRIVATE" ? "Only people added to the board can see it." : `Only ${team?.name ?? "its team"} and people added to the board can see it.`}>
+            {seeing !== "WORKSPACE" && !board.system && (
+              <SimpleTooltip label={seeing === "PRIVATE" ? "Only people added to the board can see it." : `Only ${team?.name ?? "its team"} and people added to the board can see it.`}>
                 <Badge variant="outline" className="cursor-default" data-testid="board-visibility-badge">
-                  {board.visibility === "PRIVATE" ? "Private" : "Team only"}
+                  {seeing === "PRIVATE" ? "Private" : "Team only"}
                 </Badge>
               </SimpleTooltip>
             )}

@@ -41,6 +41,7 @@ import type {
   TeamMember,
   TeamRole,
   TeamBoardVisibility,
+  BoardEditScope,
   TeamSystemKind,
   Tracker,
   TrackerColumn,
@@ -211,11 +212,12 @@ export interface TeamRow {
   booking_board_id: string | null;
   board_visibility?: TeamBoardVisibility | null;
   members_can_edit?: boolean | null;
+  board_edit?: BoardEditScope | null;
   created_at: string;
   updated_at: string;
 }
 
-export const TEAM_COLUMNS = "id, workspace_id, name, description, color, icon, archived_at, system, booking_board_id, board_visibility, members_can_edit, created_at, updated_at";
+export const TEAM_COLUMNS = "id, workspace_id, name, description, color, icon, archived_at, system, booking_board_id, board_visibility, members_can_edit, board_edit, created_at, updated_at";
 
 export function toTeam(row: TeamRow): Team {
   return {
@@ -230,6 +232,7 @@ export function toTeam(row: TeamRow): Team {
     bookingBoardId: row.booking_board_id ?? null,
     boardVisibility: row.board_visibility === "TEAM" ? "TEAM" : "WORKSPACE",
     membersCanEdit: row.members_can_edit === true,
+    boardEdit: row.board_edit === "TEAM" || row.board_edit === "VIEWERS" ? row.board_edit : "ADDED",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -264,11 +267,13 @@ export interface BoardRow {
   assets_clear_pic: boolean | null;
   primary_action: unknown;
   view_only: boolean | null;
+  follows_team?: boolean | null;
+  edit_scope?: BoardEditScope | null;
   created_at: string;
   updated_at: string;
 }
 
-export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, primary_action, view_only, created_at, updated_at";
+export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, primary_action, view_only, follows_team, edit_scope, created_at, updated_at";
 
 export function toBoard(row: BoardRow): Board {
   return {
@@ -289,6 +294,8 @@ export function toBoard(row: BoardRow): Board {
     assetsClearPic: row.assets_clear_pic ?? false,
     primaryAction: row.primary_action ? toolbarSlot(row.primary_action) : null,
     viewOnly: row.view_only ?? false,
+    followsTeam: row.follows_team ?? true,
+    editScope: row.edit_scope === "TEAM" || row.edit_scope === "VIEWERS" ? row.edit_scope : "ADDED",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -312,6 +319,8 @@ export function fromBoardPatch(patch: Partial<Omit<Board, "id" | "createdAt">>):
     assets_clear_pic: patch.assetsClearPic,
     primary_action: patch.primaryAction,
     view_only: patch.viewOnly,
+    follows_team: patch.followsTeam,
+    edit_scope: patch.editScope,
   });
 }
 

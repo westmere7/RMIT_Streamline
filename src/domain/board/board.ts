@@ -1,3 +1,4 @@
+import type { BoardEditScope } from "../team/team";
 import type { BoardSystemKind } from "@/domain/booking/booking";
 import type { ColorToken, EntityId, Timestamps } from "@/domain/common/types";
 import type { ToolbarSlot } from "./toolbar-buttons";
@@ -52,6 +53,14 @@ export interface Board extends Timestamps {
   primaryAction?: ToolbarSlot | null;
   /** View only for everyone, against accidental change. Not a permission; a board manager turns it off. */
   viewOnly?: boolean;
+  /**
+   * A team's board takes its team's "who can see" and "who can edit"; off,
+   * it has its own (`visibility` and `editScope`). Absent reads as following.
+   * A board with no team always has its own. Migration 0123.
+   */
+  followsTeam?: boolean;
+  /** The board's own "who can edit", while it does not follow a team. Absent reads as ADDED. */
+  editScope?: BoardEditScope;
 }
 
 /** Whether asset lines keep the PIC column up to date, and which way. */
@@ -97,4 +106,4 @@ export type BoardInput = Pick<
   Board,
   "workspaceId" | "teamId" | "name" | "description" | "type" | "visibility" | "ownerId" | "color" | "icon"
 > &
-  Partial<Pick<Board, "system">>;
+  Partial<Pick<Board, "system" | "followsTeam" | "editScope">>;

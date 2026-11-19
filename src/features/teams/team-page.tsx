@@ -24,7 +24,7 @@ import { useServices } from "@/features/data/data-context";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canEditDocs, canEditTrackers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { boardAccessOf, canCreateBoard, canEditDocs, canEditTrackers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -134,7 +134,7 @@ export function TeamPage() {
                         {board.description && <span className="block truncate text-2xs text-muted-foreground">{board.description}</span>}
                       </span>
                       {/* The team says who sees its boards; a board itself can only be made private. */}
-                      {board.visibility === "PRIVATE" && <Badge variant="muted">Private</Badge>}
+                      {!boardAccessOf(board, null).fromTeam && board.visibility === "PRIVATE" && <Badge variant="muted">Private</Badge>}
                     </Link>
                   </li>
                 ))}

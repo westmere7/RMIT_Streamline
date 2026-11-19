@@ -1,4 +1,4 @@
-import type { Board, BoardMember, BoardRole, Team, TeamMember, WorkspaceMember, WorkspaceRole } from "@/domain";
+import type { Board, BoardEditScope, BoardMember, BoardRole, Team, TeamMember, WorkspaceMember, WorkspaceRole } from "@/domain";
 import { isMembersOnlyBoard } from "@/domain/booking/booking";
 
 /**
@@ -20,7 +20,16 @@ export interface PermissionContext {
 }
 
 /** A team's settings for its boards. */
-export type TeamAccess = Pick<Team, "boardVisibility" | "membersCanEdit">;
+export type TeamAccess = Pick<Team, "boardVisibility" | "boardEdit">;
+
+/**
+ * A team's two settings, read the way migration 0123 wrote them: a team with
+ * no "who can edit" yet takes it from the older switch (members can edit →
+ * the team's members).
+ */
+export function teamAccessFor(team: Pick<Team, "boardVisibility" | "boardEdit" | "membersCanEdit">): TeamAccess {
+  return { boardVisibility: team.boardVisibility ?? "WORKSPACE", boardEdit: team.boardEdit ?? (team.membersCanEdit ? "TEAM" : "ADDED") };
+}
 
 export function buildPermissionContext(input: {
   userId: string;
@@ -28,7 +37,7 @@ export function buildPermissionContext(input: {
   teamMembers: readonly TeamMember[];
   boardMembers: readonly BoardMember[];
   /** The workspace's teams, for what each allows on its boards. */
-  teams?: readonly Pick<Team, "id" | "boardVisibility" | "membersCanEdit">[];
+  teams?: readonly Pick<Team, "id" | "boardVisibility" | "boardEdit" | "membersCanEdit">[];
 }): PermissionContext {
   const membership = input.workspaceMembers.find((m) => m.userId === input.userId && m.status === "ACTIVE");
   return {
@@ -40,7 +49,7 @@ export function buildPermissionContext(input: {
     ),
     // Only when the teams were given: then a team missing from them is one this
     // person may not read, which is a team kept to itself.
-    teamAccess: input.teams ? new Map(input.teams.map((team) => [team.id, { boardVisibility: team.boardVisibility, membersCanEdit: team.membersCanEdit }] as const)) : undefined,
+    teamAccess: input.teams ? new Map(input.teams.map((team) => [team.id, teamAccessFor(team)] as const)) : undefined,
   };
 }
 
@@ -68,7 +77,7 @@ export function canSeeTeamId(ctx: PermissionContext, teamId: string | null | und
 function teamAccessOf(ctx: PermissionContext, teamId: string): TeamAccess {
   const known = ctx.teamAccess?.get(teamId);
   if (known) return known;
-  return ctx.teamAccess ? { boardVisibility: "TEAM", membersCanEdit: false } : { boardVisibility: "WORKSPACE", membersCanEdit: false };
+  return ctx.teamAccess ? { boardVisibility: "TEAM", boardEdit: "ADDED" } : { boardVisibility: "WORKSPACE", boardEdit: "ADDED" };
 }
 
 /** Who may change a team's board access: workspace admins only (policies/0028's trigger). */
@@ -155,7 +164,7 @@ export function canCreateBoard(ctx: PermissionContext): boolean {
 }
 
 /** The shape the board checks need; `system` marks a built-in board (Task Allocation, App development). */
-export type BoardAccessInput = Pick<Board, "id" | "ownerId" | "visibility" | "teamId"> & Partial<Pick<Board, "system">>;
+export type BoardAccessInput = Pick<Board, "id" | "ownerId" | "visibility" | "teamId"> & Partial<Pick<Board, "system" | "followsTeam" | "editScope">>;
 
 /** Built-in rows (the Admin team, the Task Allocation board) exist for workspace admins only. */
 export function canSeeSystemEntities(ctx: PermissionContext): boolean {
@@ -183,28 +192,29 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
   if (isMembersOnlyBoard(board)) return null;
   if (isWorkspaceAdmin(ctx)) return "EDITOR";
 
-  // A team's board that is neither private nor built in: the team decides
-  // (policies/0028, step 5). Its members edit when the team allows it and read
-  // otherwise; everyone else reads when the team shows its boards to the
-  // workspace, and gets nothing when it keeps them to itself.
-  if (board.teamId && !board.system && board.visibility !== "PRIVATE") {
-    const team = teamAccessOf(ctx, board.teamId);
-    if (ctx.teamIds.has(board.teamId)) {
-      if (team.membersCanEdit) return "EDITOR";
-      if (ctx.workspaceRole !== "GUEST") return "VIEWER";
-    }
-    return (team.boardVisibility ?? "WORKSPACE") === "WORKSPACE" && ctx.workspaceRole !== "GUEST" ? "VIEWER" : null;
-  }
+  // Who can see and who can edit (policies/0030, step 5): the team's two
+  // settings while the board follows its team, else the board's own. Guests
+  // reach only boards they were added to.
+  if (ctx.workspaceRole === "GUEST" || board.system) return null;
+  const { see, edit } = boardAccessOf(board, board.teamId ? teamAccessOf(ctx, board.teamId) : null);
+  const inTeam = !!board.teamId && ctx.teamIds.has(board.teamId);
+  if (!(see === "WORKSPACE" || (see === "TEAM" && inTeam))) return null;
+  return edit === "VIEWERS" || (edit === "TEAM" && inTeam) ? "EDITOR" : "VIEWER";
+}
 
-  // Anything else (no team, or built in): its own visibility, reading only.
-  switch (board.visibility) {
-    case "WORKSPACE":
-      return ctx.workspaceRole === "GUEST" ? null : "VIEWER";
-    case "TEAM":
-      return board.teamId && ctx.teamIds.has(board.teamId) ? "EDITOR" : null;
-    case "PRIVATE":
-      return null;
+/**
+ * A board's "who can see" and "who can edit" as they stand: its team's while
+ * it follows one, else its own. `fromTeam` says which.
+ */
+export function boardAccessOf(
+  board: Pick<Board, "teamId" | "visibility"> & Partial<Pick<Board, "followsTeam" | "editScope">>,
+  team: TeamAccess | null | undefined,
+): { see: Board["visibility"]; edit: BoardEditScope; fromTeam: boolean } {
+  // Unset (a row from before migration 0123), a private board is its own and any other follows: what the migration wrote.
+  if (board.teamId && (board.followsTeam ?? board.visibility !== "PRIVATE")) {
+    return { see: team?.boardVisibility ?? "WORKSPACE", edit: team?.boardEdit ?? "ADDED", fromTeam: true };
   }
+  return { see: board.visibility, edit: board.editScope ?? "ADDED", fromTeam: false };
 }
 
 export function canViewBoard(ctx: PermissionContext, board: BoardAccessInput): boolean {

@@ -23,11 +23,22 @@ export interface Team extends Timestamps {
    * and docs, from everyone else. Absent reads as WORKSPACE.
    */
   boardVisibility?: TeamBoardVisibility;
-  /** Its members edit every one of its boards that is not private, without being added to each. */
+  /** Superseded by `boardEdit` (migration 0123): still stored, no longer read. */
   membersCanEdit?: boolean;
+  /**
+   * Who edits the team's boards, beyond admins and the people added to each
+   * (migration 0123). Absent reads as ADDED.
+   */
+  boardEdit?: BoardEditScope;
 }
 
 export type TeamBoardVisibility = "WORKSPACE" | "TEAM";
+
+/**
+ * Who can edit a board, beyond admins and the people added to it: nobody
+ * else, the team's members, or everyone who can see it.
+ */
+export type BoardEditScope = "ADDED" | "TEAM" | "VIEWERS";
 
 export type TeamRole = "LEAD" | "MEMBER";
 

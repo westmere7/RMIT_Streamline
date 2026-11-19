@@ -94,6 +94,8 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
         name: values.name,
         teamId: values.teamId === NO_TEAM ? null : values.teamId,
         visibility: values.visibility,
+        // A team's board follows its team unless it is made private.
+        followsTeam: values.visibility !== "PRIVATE",
         color: values.color,
         icon: values.icon,
       };

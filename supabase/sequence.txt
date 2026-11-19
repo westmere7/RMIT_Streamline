@@ -160,3 +160,5 @@ policies/0028_team_board_access_policies.sql
 policies/0029_team_visibility_reaches_everyone.sql
 migrations/0121_member_approval_values.sql
 migrations/0122_member_approval.sql
+migrations/0123_board_see_edit.sql
+policies/0030_board_see_edit_policies.sql

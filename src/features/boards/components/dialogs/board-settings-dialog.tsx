@@ -1,6 +1,7 @@
 "use client";
 
-import { BoardVisibilityField, teamAccessSummary, teamEditorsOf } from "@/features/boards/components/board-visibility-field";
+import { BoardAccessField, accessSummary, teamEditorsOf } from "@/features/boards/components/board-visibility-field";
+import { boardAccessOf, teamAccessFor } from "@/lib/permissions/permissions";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Archive, ArchiveRestore, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
 import * as React from "react";
@@ -136,18 +137,14 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
             </SelectContent>
           </Select>
         </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor="bs-visibility">Visibility</Label>
-          <BoardVisibilityField
-            id="bs-visibility"
-            team={ws.teamById(board.teamId)}
-            value={board.visibility}
-            // A team's board that is not private follows its team; written as WORKSPACE.
-            onChange={(visibility) => visibility !== (board.visibility === "PRIVATE" ? "PRIVATE" : "WORKSPACE") && actions.updateBoard.mutate({ visibility })}
-            disabled={!manage}
-          />
-        </div>
       </div>
+      {/* Who can see it and who can edit it: its team's settings, or its own. */}
+      {!board.system && (
+        <div className="grid gap-1.5 border-t pt-4">
+          <Label>Access</Label>
+          <BoardAccessField board={board} team={ws.teamById(board.teamId)} manage={manage} onChange={(patch) => actions.updateBoard.mutate(patch)} />
+        </div>
+      )}
       {manage && (
         <div className="grid gap-4 border-t pt-4">
           <div className="grid gap-1.5">
@@ -180,7 +177,10 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
           {total} {total === 1 ? "member" : "members"}.{" "}
-          {board.visibility === "PRIVATE" ? "Only they can see it." : team && !board.system ? teamAccessSummary(team) : "Everyone in the workspace can also view it."}
+          {(() => {
+            const access = boardAccessOf(board, team ? teamAccessFor(team) : null);
+            return access.see === "PRIVATE" ? "Only they can see it." : board.system ? "" : accessSummary(access.see, access.edit, team?.name ?? null);
+          })()}
         </p>
         {manage && (
           <Popover open={addOpen} onOpenChange={setAddOpen}>

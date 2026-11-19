@@ -43,6 +43,7 @@ export class SupabaseTeamRepository implements TeamRepository {
       booking_board_id: patch.bookingBoardId,
       board_visibility: patch.boardVisibility,
       members_can_edit: patch.membersCanEdit,
+      board_edit: patch.boardEdit,
     });
     const result = await db().from("teams").update(payload).eq("id", id).select(TEAM).single();
     return toTeam(unwrap<TeamRow>(result, "teams.update"));

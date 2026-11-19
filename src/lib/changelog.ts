@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.116.0",
+    date: "2026-11-19",
+    title: "Who can see, who can edit",
+    changes: [
+      "Access is now two settings, \"Who can see\" and \"Who can edit\", with a grid showing what each group of people can do.",
+      "Edit team sets them for all its boards: seen by everyone or only the team, edited by only the people added, the team's members, or everyone who can see. Admins only.",
+      "Each board follows its team, or sets its own in Board settings → Access (including \"Only people added\", which was Private). Nobody's access changed.",
+    ],
+  },
+  {
     version: "0.115.1",
     date: "2026-11-19",
     title: "Approved members get in",

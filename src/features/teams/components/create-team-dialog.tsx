@@ -1,10 +1,11 @@
 "use client";
 
+import { AccessGrid, AccessPickers } from "@/features/boards/components/board-visibility-field";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { Controller, useForm, type Control } from "react-hook-form";
+import { Controller, useForm, useWatch, type Control } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -17,8 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { COLOR_TOKENS, type ColorToken, type Team } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
@@ -26,7 +25,7 @@ import { BookingBoardSetting } from "@/features/booking/booking-board-setting";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { TeamMembersEditor } from "@/features/teams/components/team-members-editor";
-import { canEditTeamAccess } from "@/lib/permissions/permissions";
+import { canEditTeamAccess, teamAccessFor } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
@@ -40,7 +39,7 @@ const schema = z.object({
   /** Who sees the team's boards; the team itself is hidden with them. */
   boardVisibility: z.enum(["WORKSPACE", "TEAM"]),
   /** Its members edit its boards without being added to each. */
-  membersCanEdit: z.boolean(),
+  boardEdit: z.enum(["ADDED", "TEAM", "VIEWERS"]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -62,8 +61,10 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null, boardVisibility: "WORKSPACE", membersCanEdit: false },
+    defaultValues: { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null, boardVisibility: "WORKSPACE", boardEdit: "ADDED" },
   });
+  // The grid names the team as it is being typed.
+  const nameValue = useWatch({ control: form.control, name: "name" }) ?? "";
 
   React.useEffect(() => {
     if (open) {
@@ -76,9 +77,9 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
               icon: team.icon,
               bookingBoardId: team.bookingBoardId ?? null,
               boardVisibility: team.boardVisibility ?? "WORKSPACE",
-              membersCanEdit: team.membersCanEdit ?? false,
+              boardEdit: teamAccessFor(team).boardEdit ?? "ADDED",
             }
-          : { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null, boardVisibility: "WORKSPACE", membersCanEdit: false },
+          : { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null, boardVisibility: "WORKSPACE", boardEdit: "ADDED" },
       );
     }
   }, [open, team, form]);
@@ -87,7 +88,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
   const access = canEditTeamAccess(ws.permissions) && !team?.system;
   const save = useMutation({
     mutationFn: async (values: FormValues) => {
-      const accessPatch = access ? { boardVisibility: values.boardVisibility, membersCanEdit: values.membersCanEdit } : {};
+      const accessPatch = access ? { boardVisibility: values.boardVisibility, boardEdit: values.boardEdit } : {};
       if (team) {
         return services.workspace.updateTeam(team.id, {
           name: values.name,
@@ -103,7 +104,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
         user.id,
       );
       // Made open, as every team starts, then set: the creator is on it by then.
-      return access && (values.boardVisibility !== "WORKSPACE" || values.membersCanEdit) ? services.workspace.updateTeam(created.id, accessPatch) : created;
+      return access && (values.boardVisibility !== "WORKSPACE" || values.boardEdit !== "ADDED") ? services.workspace.updateTeam(created.id, accessPatch) : created;
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
@@ -144,7 +145,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
             />
             {form.formState.errors.description && <p className="text-2xs text-destructive">{form.formState.errors.description.message}</p>}
           </div>
-          {access && <BoardAccessFields control={form.control} />}
+          {access && <BoardAccessFields control={form.control} teamName={nameValue.trim()} />}
           {/* Who is on it, here as well as on the team's page; saved as each change is made. */}
           {team && (
             <div className="grid gap-1.5" data-testid="team-dialog-members">
@@ -177,45 +178,41 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
 }
 
 /**
- * Who sees the team's boards, and whether its own people edit them, for every
- * board of the team but a private one. A team kept to itself is hidden from
- * everyone else, with its trackers and docs.
+ * Who can see the team's boards and who can edit them, for every board that
+ * follows the team (a board can set its own instead), with the grid of what
+ * that means. A team kept to itself is hidden from everyone else, with its
+ * trackers and docs.
  */
-function BoardAccessFields({ control }: { control: Control<FormValues> }) {
+function BoardAccessFields({ control, teamName }: { control: Control<FormValues>; teamName: string }) {
   return (
-    <div className="grid gap-4" data-testid="team-board-access">
-      <div className="grid gap-1.5">
-        <Label htmlFor="team-board-visibility">Who sees its boards</Label>
+    <Controller
+      control={control}
+      name="boardVisibility"
+      render={({ field: see }) => (
         <Controller
           control={control}
-          name="boardVisibility"
-          render={({ field }) => (
-            <>
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger id="team-board-visibility" aria-label="Who sees its boards" data-testid="team-board-visibility">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="WORKSPACE">Everyone in the workspace</SelectItem>
-                  <SelectItem value="TEAM">Only this team</SelectItem>
-                </SelectContent>
-              </Select>
-              {field.value === "TEAM" && <p className="text-2xs text-muted-foreground">Hidden from everyone else, with its trackers and docs.</p>}
-            </>
+          name="boardEdit"
+          render={({ field: edit }) => (
+            <div className="grid gap-2.5" data-testid="team-board-access">
+              <p className="text-[13px] font-medium">Its boards</p>
+              <AccessPickers
+                see={see.value}
+                edit={edit.value}
+                teamName={teamName || "this team"}
+                allowPrivate={false}
+                idPrefix="team-access"
+                onChange={(next) => {
+                  see.onChange(next.see === "TEAM" ? "TEAM" : "WORKSPACE");
+                  edit.onChange(next.edit);
+                }}
+              />
+              {see.value === "TEAM" && <p className="text-2xs text-muted-foreground">Hidden from everyone else, with its trackers and docs.</p>}
+              <AccessGrid see={see.value} edit={edit.value} teamName={teamName || "This team's"} />
+            </div>
           )}
         />
-      </div>
-      <Controller
-        control={control}
-        name="membersCanEdit"
-        render={({ field }) => (
-          <label className="flex items-center justify-between gap-3 text-[13px]">
-            <span>Members can edit its boards</span>
-            <Switch checked={field.value} onCheckedChange={field.onChange} aria-label="Members can edit its boards" data-testid="team-members-can-edit" />
-          </label>
-        )}
-      />
-    </div>
+      )}
+    />
   );
 }
 

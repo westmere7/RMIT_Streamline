@@ -61,6 +61,8 @@ export class SupabaseBoardRepository implements BoardRepository {
       color: input.color,
       icon: input.icon,
       system: input.system ?? null,
+      ...(input.followsTeam !== undefined ? { follows_team: input.followsTeam } : {}),
+      ...(input.editScope !== undefined ? { edit_scope: input.editScope } : {}),
     };
     const result = await db().from("boards").insert(payload).select(BOARD).single();
     return toBoard(unwrap<BoardRow>(result, "boards.create"));
