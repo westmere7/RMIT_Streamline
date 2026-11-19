@@ -180,7 +180,12 @@ function OnboardingForm({ token, invitation }: { token: string; invitation: Extr
       setPhase("done");
       return invitation.workspaceSlug;
     },
-    onSuccess: (slug) => router.replace(routes.workspace(slug)),
+    // Signed in now as somebody new: nothing read before (a workspace that was
+    // not theirs to see a moment ago) may answer for them.
+    onSuccess: (slug) => {
+      queryClient.removeQueries();
+      router.replace(routes.workspace(slug));
+    },
     onError: (e) => {
       setPhase("form");
       setError(e instanceof AvatarError || e instanceof Error ? e.message : "Something went wrong. Try again.");

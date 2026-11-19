@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.115.1",
+    date: "2026-11-19",
+    title: "Approved members get in",
+    changes: [
+      "Someone approved while on the waiting screen now goes straight into the workspace; they saw \"Workspace not found\" until they refreshed.",
+      "\"Workspace not found\" also says the workspace may just not be open to you.",
+    ],
+  },
+  {
     version: "0.115.0",
     date: "2026-11-19",
     title: "Approving new members",

@@ -1,8 +1,7 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Hourglass } from "lucide-react";
-import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -30,15 +29,11 @@ export function useWaitingWorkspaces(enabled: boolean) {
  * What someone who joined through the join link sees until an admin lets them
  * in. When they are approved the workspace opens on its own.
  */
-export function WaitingScreen({ workspaceName, workspaceId }: { workspaceName: string; workspaceId: string }) {
+export function WaitingScreen({ workspaceName }: { workspaceName: string; workspaceId: string }) {
   const { signOut } = useAuth();
-  const queryClient = useQueryClient();
-  const waiting = useWaitingWorkspaces(true);
-  const stillWaiting = !waiting.data || waiting.data.some((w) => w.workspaceId === workspaceId);
-  React.useEffect(() => {
-    // Let in (or turned away): read everything again and let the shell decide.
-    if (!stillWaiting) void queryClient.invalidateQueries();
-  }, [stillWaiting, queryClient]);
+  // Keeps the question asked while this is on screen; the workspace shell
+  // reloads the page once the answer changes.
+  useWaitingWorkspaces(true);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface px-6 text-center" data-testid="waiting-for-approval">

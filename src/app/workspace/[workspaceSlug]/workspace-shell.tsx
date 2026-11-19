@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { ErrorState } from "@/components/shared/error-state";
@@ -32,6 +32,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     queryKey: queryKeys.workspace(slug),
     queryFn: () => services.workspace.getWorkspaceBySlug(slug),
     enabled: status === "signed-in",
+    // Whether this person may open it can change at any moment (approved,
+    // added, deactivated): always asked again, never answered from before.
+    staleTime: 0,
   });
   const membershipQuery = useQuery({
     queryKey: [...queryKeys.workspaceMembers(workspaceQuery.data?.id ?? ""), "self", user?.id],
@@ -40,6 +43,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       return members.find((m) => m.userId === user!.id) ?? null;
     },
     enabled: !!workspaceQuery.data && !!user,
+    staleTime: 0,
   });
 
   // The workspace to come back to next time: this one, once it has let them in.
@@ -49,6 +53,15 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const shut = workspaceQuery.data === null || (!!membershipQuery.data && membershipQuery.data.status !== "ACTIVE") || membershipQuery.data === null;
   const waiting = useWaitingWorkspaces(status === "signed-in" && shut);
   const waitingHere = waiting.data?.find((w) => w.slug === slug) ?? null;
+  // Waiting here a moment ago and not any more: let in (or turned away). Load
+  // the page afresh, so nothing read while they were shut out (the workspace,
+  // their seat, the live channels) answers for them now. Done here, not in the
+  // waiting screen, which is gone by the render that learns it.
+  const wasWaiting = useRef(false);
+  useEffect(() => {
+    if (waitingHere) wasWaiting.current = true;
+    else if (wasWaiting.current && waiting.data) window.location.reload();
+  }, [waitingHere, waiting.data]);
   useEffect(() => {
     if (admitted) rememberWorkspace(slug);
   }, [admitted, slug]);
@@ -59,13 +72,15 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   if (shut && waiting.isLoading) return <FullPageLoader label="Opening workspace…" />;
   if (waitingHere) return <WaitingScreen workspaceName={waitingHere.name} workspaceId={waitingHere.workspaceId} />;
+  // A "no" read earlier is being asked again: wait for the answer rather than show the old one.
+  if (shut && (workspaceQuery.isFetching || membershipQuery.isFetching)) return <FullPageLoader label="Opening workspace…" />;
 
   const workspace = workspaceQuery.data;
   if (!workspace) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-surface text-center">
         <p className="text-base font-semibold">Workspace not found</p>
-        <p className="text-[13px] text-muted-foreground">There is no workspace at /workspace/{slug}.</p>
+        <p className="text-[13px] text-muted-foreground">There is no workspace at /workspace/{slug}, or it is not open to you.</p>
         <Button variant="outline" onClick={() => router.replace(routes.root())}>
           Go to my workspace
         </Button>
