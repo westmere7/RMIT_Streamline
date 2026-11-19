@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.106.1",
+    date: "2026-11-19",
+    title: "Share switch says where it stands",
+    changes: [
+      "Share dialogs: the switch reads \"Link is off\" or \"Link is on\", whichever it is.",
+      "Before a link exists the dialog starts at the switch. Once made, its address stays in view, on or off.",
+    ],
+  },
+  {
     version: "0.106.0",
     date: "2026-11-18",
     title: "Formatted answers",

@@ -210,35 +210,25 @@ export function ShareControls({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
-        <Input
-          aria-label="Share link"
-          readOnly
-          value={url ?? ""}
-          placeholder="Turn the link on to get its address"
-          onFocus={(e) => e.currentTarget.select()}
-          className="font-mono text-xs"
-          data-testid="share-link"
-        />
-        <Button variant="outline" size="icon" aria-label="Copy link" disabled={!linked} onClick={() => url && void copyToClipboard(url)} data-testid="share-copy">
-          <Copy />
-        </Button>
-        {linked ? (
+      {/* The address once there is one. An off link keeps it (the switch brings it
+          back as it was), so it still shows; before the first link, the switch leads. */}
+      {linked && (
+        <div className="flex gap-2">
+          <Input aria-label="Share link" readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" data-testid="share-link" />
+          <Button variant="outline" size="icon" aria-label="Copy link" onClick={() => void copyToClipboard(url)} data-testid="share-copy">
+            <Copy />
+          </Button>
           <Button variant="outline" size="icon" aria-label="Open link" asChild>
             <a href={url} target="_blank" rel="noreferrer">
               <ExternalLink />
             </a>
           </Button>
-        ) : (
-          <Button variant="outline" size="icon" aria-label="Open link" disabled>
-            <ExternalLink />
-          </Button>
-        )}
-      </div>
+        </div>
+      )}
 
       <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border/60 bg-surface/40 px-3.5 py-3 text-[13px] font-medium">
-        Link is on
-        <Switch checked={share.enabled} disabled={busy} onCheckedChange={(enabled) => onSave({ enabled })} aria-label="Link is on" data-testid="share-enabled" />
+        {share.enabled ? "Link is on" : "Link is off"}
+        <Switch checked={share.enabled} disabled={busy} onCheckedChange={(enabled) => onSave({ enabled })} aria-label="Link on" data-testid="share-enabled" />
       </label>
 
       <ShareAccessChoice

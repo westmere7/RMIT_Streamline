@@ -120,6 +120,9 @@ test.describe("sharing a board by link", () => {
 
     await dialog.getByTestId("share-enabled").click();
     await expect(dialog.getByTestId("share-enabled")).toHaveAttribute("data-state", "unchecked");
+    // Off is not gone: the address stays, and the label says so.
+    await expect(dialog.getByTestId("share-link")).toHaveValue(url);
+    await expect(dialog.getByText("Link is off")).toBeVisible();
 
     const guest = await context.newPage();
     await guest.goto(url);
@@ -160,7 +163,7 @@ test.describe("sharing a board by link", () => {
     await expect(guest.getByTestId("shared-board")).toBeVisible({ timeout: 20000 });
 
     await dialog.getByTestId("share-stop").click();
-    await expect(dialog.getByTestId("share-link")).toHaveValue("", { timeout: 15000 });
+    await expect(dialog.getByTestId("share-link")).toHaveCount(0, { timeout: 15000 });
     await guest.goto(url);
     await expect(guest.getByTestId("share-closed")).toBeVisible({ timeout: 20000 });
 

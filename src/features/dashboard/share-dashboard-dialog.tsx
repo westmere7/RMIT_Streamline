@@ -81,8 +81,8 @@ function ShareControls({ share, busy, onSave, onRegenerate, onStop }: { share: D
       </div>
 
       <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-border/60 bg-surface/40 px-3.5 py-3 text-[13px] font-medium">
-        Link is on
-        <Switch checked={share.enabled} disabled={busy} onCheckedChange={(enabled) => onSave({ enabled })} aria-label="Link is on" data-testid="dashboard-share-enabled" />
+        {share.enabled ? "Link is on" : "Link is off"}
+        <Switch checked={share.enabled} disabled={busy} onCheckedChange={(enabled) => onSave({ enabled })} aria-label="Link on" data-testid="dashboard-share-enabled" />
       </label>
 
       <div className="grid gap-4 sm:grid-cols-2">
