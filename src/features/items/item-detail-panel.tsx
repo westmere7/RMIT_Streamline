@@ -110,33 +110,6 @@ function itemAccent(model: BoardModel, itemId: string, fallback: ColorToken): Co
 }
 
 /**
- * The panel's edge in the task's accent colour (itemAccent): a hairline across the top that runs
- * round the corners and fades into the ordinary border a short way down each
- * side, so the panel lifts off the board without a frame around it.
- *
- * Drawn on the panel's own border: the panel clips its contents to the inside
- * of that border, so no layer could sit on it, and the fill is painted twice
- * instead — the surface inside the border, the gradient under it, showing only
- * through the border. Two pixels along the top, tapering to one round the
- * corners, and the extra pixel is taken from inside: the panel's width already
- * counts its border. A second hairline laid inside the first looked thicker
- * too, but the two curves never quite met and the corners came out ragged.
- *
- * Not over a cover photo: the picture already marks the top of the panel, and
- * a coloured rule along its edge only frames it.
- */
-function panelEdgeStyle(hex: string): React.CSSProperties {
-  return {
-    borderColor: "transparent",
-    borderTopWidth: 2,
-    background: [
-      "linear-gradient(var(--surface), var(--surface)) padding-box",
-      `linear-gradient(to bottom, ${hex}, color-mix(in srgb, ${hex} 40%, var(--border)) 40px, color-mix(in srgb, var(--border) 70%, transparent) 150px) border-box`,
-    ].join(", "),
-  };
-}
-
-/**
  * The panel while the board behind it is still loading.
  *
  * Same frame, same place, a working close button and the shape of what is
@@ -407,21 +380,20 @@ export function ItemDetailPanel({
     );
   }
 
-  const edge = narrow || item?.coverUrl || !item ? null : colorClasses(itemAccent(model, item.id, board.color)).hex;
+  // The panel's edge is its ordinary border. It used to carry the task's
+  // accent as a coloured hairline round the top corners; the wash of that
+  // colour inside the header (PanelHeader) is the one mark of it now.
   return (
     <aside
       role="dialog"
       aria-label={item ? item.name : "Item"}
       data-testid="item-panel"
       className={panelClasses(shared, narrow, overlay)}
-      // Full screen on a phone there is no edge to colour. Settling on a width
-      // after a drag, or stepping to one, glides; following the hand does not,
-      // or the edge would trail behind it. Inline, because the slide-in's
-      // duration class otherwise leaves every property easing during a drag.
-      style={{
-        ...(edge ? panelEdgeStyle(edge) : undefined),
-        ...(resizable ? { width: panel.width, transition: panel.dragging ? "none" : "width 200ms ease-out" } : undefined),
-      }}
+      // Settling on a width after a drag, or stepping to one, glides; following
+      // the hand does not, or the edge would trail behind it. Inline, because
+      // the slide-in's duration class otherwise leaves every property easing
+      // during a drag.
+      style={resizable ? { width: panel.width, transition: panel.dragging ? "none" : "width 200ms ease-out" } : undefined}
       data-panel-size={resizable ? panel.size : undefined}
     >
       {panel.handle}

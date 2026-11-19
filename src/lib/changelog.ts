@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.110.2",
+    date: "2026-11-19",
+    title: "Plainer task panel edge",
+    changes: ["The task panel loses the coloured outline round its top corners; the soft wash of the status colour across its header stays."],
+  },
+  {
     version: "0.110.1",
     date: "2026-11-19",
     title: "Board counts stay current",
