@@ -165,3 +165,4 @@ policies/0030_board_see_edit_policies.sql
 migrations/0124_item_visits.sql
 migrations/0125_task_allocation_own_access.sql
 policies/0031_task_allocation_seats.sql
+migrations/0126_task_allocation_editors_follow.sql

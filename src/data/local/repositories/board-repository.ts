@@ -9,7 +9,7 @@ import type {
   BoardRole,
 } from "@/domain";
 import { DEFAULT_COLUMN_WIDTHS, defaultSettingsFor } from "@/domain";
-import { COLUMN_TYPES } from "@/domain";
+import { COLUMN_TYPES, SUBSCRIPTION_EVENTS } from "@/domain";
 import type { BoardRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -128,6 +128,20 @@ export class LocalBoardRepository implements BoardRepository {
     const existing = (await db.getAllFromIndex("boardMembers", "byBoard", boardId)).find((m) => m.userId === userId);
     const member: BoardMember = existing ? { ...existing, role } : { id: newId(), boardId, userId, role };
     await db.put("boardMembers", member);
+    // As migration 0126 does in the database: an editor added to Task Allocation follows all of it.
+    if (role === "EDITOR" && existing?.role !== "EDITOR") {
+      const board = await db.get("boards", boardId);
+      if (board?.system === "TASK_ALLOCATION") {
+        const follow = (await db.getAllFromIndex("subscriptions", "byUser", userId)).find((s) => s.boardId === boardId && s.itemId === null);
+        const now = nowIso();
+        await db.put(
+          "subscriptions",
+          follow
+            ? { ...follow, events: [...SUBSCRIPTION_EVENTS], updatedAt: now }
+            : { id: newId(), workspaceId: board.workspaceId, userId, boardId, itemId: null, events: [...SUBSCRIPTION_EVENTS], createdAt: now, updatedAt: now },
+        );
+      }
+    }
     return member;
   }
 
@@ -135,6 +149,15 @@ export class LocalBoardRepository implements BoardRepository {
     const db = await this.conn.getDb();
     const members = await db.getAllFromIndex("boardMembers", "byBoard", boardId);
     await Promise.all(members.filter((m) => m.userId === userId).map((m) => db.delete("boardMembers", m.id)));
+    // And off Task Allocation, someone below admin stops following it: they can no longer see it (0126).
+    const board = await db.get("boards", boardId);
+    if (board?.system === "TASK_ALLOCATION") {
+      const admin = (await db.getAllFromIndex("workspaceMembers", "byUser", userId)).some((m) => m.workspaceId === board.workspaceId && (m.role === "OWNER" || m.role === "ADMIN"));
+      if (!admin) {
+        const follow = (await db.getAllFromIndex("subscriptions", "byUser", userId)).find((s) => s.boardId === boardId && s.itemId === null);
+        if (follow) await db.delete("subscriptions", follow.id);
+      }
+    }
   }
 
   // ---- Favourites ----------------------------------------------------------

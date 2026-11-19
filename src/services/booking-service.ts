@@ -55,6 +55,11 @@ export interface BookingTransport {
   submit(input: BookingSubmission): Promise<BookingReceipt>;
   /** The name the workspace has for this email, for the form to fill in. */
   lookupRequester(input: { workspaceSlug: string; key: string | null; email: string }): Promise<string | null>;
+  /**
+   * Allocating a request: the server's, since the person allocating need not
+   * be able to edit the board it goes to (src/server/allocation.ts).
+   */
+  allocate?(input: { itemId: EntityId; boardId: EntityId }): Promise<{ item: Item; board: Board }>;
 }
 
 /**
@@ -558,6 +563,7 @@ export class BookingService {
    * and a value with nowhere to go is dropped rather than stranded.
    */
   async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId): Promise<{ item: Item; board: Board }> {
+    if (this.transport?.allocate) return this.transport.allocate({ itemId, boardId: targetBoardId });
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
     const [source, target] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(targetBoardId)]);

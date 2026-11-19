@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.118.1",
+    date: "2026-11-19",
+    title: "Allocators can allocate",
+    changes: [
+      "Someone added to Task Allocation can allocate a request to any team board they can see, without editing that board.",
+      "Added to Task Allocation as an editor, they follow all of it from the start; they can turn any of it down from the board's bell.",
+    ],
+  },
+  {
     version: "0.118.0",
     date: "2026-11-19",
     title: "More people can allocate",
