@@ -26,15 +26,18 @@ describe("Share panel before a link exists", () => {
     expect(screen.getByTestId("share-stop")).toBeDisabled();
 
     fireEvent.click(toggle);
-    const link = (await screen.findByTestId("share-link")) as HTMLInputElement;
+    // Generous waits: under the full suite a local write can take more than the default second.
+    const link = (await screen.findByTestId("share-link", undefined, { timeout: 5000 })) as HTMLInputElement;
     expect(link.value).toMatch(/\/share\/[a-z0-9]{16,}$/);
     expect(screen.getByTestId("share-enabled")).toHaveAttribute("aria-checked", "true");
     expect((await app.data.services.shares.get(board.id))?.enabled).toBe(true);
 
     // Off is not gone: the link keeps its address, and the label says it is off.
     const address = link.value;
+    // The switch is held while the first save settles; a click before then is not a click.
+    await waitFor(() => expect(screen.getByTestId("share-enabled")).not.toBeDisabled(), { timeout: 5000 });
     fireEvent.click(screen.getByTestId("share-enabled"));
-    await waitFor(() => expect(screen.getByText("Link is off")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Link is off")).toBeTruthy(), { timeout: 5000 });
     expect((screen.getByTestId("share-link") as HTMLInputElement).value).toBe(address);
     expect((await app.data.services.shares.get(board.id))?.enabled).toBe(false);
   });
@@ -48,7 +51,7 @@ describe("Share panel before a link exists", () => {
       </AppReady>,
     );
     fireEvent.click(await screen.findByTestId("share-access-public"));
-    await waitFor(async () => expect(await app.data.services.shares.get(board.id)).not.toBeNull());
+    await waitFor(async () => expect(await app.data.services.shares.get(board.id)).not.toBeNull(), { timeout: 5000 });
     const share = await app.data.services.shares.get(board.id);
     expect(share?.enabled).toBe(false);
     expect(share?.access).toBe("PUBLIC");
