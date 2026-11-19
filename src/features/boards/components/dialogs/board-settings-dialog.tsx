@@ -1,17 +1,16 @@
 "use client";
 
+import { LookPicker } from "@/components/shared/look-picker";
+import { SettingsDialogFrame } from "@/components/shared/settings-dialog-frame";
 import { BoardAccessField, accessSummary, teamEditorsOf } from "@/features/boards/components/board-visibility-field";
 import { boardAccessOf, teamAccessFor } from "@/lib/permissions/permissions";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Archive, ArchiveRestore, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
 import * as React from "react";
-import { ColorPicker } from "@/components/shared/color-picker";
-import { IconPicker } from "@/components/shared/icon-picker";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -27,17 +26,19 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { boardRoleFor, canDeleteBoard, canEditBoardSeat, canManageBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 
-export type BoardSettingsSection = "general" | "members" | "share" | "columns" | "assets" | "permissions" | "archive" | "danger";
+export type BoardSettingsSection = "general" | "access" | "members" | "share" | "columns" | "assets" | "permissions" | "archive" | "danger";
 
-const SECTIONS: Array<{ id: BoardSettingsSection; label: string }> = [
+/** In the same order as team settings where they share a tab: General, Access, Members. */
+const SECTIONS: Array<{ id: BoardSettingsSection; label: string; danger?: boolean }> = [
   { id: "general", label: "General" },
+  { id: "access", label: "Access" },
   { id: "members", label: "Members" },
   { id: "share", label: "Share" },
   { id: "columns", label: "Columns" },
   { id: "assets", label: "Assets" },
   { id: "permissions", label: "Permissions" },
   { id: "archive", label: "Archive" },
-  { id: "danger", label: "Danger Zone" },
+  { id: "danger", label: "Danger Zone", danger: true },
 ];
 
 export function BoardSettingsDialog({
@@ -53,45 +54,18 @@ export function BoardSettingsDialog({
 }) {
   const ws = useWorkspace();
   const manage = canManageBoard(ws.permissions, board);
-  const open = section !== null;
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onSectionChange(null)}>
-      <DialogContent size="lg" className="max-h-[85vh] gap-0 overflow-hidden p-0">
-        <DialogHeader className="border-b px-5 py-4">
-          <DialogTitle>Board settings</DialogTitle>
-          <DialogDescription>{board.name}</DialogDescription>
-        </DialogHeader>
-        <div className="flex min-h-[420px]">
-          <nav className="w-40 shrink-0 border-r p-2" aria-label="Settings sections">
-            {SECTIONS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => onSectionChange(s.id)}
-                aria-current={section === s.id ? "page" : undefined}
-                className={cn(
-                  "flex h-8 w-full items-center rounded-md px-2 text-[13px] font-medium",
-                  section === s.id ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-                  s.id === "danger" && "text-destructive",
-                )}
-              >
-                {s.label}
-              </button>
-            ))}
-          </nav>
-          <div className="scrollbar-thin max-h-[calc(85vh-80px)] flex-1 overflow-y-auto p-5">
-            {section === "general" && <GeneralSection key={`${board.name}|${board.description ?? ""}`} board={board} manage={manage} />}
-            {section === "members" && <MembersSection board={board} manage={manage} />}
-            {section === "share" && <ShareSection board={board} manage={manage} />}
-            {section === "columns" && <ColumnsSection board={board} manage={manage} />}
-            {section === "assets" && <AssetsSection board={board} manage={manage} />}
-            {section === "permissions" && <PermissionsSection board={board} />}
-            {section === "archive" && <ArchiveSection board={board} manage={manage} />}
-            {section === "danger" && <DangerSection board={board} onRequestDelete={onRequestDelete} />}
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <SettingsDialogFrame title="Board settings" description={board.name} sections={SECTIONS} section={section} onSectionChange={onSectionChange} testId="board-settings">
+      {section === "general" && <GeneralSection key={`${board.name}|${board.description ?? ""}`} board={board} manage={manage} />}
+      {section === "access" && <AccessSection board={board} manage={manage} />}
+      {section === "members" && <MembersSection board={board} manage={manage} />}
+      {section === "share" && <ShareSection board={board} manage={manage} />}
+      {section === "columns" && <ColumnsSection board={board} manage={manage} />}
+      {section === "assets" && <AssetsSection board={board} manage={manage} />}
+      {section === "permissions" && <PermissionsSection board={board} />}
+      {section === "archive" && <ArchiveSection board={board} manage={manage} />}
+      {section === "danger" && <DangerSection board={board} onRequestDelete={onRequestDelete} />}
+    </SettingsDialogFrame>
   );
 }
 
@@ -107,7 +81,10 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
     <div className="space-y-4">
       <div className="grid gap-1.5">
         <Label htmlFor="bs-name">Board name</Label>
-        <Input id="bs-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!manage} />
+        <div className="flex items-center gap-2">
+          <LookPicker color={board.color} icon={board.icon} onColor={(color) => actions.updateBoard.mutate({ color })} onIcon={(icon) => actions.updateBoard.mutate({ icon })} disabled={!manage} testId="board-look" />
+          <Input id="bs-name" value={name} onChange={(e) => setName(e.target.value)} disabled={!manage} />
+        </div>
       </div>
       <div className="grid gap-1.5">
         <Label htmlFor="bs-description">Description</Label>
@@ -138,27 +115,16 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
           </Select>
         </div>
       </div>
-      {/* Who can see it and who can edit it: its team's settings, or its own. */}
-      {!board.system && (
-        <div className="grid gap-1.5 border-t pt-4">
-          <Label>Access</Label>
-          <BoardAccessField board={board} team={ws.teamById(board.teamId)} manage={manage} onChange={(patch) => actions.updateBoard.mutate(patch)} />
-        </div>
-      )}
-      {manage && (
-        <div className="grid gap-4 border-t pt-4">
-          <div className="grid gap-1.5">
-            <Label>Colour</Label>
-            <ColorPicker value={board.color} onChange={(color) => actions.updateBoard.mutate({ color })} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Icon</Label>
-            <IconPicker value={board.icon} onChange={(icon) => actions.updateBoard.mutate({ icon })} className="grid-cols-11" />
-          </div>
-        </div>
-      )}
     </div>
   );
+}
+
+/** Who can see the board and who can edit it: its team's settings, or its own. */
+function AccessSection({ board, manage }: { board: Board; manage: boolean }) {
+  const ws = useWorkspace();
+  const actions = useBoardActions(board);
+  if (board.system) return <p className="text-[13px] text-muted-foreground">A built-in board: who can see and edit it is fixed.</p>;
+  return <BoardAccessField board={board} team={ws.teamById(board.teamId)} manage={manage} onChange={(patch) => actions.updateBoard.mutate(patch)} />;
 }
 
 function MembersSection({ board, manage }: { board: Board; manage: boolean }) {

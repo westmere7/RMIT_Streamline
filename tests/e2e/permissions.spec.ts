@@ -60,7 +60,7 @@ test.describe("permissions", () => {
     await switchTo(page, "Jun Tanaka");
     await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByText("Danh private notes")).toHaveCount(0);
     await page.goto(url);
-    await expect(page.getByText(/this board is private|board not found|do not have access/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/this board is private|board not found|do not have access|don't have access/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("board-table")).toHaveCount(0);
 
     // A workspace admin can still get in (that is the documented rule).
@@ -82,7 +82,7 @@ test.describe("permissions", () => {
     await switchTo(page, "Jane Morrison");
     // Creative Requests is WORKSPACE-visible; guests get no inherited access.
     await page.goto("/workspace/rmit/boards/creative-requests");
-    await expect(page.getByText(/this board is private|board not found|do not have access/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/this board is private|board not found|do not have access|don't have access/i)).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("board-table")).toHaveCount(0);
   });
 

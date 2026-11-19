@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.116.1",
+    date: "2026-11-19",
+    title: "Settings in tabs",
+    changes: [
+      "Team settings now open in tabs like Board settings: General, Access, Members, Bookings. Changes save as you make them; name and description with Save changes.",
+      "Board settings has its own Access tab (who can see, who can edit, and the grid), and its colour and icon are one small picker beside the name.",
+      "Creating a team asks only for its name, look and description; the rest is in its settings.",
+    ],
+  },
+  {
     version: "0.116.0",
     date: "2026-11-19",
     title: "Who can see, who can edit",
