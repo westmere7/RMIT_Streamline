@@ -1,6 +1,6 @@
 import type { PublicBoardPayload } from "@/domain/board/board-share";
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
-import type { PortalStakeholderOption, PortalTheme, PortalView } from "@/domain/portal/stakeholder-portal";
+import type { PortalStakeholderOption, PortalTeamOption, PortalTheme, PortalView } from "@/domain/portal/stakeholder-portal";
 
 /**
  * What a stakeholder is allowed to see.
@@ -181,6 +181,10 @@ export interface PortalContext {
   stakeholders: PortalStakeholderOption[];
   /** Which one is selected, or null for all of them. */
   stakeholderId: EntityId | null;
+  /** Every team whose boards hold work in the portal, for the Teams filter. */
+  teams: PortalTeamOption[];
+  /** Which one is selected, or null for every team. */
+  teamId: EntityId | null;
   /** The years that have requests in them, newest first, for the range picker. */
   years: number[];
   /** How far back is being shown, as it travels: "3m", "2026", "all". */

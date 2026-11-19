@@ -407,6 +407,12 @@ export interface PortalScope {
    * see.
    */
   range: PortalRange;
+  /**
+   * A team id: only work on that team's boards. Null or absent for every team.
+   * Work still waiting on Task Allocation is with no team yet, so a team
+   * filter leaves it out.
+   */
+  teamId?: EntityId | null;
 }
 
 /**
@@ -493,6 +499,15 @@ export interface PortalStakeholderOption {
   name: string;
   color: ColorToken;
   /** How many requests they have, across every year. */
+  count: number;
+}
+
+/** A team with work in the portal, for the Teams filter: its name and colour, nothing else of it. */
+export interface PortalTeamOption {
+  id: EntityId;
+  name: string;
+  color: ColorToken;
+  /** How many requests are on its boards, across every year. */
   count: number;
 }
 

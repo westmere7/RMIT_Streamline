@@ -63,6 +63,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   // range falls back to the default rather than to everything: the fallback for
   // a bad address must be the cheap read, not the expensive one.
   const stakeholderId = searchParams.get("for") || null;
+  const teamId = searchParams.get("team") || null;
 
   // What the board's own search box holds, lifted so the request can widen to
   // every year while it is set.
@@ -92,7 +93,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
 
   // A search reads everything; otherwise the visitor's own window applies.
   const range = searching ? EVERY_PORTAL_RANGE : chosenRange;
-  const scope = React.useMemo(() => ({ stakeholderId, range }), [stakeholderId, range]);
+  const scope = React.useMemo(() => ({ stakeholderId, teamId, range }), [stakeholderId, teamId, range]);
 
   // A request's journey, read when it is opened rather than with every refresh of the board.
   // Keyed on the grant's own parts, so the board's data layer is not rebuilt on every render.
@@ -104,7 +105,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   );
 
   const page = useQuery({
-    queryKey: ["portal-board", token, gate.data?.credentialVersion, password, stakeholderId, formatPortalRange(range)],
+    queryKey: ["portal-board", token, gate.data?.credentialVersion, password, stakeholderId, teamId, formatPortalRange(range)],
     queryFn: () => services.portals.publicBoard(credentials, scope),
     enabled: !!gate.data?.open && (!needsPassword || password !== null),
     retry: false,
@@ -240,6 +241,14 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           stakeholders={context?.stakeholders ?? []}
           stakeholderId={stakeholderId}
           onStakeholder={(id) => replaceParams({ for: id })}
+          teams={context?.teams ?? []}
+          teamId={teamId}
+          onTeam={(id) => replaceParams({ team: id })}
+          rangePicker={
+            // Stored as it was chosen, so the address says what is on
+            // screen; a search has taken the window off, and says so.
+            <PortalRangePicker range={range} onRange={(next) => replaceParams({ range: formatPortalRange(next) })} years={context?.years ?? []} rangeOverridden={searching} />
+          }
         />
 
         {/* The next board is on its way: the one on screen is the old one. */}
@@ -255,11 +264,6 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
                 loadJourney={loadJourney}
                 payload={page.data}
                 bookHref={context?.allowBooking === false ? null : bookHref}
-                rangePicker={
-                  // Stored as it was chosen, so the address says what is on
-                  // screen; a search has taken the window off, and says so.
-                  <PortalRangePicker range={range} onRange={(next) => replaceParams({ range: formatPortalRange(next) })} years={context?.years ?? []} rangeOverridden={searching} />
-                }
                 defaultView={(context?.defaultView ?? "table") as BoardViewKind}
                 showItemGroups={context?.showItemGroups === true}
                 onSearchChange={setSearch}

@@ -1,6 +1,7 @@
 import type {
   PortalScope,
   PortalStakeholderOption,
+  PortalTeamOption,
   Board,
   BoardColumn,
   PortalColumnCandidate,
@@ -175,6 +176,8 @@ export interface PortalScopeEntry {
   publicBrief: string | null;
   /** True when a portal_requests row names this item. */
   booked: boolean;
+  /** The team whose board the work is on; null on Task Allocation, still waiting for one. */
+  team: PortalTeamOption | null;
   /**
    * Who the work is for.
    *
@@ -697,12 +700,23 @@ export class StakeholderPortalService {
       else counts.set(entry.department.id, { option: { id: entry.department.id, name: entry.department.name, color: entry.department.color, count: 1 } });
     }
 
+    // The teams the same way: those with work here, counted over everything.
+    const teamCounts = new Map<EntityId, PortalTeamOption>();
+    for (const entry of entries) {
+      if (!entry.team) continue;
+      const found = teamCounts.get(entry.team.id);
+      if (found) found.count += 1;
+      else teamCounts.set(entry.team.id, { ...entry.team, count: 1 });
+    }
+
     const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
     return {
       portalName: teamName,
       creativeTeamName: teamName,
       stakeholders: [...counts.values()].map((row) => row.option).sort((a, b) => a.name.localeCompare(b.name)),
       stakeholderId: scope.stakeholderId,
+      teams: [...teamCounts.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      teamId: scope.teamId ?? null,
       years: [...years].sort((a, b) => b - a),
       range: formatPortalRange(scope.range),
       defaultTheme: resolved.portal.defaultTheme,
@@ -1134,6 +1148,10 @@ export class StakeholderPortalService {
     const links = await this.linksForItems([...byId.keys()]);
     const canonical = collapseLinked([...byId.keys()], links, (id) => ({ booked: briefs.has(id), createdAt: byId.get(id)!.createdAt }));
 
+    // Which team each task's board belongs to. The admin team's boards (Task
+    // Allocation) are no team here: work on them is waiting to be given one.
+    const teamOfBoard = await this.teamsByBoard(workspaceId);
+
     // One clock for the whole pass, so a rolling window cannot move between the
     // first row it is applied to and the last.
     const now = new Date();
@@ -1143,12 +1161,26 @@ export class StakeholderPortalService {
       const row = briefs.get(id);
       const department = owner.get(id) ?? null;
       if (scope.stakeholderId !== null && department?.id !== scope.stakeholderId) continue;
+      const team = teamOfBoard.get(item.boardId) ?? null;
+      if (scope.teamId && team?.id !== scope.teamId) continue;
       const bookedAt = row?.bookedAt ?? item.createdAt;
       if (!withinPortalRange(bookedAt, scope.range, now)) continue;
-      entries.push({ itemId: id, bookedAt, publicBrief: row?.publicBrief ?? null, booked: !!row, department });
+      entries.push({ itemId: id, bookedAt, publicBrief: row?.publicBrief ?? null, booked: !!row, department, team });
     }
     entries.sort((a, b) => b.bookedAt.localeCompare(a.bookedAt) || b.itemId.localeCompare(a.itemId));
     return { entries, items: loaded };
+  }
+
+  /** Each board's team, as the Teams filter names it; the admin team's boards are left out. */
+  private async teamsByBoard(workspaceId: EntityId): Promise<Map<EntityId, PortalTeamOption>> {
+    const [boards, teams] = await Promise.all([this.repos.boards.listByWorkspace(workspaceId), this.repos.teams.listByWorkspace(workspaceId)]);
+    const byId = new Map(teams.filter((team) => !team.system).map((team) => [team.id, team]));
+    const result = new Map<EntityId, PortalTeamOption>();
+    for (const board of boards) {
+      const team = board.teamId ? byId.get(board.teamId) : undefined;
+      if (team) result.set(board.id, { id: team.id, name: team.name, color: team.color, count: 0 });
+    }
+    return result;
   }
 
   /**

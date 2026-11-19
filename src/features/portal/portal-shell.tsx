@@ -4,7 +4,7 @@ import { CalendarRange, Check, ChevronDown, LoaderCircle, Users } from "lucide-r
 import * as React from "react";
 import { BrandMark, RmitLogo } from "@/features/auth/components/auth-shell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import type { EntityId, PortalRange, PortalStakeholderOption, PortalTheme, PortalTotals } from "@/domain";
+import type { EntityId, PortalRange, PortalStakeholderOption, PortalTeamOption, PortalTheme, PortalTotals } from "@/domain";
 import { isPortalTheme, PORTAL_MONTH_RANGES, PORTAL_WEEK_RANGES, portalRangeLabel } from "@/domain";
 import { colorClasses } from "@/lib/colors";
 import { pageZoomStyle, usePageZoom, ViewControls, type ViewScaleControl, type ViewThemeControl } from "@/components/shared/view-controls";
@@ -276,19 +276,18 @@ export function usePortalTheme() {
  * with the other ways of narrowing what is on screen; a search sets it aside
  * and looks everywhere.
  */
+/** The header's filters share one shape: a soft pill, its choice in bold, a chevron. */
+const HEADER_PILL = "flex h-9 max-w-[19rem] shrink-0 items-center gap-2 rounded-full bg-surface-strong/60 px-3.5 text-left transition-colors hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ring/50";
+
 export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { range: PortalRange; onRange: (range: PortalRange) => void; years?: number[]; rangeOverridden?: boolean }) {
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-border/70 bg-card px-2.5 text-[13px] font-medium transition-colors hover:bg-surface-strong/70 focus-visible:outline-2 focus-visible:outline-ring/50 sm:h-8"
-            data-testid="portal-range-picker"
-          >
-            <CalendarRange className="size-3.5 text-muted-foreground" />
-            {rangeOverridden ? "Searching everything" : portalRangeLabel(range)}
-            <ChevronDown className="size-3.5 text-muted-foreground" />
+          <button type="button" className={HEADER_PILL} data-testid="portal-range-picker">
+            <CalendarRange className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="truncate text-[13px] font-semibold tracking-tight">{rangeOverridden ? "Searching everything" : portalRangeLabel(range)}</span>
+            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-60">
@@ -338,6 +337,10 @@ export function PortalHeader({
   stakeholders,
   stakeholderId,
   onStakeholder,
+  teams,
+  teamId,
+  onTeam,
+  rangePicker,
   scale,
 }: {
   token: string;
@@ -354,14 +357,20 @@ export function PortalHeader({
   /** The one selected, or null for all of them. */
   stakeholderId?: EntityId | null;
   onStakeholder?: (id: EntityId | null) => void;
+  /** Every team with work here, for the Teams filter beside the departments. */
+  teams?: PortalTeamOption[];
+  teamId?: EntityId | null;
+  onTeam?: (id: EntityId | null) => void;
+  /** How far back to read: on the top row with the other two. */
+  rangePicker?: React.ReactNode;
 }) {
   const selected = stakeholders?.find((row) => row.id === stakeholderId) ?? null;
+  const selectedTeam = teams?.find((row) => row.id === teamId) ?? null;
   return (
     <header className="border-b border-border/70 bg-background">
-      {/* One row: whose work, the figures, and the tools at the far end. How far
-          back to read sits on the board's own toolbar beside the view, where
-          the other ways of narrowing the board are. Nothing here explains
-          itself in small print. */}
+      {/* One row: whose work, which team's, how far back, the figures, and the
+          tools at the far end. The three filters are the same pill. Nothing
+          here explains itself in small print. */}
       <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6">
         {/* RMIT's logo leads: the portal is the RMIT team's. Streamline signs off at the far end. */}
         <RmitLogo className="h-8" />
@@ -369,11 +378,7 @@ export function PortalHeader({
           {onStakeholder ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  className="flex h-9 max-w-[19rem] shrink-0 items-center gap-2 rounded-full bg-surface-strong/60 px-3.5 text-left transition-colors hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ring/50"
-                  data-testid="portal-stakeholder-picker"
-                >
+                <button type="button" className={HEADER_PILL} data-testid="portal-stakeholder-picker">
                   {selected && <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(selected.color).dot)} />}
                   <span className="truncate text-[13px] font-semibold tracking-tight" data-testid="portal-stakeholder-name">
                     {selected ? selected.name : "All departments"}
@@ -406,7 +411,38 @@ export function PortalHeader({
               {portalName}
             </p>
           )}
-
+          {onTeam && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button type="button" className={HEADER_PILL} data-testid="portal-team-picker">
+                  {selectedTeam && <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(selectedTeam.color).dot)} />}
+                  <span className="truncate text-[13px] font-semibold tracking-tight" data-testid="portal-team-name">
+                    {selectedTeam ? selectedTeam.name : "All teams"}
+                  </span>
+                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-64">
+                <DropdownMenuLabel>Which team&apos;s work</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => onTeam(null)} data-testid="portal-team-all">
+                  <Users />
+                  <span className="flex-1">All teams</span>
+                  {!teamId && <Check className="size-3.5" />}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {(teams ?? []).map((option) => (
+                  <DropdownMenuItem key={option.id} onSelect={() => onTeam(option.id)} data-testid={`portal-team-${option.id}`}>
+                    <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(option.color).dot)} />
+                    <span className="flex-1 truncate">{option.name}</span>
+                    <span className="text-2xs tabular text-muted-foreground">{option.count}</span>
+                    {teamId === option.id && <Check className="size-3.5" />}
+                  </DropdownMenuItem>
+                ))}
+                {(teams ?? []).length === 0 && <p className="px-2 py-1.5 text-2xs text-muted-foreground">No team has work here yet.</p>}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {rangePicker}
         </div>
 
         {totals && <PortalRecap totals={totals} />}

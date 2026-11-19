@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.110.0",
+    date: "2026-11-19",
+    title: "Portal: filter by team",
+    changes: [
+      "The portal's top row holds three matching filters: department, team and how far back.",
+      "Teams lists the teams whose boards hold the portal's work, with a count each; requests still waiting on Task Allocation show under All teams only.",
+    ],
+  },
+  {
     version: "0.109.0",
     date: "2026-11-19",
     title: "Portal links for the whole team",

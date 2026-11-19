@@ -105,7 +105,7 @@ export class HttpPortalTransport implements PortalTransport {
 
 /** The scope as it travels: the range goes as its short string, not as an object. */
 function wire(scope: PortalScope) {
-  return { stakeholderId: scope.stakeholderId, range: formatPortalRange(scope.range) };
+  return { stakeholderId: scope.stakeholderId, teamId: scope.teamId ?? null, range: formatPortalRange(scope.range) };
 }
 
 /** Only the grant travels; `viewer` is deliberately not sent — the server decides who you are. */

@@ -229,6 +229,32 @@ describe("the stakeholder portal", () => {
     expect(all.tasks.map((t) => t.id).sort()).toEqual([itemA.id, itemB.id].sort());
   });
 
+  it("offers the teams whose boards hold the work, and narrows to one of them", async () => {
+    const { portal, itemA, itemB } = await twoDepartments();
+    const resolved = await services.portals.resolve({ token: portal.token, password: null });
+    const board = await services.repos.boards.getById(BOARD);
+    expect(board?.teamId).toBeTruthy();
+
+    const context = await services.portals.context(resolved, null);
+    const team = context.teams.find((row) => row.id === board!.teamId);
+    expect(team).toBeTruthy();
+    expect(team!.count).toBeGreaterThanOrEqual(2);
+    expect(context.teamId).toBeNull();
+    // Task Allocation's team (the admin team) is never one of them.
+    const teams = await services.repos.teams.listByWorkspace(WS);
+    const system = new Set(teams.filter((row) => row.system).map((row) => row.id));
+    expect(context.teams.some((row) => system.has(row.id))).toBe(false);
+
+    const mine = await services.portals.tasks(resolved, { scope: { stakeholderId: null, teamId: board!.teamId, range: EVERY_PORTAL_RANGE } });
+    expect(mine.tasks.map((t) => t.id)).toEqual(expect.arrayContaining([itemA.id, itemB.id]));
+    const other = teams.find((row) => !row.system && row.id !== board!.teamId);
+    const none = await services.portals.tasks(resolved, { scope: { stakeholderId: null, teamId: other?.id ?? "no-such-team", range: EVERY_PORTAL_RANGE } });
+    expect(none.tasks.map((t) => t.id)).not.toContain(itemA.id);
+    // An unknown team narrows to nothing rather than widening.
+    const unknown = await services.portals.tasks(resolved, { scope: { stakeholderId: null, teamId: "00000000-0000-4000-8000-00000000dead", range: EVERY_PORTAL_RANGE } });
+    expect(unknown.tasks).toHaveLength(0);
+  });
+
   it("names the stakeholder on every row, so one list of everybody reads", async () => {
     const { first, second, portal, itemA, itemB } = await twoDepartments();
     const resolved = await services.portals.resolve({ token: portal.token, password: null });

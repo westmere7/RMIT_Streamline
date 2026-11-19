@@ -42,13 +42,15 @@ export const portalGrantSchema = z.object({
  */
 export const portalScopeSchema = z.object({
   stakeholderId: z.string().uuid().nullable().optional(),
+  /** A team, the same way: an unknown one narrows to nothing. */
+  teamId: z.string().uuid().nullable().optional(),
   /** "3m", "2026", "all". Parsed rather than trusted; anything else falls back. */
   range: z.string().max(8).optional(),
 });
 
 /** The scope a request asked for, as the service takes it. */
-export function portalScopeOf(body: { stakeholderId?: string | null; range?: string }): PortalScope {
-  return { stakeholderId: body.stakeholderId ?? null, range: parsePortalRange(body.range) ?? DEFAULT_PORTAL_RANGE };
+export function portalScopeOf(body: { stakeholderId?: string | null; teamId?: string | null; range?: string }): PortalScope {
+  return { stakeholderId: body.stakeholderId ?? null, teamId: body.teamId ?? null, range: parsePortalRange(body.range) ?? DEFAULT_PORTAL_RANGE };
 }
 
 export const portalTasksSchema = portalGrantSchema.extend({
@@ -72,7 +74,7 @@ export const portalBoardSchema = portalGrantSchema.merge(portalScopeSchema).exte
  * - the hour, so "today" and everything overdue is worked out afresh at least
  *   hourly however quiet the workspace is;
  * - who is looking, and whether they are a member, which the context shows;
- * - what they asked for (stakeholder and range) and the credential version.
+ * - what they asked for (stakeholder, team and range) and the credential version.
  *
  * Null when the revision cannot be read: the board is then read in full, as
  * it always was.
@@ -85,6 +87,7 @@ export async function portalBoardRevision(resolved: ResolvedPortal, viewer: Port
     new Date().toISOString().slice(0, 13),
     viewer ? `${viewer.userId}:${viewer.isWorkspaceMember ? 1 : 0}` : "-",
     scope.stakeholderId ?? "*",
+    scope.teamId ?? "*",
     formatPortalRange(scope.range),
     `v${resolved.portal.credentialVersion}`,
   ].join("|");
