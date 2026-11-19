@@ -703,6 +703,15 @@ describe("booking a task", () => {
     if (!plan.requesterEmail) expect(item.description).toContain("priya@rmit.edu.au");
   });
 
+  it("records who published the form, and nobody for a publish that does not say", async () => {
+    await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate(), "Named", { publishedBy: SEED_USER_IDS.danh });
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormPublishedBy).toBe(SEED_USER_IDS.danh);
+    await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate(), "Unnamed");
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormPublishedBy).toBeNull();
+    await services.booking.resetForm(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormPublishedBy).toBe(SEED_USER_IDS.danh);
+  });
+
   it("names the published form, stamps when, and counts bookings from then", async () => {
     await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
     await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate(), "  RMIT Marketing · 25 Sep 2026, 10:42  ");

@@ -444,8 +444,9 @@ export class BookingService {
    * open for ever after on a "draft" identical to the live form. Unless
    * `keepDraft`: a saved template published straight from the list is not what
    * the draft was working towards, so the draft stays where it was.
+   * `publishedBy` is who did it, shown beside when.
    */
-  async publishForm(workspaceId: EntityId, input: BookingFormTemplate, name?: string | null, options: { keepDraft?: boolean } = {}): Promise<BookingFormTemplate> {
+  async publishForm(workspaceId: EntityId, input: BookingFormTemplate, name?: string | null, options: { keepDraft?: boolean; publishedBy?: EntityId | null } = {}): Promise<BookingFormTemplate> {
     const template = normaliseBookingTemplate(input);
     // A form published exactly as the built-in one is stored as nothing at all,
     // so the workspace goes on following the built-in form as the app improves
@@ -456,14 +457,15 @@ export class BookingService {
       ...(options.keepDraft ? {} : { bookingFormDraft: null }),
       bookingFormName: name?.trim().slice(0, 120) || null,
       bookingFormPublishedAt: new Date().toISOString(),
+      bookingFormPublishedBy: options.publishedBy ?? null,
       bookingFormBookings: 0,
     });
     return template;
   }
 
   /** Back to the built-in form, live and in the editor. */
-  async resetForm(workspaceId: EntityId): Promise<BookingFormTemplate> {
-    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null, bookingFormName: null, bookingFormPublishedAt: new Date().toISOString(), bookingFormBookings: 0 });
+  async resetForm(workspaceId: EntityId, publishedBy: EntityId | null = null): Promise<BookingFormTemplate> {
+    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null, bookingFormName: null, bookingFormPublishedAt: new Date().toISOString(), bookingFormPublishedBy: publishedBy, bookingFormBookings: 0 });
     return defaultBookingFormTemplate();
   }
 

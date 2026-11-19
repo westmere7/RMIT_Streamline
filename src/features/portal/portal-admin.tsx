@@ -444,6 +444,7 @@ function PublishedFormSummary({ booked }: { booked: number | null }) {
   // the time is said on the line below, so the name drops its copy of it.
   const name = (ws.workspace.bookingFormName ?? (ws.workspace.bookingForm ? "Published form" : "Built-in form")).replace(/\s+·\s+\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/, "");
   const at = ws.workspace.bookingFormPublishedAt ? new Date(ws.workspace.bookingFormPublishedAt) : null;
+  const by = ws.userById(ws.workspace.bookingFormPublishedBy)?.displayName ?? null;
   const template = form.data?.template ?? null;
   const serviceCount = template?.services.length ?? 0;
   return (
@@ -458,7 +459,7 @@ function PublishedFormSummary({ booked }: { booked: number | null }) {
         </p>
         <p className="mt-0.5 truncate text-2xs text-muted-foreground">
           {template ? `${templateQuestionCount(template)} questions · ${serviceCount === 1 ? "1 service" : `${serviceCount} services`}` : "Reading the form…"}
-          {at && !Number.isNaN(at.getTime()) ? ` · published ${format(at, "d MMM yyyy, HH:mm")}` : ""}
+          {at && !Number.isNaN(at.getTime()) ? ` · published ${format(at, "d MMM yyyy, HH:mm")}${by ? ` by ${by}` : ""}` : ""}
         </p>
         {booked !== null && (
           <p className="mt-1.5 text-[13px]" data-testid="portal-link-booking-figure">

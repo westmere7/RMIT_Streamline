@@ -110,7 +110,7 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the draft"),
   });
   const publishForm = useMutation({
-    mutationFn: ({ template, name, keepDraft }: { template: BookingFormTemplate; name: string; keepDraft?: boolean }) => services.booking.publishForm(ws.workspace.id, template, name, { keepDraft }),
+    mutationFn: ({ template, name, keepDraft }: { template: BookingFormTemplate; name: string; keepDraft?: boolean }) => services.booking.publishForm(ws.workspace.id, template, name, { keepDraft, publishedBy: ws.currentUser.id }),
     onSuccess: async () => {
       await formChanged();
       toast.success("Form published", { description: "Everyone sees the new form from now on." });
@@ -231,6 +231,7 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
                 published={{
                   name: ws.workspace.bookingFormName ?? null,
                   publishedAt: ws.workspace.bookingFormPublishedAt ?? null,
+                  publishedBy: ws.userById(ws.workspace.bookingFormPublishedBy)?.displayName ?? null,
                   bookings: ws.workspace.bookingFormBookings ?? 0,
                   builtIn: !ws.workspace.bookingForm,
                 }}

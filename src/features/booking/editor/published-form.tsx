@@ -17,6 +17,8 @@ export interface PublishedFormInfo {
   name: string | null;
   /** Null when it was published before that was recorded. */
   publishedAt: string | null;
+  /** Who published it, by name; null before that was recorded (migration 0119). */
+  publishedBy?: string | null;
   /** Tasks booked through it since it was published. */
   bookings: number;
   /** No form has been published: the built-in one is in use. */
@@ -54,7 +56,7 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
         </li>
         <li className="flex items-center gap-1.5">
           <CalendarClock className="size-3 shrink-0" aria-hidden />
-          <span data-testid="booking-published-at">{when && !Number.isNaN(when.getTime()) ? `Published ${format(when, "d MMM yyyy, HH:mm")}` : "Publish time not recorded"}</span>
+          <span data-testid="booking-published-at">{when && !Number.isNaN(when.getTime()) ? `Published ${format(when, "d MMM yyyy, HH:mm")}${info.publishedBy ? ` by ${info.publishedBy}` : ""}` : "Publish time not recorded"}</span>
         </li>
         <li className="flex items-center gap-1.5">
           <ClipboardCheck className="size-3 shrink-0" aria-hidden />

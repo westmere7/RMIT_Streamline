@@ -29,6 +29,8 @@ export interface Workspace extends Timestamps {
   bookingFormName?: string | null;
   /** When the live form was last published. Null when that was before it was recorded. */
   bookingFormPublishedAt?: string | null;
+  /** Who published it (migration 0119). Null for a form published before that was recorded. */
+  bookingFormPublishedBy?: string | null;
   /** Tasks booked through the form since it was last published. */
   bookingFormBookings?: number | null;
   /**
