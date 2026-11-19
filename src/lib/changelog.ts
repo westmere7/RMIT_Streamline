@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.108.1",
+    date: "2026-11-19",
+    title: "Online dot on the picture's edge",
+    changes: ["The online dot sits half on the picture at its bottom right, with a gap around it, and grows with larger pictures."],
+  },
+  {
     version: "0.108.0",
     date: "2026-11-19",
     title: "Who is online",

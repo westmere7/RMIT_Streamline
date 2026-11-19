@@ -41,13 +41,28 @@ export function PersonHover({ user, children }: { user: Pick<User, "id" | "displ
   return render ? render(user.id, children) : <SimpleTooltip label={user.displayName}>{children}</SimpleTooltip>;
 }
 
-/** The online dot, scaled to the avatar it sits on. */
-const DOT_CLASSES: Record<AvatarSize, string> = {
-  xs: "size-1.5 ring-1",
-  sm: "size-2 ring-[1.5px]",
-  md: "size-2 ring-2",
-  lg: "size-2.5 ring-2",
-  xl: "size-3 ring-2",
+/** The gap around the online dot: thinner on the smallest avatars, where 2px would swallow it. */
+const DOT_RING: Record<AvatarSize, string> = {
+  xs: "ring-1",
+  sm: "ring-[1.5px]",
+  md: "ring-2",
+  lg: "ring-2",
+  xl: "ring-2",
+};
+
+/**
+ * The online dot sits on the circle's edge at the bottom right, half inside it,
+ * rather than in the corner of the square around it, which is off the picture
+ * altogether on a large avatar. 14.6% is where a circle crosses its box's
+ * diagonal (1 − 1/√2, halved). Its size follows the avatar's, within limits,
+ * so the large ones a page sizes itself (the profile) get a dot that fits.
+ */
+const DOT_STYLE: React.CSSProperties = {
+  right: "14.6%",
+  bottom: "14.6%",
+  width: "clamp(6px, 24%, 16px)",
+  height: "clamp(6px, 24%, 16px)",
+  transform: "translate(50%, 50%)",
 };
 
 export function UserAvatar({ user, size = "md", className, tooltip = true }: UserAvatarProps) {
@@ -76,7 +91,7 @@ export function UserAvatar({ user, size = "md", className, tooltip = true }: Use
       ) : (
         "?"
       )}
-      {online && <span aria-hidden className={cn("absolute -bottom-px -right-px rounded-full bg-emerald-500 ring-background", DOT_CLASSES[size])} data-testid="avatar-online" />}
+      {online && <span aria-hidden className={cn("absolute rounded-full bg-emerald-500 ring-background", DOT_RING[size])} style={DOT_STYLE} data-testid="avatar-online" />}
     </span>
   );
   if (!tooltip || !user) return content;
