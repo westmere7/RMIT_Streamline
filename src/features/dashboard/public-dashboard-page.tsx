@@ -4,14 +4,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Eye, KeyRound, LoaderCircle, LockKeyhole, Maximize2, Minimize2 } from "lucide-react";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
-import { pageZoomStyle, useAppThemeControl, usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
+import { pageZoomStyle, usePageZoom, useVisitorScale } from "@/components/shared/view-controls";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { PublicDashboardPayload } from "@/domain";
-import { AuthShell, BrandMark } from "@/features/auth/components/auth-shell";
+import { AuthShell, RmitLogo } from "@/features/auth/components/auth-shell";
+import { SharedHeaderEnd } from "@/features/share/share-shell";
 import { useServices } from "@/features/data/data-context";
 import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { DashboardScreen } from "@/features/dashboard/dashboard-screen";
@@ -88,11 +89,11 @@ function PublicDashboardLoading() {
     <div className="flex h-dvh min-h-0 flex-col bg-background" data-testid="public-dashboard-loading">
       <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-4 py-3 sm:px-6">
         <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary opacity-[0.06]" style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
-        <BrandMark className="relative size-9 rounded-xl" />
         <div className="relative min-w-0 flex-1 space-y-2">
           <Skeleton className="h-4 w-56 max-w-full" />
           <Skeleton className="h-3 w-72 max-w-full" />
         </div>
+        <RmitLogo className="relative hidden h-7 sm:block" />
       </header>
       <DashboardSkeleton />
     </div>
@@ -102,7 +103,6 @@ function PublicDashboardLoading() {
 function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboardPayload; refreshing: boolean }) {
   useLinksStayHere();
   // The reader's view, as on every visitor page. There is no account here, so the size is this browser's.
-  const theme = useAppThemeControl();
   const scale = useVisitorScale("streamline.dashboard-scale");
   usePageZoom(scale.value);
   // Most of these end up on a wall or a spare monitor, where the browser's own
@@ -121,10 +121,10 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
 
   return (
     <div ref={root} className="flex h-dvh min-h-0 flex-col bg-background" style={pageZoomStyle(scale.value)} data-testid="public-dashboard">
-      <header className="relative flex shrink-0 items-center gap-3.5 border-b border-border/60 px-4 py-3 sm:px-6">
+      {/* Laid out like a shared board's header: the title, then RMIT's logo and the reader's view. */}
+      <header className="relative flex shrink-0 flex-wrap items-center gap-x-3.5 gap-y-2.5 border-b border-border/60 px-4 py-3 sm:px-6">
         <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-primary opacity-[0.06]" style={{ maskImage: "linear-gradient(to bottom, black, transparent)", WebkitMaskImage: "linear-gradient(to bottom, black, transparent)" }} />
-        <BrandMark className="relative size-9 rounded-xl" />
-        <div className="relative min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1 max-sm:basis-full">
           <h1 className="flex min-w-0 items-center gap-2.5 text-[17px] font-semibold tracking-tight">
             <span className="truncate">{payload.snapshot.workspace.name} · Dashboard</span>
             <Freshness refreshing={refreshing} />
@@ -140,7 +140,7 @@ function PublicDashboardShell({ payload, refreshing }: { payload: PublicDashboar
             </span>
           </SimpleTooltip>
         )}
-        <ViewControls theme={theme} scale={scale} className="relative" />
+        <SharedHeaderEnd scale={scale} />
       </header>
       {/* A visitor has no account, so their preferences belong to the link
           rather than to a person; one key per token keeps two open dashboards

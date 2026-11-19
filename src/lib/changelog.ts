@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.107.1",
+    date: "2026-11-19",
+    title: "RMIT logo on the shared dashboard",
+    changes: ["The shared dashboard's header ends with RMIT's logo beside the theme and size control, like shared boards and tasks."],
+  },
+  {
     version: "0.107.0",
     date: "2026-11-19",
     title: "Theme and size on every visitor page",
