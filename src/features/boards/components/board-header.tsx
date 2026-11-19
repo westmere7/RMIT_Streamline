@@ -16,7 +16,7 @@ import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { AutomationsDialog } from "@/features/automations/automations-dialog";
 import { AutomationRing } from "@/features/automations/activity-indicator";
-import { useAutomationActivity } from "@/features/automations/hooks";
+import { useAutomationActivity, useAutomationsInUse } from "@/features/automations/hooks";
 import { BoardActivityDialog } from "@/features/boards/components/dialogs/board-activity-dialog";
 import { BoardSettingsDialog, type BoardSettingsSection } from "@/features/boards/components/dialogs/board-settings-dialog";
 import { DeleteBoardDialog } from "@/features/boards/components/dialogs/delete-board-dialog";
@@ -43,6 +43,7 @@ export function BoardHeader({ board }: { board: Board }) {
   // A rule is being carried out on this board right now, on a server the
   // person cannot see. The icon turning is the only way they would know.
   const automationsRunning = useAutomationActivity().has(board.id);
+  const automationsOn = useAutomationsInUse(board.id);
 
   const favourite = ws.isFavourite(board.id);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
@@ -154,26 +155,19 @@ export function BoardHeader({ board }: { board: Board }) {
           </p>
         </div>
 
+        {/* Things the board is set to (starred, followed, shared, with rules
+            on) first, each tinted alike while on; then who is on it; then its
+            history and its menu. */}
         <div className="flex shrink-0 items-center gap-1.5">
           <SimpleTooltip label={favourite ? "Remove from favourites" : "Add to favourites"}>
-            <Button variant="ghost" size="icon-sm" aria-pressed={favourite} aria-label={favourite ? "Remove from favourites" : "Add to favourites"} onClick={() => actions.toggleFavourite.mutate(!favourite)} data-testid="favourite-toggle">
-              <Star className={cn("size-4", favourite && "fill-amber-400 text-amber-400")} />
+            <Button variant="ghost" size="icon-sm" className={cn(favourite && TOGGLED)} aria-pressed={favourite} aria-label={favourite ? "Remove from favourites" : "Add to favourites"} onClick={() => actions.toggleFavourite.mutate(!favourite)} data-testid="favourite-toggle">
+              <Star className={cn("size-4", favourite && "fill-current")} />
             </Button>
           </SimpleTooltip>
-          <FollowControl target={{ boardId: board.id, itemId: null }} kind="board" />
-          <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="hidden h-9 items-center rounded-full px-2 transition-colors hover:bg-accent/70 sm:flex">
-            <AvatarStack users={members} size="sm" max={4} />
-          </button>
+          <FollowControl target={{ boardId: board.id, itemId: null }} kind="board" onClassName={TOGGLED} />
           {manage && (
-            <SimpleTooltip label="Invite people to this board">
-              <Button variant="ghost" size="icon-sm" className="hidden sm:inline-flex" aria-label="Invite people to this board" onClick={() => setSettings("members")} data-testid="board-invite">
-                <UserPlus />
-              </Button>
-            </SimpleTooltip>
-          )}
-          {manage && (
-            <SimpleTooltip label="Share this board by link">
-              <Button variant="ghost" size="icon-sm" aria-label="Share this board" onClick={() => setShareOpen(true)} data-testid="board-share">
+            <SimpleTooltip label={shared ? "Shared by link" : "Share this board by link"}>
+              <Button variant="ghost" size="icon-sm" className={cn(shared && TOGGLED)} aria-label="Share this board" data-on={shared || undefined} onClick={() => setShareOpen(true)} data-testid="board-share">
                 <Share2 />
               </Button>
             </SimpleTooltip>
@@ -185,20 +179,33 @@ export function BoardHeader({ board }: { board: Board }) {
             <Button
               variant="ghost"
               size="icon-sm"
-              className="relative"
+              className={cn("relative", automationsOn && TOGGLED)}
+              data-on={automationsOn || undefined}
               aria-label={automationsRunning ? "Automations running" : "Automations"}
               aria-busy={automationsRunning || undefined}
               onClick={() => setAutomationsOpen(true)}
               data-testid="board-automations"
               data-running={automationsRunning || undefined}
             >
-              <Zap />
+              <Zap className={cn(automationsOn && "fill-current")} />
               {/* A ring turning round the button: a spinner, but around the
                   thing that is working rather than in place of it. */}
               {automationsRunning && <AutomationRing testId="board-automations-running" />}
             </Button>
           </SimpleTooltip>
-          <span aria-hidden className="mx-1 h-6 w-px bg-border/70" />
+          {/* Who is on the board, and adding someone, as one soft group. */}
+          <div className="hidden items-center rounded-lg bg-surface-strong/60 p-0.5 sm:flex" data-testid="board-members-group">
+            <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="flex h-8 items-center rounded-md px-1.5 transition-colors hover:bg-accent/70">
+              <AvatarStack users={members} size="sm" max={4} />
+            </button>
+            {manage && (
+              <SimpleTooltip label="Invite people to this board">
+                <Button variant="ghost" size="icon-sm" className="rounded-md" aria-label="Invite people to this board" onClick={() => setSettings("members")} data-testid="board-invite">
+                  <UserPlus />
+                </Button>
+              </SimpleTooltip>
+            )}
+          </div>
           <SimpleTooltip label="Board activity">
             <Button variant="ghost" size="icon-sm" aria-label="Board activity" onClick={() => setActivityOpen(true)}>
               <History />
@@ -227,6 +234,9 @@ export function BoardHeader({ board }: { board: Board }) {
     </header>
   );
 }
+
+/** The one "on" look for the header's toggles: starred, followed, shared, rules on. */
+const TOGGLED = "bg-accent-soft text-accent-soft-foreground hover:bg-accent-soft hover:text-accent-soft-foreground";
 
 /**
  * What the person looking at the board may do on it, beside its name: an icon,

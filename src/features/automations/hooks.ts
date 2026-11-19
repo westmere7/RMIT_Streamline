@@ -33,6 +33,21 @@ export function useAutomations(boardId: EntityId) {
   });
 }
 
+/**
+ * Whether any rule on the board is switched on, for the header's Automations
+ * button. The same read and cache as the rules list, without its live channel:
+ * the dialog holds that while it is open, and refreshes this as it goes.
+ */
+export function useAutomationsInUse(boardId: EntityId): boolean {
+  const services = useServices();
+  const rules = useQuery({
+    queryKey: queryKeys.automations(boardId),
+    queryFn: () => services.automations.listByBoard(boardId),
+    staleTime: 60_000,
+  });
+  return (rules.data ?? []).some((rule) => rule.enabled);
+}
+
 /** What the rules did, newest first. Read on demand: the log is a second screen, not the first. */
 export function useAutomationRuns(boardId: EntityId, enabled: boolean) {
   const services = useServices();

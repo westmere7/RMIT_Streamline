@@ -60,7 +60,18 @@ export function useFollow() {
  * The bell on a board or a task: follow it, and choose which changes reach
  * you. Each tick saves at once; ticking none is unfollowing.
  */
-export function FollowControl({ target, kind, size = "icon-sm" }: { target: SubscriptionTarget; kind: "board" | "task"; size?: "icon-sm" | "icon-xs" }) {
+export function FollowControl({
+  target,
+  kind,
+  size = "icon-sm",
+  onClassName = "text-ring",
+}: {
+  target: SubscriptionTarget;
+  kind: "board" | "task";
+  size?: "icon-sm" | "icon-xs";
+  /** How the bell looks while followed; a board header passes its shared "on" look. */
+  onClassName?: string;
+}) {
   const subscriptions = useMySubscriptions();
   const follow = useFollow();
   const current = subscriptions.data?.find((s) => s.boardId === target.boardId && s.itemId === target.itemId) ?? null;
@@ -74,7 +85,7 @@ export function FollowControl({ target, kind, size = "icon-sm" }: { target: Subs
     <Popover>
       <SimpleTooltip label={label}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size={size} aria-label={label} aria-pressed={following} className={cn(following && "text-ring")} data-testid={`follow-${kind}`}>
+          <Button variant="ghost" size={size} aria-label={label} aria-pressed={following} className={cn(following && onClassName)} data-testid={`follow-${kind}`}>
             {following ? <BellRing /> : <Bell />}
           </Button>
         </PopoverTrigger>

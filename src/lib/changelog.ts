@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.110.3",
+    date: "2026-11-19",
+    title: "Board header tidied",
+    changes: [
+      "Starred, Follow, Share and Automations share one look while on; Share is on while the board has a live link, Automations while a rule is switched on.",
+      "Members and Invite sit together in a soft rounded group just before Activity, with no divider.",
+    ],
+  },
+  {
     version: "0.110.2",
     date: "2026-11-19",
     title: "Plainer task panel edge",
