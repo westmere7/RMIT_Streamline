@@ -1,4 +1,4 @@
-import type { Board, BoardMember, BoardRole, TeamMember, WorkspaceMember, WorkspaceRole } from "@/domain";
+import type { Board, BoardMember, BoardRole, Team, TeamMember, WorkspaceMember, WorkspaceRole } from "@/domain";
 import { isMembersOnlyBoard } from "@/domain/booking/booking";
 
 /**
@@ -12,13 +12,23 @@ export interface PermissionContext {
   teamIds: ReadonlySet<string>;
   /** Board memberships keyed by board id. */
   boardRoles: ReadonlyMap<string, BoardRole>;
+  /**
+   * Each team's say over its boards (migration 0120), by team id. A team not
+   * here shows its boards to the workspace and gives its members no editing.
+   */
+  teamAccess?: ReadonlyMap<string, TeamAccess>;
 }
+
+/** A team's settings for its boards. */
+export type TeamAccess = Pick<Team, "boardVisibility" | "membersCanEdit">;
 
 export function buildPermissionContext(input: {
   userId: string;
   workspaceMembers: readonly WorkspaceMember[];
   teamMembers: readonly TeamMember[];
   boardMembers: readonly BoardMember[];
+  /** The workspace's teams, for what each allows on its boards. */
+  teams?: readonly Pick<Team, "id" | "boardVisibility" | "membersCanEdit">[];
 }): PermissionContext {
   const membership = input.workspaceMembers.find((m) => m.userId === input.userId && m.status === "ACTIVE");
   return {
@@ -28,7 +38,29 @@ export function buildPermissionContext(input: {
     boardRoles: new Map(
       input.boardMembers.filter((m) => m.userId === input.userId).map((m) => [m.boardId, m.role] as const),
     ),
+    teamAccess: new Map((input.teams ?? []).map((team) => [team.id, { boardVisibility: team.boardVisibility, membersCanEdit: team.membersCanEdit }] as const)),
   };
+}
+
+/**
+ * Whether this person sees the team at all: a team that keeps its boards to
+ * itself is hidden, with its trackers and docs, from everyone but its members
+ * and workspace admins (policies/0028 can_see_team).
+ */
+export function canSeeTeam(ctx: PermissionContext, team: Pick<Team, "id" | "boardVisibility"> | null | undefined): boolean {
+  if (!team) return true;
+  return team.boardVisibility !== "TEAM" || isWorkspaceAdmin(ctx) || ctx.teamIds.has(team.id);
+}
+
+/** The same, for something filed under a team by id (a tracker, a doc). */
+export function canSeeTeamId(ctx: PermissionContext, teamId: string | null | undefined): boolean {
+  if (!teamId) return true;
+  return ctx.teamAccess?.get(teamId)?.boardVisibility !== "TEAM" || isWorkspaceAdmin(ctx) || ctx.teamIds.has(teamId);
+}
+
+/** Who may change a team's board access: workspace admins only (policies/0028's trigger). */
+export function canEditTeamAccess(ctx: PermissionContext): boolean {
+  return isWorkspaceAdmin(ctx);
 }
 
 const WORKSPACE_ADMIN_ROLES: ReadonlySet<WorkspaceRole> = new Set(["OWNER", "ADMIN"]);
@@ -138,10 +170,20 @@ export function boardRoleFor(ctx: PermissionContext, board: BoardAccessInput): B
   if (isMembersOnlyBoard(board)) return null;
   if (isWorkspaceAdmin(ctx)) return "EDITOR";
 
-  // Visibility says who may read a board, not who may change it. Anyone in the
-  // workspace can open a workspace-visible board, but editing it takes a reason
-  // to be on it: its owner, someone added to it, its team, or a workspace admin
-  // (all of which are settled above).
+  // A team's board that is neither private nor built in: the team decides
+  // (policies/0028, step 5). Its members edit when the team allows it and read
+  // otherwise; everyone else reads when the team shows its boards to the
+  // workspace, and gets nothing when it keeps them to itself.
+  if (board.teamId && !board.system && board.visibility !== "PRIVATE") {
+    const team = ctx.teamAccess?.get(board.teamId);
+    if (ctx.teamIds.has(board.teamId)) {
+      if (team?.membersCanEdit) return "EDITOR";
+      if (ctx.workspaceRole !== "GUEST") return "VIEWER";
+    }
+    return (team?.boardVisibility ?? "WORKSPACE") === "WORKSPACE" && ctx.workspaceRole !== "GUEST" ? "VIEWER" : null;
+  }
+
+  // Anything else (no team, or built in): its own visibility, reading only.
   switch (board.visibility) {
     case "WORKSPACE":
       return ctx.workspaceRole === "GUEST" ? null : "VIEWER";

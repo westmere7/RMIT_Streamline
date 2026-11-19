@@ -1,5 +1,7 @@
 "use client";
 
+import { BoardVisibilityField, teamAccessSummary, teamEditorsOf } from "@/features/boards/components/board-visibility-field";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Archive, ArchiveRestore, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -135,19 +137,15 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
           </Select>
         </div>
         <div className="grid gap-1.5">
-          <Label>Visibility</Label>
-          <Select value={board.visibility} onValueChange={(v) => actions.updateBoard.mutate({ visibility: v as Board["visibility"] })} disabled={!manage}>
-            <SelectTrigger aria-label="Visibility">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="WORKSPACE">Workspace</SelectItem>
-              <SelectItem value="TEAM" disabled={!board.teamId}>
-                Team
-              </SelectItem>
-              <SelectItem value="PRIVATE">Private</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label htmlFor="bs-visibility">Visibility</Label>
+          <BoardVisibilityField
+            id="bs-visibility"
+            team={ws.teamById(board.teamId)}
+            value={board.visibility}
+            // A team's board that is not private follows its team; written as WORKSPACE.
+            onChange={(visibility) => visibility !== (board.visibility === "PRIVATE" ? "PRIVATE" : "WORKSPACE") && actions.updateBoard.mutate({ visibility })}
+            disabled={!manage}
+          />
         </div>
       </div>
       {manage && (
@@ -171,13 +169,18 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
   const actions = useBoardActions(board);
   const [addOpen, setAddOpen] = React.useState(false);
   const members = ws.boardMembers.filter((m) => m.boardId === board.id);
-  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.userId === u.id));
+  // The team's members, when the team lets them edit its boards: on the board
+  // through the team, not added to it, so not removable here.
+  const viaTeam = teamEditorsOf(ws, board);
+  const team = ws.teamById(board.teamId);
+  const candidates = ws.activeUsers.filter((u) => !members.some((m) => m.userId === u.id) && !viaTeam.some((t) => t.id === u.id));
+  const total = members.length + viaTeam.length;
   return (
     <div className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-          {members.length} {members.length === 1 ? "member" : "members"}. Members of a {board.visibility.toLowerCase()} board
-          {board.visibility === "WORKSPACE" ? " – everyone in the workspace can also view it." : board.visibility === "TEAM" ? " – team members can also view it." : " are the only people who can see it."}
+          {total} {total === 1 ? "member" : "members"}.{" "}
+          {board.visibility === "PRIVATE" ? "Only they can see it." : team && !board.system ? teamAccessSummary(team) : "Everyone in the workspace can also view it."}
         </p>
         {manage && (
           <Popover open={addOpen} onOpenChange={setAddOpen}>
@@ -251,6 +254,18 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
             </li>
           );
         })}
+        {viaTeam.map((user) => (
+          <li key={`team-${user.id}`} className="flex h-11 items-center gap-2.5 px-3 text-[13px]" data-testid="board-member-via-team">
+            <UserAvatar user={user} size="md" tooltip={false} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{user.displayName}</span>
+              <span className="block truncate text-2xs text-muted-foreground">{user.email}</span>
+            </span>
+            <SimpleTooltip label={`Edits as a member of ${team?.name ?? "the team"}. Change it in the team's settings.`}>
+              <Badge variant="muted" className="cursor-default">via {team?.name ?? "team"}</Badge>
+            </SimpleTooltip>
+          </li>
+        ))}
       </ul>
     </div>
   );

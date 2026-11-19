@@ -6,7 +6,7 @@ import type { Board, BoardFavourite, BoardMember, Team, TeamMember, User, Worksp
 import { BUG_BOARD_OWNER_EMAIL } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
-import { buildPermissionContext, canSeeSystemEntities, canViewBoard, isWorkspaceAdmin, type PermissionContext } from "@/lib/permissions/permissions";
+import { buildPermissionContext, canSeeSystemEntities, canSeeTeam, canViewBoard, isWorkspaceAdmin, type PermissionContext } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { usePresence } from "@/lib/realtime/presence";
 import { routes } from "@/lib/routes";
@@ -120,17 +120,19 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
       workspaceMembers: ctx.members,
       teamMembers: ctx.teamMembers,
       boardMembers,
+      teams: ctx.teams,
     });
     // Only an admin may look through someone else's eyes, and only at someone who
     // is a member here. The data still arrives with the admin's own access; what
     // changes is how much of it the app is willing to show.
     const viewingAs = viewAsUserId && isWorkspaceAdmin(own) ? (ctx.users.find((u) => u.id === viewAsUserId) ?? null) : null;
-    const permissions = viewingAs ? buildPermissionContext({ userId: viewingAs.id, workspaceMembers: ctx.members, teamMembers: ctx.teamMembers, boardMembers }) : own;
+    const permissions = viewingAs ? buildPermissionContext({ userId: viewingAs.id, workspaceMembers: ctx.members, teamMembers: ctx.teamMembers, boardMembers, teams: ctx.teams }) : own;
     // The Admin team and Task Allocation board exist for admins alone, and the
     // App development board for its members alone. Supabase hides them through
-    // RLS; the local store has no such layer, so filter here.
+    // RLS; the local store has no such layer, so filter here. So is a team that
+    // keeps its boards to itself, from everyone outside it (policies/0028).
     const admin = canSeeSystemEntities(permissions);
-    const teams = admin ? ctx.teams : ctx.teams.filter((t) => !t.system);
+    const teams = ctx.teams.filter((t) => (admin || !t.system) && canSeeTeam(permissions, t));
     const boards = allBoards.filter((b) => !b.system || canViewBoard(permissions, b));
     const usersById = new Map(ctx.users.map((u) => [u.id, u]));
     const activeMemberIds = new Set(ctx.members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));

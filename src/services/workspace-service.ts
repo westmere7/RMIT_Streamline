@@ -365,7 +365,7 @@ export class WorkspaceService {
     return team;
   }
 
-  async updateTeam(teamId: EntityId, patch: Partial<Pick<Team, "name" | "description" | "color" | "icon" | "bookingBoardId">>): Promise<Team> {
+  async updateTeam(teamId: EntityId, patch: Partial<Pick<Team, "name" | "description" | "color" | "icon" | "bookingBoardId" | "boardVisibility" | "membersCanEdit">>): Promise<Team> {
     if (patch.name !== undefined && !patch.name.trim()) throw new Error("Team name cannot be empty");
     if (patch.bookingBoardId) {
       const [team, board] = await Promise.all([this.repos.teams.getById(teamId), this.repos.boards.getById(patch.bookingBoardId)]);

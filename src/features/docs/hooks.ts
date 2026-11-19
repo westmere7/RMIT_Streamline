@@ -7,6 +7,7 @@ import type { Doc, DocContent, DocPatch } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { deleteDocFile } from "@/features/docs/doc-files";
+import { canSeeTeamId } from "@/lib/permissions/permissions";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
@@ -22,6 +23,9 @@ export function useDocs() {
     queryKey: queryKeys.docs(ws.workspace.id),
     queryFn: () => services.docs.list(ws.workspace.id),
     staleTime: 10_000,
+    // Hidden with a team that keeps to itself (policies/0028 does the same on
+    // Supabase; this covers the local store and "view as").
+    select: (rows) => rows.filter((row) => canSeeTeamId(ws.permissions, row.teamId)),
   });
 }
 

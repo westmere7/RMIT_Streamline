@@ -1,5 +1,6 @@
 "use client";
 
+import { BoardVisibilityField } from "@/features/boards/components/board-visibility-field";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -109,7 +110,6 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
   });
 
   const teamId = useWatch({ control: form.control, name: "teamId" });
-  const visibility = useWatch({ control: form.control, name: "visibility" });
   const activeTeams = ws.teams.filter((t) => t.archivedAt === null);
 
   return (
@@ -155,22 +155,8 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
               <Controller
                 control={form.control}
                 name="visibility"
-                render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger aria-label="Visibility">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="WORKSPACE">Workspace – everyone can see it</SelectItem>
-                      <SelectItem value="TEAM" disabled={teamId === NO_TEAM}>
-                        Team – team members only
-                      </SelectItem>
-                      <SelectItem value="PRIVATE">Private – invited members only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
+                render={({ field }) => <BoardVisibilityField team={teamId === NO_TEAM ? null : ws.teamById(teamId)} value={field.value} onChange={field.onChange} />}
               />
-              {visibility === "TEAM" && teamId === NO_TEAM && <p className="text-2xs text-destructive">Choose a team for team visibility.</p>}
             </div>
           </div>
 
@@ -271,7 +257,7 @@ function CreateBoardForm({ onOpenChange, defaultTeamId }: Omit<CreateBoardDialog
           <Button
             type="submit"
             form="create-board-form"
-            disabled={create.isPending || (visibility === "TEAM" && teamId === NO_TEAM)}
+            disabled={create.isPending}
             data-testid="create-board-submit"
           >
             {create.isPending ? "Creating…" : "Create Board"}

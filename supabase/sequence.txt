@@ -155,3 +155,5 @@ migrations/0117_share_revisions.sql
 policies/0027_presence_policies.sql
 migrations/0118_portal_link_for_members.sql
 migrations/0119_booking_form_published_by.sql
+migrations/0120_team_board_access.sql
+policies/0028_team_board_access_policies.sql

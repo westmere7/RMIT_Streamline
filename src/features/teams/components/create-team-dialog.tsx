@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import * as React from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, type Control } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ColorPicker } from "@/components/shared/color-picker";
@@ -13,12 +13,15 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { COLOR_TOKENS, type ColorToken, type Team } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { BookingBoardSetting } from "@/features/booking/booking-board-setting";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { canEditTeamAccess } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
@@ -29,6 +32,10 @@ const schema = z.object({
   icon: z.string(),
   /** Board this team's bookings land on; null means Task Allocation. */
   bookingBoardId: z.string().nullable(),
+  /** Who sees the team's boards; the team itself is hidden with them. */
+  boardVisibility: z.enum(["WORKSPACE", "TEAM"]),
+  /** Its members edit its boards without being added to each. */
+  membersCanEdit: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -50,27 +57,49 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null },
+    defaultValues: { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null, boardVisibility: "WORKSPACE", membersCanEdit: false },
   });
 
   React.useEffect(() => {
     if (open) {
       form.reset(
         team
-          ? { name: team.name, description: team.description ?? "", color: team.color, icon: team.icon, bookingBoardId: team.bookingBoardId ?? null }
-          : { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null },
+          ? {
+              name: team.name,
+              description: team.description ?? "",
+              color: team.color,
+              icon: team.icon,
+              bookingBoardId: team.bookingBoardId ?? null,
+              boardVisibility: team.boardVisibility ?? "WORKSPACE",
+              membersCanEdit: team.membersCanEdit ?? false,
+            }
+          : { name: "", description: "", color: "blue", icon: "users", bookingBoardId: null, boardVisibility: "WORKSPACE", membersCanEdit: false },
       );
     }
   }, [open, team, form]);
 
+  // Who sees and edits the team's boards is a workspace admin's call (policies/0028).
+  const access = canEditTeamAccess(ws.permissions) && !team?.system;
   const save = useMutation({
-    mutationFn: (values: FormValues) =>
-      team
-        ? services.workspace.updateTeam(team.id, { name: values.name, description: values.description || null, color: values.color, icon: values.icon, ...(team.system ? {} : { bookingBoardId: values.bookingBoardId }) })
-        : services.workspace.createTeam(
-            { workspaceId: ws.workspace.id, name: values.name, description: values.description || null, color: values.color, icon: values.icon },
-            user.id,
-          ),
+    mutationFn: async (values: FormValues) => {
+      const accessPatch = access ? { boardVisibility: values.boardVisibility, membersCanEdit: values.membersCanEdit } : {};
+      if (team) {
+        return services.workspace.updateTeam(team.id, {
+          name: values.name,
+          description: values.description || null,
+          color: values.color,
+          icon: values.icon,
+          ...(team.system ? {} : { bookingBoardId: values.bookingBoardId }),
+          ...accessPatch,
+        });
+      }
+      const created = await services.workspace.createTeam(
+        { workspaceId: ws.workspace.id, name: values.name, description: values.description || null, color: values.color, icon: values.icon },
+        user.id,
+      );
+      // Made open, as every team starts, then set: the creator is on it by then.
+      return access && (values.boardVisibility !== "WORKSPACE" || values.membersCanEdit) ? services.workspace.updateTeam(created.id, accessPatch) : created;
+    },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
       onOpenChange(false);
@@ -114,6 +143,7 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
             <Label>Icon</Label>
             <Controller control={form.control} name="icon" render={({ field }) => <IconPicker value={field.value} onChange={field.onChange} className="grid-cols-11" />} />
           </div>
+          {access && <BoardAccessFields control={form.control} />}
           {team && !team.system && (
             <Controller control={form.control} name="bookingBoardId" render={({ field }) => <BookingBoardSetting team={team} value={field.value} onChange={field.onChange} />} />
           )}
@@ -128,5 +158,48 @@ export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogP
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Who sees the team's boards, and whether its own people edit them, for every
+ * board of the team but a private one. A team kept to itself is hidden from
+ * everyone else, with its trackers and docs.
+ */
+function BoardAccessFields({ control }: { control: Control<FormValues> }) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-border/70 p-3" data-testid="team-board-access">
+      <div className="grid gap-1.5">
+        <Label htmlFor="team-board-visibility">Who sees its boards</Label>
+        <Controller
+          control={control}
+          name="boardVisibility"
+          render={({ field }) => (
+            <>
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger id="team-board-visibility" aria-label="Who sees its boards" data-testid="team-board-visibility">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="WORKSPACE">Everyone in the workspace</SelectItem>
+                  <SelectItem value="TEAM">Only this team</SelectItem>
+                </SelectContent>
+              </Select>
+              {field.value === "TEAM" && <p className="text-2xs text-muted-foreground">Hidden from everyone else, with its trackers and docs.</p>}
+            </>
+          )}
+        />
+      </div>
+      <Controller
+        control={control}
+        name="membersCanEdit"
+        render={({ field }) => (
+          <label className="flex items-center justify-between gap-3 text-[13px]">
+            <span>Members can edit its boards</span>
+            <Switch checked={field.value} onCheckedChange={field.onChange} aria-label="Members can edit its boards" data-testid="team-members-can-edit" />
+          </label>
+        )}
+      />
+    </div>
   );
 }

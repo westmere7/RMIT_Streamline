@@ -30,12 +30,13 @@ export async function loadWorkspaceDashboard(request: Request, slug: string): Pr
 
   routeRepositoriesThrough(admin);
   const repos = createSupabaseRepositories();
-  const [members, teamMembers, boardMembers] = await Promise.all([
+  const [members, teamMembers, boardMembers, teams] = await Promise.all([
     repos.workspaces.listMembers(workspace.id),
     repos.teams.listMembersByWorkspace(workspace.id),
     repos.boards.listMembersByWorkspace(workspace.id),
+    repos.teams.listByWorkspace(workspace.id),
   ]);
-  const viewer = buildPermissionContext({ userId: data.user.id, workspaceMembers: members, teamMembers, boardMembers });
+  const viewer = buildPermissionContext({ userId: data.user.id, workspaceMembers: members, teamMembers, boardMembers, teams });
   if (viewer.workspaceRole === null) throw new HttpError(403, "Only members of this workspace can see its dashboard.");
   return loadViewerDashboard(repos, workspace.id, viewer);
 }

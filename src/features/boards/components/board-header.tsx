@@ -1,5 +1,6 @@
 "use client";
 
+import { teamEditorsOf } from "@/features/boards/components/board-visibility-field";
 import { ArrowLeft, Crown, Eye, Globe, History, MoreHorizontal, Pencil, Share2, ShieldCheck, Star, UserPlus, Zap } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
@@ -46,7 +47,11 @@ export function BoardHeader({ board }: { board: Board }) {
   const automationsOn = useAutomationsInUse(board.id);
 
   const favourite = ws.isFavourite(board.id);
-  const members = ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u);
+  // Those added to the board, then the team's members when the team lets them edit it.
+  const members = [
+    ...ws.boardMembers.filter((m) => m.boardId === board.id).map((m) => ws.userById(m.userId)).filter((u): u is NonNullable<typeof u> => !!u),
+    ...teamEditorsOf(ws, board),
+  ];
   const team = ws.teamById(board.teamId);
   // Everyone on the board can see that it is out in the open; only its managers
   // can change that, so the badge is a button for them and a label for the rest.
@@ -120,10 +125,10 @@ export function BoardHeader({ board }: { board: Board }) {
               </SimpleTooltip>
             )}
             <BoardAccessBadge permissions={ws.permissions} board={board} />
-            {board.visibility !== "WORKSPACE" && (
-              <SimpleTooltip label={board.visibility === "TEAM" ? `Only ${team?.name ?? "its team"} and people added to the board can see it.` : "Only people added to the board can see it."}>
-                <Badge variant="outline" className="cursor-default capitalize" data-testid="board-visibility-badge">
-                  {board.visibility.toLowerCase()}
+            {(board.visibility === "PRIVATE" || (team?.boardVisibility === "TEAM" && !board.system)) && (
+              <SimpleTooltip label={board.visibility === "PRIVATE" ? "Only people added to the board can see it." : `Only ${team?.name ?? "its team"} and people added to the board can see it.`}>
+                <Badge variant="outline" className="cursor-default" data-testid="board-visibility-badge">
+                  {board.visibility === "PRIVATE" ? "Private" : "Team only"}
                 </Badge>
               </SimpleTooltip>
             )}

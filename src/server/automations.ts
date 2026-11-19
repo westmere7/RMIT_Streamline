@@ -197,12 +197,13 @@ export async function runQuickRunForMember(request: Request, body: z.infer<typeo
   const board = await repos.boards.getById(rule.boardId);
   if (!board) throw new HttpError(404, "That board no longer exists.");
 
-  const [workspaceMembers, teamMembers, boardMembers] = await Promise.all([
+  const [workspaceMembers, teamMembers, boardMembers, teams] = await Promise.all([
     repos.workspaces.listMembers(board.workspaceId),
     repos.teams.listMembersByWorkspace(board.workspaceId),
     repos.boards.listMembersByWorkspace(board.workspaceId),
+    repos.teams.listByWorkspace(board.workspaceId),
   ]);
-  const permissions = buildPermissionContext({ userId: data.user.id, workspaceMembers, teamMembers, boardMembers });
+  const permissions = buildPermissionContext({ userId: data.user.id, workspaceMembers, teamMembers, boardMembers, teams });
   if (!canEditBoard(permissions, board)) throw new HttpError(403, "Only somebody who can edit this board can run its quick runs.");
 
   return services.automationEngine.runNow(rule.id, body.itemIds, data.user.id);

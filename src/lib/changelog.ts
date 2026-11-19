@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.114.0",
+    date: "2026-11-19",
+    title: "Teams decide board access",
+    changes: [
+      "Edit team sets who sees the team's boards (everyone in the workspace, or only the team) and whether its members can edit them. Admins only.",
+      "A team kept to itself is hidden from everyone else, with its boards, trackers and docs.",
+      "A team's board follows the team; its own setting is just Private. Team members who edit through the team show on the board as \"via <team>\".",
+    ],
+  },
+  {
     version: "0.113.0",
     date: "2026-11-19",
     title: "Frame your photo",

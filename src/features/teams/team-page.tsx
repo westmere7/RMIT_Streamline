@@ -141,7 +141,8 @@ export function TeamPage() {
                         </span>
                         {board.description && <span className="block truncate text-2xs text-muted-foreground">{board.description}</span>}
                       </span>
-                      <Badge variant="muted">{board.visibility.toLowerCase()}</Badge>
+                      {/* The team says who sees its boards; a board itself can only be made private. */}
+                      {board.visibility === "PRIVATE" && <Badge variant="muted">Private</Badge>}
                     </Link>
                   </li>
                 ))}

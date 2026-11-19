@@ -17,7 +17,17 @@ export interface Team extends Timestamps {
    * the Task Allocation board for a manager to place them.
    */
   bookingBoardId?: EntityId | null;
+  /**
+   * Who sees the team's boards (migration 0120): everyone in the workspace,
+   * read only, or the team alone, which then hides the team, and its trackers
+   * and docs, from everyone else. Absent reads as WORKSPACE.
+   */
+  boardVisibility?: TeamBoardVisibility;
+  /** Its members edit every one of its boards that is not private, without being added to each. */
+  membersCanEdit?: boolean;
 }
+
+export type TeamBoardVisibility = "WORKSPACE" | "TEAM";
 
 export type TeamRole = "LEAD" | "MEMBER";
 

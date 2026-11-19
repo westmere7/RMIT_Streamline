@@ -40,6 +40,7 @@ import type {
   Team,
   TeamMember,
   TeamRole,
+  TeamBoardVisibility,
   TeamSystemKind,
   Tracker,
   TrackerColumn,
@@ -206,11 +207,13 @@ export interface TeamRow {
   archived_at: string | null;
   system: TeamSystemKind | null;
   booking_board_id: string | null;
+  board_visibility?: TeamBoardVisibility | null;
+  members_can_edit?: boolean | null;
   created_at: string;
   updated_at: string;
 }
 
-export const TEAM_COLUMNS = "id, workspace_id, name, description, color, icon, archived_at, system, booking_board_id, created_at, updated_at";
+export const TEAM_COLUMNS = "id, workspace_id, name, description, color, icon, archived_at, system, booking_board_id, board_visibility, members_can_edit, created_at, updated_at";
 
 export function toTeam(row: TeamRow): Team {
   return {
@@ -223,6 +226,8 @@ export function toTeam(row: TeamRow): Team {
     archivedAt: row.archived_at,
     system: row.system ?? null,
     bookingBoardId: row.booking_board_id ?? null,
+    boardVisibility: row.board_visibility === "TEAM" ? "TEAM" : "WORKSPACE",
+    membersCanEdit: row.members_can_edit === true,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
