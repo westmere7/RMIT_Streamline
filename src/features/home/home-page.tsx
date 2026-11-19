@@ -57,7 +57,7 @@ function HomeDesktop() {
     queryFn: () => services.repos.admin.listRecentBoardIds(ws.currentUser.id, 60),
   });
   const myWork = useMyWork(ws.workspace.id, ws.currentUser.id);
-  const activity = useWorkspaceActivity(ws.workspace.id, 25);
+  const activity = useWorkspaceActivity(ws.workspace.id, 40);
 
   const visible = (b: Board | undefined): b is Board => !!b && b.archivedAt === null && canViewBoard(ws.permissions, b);
   const recentBoards = (recent.data ?? []).map((id) => ws.boardById(id)).filter(visible).slice(0, 6);
@@ -195,8 +195,9 @@ function HomeDesktop() {
             </section>
           </div>
 
-          {/* The whole right side is what is happening across the workspace. */}
-          <aside className="space-y-8">
+          {/* The whole right side is what is happening across the workspace. It
+              stays in view and scrolls on its own, whatever the left side does. */}
+          <aside className="space-y-8 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-5rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain lg:pr-1 scrollbar-thin" data-testid="home-activity">
             <section>
               <SectionHeading>Recent activity</SectionHeading>
               {activity.isLoading ? (

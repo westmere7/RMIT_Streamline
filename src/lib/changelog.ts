@@ -23,7 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Home, rearranged",
     changes: [
       "Home leads with Portal and Booking as two cards (open, copy), then Favourites as board cards, Recently visited and My work.",
-      "The right side of Home is Recent activity alone, showing more of it. Your teams is gone from Home.",
+      "The right side of Home is Recent activity alone: it stays in view and scrolls on its own, with more of it. Your teams is gone from Home.",
     ],
   },
   {
