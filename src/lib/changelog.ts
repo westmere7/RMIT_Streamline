@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.110.7",
+    date: "2026-11-19",
+    title: "Form editor: lighter frame",
+    changes: [
+      "Only top-level questions are outlined under the pointer; pointing at a follow-up outlines the question it belongs to.",
+      "The editor's canvas has a soft shadow instead of an outline.",
+    ],
+  },
+  {
     version: "0.110.6",
     date: "2026-11-19",
     title: "Form editor: outline, not fade",

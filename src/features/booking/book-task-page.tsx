@@ -210,7 +210,7 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
       <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", tab !== "book" && "hidden")}>
         <p className="mb-3 text-[13px] text-muted-foreground md:hidden" data-testid="booking-editor-phone-note">Editing the form works best on a larger screen.</p>
         <div className="mx-auto grid w-full max-w-[80rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
-          <section className="scrollbar-thin w-full rounded-2xl border border-border bg-card p-3 shadow-lg ring-1 ring-ring/15 sm:p-7 lg:min-h-0 lg:overflow-y-auto" data-testid="book-task-card">
+          <section className="scrollbar-thin w-full rounded-2xl bg-card p-3 shadow-[0_10px_40px_-12px_rgb(0_0_0/0.14),0_2px_8px_-2px_rgb(0_0_0/0.05)] sm:p-7 lg:min-h-0 lg:overflow-y-auto dark:shadow-[0_10px_40px_-12px_rgb(0_0_0/0.5)]" data-testid="book-task-card">
             {form.isLoading || draft.isLoading ? (
               <div className="flex items-center gap-2 py-10 text-[13px] text-muted-foreground" role="status">
                 <LoaderCircle className="size-4 animate-spin" /> Opening the editor…

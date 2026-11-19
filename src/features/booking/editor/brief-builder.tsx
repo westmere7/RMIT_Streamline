@@ -58,13 +58,13 @@ export interface BriefBuilderProps {
 }
 
 /**
- * The block under the pointer, outlined in the accent, so in a column of cards
- * that all show their controls the one being pointed at stands out. Only the
- * innermost: a follow-up under the pointer is outlined, not the question it
- * hangs from. Drawn as an outline over the card's own border, so nothing moves.
+ * The top-level block under the pointer, outlined in the accent, so in a
+ * column of cards that all show their controls the one being pointed at stands
+ * out. Top level only: a follow-up has no outline of its own, and pointing at
+ * one outlines the question it hangs from. Drawn as an outline over the card's
+ * own border, so nothing moves.
  */
-const HOVER_OUTLINE =
-  "rounded-xl outline-2 -outline-offset-1 outline-transparent transition-[outline-color] duration-150 [&:hover:not(:has([data-editor-block]:hover))]:outline-ring/60";
+const HOVER_OUTLINE = "rounded-xl outline-2 -outline-offset-1 outline-transparent transition-[outline-color] duration-150 hover:outline-ring/60";
 
 export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDeleteSavedBlock }: BriefBuilderProps) {
   const blocks = service.blocks;
@@ -491,7 +491,7 @@ function FollowUpTree({ block, followUps, setFor }: { block: BookingChoiceBlock;
                   than running on past it into nothing. */}
               <div className="relative grid gap-1.5 pl-7">
                 {branch.map((child, index) => (
-                  <div key={child.id} className={cn("relative", HOVER_OUTLINE)} data-editor-block>
+                  <div key={child.id} className="relative">
                     <span aria-hidden className={cn("absolute -left-4 top-0 w-0.5 rounded-full", line, index === branch.length - 1 ? "h-[1.1rem]" : "h-[calc(100%+0.375rem)]")} />
                     <span aria-hidden className={cn("absolute top-[1.1rem] -left-4 h-0.5 w-4 rounded-full", line)} />
                     <FollowUpBlockEditor
