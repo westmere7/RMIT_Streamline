@@ -209,6 +209,14 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     return row ? toPortal(row) : null;
   }
 
+  async getUnifiedPortalForMember(workspaceId: string): Promise<{ portal: StakeholderPortal; hasPassword: boolean } | null> {
+    // department_portals is admin-only; this function hands a member the row without its hash.
+    const result = await db().rpc("portal_link_for_member", { p_workspace_id: workspaceId });
+    const row = unwrapMaybe<(PortalRow & { has_password?: boolean }) | null>(result, "portal_link_for_member");
+    if (!row) return null;
+    return { portal: { ...toPortal(row), passwordHash: null }, hasPassword: row.has_password === true };
+  }
+
   async getPortalByDepartment(departmentId: string): Promise<StakeholderPortal | null> {
     const result = await db().from("department_portals").select(PORTAL).eq("department_id", departmentId).maybeSingle();
     const row = unwrapMaybe<PortalRow>(result, "department_portals.byDepartment");

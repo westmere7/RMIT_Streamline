@@ -56,6 +56,8 @@ const DOT_RING: Record<AvatarSize, string> = {
  * altogether on a large avatar. 14.6% is where a circle crosses its box's
  * diagonal (1 − 1/√2, halved). Its size follows the avatar's, within limits,
  * so the large ones a page sizes itself (the profile) get a dot that fits.
+ * z-[1] lifts it over the next avatar in a stack, which overlaps this one's
+ * edge, and keeps it under sticky headers and menus.
  */
 const DOT_STYLE: React.CSSProperties = {
   right: "14.6%",
@@ -91,7 +93,7 @@ export function UserAvatar({ user, size = "md", className, tooltip = true }: Use
       ) : (
         "?"
       )}
-      {online && <span aria-hidden className={cn("absolute rounded-full bg-emerald-500 ring-background", DOT_RING[size])} style={DOT_STYLE} data-testid="avatar-online" />}
+      {online && <span aria-hidden className={cn("absolute z-[1] rounded-full bg-emerald-500 ring-background", DOT_RING[size])} style={DOT_STYLE} data-testid="avatar-online" />}
     </span>
   );
   if (!tooltip || !user) return content;

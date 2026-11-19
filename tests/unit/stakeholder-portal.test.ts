@@ -55,6 +55,28 @@ describe("the stakeholder portal", () => {
     expect(overview.portal.enabled).toBe(false);
   });
 
+  // Portal and Booking shows every member the two links, read-only. Their copy
+  // is read through migration 0118 in production, which leaves the hash out.
+  it("gives a member the link and its settings, but no password hash and no counts", async () => {
+    expect(await services.portals.memberOverview(WS)).toBeNull();
+    const { portal } = await twoDepartments();
+    await services.portals.setPassword(WS, "let me in");
+
+    const member = await services.portals.memberOverview(WS);
+    expect(member).not.toBeNull();
+    expect(member!.readOnly).toBe(true);
+    expect(member!.portal.token).toBe(portal.token);
+    expect(member!.portal.passwordHash).toBeNull();
+    expect(member!.hasPassword).toBe(true);
+    expect(member!.departments.length).toBeGreaterThan(1);
+    expect(member!.departments.every((row) => row.requests === 0)).toBe(true);
+
+    const admin = await services.portals.overview(WS);
+    expect(admin.readOnly).toBe(false);
+    expect(admin.hasPassword).toBe(true);
+    expect(admin.departments.some((row) => row.requests > 0)).toBe(true);
+  });
+
   it("keeps the stakeholder and its requests through a rename, and the link still opens", async () => {
     const { first, portal } = await twoDepartments();
     const lists = await services.lists.lists(WS);

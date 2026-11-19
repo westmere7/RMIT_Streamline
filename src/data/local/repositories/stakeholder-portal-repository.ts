@@ -90,6 +90,12 @@ export class LocalStakeholderPortalRepository implements StakeholderPortalReposi
     return row ? withDefaults(row) : null;
   }
 
+  /** As a member reads it: no password hash, only whether there is one. */
+  async getUnifiedPortalForMember(workspaceId: string): Promise<{ portal: StakeholderPortal; hasPassword: boolean } | null> {
+    const portal = await this.getUnifiedPortal(workspaceId);
+    return portal ? { portal: { ...portal, passwordHash: null }, hasPassword: portal.passwordHash !== null } : null;
+  }
+
   async getPortalByDepartment(departmentId: string): Promise<StakeholderPortal | null> {
     const db = await this.conn.getDb();
     const row = await db.getFromIndex("departmentPortals", "byDepartment", departmentId);

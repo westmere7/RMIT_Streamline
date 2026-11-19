@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { PortalPresentation } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { routes } from "@/lib/routes";
@@ -43,10 +44,13 @@ export function usePortalOverview() {
       { table: "portal_requests", filter: `workspace_id=eq.${workspaceId}`, keys },
     ];
   }, [workspaceId]);
-  useRealtime(`portal:${workspaceId}`, bindings);
+  // A member's copy: the links, read-only, through migration 0118. They cannot
+  // read these tables, so realtime would tell them nothing; they read on focus.
+  const admin = canManageWorkspace(ws.permissions);
+  useRealtime(admin ? `portal:${workspaceId}` : null, bindings);
   return useQuery({
-    queryKey: portalKeys(workspaceId),
-    queryFn: () => services.portals.overview(workspaceId),
+    queryKey: admin ? portalKeys(workspaceId) : [...portalKeys(workspaceId), "member"],
+    queryFn: () => (admin ? services.portals.overview(workspaceId) : services.portals.memberOverview(workspaceId)),
     staleTime: 10_000,
   });
 }

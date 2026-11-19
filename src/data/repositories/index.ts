@@ -395,6 +395,12 @@ export interface StakeholderPortalRepository {
   listPortals(workspaceId: EntityId): Promise<StakeholderPortal[]>;
   /** The workspace's own portal: the row with no department. Null before one is made. */
   getUnifiedPortal(workspaceId: EntityId): Promise<StakeholderPortal | null>;
+  /**
+   * The same portal as a member may read it (migration 0118): the link and its
+   * settings, with no password hash, only whether there is one. Null before
+   * the portal is made, and for a guest or anyone outside the workspace.
+   */
+  getUnifiedPortalForMember(workspaceId: EntityId): Promise<{ portal: StakeholderPortal; hasPassword: boolean } | null>;
   getPortalByDepartment(departmentId: EntityId): Promise<StakeholderPortal | null>;
   /** The one lookup a visitor's request turns into. Returns null for an unknown token. */
   getPortalByToken(token: string): Promise<StakeholderPortal | null>;

@@ -50,7 +50,6 @@ import { copyToClipboard } from "@/features/members/hooks";
 import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canManageWorkspace } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -63,14 +62,20 @@ import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
  * out: each link is a card with its figure, its open and copy buttons, and its
  * own settings listed on it and its switch. Closing the portal closes the form
  * inside it too. The booking form's questions are on their own page (Edit form).
+ *
+ * A member who is not an admin sees the same two cards to open and copy, with
+ * their settings listed and nothing to change: no switches, no gear, no counts.
+ * A guest, from outside the team, sees neither.
  */
 export function PortalAdmin() {
   const ws = useWorkspace();
   const overview = usePortalOverview();
-  const admin = canManageWorkspace(ws.permissions);
 
-  if (!admin) {
+  if (ws.permissions.workspaceRole === "GUEST") {
     return <EmptyState icon={Lock} title="The portal is managed by workspace admins" description="You can still book a task from the booking page." />;
+  }
+  if (overview.data === null) {
+    return <EmptyState icon={Globe} title="No portal yet" description="An admin sets it up here." />;
   }
 
   return (
@@ -82,13 +87,13 @@ export function PortalAdmin() {
         </div>
       )}
       {overview.isError && <ErrorState title="Could not load the portal." error={overview.error} onRetry={() => overview.refetch()} />}
-      {overview.data && <PortalCard portal={overview.data.portal} rows={overview.data.departments} columns={overview.data.columns} />}
+      {overview.data && <PortalCard portal={overview.data.portal} rows={overview.data.departments} columns={overview.data.columns} hasPassword={overview.data.hasPassword} readOnly={overview.data.readOnly} />}
     </div>
   );
 }
 
 /** The portal: whether it is open, its credentials, and its two links. */
-function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows: DepartmentOverview[]; columns: PortalColumnCandidate[] }) {
+function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: StakeholderPortal; rows: DepartmentOverview[]; columns: PortalColumnCandidate[]; hasPassword: boolean; readOnly: boolean }) {
   const ws = useWorkspace();
   const { setEnabled, setPresentation, setPassword } = usePortalMutations();
   const [editing, setEditing] = React.useState<"portal" | "booking" | null>(null);
@@ -111,10 +116,11 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
         <LinkTile
           icon={Globe}
           label="Portal"
-          lead={<>Departments see their work{portal.passwordHash ? ", behind the password" : ""}.</>}
+          lead={<>Departments see their work{hasPassword ? ", behind the password" : ""}.</>}
           figure={rows.length}
           figureLabel={rows.length === 1 ? "department" : "departments"}
-          aside={rows.length > 0 ? `${active} of ${rows.length} have booked` : "none set up yet"}
+          aside={rows.length === 0 ? "none set up yet" : readOnly ? undefined : `${active} of ${rows.length} have booked`}
+          readOnly={readOnly}
           url={url}
           href={routes.portal(portal.token)}
           openLabel="Open Portal"
@@ -125,7 +131,7 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           settings={portalSettingsRows(portal, columns)}
           // Passwords are no longer set here; one set before then can still be taken off.
           action={
-            portal.passwordHash ? (
+            portal.passwordHash && !readOnly ? (
               <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={setPassword.isPending} onClick={() => setPassword.mutate({ password: null })} data-testid="portal-password-remove">
                 <Lock /> Remove password
               </Button>
@@ -141,7 +147,7 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
             testId: "portal-toggle",
           }}
         >
-          <StakeholderList rows={rows} />
+          <StakeholderList rows={rows} counts={!readOnly} />
         </LinkTile>
         <LinkTile
           icon={ClipboardPen}
@@ -163,12 +169,15 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
           onCopy={() => void copyToClipboard(bookingUrl, "Booking link copied")}
           onSettings={() => setEditing("booking")}
           settings={bookingSettingsRows(portal)}
+          readOnly={readOnly}
           action={
-            <Button variant="outline" size="sm" asChild>
-              <Link href={routes.bookFormEditor(ws.slug)} data-testid="booking-edit-form">
-                <Pencil /> Edit form
-              </Link>
-            </Button>
+            readOnly ? undefined : (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={routes.bookFormEditor(ws.slug)} data-testid="booking-edit-form">
+                  <Pencil /> Edit form
+                </Link>
+              </Button>
+            )
           }
           open={open && portal.allowBooking}
           // Taking requests is the form's own switch. It waits on the portal's.
@@ -183,12 +192,16 @@ function PortalCard({ portal, rows, columns }: { portal: StakeholderPortal; rows
             testId: "portal-allow-booking",
           }}
         >
-          <PublishedFormSummary booked={booked} />
+          <PublishedFormSummary booked={readOnly ? null : booked} />
         </LinkTile>
       </div>
 
-      <SettingsDialog kind="portal" portal={portal} columns={columns} open={editing === "portal"} onOpenChange={(next) => setEditing(next ? "portal" : null)} />
-      <SettingsDialog kind="booking" portal={portal} columns={columns} open={editing === "booking"} onOpenChange={(next) => setEditing(next ? "booking" : null)} />
+      {!readOnly && (
+        <>
+          <SettingsDialog kind="portal" portal={portal} columns={columns} open={editing === "portal"} onOpenChange={(next) => setEditing(next ? "portal" : null)} />
+          <SettingsDialog kind="booking" portal={portal} columns={columns} open={editing === "booking"} onOpenChange={(next) => setEditing(next ? "booking" : null)} />
+        </>
+      )}
     </section>
   );
 }
@@ -244,6 +257,7 @@ export function LinkTile({
   action,
   open,
   toggle,
+  readOnly = false,
   children,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -268,6 +282,8 @@ export function LinkTile({
   open: boolean;
   /** The link's on/off switch, top right where it is seen first. */
   toggle: { on: boolean; pending: boolean; disabled?: boolean; onChange: (next: boolean) => void; label: string; hint?: string; testId: string };
+  /** A member's card: the switch's state as words, and no gear. */
+  readOnly?: boolean;
   children?: React.ReactNode;
 }) {
   const [copied, setCopied] = React.useState(false);
@@ -313,6 +329,11 @@ export function LinkTile({
           <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{lead}</p>
         </div>
         {/* Always at full strength, even on a link that is not serving: this is how it gets turned back on. */}
+        {readOnly ? (
+          <span className={cn("flex h-8 shrink-0 items-center px-1 text-[12px] font-medium", toggle.on ? "text-foreground" : "text-muted-foreground")} data-testid={`${toggle.testId}-state`}>
+            {toggle.on ? "On" : "Off"}
+          </span>
+        ) : (
         <div className="flex shrink-0 items-center gap-1">
           <label className={cn("flex h-8 items-center gap-2 px-1 text-[12px] font-medium", toggle.on ? "text-foreground" : "text-muted-foreground", toggle.disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer")} title={toggle.hint}>
             {toggle.pending && <Loader2 aria-hidden className="size-3.5 animate-spin" />}
@@ -323,6 +344,7 @@ export function LinkTile({
             <Settings2 className="size-4" />
           </Button>
         </div>
+        )}
       </div>
 
       <div className={cn("flex-1", dim)}>
@@ -410,7 +432,7 @@ function RegenerateButton({ testId }: { testId: string }) {
  * live, and how many requests the portal has taken. The same read as the editor's Published form card, and
  * the same cache, so opening Edit form costs nothing more.
  */
-function PublishedFormSummary({ booked }: { booked: number }) {
+function PublishedFormSummary({ booked }: { booked: number | null }) {
   const ws = useWorkspace();
   const services = useServices();
   const form = useQuery({
@@ -438,9 +460,11 @@ function PublishedFormSummary({ booked }: { booked: number }) {
           {template ? `${templateQuestionCount(template)} questions · ${serviceCount === 1 ? "1 service" : `${serviceCount} services`}` : "Reading the form…"}
           {at && !Number.isNaN(at.getTime()) ? ` · published ${format(at, "d MMM yyyy, HH:mm")}` : ""}
         </p>
-        <p className="mt-1.5 text-[13px]" data-testid="portal-link-booking-figure">
-          <span className="font-semibold tabular">{booked}</span> <span className="text-muted-foreground">{booked === 1 ? "request booked through the portal" : "requests booked through the portal"}</span>
-        </p>
+        {booked !== null && (
+          <p className="mt-1.5 text-[13px]" data-testid="portal-link-booking-figure">
+            <span className="font-semibold tabular">{booked}</span> <span className="text-muted-foreground">{booked === 1 ? "request booked through the portal" : "requests booked through the portal"}</span>
+          </p>
+        )}
       </div>
     </div>
   );
@@ -454,8 +478,15 @@ function PublishedFormSummary({ booked }: { booked: number }) {
  * the link because "which stakeholders does this link show" is the first thing
  * anyone asks of it, and the counts say which of them have ever booked anything.
  */
-function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
+function StakeholderList({ rows, counts }: { rows: DepartmentOverview[]; counts: boolean }) {
   const ws = useWorkspace();
+  if (rows.length === 0 && !counts) {
+    return (
+      <p className="flex items-center gap-1.5 text-2xs text-muted-foreground" data-testid="portal-stakeholders">
+        <Users className="size-3 shrink-0" aria-hidden /> No departments yet.
+      </p>
+    );
+  }
   if (rows.length === 0) {
     return (
       <p className="flex items-start gap-1.5 text-2xs text-muted-foreground" data-testid="portal-stakeholders">
@@ -481,7 +512,7 @@ function StakeholderList({ rows }: { rows: DepartmentOverview[] }) {
         >
           <span aria-hidden className={cn("size-2 shrink-0 rounded-full", colorClasses(department.color).dot)} />
           <span className="font-medium">{department.name}</span>
-          <span className={cn("tabular", requests > 0 ? "text-foreground/70" : "text-muted-foreground/60")}>{requests > 0 ? `${requests} booked` : "none yet"}</span>
+          {counts && <span className={cn("tabular", requests > 0 ? "text-foreground/70" : "text-muted-foreground/60")}>{requests > 0 ? `${requests} booked` : "none yet"}</span>}
         </li>
       ))}
     </ul>

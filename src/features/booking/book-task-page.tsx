@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Copy, ExternalLink, LoaderCircle } from "lucide-react";
+import { ArrowLeft, Check, ClipboardPen, Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -31,7 +31,11 @@ import { cn } from "@/lib/utils";
  * settings; `editor` (/book/form, from the Booking form card) is the form's
  * questions. Booking itself happens on the one booking page (/book/<slug>), the
  * same page a stakeholder's link opens, so the form is never embedded here as a
- * second copy. A member with nothing to manage is sent straight on to that page.
+ * second copy.
+ *
+ * Anyone else sees the links read-only, with Book a task to that page. They are
+ * not sent on to it: the booking page's own way back comes here, and a redirect
+ * sent them straight back to the form. The editor is a manager's alone.
  */
 export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) {
   const ws = useWorkspace();
@@ -48,8 +52,8 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
   const isMobile = useIsMobile();
 
   React.useEffect(() => {
-    if (!manager) router.replace(routes.bookForm(ws.slug));
-  }, [manager, router, ws.slug]);
+    if (!manager && view === "editor") router.replace(routes.book(ws.slug));
+  }, [manager, view, router, ws.slug]);
 
   // What another admin changes while this page is open: a form published, a
   // template saved, a block added. The draft is deliberately not on this list —
@@ -142,10 +146,10 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
     await savedBlocksChanged();
   };
 
-  if (!manager) {
+  if (!manager && view === "editor") {
     return (
       <div className="flex h-full flex-1 items-center justify-center gap-2 text-[13px] text-muted-foreground" role="status" data-testid="booking-redirect">
-        <LoaderCircle className="size-4 animate-spin" /> Opening the booking form…
+        <LoaderCircle className="size-4 animate-spin" /> Opening Portal and Booking…
       </div>
     );
   }
@@ -181,6 +185,12 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
                   <ArrowLeft /> Portal and Booking
                 </Link>
               </Button>
+            ) : !manager ? (
+              <Button asChild>
+                <Link href={routes.bookForm(ws.slug)} data-testid="book-a-task">
+                  <ClipboardPen /> Book a task
+                </Link>
+              </Button>
             ) : undefined
           }
         />
@@ -194,7 +204,9 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
           </div>
         </div>
       )}
-      {/* On a desktop the editor card scrolls by itself under the header; on a phone the whole page scrolls. */}
+      {/* On a desktop the editor card scrolls by itself under the header; on a phone the whole page scrolls.
+          A manager's alone: the card's form summary reads the same form, and a member has nothing to edit. */}
+      {manager && (
       <div className={cn("scrollbar-thin min-h-0 flex-1 overflow-y-auto px-4 pb-6 sm:px-7 lg:overflow-visible", tab !== "book" && "hidden")}>
         <p className="mb-3 text-[13px] text-muted-foreground md:hidden" data-testid="booking-editor-phone-note">Editing the form works best on a larger screen.</p>
         <div className="mx-auto grid w-full max-w-[80rem] gap-6 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]">
@@ -235,6 +247,7 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
           {admin && <AdminAside editorSlot={setEditorPanel} />}
         </div>
       </div>
+      )}
     </div>
   );
 }

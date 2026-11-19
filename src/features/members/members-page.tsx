@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Input } from "@/components/ui/input";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { DEFAULT_WEEKLY_HOURS, WORKSPACE_ROLES, weeklyHoursOf, type Team, type User, type WorkspaceInvitation, type WorkspaceMember, type WorkspaceRole } from "@/domain";
+import { DEFAULT_WEEKLY_HOURS, WORKSPACE_ROLES, roundToHalfHour, weeklyHoursOf, type Team, type User, type WorkspaceInvitation, type WorkspaceMember, type WorkspaceRole } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { InviteLinkDialog } from "@/features/members/components/invite-link-dialog";
 import { AddToWorkspaceDialog } from "@/features/members/components/add-to-workspace-dialog";
@@ -819,8 +819,11 @@ function HoursCell({ member, name, editable }: { member: WorkspaceMember; name: 
   if (!editable) return <span className={cn(stored === null && "text-muted-foreground")}>{weeklyHoursOf(member)}</span>;
   const commit = () => {
     const text = draft.trim();
-    const next = text === "" ? null : Number(text);
-    if (next !== null && !Number.isFinite(next)) return setDraft(stored === null ? "" : String(stored));
+    const typed = text === "" ? null : Number(text);
+    if (typed !== null && !Number.isFinite(typed)) return setDraft(stored === null ? "" : String(stored));
+    // Half hours only: what was typed is shown as it will be saved.
+    const next = typed === null ? null : roundToHalfHour(typed);
+    if (next !== null) setDraft(String(next));
     if (next !== stored) save.mutate(next);
   };
   return (
@@ -836,7 +839,7 @@ function HoursCell({ member, name, editable }: { member: WorkspaceMember; name: 
       onBlur={commit}
       onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
       aria-label={`${name}'s hours a week`}
-      title="Hours a week in this workspace, for capacity. Empty is a full week."
+      title="Hours a week in this workspace, in half hours, for capacity. Empty is a full week."
       className="h-7 w-14 rounded-md border border-transparent bg-transparent px-1.5 text-right tabular outline-none placeholder:text-muted-foreground hover:border-border focus:border-ring focus:bg-background [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       data-testid="member-hours-input"
     />

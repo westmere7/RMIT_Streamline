@@ -199,6 +199,14 @@ export interface PortalOverview {
   departments: DepartmentOverview[];
   /** Every column the portal could show, from the workspace's boards, for its settings. */
   columns: PortalColumnCandidate[];
+  /** Whether the portal asks for a password. A member's copy carries no hash, so this is the one place it is said. */
+  hasPassword: boolean;
+  /**
+   * A member's view: the links and their settings, nothing to change, and no
+   * request counts (which tasks a department has booked is an admin's to know;
+   * every `requests` is 0).
+   */
+  readOnly: boolean;
 }
 
 /**
@@ -414,6 +422,27 @@ export class StakeholderPortalService {
       portal,
       departments: departments.map((department, index) => ({ department, requests: requests[index] ?? 0 })),
       columns: portalColumnCandidates(boardColumns),
+      hasPassword: portal.passwordHash !== null,
+      readOnly: false,
+    };
+  }
+
+  /**
+   * The portal as a member who is not an admin sees it: its two links to open
+   * and hand out, and how they are set up, read-only. Nothing is created here
+   * (a member may not), so before an admin has opened the page there is no
+   * portal and this is null; so it is for a guest.
+   */
+  async memberOverview(workspaceId: EntityId): Promise<PortalOverview | null> {
+    const found = await this.repos.stakeholderPortals.getUnifiedPortalForMember(workspaceId);
+    if (!found) return null;
+    const [departments, boardColumns] = await Promise.all([this.repos.stakeholderPortals.listDepartments(workspaceId), this.workspaceBoardColumns(workspaceId)]);
+    return {
+      portal: found.portal,
+      departments: departments.map((department) => ({ department, requests: 0 })),
+      columns: portalColumnCandidates(boardColumns),
+      hasPassword: found.hasPassword,
+      readOnly: true,
     };
   }
 

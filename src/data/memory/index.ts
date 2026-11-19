@@ -226,6 +226,7 @@ export function createMemoryRepositories(
       updateDepartment: readOnly("editing a department"),
       listPortals: async () => [],
       getUnifiedPortal: async () => null,
+      getUnifiedPortalForMember: async () => null,
       getPortalByDepartment: async () => null,
       getPortalByToken: async () => null,
       createPortal: readOnly("creating a portal"),

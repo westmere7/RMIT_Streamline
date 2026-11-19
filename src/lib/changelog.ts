@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.109.0",
+    date: "2026-11-19",
+    title: "Portal links for the whole team",
+    changes: [
+      "Members who are not admins see both portal links on Portal and Booking, to open and copy, with their settings listed and nothing to change.",
+      "Members get Book a task there, and Back to the workspace on the booking form returns to it instead of looping back to the form.",
+      "Weekly hours are saved in half hours.",
+      "The online dot stays on top where pictures overlap.",
+    ],
+  },
+  {
     version: "0.108.1",
     date: "2026-11-19",
     title: "Online dot on the picture's edge",

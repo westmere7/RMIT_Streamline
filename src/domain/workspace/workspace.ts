@@ -112,6 +112,11 @@ export const MAX_WORKSPACE_DESCRIPTION = 280;
 export const DEFAULT_WEEKLY_HOURS = 38;
 
 /** The hours a week someone has for the work in this workspace. */
+/** Hours to the nearest half hour, the only steps weekly hours are kept in. */
+export function roundToHalfHour(hours: number): number {
+  return Math.round(hours * 2) / 2;
+}
+
 export function weeklyHoursOf(member: Pick<WorkspaceMember, "weeklyHours"> | null | undefined): number {
   const hours = member?.weeklyHours;
   return typeof hours === "number" && Number.isFinite(hours) && hours >= 0 ? hours : DEFAULT_WEEKLY_HOURS;

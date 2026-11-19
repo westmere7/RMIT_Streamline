@@ -18,7 +18,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { MAX_WORKSPACE_DESCRIPTION, defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, suggestTicketPrefix } from "@/domain";
+import { MAX_WORKSPACE_DESCRIPTION, defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, roundToHalfHour, suggestTicketPrefix } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -323,10 +323,14 @@ export class WorkspaceService {
     return this.repos.workspaces.updateMember(memberId, { role });
   }
 
-  /** The hours a week someone works here, for capacity; null puts them back on the usual week. */
+  /**
+   * The hours a week someone works here, for capacity; null puts them back on
+   * the usual week. Kept to half hours: 37.7 is saved as 37.5. Only what is
+   * saved from now on; a figure stored before stays as it is until edited.
+   */
   async setMemberWeeklyHours(memberId: EntityId, hours: number | null): Promise<WorkspaceMember> {
     if (hours !== null && (!Number.isFinite(hours) || hours < 0 || hours > 80)) throw new Error("Hours a week must be between 0 and 80.");
-    return this.repos.workspaces.updateMember(memberId, { weeklyHours: hours === null ? null : Math.round(hours * 10) / 10 });
+    return this.repos.workspaces.updateMember(memberId, { weeklyHours: hours === null ? null : roundToHalfHour(hours) });
   }
 
   /**
