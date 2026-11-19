@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.111.1",
+    date: "2026-11-19",
+    title: "Form editor: outline on every step",
+    changes: [
+      "Every step of the form editor outlines the block under the pointer, fixed blocks included (Who is asking, the deliverables list, the recap cards). Blocks inside another still outline the one they sit in.",
+      "\"Allow formatting\" is now \"Allow rich text formatting\".",
+    ],
+  },
+  {
     version: "0.111.0",
     date: "2026-11-19",
     title: "Portal links on Home",

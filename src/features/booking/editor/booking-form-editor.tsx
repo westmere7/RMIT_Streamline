@@ -37,7 +37,7 @@ import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
 import { PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
-import { DragHandle, EditorSection, Handle, TextBox } from "./editor-controls";
+import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesPanel } from "./templates-menu";
 import Link from "next/link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -497,7 +497,7 @@ function BasicsPane({
 
   return (
     <div className="space-y-5">
-      <EditorSection title="Heading of this step" testId="editor-basics-heading">
+      <EditorSection title="Heading of this step" testId="editor-basics-heading" hoverOutline>
         <TextBox value={draft.basics.title ?? ""} onChange={(v) => update((t) => (t.basics.title = v || null))} ariaLabel="Step one title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-basics-title" />
         <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />
       </EditorSection>
@@ -505,7 +505,7 @@ function BasicsPane({
       {/* Who is asking: one block, three boxes, nothing to explain and nothing
           to turn off. Only its wording is anybody's to change. */}
       {requester.length > 0 && (
-        <EditorSection title="Who is asking" aside={<span className="text-2xs text-muted-foreground">Always asked, always required</span>} testId="editor-requester-block">
+        <EditorSection hoverOutline title="Who is asking" aside={<span className="text-2xs text-muted-foreground">Always asked, always required</span>} testId="editor-requester-block">
           <div className="grid gap-3 sm:grid-cols-3">
             {requester.map((field) => (
               <div key={field.id} className="min-w-0 grid gap-1.5">
@@ -525,6 +525,7 @@ function BasicsPane({
           same handful on every workspace's form, and the order they are asked
           in is the order they make sense in. Their words are another matter. */}
       <EditorSection
+        hoverOutline
         title="About the request"
         aside={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
@@ -563,6 +564,7 @@ function BasicsPane({
       </EditorSection>
 
       <EditorSection
+        hoverOutline
         title="Kind of work"
         aside={
           <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onAddService} data-testid="editor-add-service">
@@ -817,6 +819,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
 
       <div className={cn("space-y-4", !step.enabled && "pointer-events-none opacity-50")}>
         <EditorSection
+          hoverOutline
           title="Heading of this step"
           aside={
             <span className="inline-flex items-center gap-1.5 text-2xs text-muted-foreground">
@@ -829,11 +832,16 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
           <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Assets hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
         </EditorSection>
 
-        <div className="pointer-events-none px-1" aria-hidden>
-          <AssetList rows={[]} onChange={() => {}} options={form.assetTypes} preview />
+        {/* Fixed, but a block like the others: outlined under the pointer,
+            while the list itself stays inert. */}
+        <div className={cn("p-1", EDITOR_HOVER_OUTLINE)} aria-hidden data-testid="editor-assets-list">
+          <div className="pointer-events-none">
+            <AssetList rows={[]} onChange={() => {}} options={form.assetTypes} preview />
+          </div>
         </div>
 
         <EditorSection
+          hoverOutline
           title="Asset types"
           aside={
             <label className="flex items-center gap-1.5 text-2xs text-muted-foreground">
@@ -851,6 +859,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
         </EditorSection>
 
         <EditorSection
+          hoverOutline
           title={
             <>
               <Link2 className="size-3" aria-hidden /> A link instead
@@ -877,27 +886,31 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
 function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void }) {
   return (
     <div className="space-y-4">
-      <EditorSection title="Heading of this step" testId="editor-review-heading">
+      <EditorSection title="Heading of this step" testId="editor-review-heading" hoverOutline>
         <TextBox value={draft.review.title ?? ""} onChange={(v) => update((t) => (t.review.title = v || null))} ariaLabel="Recap title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-review-title" />
         <TextBox value={draft.review.hint ?? ""} onChange={(v) => update((t) => (t.review.hint = v || null))} ariaLabel="Recap hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-review-hint" />
       </EditorSection>
 
       {/* What the recap looks like: the step's own cards, so the heading above
           is read in the place it will be read. */}
-      <div className="pointer-events-none space-y-2 px-1 opacity-70" aria-hidden>
+      <div className="space-y-2 select-none" aria-hidden>
         {["The request", "The brief", "Assets"].map((title) => (
-          <section key={title} className="rounded-xl border border-border/60 bg-surface/40 p-3">
-            <div className="mb-1.5 flex items-center gap-2">
-              <h3 className="min-w-0 flex-1 text-[13px] font-semibold tracking-tight">{title}</h3>
-              <span className="text-2xs text-muted-foreground">Change</span>
+          // Fixed, and outlined under the pointer like any other block; only
+          // what is inside is dimmed, so the outline is not.
+          <section key={title} className={cn("rounded-xl border border-border/60 bg-surface/40 p-3", EDITOR_HOVER_OUTLINE)} data-testid="editor-review-sample">
+            <div className="opacity-70">
+              <div className="mb-1.5 flex items-center gap-2">
+                <h3 className="min-w-0 flex-1 text-[13px] font-semibold tracking-tight">{title}</h3>
+                <span className="text-2xs text-muted-foreground">Change</span>
+              </div>
+              <p className="text-[13px] text-muted-foreground">What they answered, laid out to be read over.</p>
             </div>
-            <p className="text-[13px] text-muted-foreground">What they answered, laid out to be read over.</p>
           </section>
         ))}
       </div>
 
       {/* The bar at the foot of the wizard, as they meet it. */}
-      <EditorSection title="The button" testId="editor-review-bar">
+      <EditorSection title="The button" testId="editor-review-bar" hoverOutline>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <TextBox value={draft.review.submitNote} onChange={(v) => update((t) => (t.review.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
           <TextBox value={draft.review.submitLabel} onChange={(v) => update((t) => (t.review.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg border-transparent bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:w-44 focus:bg-primary" testId="editor-submit-label" />
@@ -906,6 +919,7 @@ function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
 
       {/* And the ticket, which is the last thing anybody sees. */}
       <EditorSection
+        hoverOutline
         title={
           <>
             <MessageSquareQuote className="size-3" aria-hidden /> On the ticket

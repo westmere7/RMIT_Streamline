@@ -22,7 +22,7 @@ import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_L
 import { cn } from "@/lib/utils";
 import { NumberBadge, slug } from "../booking-fields";
 import { ChoiceChips } from "./choice-chips";
-import { DragHandle, EditorSection, Handle, Segmented, TextBox } from "./editor-controls";
+import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, Segmented, TextBox } from "./editor-controls";
 
 /**
  * The builder for one service's brief: step two, block by block.
@@ -56,15 +56,6 @@ export interface BriefBuilderProps {
   onSaveBlock: (input: { name: string; block: BookingBlock }) => Promise<void>;
   onDeleteSavedBlock: (saved: BookingSavedBlock) => Promise<void>;
 }
-
-/**
- * The top-level block under the pointer, outlined in the accent, so in a
- * column of cards that all show their controls the one being pointed at stands
- * out. Top level only: a follow-up has no outline of its own, and pointing at
- * one outlines the question it hangs from. Drawn as an outline over the card's
- * own border, so nothing moves.
- */
-const HOVER_OUTLINE = "rounded-xl outline-2 -outline-offset-1 outline-transparent transition-[outline-color] duration-150 hover:outline-ring/60";
 
 export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDeleteSavedBlock }: BriefBuilderProps) {
   const blocks = service.blocks;
@@ -106,7 +97,7 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
   return (
     <div className="space-y-3" data-testid="brief-builder">
       {/* The heading of the step, which the form only shows when there is one. */}
-      <EditorSection title="Heading of this step" testId="editor-brief-heading">
+      <EditorSection title="Heading of this step" testId="editor-brief-heading" hoverOutline>
         <TextBox value={service.briefTitle ?? ""} onChange={(v) => onPatch({ briefTitle: v || null })} ariaLabel="Brief heading" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-brief-title" />
         <TextBox value={service.briefHint ?? ""} onChange={(v) => onPatch({ briefHint: v || null })} ariaLabel="Brief hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-brief-hint" />
       </EditorSection>
@@ -187,7 +178,7 @@ function BlockEditor({
 
   return (
     // The sortable node is the wrapper, so the insert lines in its margins move with the card.
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative", HOVER_OUTLINE, isDragging && "z-10 opacity-90")} data-editor-block>
+    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative", EDITOR_HOVER_OUTLINE, isDragging && "z-10 opacity-90")} data-editor-block>
       {!isDragging && insertAbove}
       {!isDragging && insertBelow}
     <EditorSection
@@ -349,10 +340,10 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
             size="sm"
             checked={block.rich === true}
             onCheckedChange={(on) => onPatch({ rich: on || undefined } as Partial<BookingBlock>)}
-            aria-label="Allow formatting"
+            aria-label="Allow rich text formatting"
             data-testid={`editor-block-rich-${block.id}`}
           />
-          Allow formatting
+          Allow rich text formatting
         </label>
       )}
       {choice && (

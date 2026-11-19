@@ -50,6 +50,15 @@ export function TextBox({
  * switch, a menu, the duplicate and remove buttons — all of them shown all the
  * time. Nothing here waits for a hover.
  */
+/**
+ * The top-level block under the pointer, outlined in the accent, so in a
+ * column of cards that all show their controls the one being pointed at stands
+ * out. Top level only: a block inside another has no outline of its own, and
+ * pointing at it outlines the one it sits in. Drawn as an outline over the
+ * card's own border, so nothing moves.
+ */
+export const EDITOR_HOVER_OUTLINE = "rounded-xl outline-2 -outline-offset-1 outline-transparent transition-[outline-color] duration-150 hover:outline-ring/60";
+
 export function EditorSection({
   title,
   aside,
@@ -60,6 +69,7 @@ export function EditorSection({
   testId,
   innerRef,
   style,
+  hoverOutline = false,
 }: {
   title?: React.ReactNode;
   /** Controls on the right of the title bar. */
@@ -72,9 +82,11 @@ export function EditorSection({
   testId?: string;
   innerRef?: (node: HTMLElement | null) => void;
   style?: React.CSSProperties;
+  /** A top-level block: outlined under the pointer (EDITOR_HOVER_OUTLINE). */
+  hoverOutline?: boolean;
 }) {
   return (
-    <section ref={innerRef} style={style} className={cn("rounded-xl border border-border/70 bg-card", className)} data-testid={testId}>
+    <section ref={innerRef} style={style} className={cn("rounded-xl border border-border/70 bg-card", hoverOutline && EDITOR_HOVER_OUTLINE, className)} data-testid={testId}>
       {(title || aside) && (
         <header className={cn("flex min-h-9 items-center gap-2 rounded-t-xl border-b border-border/60 bg-surface/40 px-2.5 py-1", headerClassName)}>
           <div className="flex min-w-0 flex-1 items-center gap-1.5 label-quiet">{title}</div>
