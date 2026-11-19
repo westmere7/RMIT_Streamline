@@ -1,5 +1,6 @@
 "use client";
 
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { EyeOff, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,22 +12,24 @@ import { cn } from "@/lib/utils";
  */
 export function MyAssetsToggle({ on, todo, onChange }: { on: boolean; todo: number; onChange: (on: boolean) => void }) {
   return (
+    <SimpleTooltip label={on ? "Show every item" : "To-do: show only your items"}>
     <Button
       type="button"
       variant="outline"
       onClick={() => onChange(!on)}
       aria-pressed={on}
-      className={cn("h-auto shrink-0 self-stretch rounded-xl px-3 shadow-xs", on && "state-on border-ring/40 hover:bg-accent-soft hover:text-accent-soft-foreground")}
-      title={on ? "Show every item" : "Show only your items"}
+      aria-label={on ? "Show every item" : "Show only your items"}
+      className={cn("h-auto shrink-0 self-stretch rounded-xl px-2.5 shadow-xs", on && "state-on border-ring/40 hover:bg-accent-soft hover:text-accent-soft-foreground")}
       data-testid="asset-mine"
     >
-      <ListChecks /> To-do
+      <ListChecks />
       {todo > 0 && (
         <span className={cn("rounded-full px-1.5 text-2xs font-semibold tabular", on ? "bg-ring text-white" : "bg-accent-soft text-accent-soft-foreground")} data-testid="asset-mine-count">
           {todo}
         </span>
       )}
     </Button>
+    </SimpleTooltip>
   );
 }
 

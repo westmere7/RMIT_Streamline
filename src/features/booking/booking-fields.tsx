@@ -597,7 +597,8 @@ export function ServiceCardShell({
       className={cn(
         "group/service relative flex min-w-0 flex-col gap-1 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring",
         interactive && "cursor-pointer",
-        selected ? "border-foreground/70 bg-accent/60 shadow-xs" : "border-border bg-card",
+        // Picked: filled, like every other "on" state, rather than outlined.
+        selected ? "state-on border-transparent" : "border-border bg-card",
         interactive && !selected && "hover:border-foreground/30 hover:bg-accent/40",
         className,
       )}

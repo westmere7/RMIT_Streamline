@@ -13,10 +13,25 @@ import { cn } from "@/lib/utils";
  * workspace (any more). The click stops here, so a card that opens on a click
  * of its own does not open as well.
  */
-export function PersonChip({ userId, className, testId = "person-chip" }: { userId: string | null | undefined; className?: string; testId?: string }) {
+export function PersonChip({ userId, className, testId = "person-chip", plain = false }: { userId: string | null | undefined; className?: string; testId?: string; /** Just the name, underlined, as a link in a line of text. */ plain?: boolean }) {
   const ws = useWorkspace();
   const user = ws.userById(userId);
   if (!user) return null;
+  if (plain) {
+    return (
+      <PersonHover user={user}>
+        <Link
+          href={routes.person(ws.slug, user.id)}
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          className={cn("font-medium text-foreground underline underline-offset-2 hover:decoration-2 focus-visible:outline-2 focus-visible:outline-ring", className)}
+          data-testid={testId}
+        >
+          {user.displayName}
+        </Link>
+      </PersonHover>
+    );
+  }
   return (
     <PersonHover user={user}>
       <Link

@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.117.2",
+    date: "2026-11-19",
+    title: "Quieter buttons and cards",
+    changes: [
+      "Block, Tracker and To-do on a task's Assets tab are icons, each with a tooltip.",
+      "The picked service on the booking form is filled rather than outlined, in the form and its editor.",
+      "Who published the booking form shows as their name, underlined, without the avatar.",
+    ],
+  },
+  {
     version: "0.117.1",
     date: "2026-11-19",
     title: "Tracker beside Block",

@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Tooltip as RadixTooltip } from "radix-ui";
 import { describe, expect, it, vi } from "vitest";
 import type { AssetLink, User } from "@/domain";
 import { assetLinkHref, groupAssetBlocks, legacyAssetLinks, normalizeAssetLinks } from "@/domain";
@@ -30,7 +31,12 @@ const users = [person("u-duc", "Duc"), person("u-tuyet", "Tuyet")];
 
 function composer(rows: AssetComposerRow[] = [row()], props: Partial<React.ComponentProps<typeof AssetComposer>> = {}) {
   const handlers = { onAdd: vi.fn(), onPatch: vi.fn(), onDuplicate: vi.fn(), onRemove: vi.fn(), onAddBlock: vi.fn(), onPatchBlock: vi.fn(), onSaveBlock: vi.fn(), onRemoveBlock: vi.fn() };
-  render(<AssetComposer rows={rows} assetTypes={[]} users={users} canEdit {...handlers} {...props} />);
+  // The app gives every page a tooltip provider; the composer's buttons have tooltips.
+  render(
+    <RadixTooltip.Provider>
+      <AssetComposer rows={rows} assetTypes={[]} users={users} canEdit {...handlers} {...props} />
+    </RadixTooltip.Provider>,
+  );
   return handlers;
 }
 

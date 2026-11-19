@@ -74,7 +74,7 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
                 {info.publishedBy && (
                   <>
                     {" "}
-                    by <PersonChip userId={info.publishedBy} testId="booking-published-by" />
+                    by <PersonChip userId={info.publishedBy} testId="booking-published-by" plain />
                   </>
                 )}
               </>

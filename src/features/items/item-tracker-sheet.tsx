@@ -1,5 +1,6 @@
 "use client";
 
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, ChevronRight, ExternalLink, FileSpreadsheet, Link2, Loader2, Settings2 } from "lucide-react";
 import Link from "next/link";
@@ -59,17 +60,19 @@ export function UseTrackerSheetButton({ item, disabled }: { item: Item; disabled
   if (linked.isLoading || linked.data) return null;
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        className="h-auto shrink-0 self-stretch rounded-xl px-3 shadow-xs"
-        onClick={() => setPicking(true)}
-        disabled={disabled}
-        title="Keep this task's assets in a tracker sheet"
-        data-testid="use-tracker-sheet"
-      >
-        <FileSpreadsheet /> Tracker
-      </Button>
+      <SimpleTooltip label="Keep this task's assets in a tracker sheet">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto shrink-0 self-stretch rounded-xl px-2.5 shadow-xs"
+          onClick={() => setPicking(true)}
+          disabled={disabled}
+          aria-label="Use a tracker sheet"
+          data-testid="use-tracker-sheet"
+        >
+          <FileSpreadsheet />
+        </Button>
+      </SimpleTooltip>
       <PickSheetDialog open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} />
       {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} />}
     </>

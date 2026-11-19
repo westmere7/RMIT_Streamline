@@ -471,7 +471,7 @@ function PublishedFormSummary({ booked }: { booked: number | null }) {
           )}
           {at && !Number.isNaN(at.getTime()) && ws.userById(by) && (
             <span className="inline-flex min-w-0 items-center gap-1">
-              by <PersonChip userId={by} testId="portal-booking-published-by" />
+              by <PersonChip userId={by} testId="portal-booking-published-by" plain />
             </span>
           )}
         </p>

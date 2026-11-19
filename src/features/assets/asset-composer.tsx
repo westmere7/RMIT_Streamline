@@ -1,5 +1,6 @@
 "use client";
 
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { CalendarDays, Check, ChevronRight, Copy, FolderInput, FolderOutput, Hash, Layers, Minus, MoreVertical, Pencil, Plus, Tag, Trash2, Ungroup, UserRound } from "lucide-react";
 import * as React from "react";
 import { type MenuAction, renderDropdown, useMenuFocusGuard } from "@/components/layout/row-menu";
@@ -253,9 +254,11 @@ export function AssetComposer({
           {/* The other way in, beside the field rather than in it: several
               things, one person, each due on its own day. */}
           {blocksOn && (
-            <Button type="button" onClick={() => setBlockDialog(true)} variant="outline" className="h-auto shrink-0 self-stretch rounded-xl px-3 shadow-xs" disabled={disabled} title="Several items for one person" data-testid="asset-add-block">
-              <Layers /> Block
-            </Button>
+            <SimpleTooltip label="Add a block: several items for one person">
+              <Button type="button" onClick={() => setBlockDialog(true)} variant="outline" className="h-auto shrink-0 self-stretch rounded-xl px-2.5 shadow-xs" disabled={disabled} aria-label="Add a block" data-testid="asset-add-block">
+                <Layers />
+              </Button>
+            </SimpleTooltip>
           )}
           {actions}
         </div>
