@@ -61,10 +61,11 @@ export function AuthShell({
       style={scale && scale !== 1 ? { zoom: scale, ...(fill ? { height: `calc(100dvh / ${scale})` } : { minHeight: `calc(100dvh / ${scale})` }) } : undefined}
     >
       <section className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[520px]">
-        {/* Depth: a red glow low on the panel, a blue one high, and a faint grid. */}
-        <div className="pointer-events-none absolute -bottom-40 -left-24 size-[560px] rounded-full bg-primary/30 blur-3xl" />
-        <div className="pointer-events-none absolute -top-32 -right-24 size-[420px] rounded-full bg-[#4b52d6]/25 blur-3xl" />
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)]" />
+        {/* RMIT's pixel as a watermark, navy on navy, bleeding off the corner, with a red glow behind it. */}
+        <div className="pointer-events-none absolute -right-32 -bottom-40 size-[520px] rounded-full bg-primary/25 blur-3xl" />
+        <svg aria-hidden viewBox="0 0 52.14 50.19" className="pointer-events-none absolute -right-[330px] -bottom-[287px] h-auto w-[620px] opacity-[0.05]">
+          <path fill="#ffffff" d={RMIT_PIXEL_PATH} />
+        </svg>
 
         <div aria-hidden className="relative flex items-end gap-1.5">
           <BrandLogo tone="onNavy" className="h-8" />
@@ -125,6 +126,9 @@ function AuthVersion({ className }: { className?: string }) {
  * Streamline: the booking card. The path is the pixel from RMIT's own logo file
  * (RMIT_RedPixel.svg), unaltered, in RMIT red.
  */
+/** RMIT's pixel (RMIT_RedPixel.svg), unaltered: viewBox 0 0 52.14 50.19. */
+const RMIT_PIXEL_PATH = "M26.21,0h-6.68v5.43h-11.15v11.34H0v16.65h8.37v11.34h11.13v5.43h5.91c13.78,0,25.93-11.13,25.93-25.02S40.03,0,26.21,0";
+
 export function RmitPixel({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 52.14 50.19" className={cn("size-9 shrink-0", className)} role="img" aria-label="RMIT">

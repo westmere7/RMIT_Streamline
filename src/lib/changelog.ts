@@ -25,6 +25,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Past forms: each one's menu saves it as a template or deletes it; Clean up deletes every past form but the live one. The live form's entry is never deleted.",
       "Brief editor: pointing at the plus between two blocks opens the gap, showing where the new block will go.",
       "Booking pages: when the live form was published, in small print under the team's name.",
+      "Sign-in, booking, portal, join and shared pages: a new brand panel, RMIT's pixel as a watermark with a red glow.",
     ],
   },
   {
