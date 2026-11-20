@@ -1,5 +1,5 @@
 import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, freeColumnName, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
+import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -257,9 +257,9 @@ export class TrackerService {
     itemId: EntityId,
     mapping: TrackerAssetMapping,
     actorId: EntityId,
-    options: { moveAssets?: boolean } = {},
+    options: { moveAssets?: boolean; setUpColumns?: boolean; assetTypes?: string[] } = {},
   ): Promise<{ sheet: TrackerSheet; sync: SheetSyncResult | null; moved: number }> {
-    const sheet = await this.getSheet(sheetId);
+    let sheet = await this.getSheet(sheetId);
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
     if (sheet.itemId && sheet.itemId !== itemId) {
@@ -268,6 +268,14 @@ export class TrackerService {
     }
     const taken = await this.repos.trackers.getSheetByItem(itemId);
     if (taken && taken.id !== sheetId) throw new Error(`“${item.name}” already takes its assets from the sheet “${taken.name}”.`);
+    // A sheet nobody has started gets the asset columns outright, read as they are.
+    if (options.setUpColumns && !sheet.itemId && isFreshSheet(sheet)) {
+      const columns = assetSheet("", sheet.name, options.assetTypes).columns;
+      const result = await this.saveSheetDraft(sheetId, { columns, frozenColumns: 1 }, sheet.updatedAt, actorId);
+      if ("conflict" in result) throw new Error("The sheet changed while it was being set up. Try again.");
+      sheet = result.sheet;
+      mapping = suggestAssetMapping(sheet);
+    }
     let clean = normalizeAssetMapping(mapping, sheet.columns);
     if (!isMappingUsable(clean)) throw new Error("Choose the column that names each asset.");
 

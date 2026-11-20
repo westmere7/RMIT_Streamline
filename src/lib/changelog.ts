@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.131.0",
+    date: "2026-11-20",
+    title: "Fresh sheets set themselves up",
+    changes: ["Using an untouched sheet (nothing typed, columns still Column 1, Column 2…) for a task gives it the asset columns (Asset, Type, Quantity, Spec, PIC, Due date, Done) instead of asking you to match them. A sheet with anything in it keeps its columns."],
+  },
+  {
     version: "0.130.0",
     date: "2026-11-20",
     title: "Move a task's assets into a sheet",

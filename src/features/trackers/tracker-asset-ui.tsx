@@ -17,6 +17,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
   assignAssetRole,
   columnLetter,
+  isFreshSheet,
   isMappingUsable,
   newSpecBreak,
   personIds,
@@ -390,6 +391,8 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   });
   const movable = sheet.itemId ? 0 : (ownLines.data ?? 0);
   const [moveAssets, setMoveAssets] = React.useState(true);
+  // A sheet nobody has started is given the asset columns rather than mapped.
+  const fresh = !sheet.itemId && isFreshSheet(sheet);
   const [query, setQuery] = React.useState("");
   const hits = useTaskSearch(query, !sheet.itemId && !presetItem);
   const task = sheet.itemId ? linked.item : chosen;
@@ -415,7 +418,8 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
 
   const save = async () => {
     if (sheet.itemId) await mutations.setMapping.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, mapping });
-    else if (chosen) await mutations.link.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, itemId: chosen.id, mapping, moveAssets: movable > 0 && moveAssets });
+    else if (chosen)
+      await mutations.link.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, itemId: chosen.id, mapping, moveAssets: movable > 0 && moveAssets, setUpColumns: fresh, assetTypes: assetTypes.map((t) => t.name) });
     onClose();
   };
 
@@ -500,111 +504,127 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         )}
       </section>
 
-      <section className="space-y-2.5">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
-        <MapRow label="Asset name">
-          <ColumnSelect columns={columns} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" />
-        </MapRow>
-        <MapRow label="Type">
-          <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" />
-          <select
-            value={mapping.type.value ?? ""}
-            onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
-            className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-[13px]"
-            aria-label="Type for every row"
-            data-testid="map-type-value"
-          >
-            <option value="">{mapping.type.columnId ? "Empty cells: none" : "Every row: none"}</option>
-            {assetTypes.map((t) => (
-              <option key={t.name} value={t.name}>
-                {mapping.type.columnId ? "Empty cells: " : "Every row: "}
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </MapRow>
-        <MapRow label="Quantity">
-          <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" />
-          <Input
-            type="number"
-            min={0}
-            value={mapping.quantity.value ?? ""}
-            onChange={(e) => set({ quantity: { ...mapping.quantity, value: e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))) } })}
-            placeholder={mapping.quantity.columnId ? "Empty cells" : "Every row"}
-            aria-label="Quantity for every row"
-            className="h-8 min-w-0 flex-1"
-          />
-        </MapRow>
-        {warn(mapping.quantity.columnId, "quantity")}
-        <MapRow label="PIC">
-          <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" />
-          <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
-        </MapRow>
-        {warn(mapping.pic.columnId, "pic")}
-        <MapRow label="Due date">
-          <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" />
-          <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
-        </MapRow>
-        {warn(mapping.due.columnId, "due")}
-        <MapRow label="Done">
-          <ColumnSelect
-            columns={columns}
-            value={mapping.done.columnId}
-            onChange={pick("done")}
-            onCreate={newColumn("done")}
-            none="Nothing counts as done"
-            testId="map-done"
-          />
-        </MapRow>
-        {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && (
-          <MapRow label="">
-            <span className="text-xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</span>
-          </MapRow>
-        )}
-        {listCol?.type === "list" && (
-          <MapRow label="">
-            <div className="flex flex-wrap gap-1.5" aria-label="Choices that count as done">
-              {(listCol.options ?? []).map((option) => {
-                const on = mapping.done.values.includes(option);
-                return (
-                  <button
-                    key={option}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => set({ done: { ...mapping.done, values: on ? mapping.done.values.filter((v) => v !== option) : [...mapping.done.values, option] } })}
-                    className={cn("rounded-full border px-2.5 py-0.5 text-xs", on ? "border-green-600 bg-green-600/10 text-green-700 dark:text-green-300" : "text-muted-foreground hover:bg-accent")}
-                  >
-                    {on && <Check className="mr-1 inline size-3" />}
-                    {option}
-                  </button>
-                );
-              })}
-            </div>
-          </MapRow>
-        )}
-        <MapRow label="Spec">
-          <SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
-        </MapRow>
-        <MapRow label="Links">
-          <ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
-        </MapRow>
-      </section>
-
-      <p className="rounded-lg bg-surface px-3 py-2 text-[13px]" data-testid="task-assets-preview">
-        {isMappingUsable(mapping) ? (
-          <>
-            <span className="font-semibold">{lines.length === 1 ? "1 asset" : `${lines.length} assets`}</span>
-            {lines.length > 0 && (
-              <span className="text-muted-foreground">
-                {" "}
-                · {units} {units === 1 ? "unit" : "units"} · {people === 1 ? "1 person" : `${people} people`} in charge · {lines.filter((l) => l.done).length} done
+      {fresh ? (
+        // Nothing to map in a sheet nobody has started: it gets the asset columns as it is linked.
+        <section className="space-y-2" data-testid="task-assets-fresh">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
+          <p className="text-[13px] text-muted-foreground">This sheet is empty, so it gets these columns:</p>
+          <div className="flex flex-wrap gap-1.5">
+            {FRESH_COLUMNS.map((name) => (
+              <span key={name} className="rounded-md border border-border/60 bg-surface px-2 py-0.5 text-xs">
+                {name}
               </span>
-            )}
-          </>
-        ) : (
-          <span className="text-muted-foreground">Choose the column that names each asset.</span>
-        )}
-      </p>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <>
+        <section className="space-y-2.5">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
+          <MapRow label="Asset name">
+            <ColumnSelect columns={columns} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" />
+          </MapRow>
+          <MapRow label="Type">
+            <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" />
+            <select
+              value={mapping.type.value ?? ""}
+              onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
+              className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-[13px]"
+              aria-label="Type for every row"
+              data-testid="map-type-value"
+            >
+              <option value="">{mapping.type.columnId ? "Empty cells: none" : "Every row: none"}</option>
+              {assetTypes.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {mapping.type.columnId ? "Empty cells: " : "Every row: "}
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </MapRow>
+          <MapRow label="Quantity">
+            <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" />
+            <Input
+              type="number"
+              min={0}
+              value={mapping.quantity.value ?? ""}
+              onChange={(e) => set({ quantity: { ...mapping.quantity, value: e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))) } })}
+              placeholder={mapping.quantity.columnId ? "Empty cells" : "Every row"}
+              aria-label="Quantity for every row"
+              className="h-8 min-w-0 flex-1"
+            />
+          </MapRow>
+          {warn(mapping.quantity.columnId, "quantity")}
+          <MapRow label="PIC">
+            <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" />
+            <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
+          </MapRow>
+          {warn(mapping.pic.columnId, "pic")}
+          <MapRow label="Due date">
+            <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" />
+            <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
+          </MapRow>
+          {warn(mapping.due.columnId, "due")}
+          <MapRow label="Done">
+            <ColumnSelect
+              columns={columns}
+              value={mapping.done.columnId}
+              onChange={pick("done")}
+              onCreate={newColumn("done")}
+              none="Nothing counts as done"
+              testId="map-done"
+            />
+          </MapRow>
+          {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && (
+            <MapRow label="">
+              <span className="text-xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</span>
+            </MapRow>
+          )}
+          {listCol?.type === "list" && (
+            <MapRow label="">
+              <div className="flex flex-wrap gap-1.5" aria-label="Choices that count as done">
+                {(listCol.options ?? []).map((option) => {
+                  const on = mapping.done.values.includes(option);
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => set({ done: { ...mapping.done, values: on ? mapping.done.values.filter((v) => v !== option) : [...mapping.done.values, option] } })}
+                      className={cn("rounded-full border px-2.5 py-0.5 text-xs", on ? "border-green-600 bg-green-600/10 text-green-700 dark:text-green-300" : "text-muted-foreground hover:bg-accent")}
+                    >
+                      {on && <Check className="mr-1 inline size-3" />}
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
+            </MapRow>
+          )}
+          <MapRow label="Spec">
+            <SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
+          </MapRow>
+          <MapRow label="Links">
+            <ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
+          </MapRow>
+        </section>
+        <p className="rounded-lg bg-surface px-3 py-2 text-[13px]" data-testid="task-assets-preview">
+          {isMappingUsable(mapping) ? (
+            <>
+              <span className="font-semibold">{lines.length === 1 ? "1 asset" : `${lines.length} assets`}</span>
+              {lines.length > 0 && (
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {units} {units === 1 ? "unit" : "units"} · {people === 1 ? "1 person" : `${people} people`} in charge · {lines.filter((l) => l.done).length} done
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="text-muted-foreground">Choose the column that names each asset.</span>
+          )}
+        </p>
+        </>
+      )}
 
       {movable > 0 && (
         // The task's own lines, moved in as rows below what the sheet holds, or left beside the sheet's.
@@ -629,6 +649,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
     </>
   );
 }
+
+/** The columns a fresh sheet gets when used for a task (assetSheet's, in order). */
+const FRESH_COLUMNS = ["Asset", "Type", "Quantity", "Spec", "PIC", "Due date", "Done"];
 
 /** The warning for cells a role cannot read; the sheet keeps them either way. */
 export function mismatchText({ unreadable, filled, expected }: { unreadable: number; filled: number; expected: string }): string {

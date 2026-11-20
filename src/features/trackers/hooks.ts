@@ -176,8 +176,8 @@ export function useSheetAssetMutations() {
   };
   const fail = (title: string) => (error: unknown) => toast.error(title, { description: error instanceof Error ? error.message : undefined });
   const link = useMutation({
-    mutationFn: ({ sheetId, itemId, mapping, moveAssets }: { sheetId: string; trackerId: string; itemId: string; mapping: TrackerAssetMapping; moveAssets?: boolean }) =>
-      services.trackers.linkSheet(sheetId, itemId, mapping, user.id, { moveAssets }),
+    mutationFn: ({ sheetId, itemId, mapping, moveAssets, setUpColumns, assetTypes }: { sheetId: string; trackerId: string; itemId: string; mapping: TrackerAssetMapping; moveAssets?: boolean; setUpColumns?: boolean; assetTypes?: string[] }) =>
+      services.trackers.linkSheet(sheetId, itemId, mapping, user.id, { moveAssets, setUpColumns, assetTypes }),
     onSuccess: ({ sync, moved }) =>
       toast.success("The sheet now holds the task's assets", {
         description: moved > 0 ? `${moved} of the task's asset${moved === 1 ? "" : "s"} moved into the sheet.` : sync ? `${sync.added} asset${sync.added === 1 ? "" : "s"} added to the task.` : undefined,

@@ -481,6 +481,17 @@ function specText(spec: readonly string[], col: (id: string) => TrackerColumn | 
 
 const LOOKS_LIKE_URL = /^(https?:\/\/|www\.)\S+$/i;
 
+/**
+ * A sheet nobody has started: no bands, nothing typed, and columns still called
+ * "Column 1", "Column 2"… as a blank sheet starts. Used for a task, it can be
+ * given asset columns outright; a sheet with anything in it, or with columns
+ * someone has named, is laid out already and is left as it is.
+ */
+export function isFreshSheet(sheet: Pick<TrackerSheet, "columns" | "rows">): boolean {
+  if (sheet.rows.some((r) => r.kind !== "data" || Object.values(r.cells).some((v) => v !== null && v !== "" && v !== false))) return false;
+  return sheet.columns.every((c) => /^column \d+$/i.test(c.name.trim()));
+}
+
 /** The largest quantity item_assets.quantity (a SQL integer) holds. */
 const MAX_QUANTITY = 2147483647;
 

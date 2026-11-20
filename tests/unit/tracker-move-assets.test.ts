@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { Item } from "@/domain";
-import { suggestAssetMapping } from "@/domain";
+import { isFreshSheet, suggestAssetMapping } from "@/domain";
+import { TrackerService } from "@/services/tracker-service";
 import { createServices } from "@/services";
 
 /**
@@ -172,6 +173,40 @@ describe("a new tracker that takes a task's assets", () => {
       expect(lines.filter((l) => !l.trackerSheetId).map((l) => l.name)).toEqual(["A1 poster", "A4 flyer", "Story tile"]);
       expect(lines.filter((l) => l.trackerSheetId).length).toBe(4);
       expect((await services.trackers.getSheet(sheet.id)).rows).toHaveLength(9);
+    });
+  });
+
+  describe("a fresh sheet (nothing typed, columns still 'Column 1'…)", () => {
+    const blank = async () => (await services.trackers.create({ workspaceId: SEED_WORKSPACE_ID, teamId: null, name: "Fresh", layout: "blank" }, actor)).sheets[0]!;
+
+    it("is told apart from a sheet with anything in it, or with named columns", async () => {
+      const sheet = await blank();
+      expect(isFreshSheet(sheet)).toBe(true);
+      expect(isFreshSheet({ ...sheet, rows: [{ id: "r", kind: "data", cells: { [sheet.columns[0]!.id]: "x" } }] })).toBe(false);
+      expect(isFreshSheet({ ...sheet, rows: [{ id: "b", kind: "section", label: "", cells: {} }] })).toBe(false);
+      expect(isFreshSheet({ ...sheet, columns: [{ ...sheet.columns[0]!, name: "Deliverable" }, ...sheet.columns.slice(1)] })).toBe(false);
+    });
+
+    it("gets the asset columns as it is linked, matched without any mapping, and the task's lines with them", async () => {
+      const sheet = await blank();
+      const { sheet: linked, moved } = await services.trackers.linkSheet(sheet.id, item.id, suggestAssetMapping(sheet), actor, { setUpColumns: true, moveAssets: true, assetTypes: ["Print"] });
+      expect(linked.columns.slice(0, 7).map((c) => c.name)).toEqual(["Asset", "Type", "Quantity", "Spec", "PIC", "Due date", "Done"]);
+      expect(linked.assetMapping?.name).toBe(linked.columns[0]!.id);
+      expect(linked.assetMapping?.due.columnId).toBe(linked.columns.find((c) => c.name === "Due date")!.id);
+      expect(moved).toBe(3);
+      expect((await repos.itemAssets.listByItem(item.id)).map((l) => [l.name, l.dueDate ?? null]).sort()).toEqual([
+        ["A1 poster", "2026-12-01"],
+        ["A4 flyer", null],
+        ["Story tile", null],
+      ]);
+    });
+
+    it("a sheet with data keeps its columns even when asked to set them up", async () => {
+      const sheet = await blank();
+      const named = TrackerService.applyEdits(sheet, [{ rowId: sheet.rows[0]!.id, columnId: sheet.columns[0]!.id, value: "Already here" }]);
+      await services.trackers.saveSheet(sheet.id, { rows: named.rows });
+      const { sheet: linked } = await services.trackers.linkSheet(sheet.id, item.id, suggestAssetMapping(sheet), actor, { setUpColumns: true });
+      expect(linked.columns.map((c) => c.name)).toEqual(sheet.columns.map((c) => c.name));
     });
   });
 });
