@@ -338,8 +338,8 @@ export function BookingFormEditor({
 
       {/* Pinned, like the bar it stands for: a form long enough to scroll is
           exactly when knowing which step is open matters. The four steps
-          across the whole width, numbered, the open one raised with its
-          number in red: the strongest row on the page, so the service tabs
+          across the whole width, numbered, the open one filled as anything
+          picked is: the strongest row on the page, so the service tabs
           under it on step two read as part of the step, not a second level
           of the same thing. */}
       <div className="sticky top-0 z-10 flex pt-1 pb-1 before:absolute before:-inset-x-10 before:-top-8 before:bottom-0 before:-z-10 before:bg-card">
@@ -355,11 +355,12 @@ export function BookingFormEditor({
                 onClick={() => setTab(key)}
                 className={cn(
                   "flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-ring/50",
-                  active ? "bg-card text-foreground shadow-sm ring-1 ring-border/80" : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
+                  // Open: the whole tab filled, as anything picked is; no badge-like colour on the number.
+                  active ? "state-on shadow-xs" : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
                 )}
                 data-testid={`editor-tab-${key}`}
               >
-                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full text-xs tabular", active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{index + 1}</span>
+                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full text-xs tabular", active ? "bg-background/30" : "bg-muted text-muted-foreground")}>{index + 1}</span>
                 <span className="truncate">{label}</span>
               </button>
             );

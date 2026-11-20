@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.123.1",
+    date: "2026-11-20",
+    title: "Calmer step tabs",
+    changes: ["In the booking form editor the open step is filled, like anything picked, rather than marked with a red number."],
+  },
+  {
     version: "0.123.0",
     date: "2026-11-20",
     title: "Approval for the join link is a choice",
