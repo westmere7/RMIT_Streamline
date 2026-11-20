@@ -26,6 +26,7 @@ import { useDataContext, useServices } from "@/features/data/data-context";
 import { useUnreadMessages } from "@/features/messages/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { AboutDialog } from "@/features/version/about-dialog";
+import { CURRENT_VERSION } from "@/lib/version";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { IS_DEV } from "@/lib/config";
 import { canManageMembers } from "@/lib/permissions/permissions";
@@ -189,6 +190,9 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setAboutOpen(true)} data-testid="menu-about">
             <Info /> About
+            <span className="text-2xs text-muted-foreground/60 tabular" data-testid="menu-about-version">
+              v{CURRENT_VERSION.version}
+            </span>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void signOut().then(() => router.replace(routes.login()))}>
             <LogOut /> Sign out
