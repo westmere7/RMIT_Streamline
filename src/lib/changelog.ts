@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.132.1",
+    date: "2026-11-20",
+    title: "Sheet preview stays in view",
+    changes: ["Task assets settings: the sheet preview stays at the top while the settings scroll, column lists open below it rather than over it, and a wide sheet scrolls inside its box instead of widening the dialog."],
+  },
+  {
     version: "0.132.0",
     date: "2026-11-20",
     title: "See the sheet while matching columns",

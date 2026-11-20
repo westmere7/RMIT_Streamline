@@ -409,6 +409,8 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   const lines = React.useMemo(() => (isMappingUsable(effectiveMapping) ? sheetAssetLines(previewSheet, effectiveMapping) : []), [previewSheet, effectiveMapping]);
   // The column under the pointer (or keyboard) in a dropdown or chip, lit up in the preview.
   const [peek, setPeek] = React.useState<string | null>(null);
+  // The preview's box: dropdowns open below it, never over it.
+  const sheetRef = React.useRef<HTMLElement>(null);
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
   const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending || mutations.bandRows.isPending;
@@ -534,7 +536,13 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         </section>
       ) : (
         <>
-        <section className="space-y-2" data-testid="task-assets-sheet">
+        {/* min-w-0: the dialog lays out as a grid, and a wide sheet must scroll inside its box, not widen the dialog. */}
+        <section
+          ref={sheetRef}
+          // Pinned to the top while the settings scroll (wide screens), so a dropdown below can light a column up in view.
+          className="min-w-0 space-y-2 bg-popover md:sticky md:-top-6 md:z-20 md:-mx-6 md:-mt-2 md:px-6 md:pt-2 md:pb-3 md:shadow-[0_10px_10px_-10px_rgba(0,0,0,0.35)]"
+          data-testid="task-assets-sheet"
+        >
           <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
           <SheetPreview sheet={previewSheet} mapping={effectiveMapping} peek={peek} bandIds={bandIds} />
           {detected.length > 0 && (
@@ -552,10 +560,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         <section className="space-y-2.5">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
           <MapRow label="Asset name">
-            <ColumnSelect columns={columns} onPeek={setPeek} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" />
+            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" />
           </MapRow>
           <MapRow label="Type">
-            <ColumnSelect columns={columns} onPeek={setPeek} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" />
+            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" />
             <select
               value={mapping.type.value ?? ""}
               onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
@@ -573,7 +581,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
             </select>
           </MapRow>
           <MapRow label="Quantity">
-            <ColumnSelect columns={columns} onPeek={setPeek} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" />
+            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" />
             <Input
               type="number"
               min={0}
@@ -586,18 +594,18 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           </MapRow>
           {warn(mapping.quantity.columnId, "quantity")}
           <MapRow label="PIC">
-            <ColumnSelect columns={columns} onPeek={setPeek} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" />
+            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" />
             <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
           </MapRow>
           {warn(mapping.pic.columnId, "pic")}
           <MapRow label="Due date">
-            <ColumnSelect columns={columns} onPeek={setPeek} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" />
+            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" />
             <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
           </MapRow>
           {warn(mapping.due.columnId, "due")}
           <MapRow label="Done">
             <ColumnSelect
-              columns={columns} onPeek={setPeek}
+              columns={columns} onPeek={setPeek} clearOf={sheetRef}
               value={mapping.done.columnId}
               onChange={pick("done")}
               onCreate={newColumn("done")}
@@ -726,7 +734,7 @@ function SheetPreview({ sheet, mapping, peek, bandIds }: { sheet: TrackerSheet; 
   };
   if (filled.length === 0) return <p className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-center text-[13px] text-muted-foreground">Nothing in the sheet yet.</p>;
   return (
-    <div ref={scroller} className="scrollbar-thin max-h-60 overflow-auto rounded-lg border border-border/60" data-testid="task-assets-preview-sheet">
+    <div ref={scroller} className="scrollbar-thin max-h-60 w-full max-w-full min-w-0 overflow-auto rounded-lg border border-border/60" data-testid="task-assets-preview-sheet">
       <table className="w-max min-w-full border-collapse text-xs">
         <thead className="sticky top-0 z-10 bg-surface">
           <tr>
@@ -818,6 +826,7 @@ function ColumnSelect({
   none,
   testId,
   onPeek,
+  clearOf,
 }: {
   columns: TrackerColumn[];
   value: string | null;
@@ -827,11 +836,17 @@ function ColumnSelect({
   testId?: string;
   /** The column an option points at as the pointer or keyboard reaches it; null as the list closes. */
   onPeek?: (id: string | null) => void;
+  /** An element the open list must not cover (the sheet preview): the list keeps below its bottom edge. */
+  clearOf?: React.RefObject<HTMLElement | null>;
 }) {
+  const [clearTop, setClearTop] = React.useState(8);
   return (
     <Select
       value={value ?? NO_COLUMN}
-      onOpenChange={(open) => onPeek?.(open ? value : null)}
+      onOpenChange={(open) => {
+        if (open) setClearTop(Math.max(8, Math.round((clearOf?.current?.getBoundingClientRect().bottom ?? 0) + 6)));
+        onPeek?.(open ? value : null);
+      }}
       onValueChange={(next) => {
         if (next === NEW_COLUMN) void onCreate?.().catch(() => undefined);
         else onChange(next === NO_COLUMN ? null : next);
@@ -840,7 +855,7 @@ function ColumnSelect({
       <SelectTrigger className="h-8 min-w-0 flex-1 rounded-md bg-background px-2 max-md:h-10" aria-label={none} data-testid={testId}>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent collisionPadding={{ top: clearTop, bottom: 8 }}>
         <SelectItem value={NO_COLUMN} className="text-muted-foreground">
           {none}
         </SelectItem>
