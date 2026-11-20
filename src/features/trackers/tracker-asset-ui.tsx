@@ -841,12 +841,27 @@ function SheetPreview({
   onPick?: (id: string) => void;
 }) {
   const scroller = React.useRef<HTMLDivElement>(null);
+  // Where the column under the pointer sits, for the box drawn round it top to bottom.
+  const [box, setBox] = React.useState<{ id: string; left: number; width: number } | null>(null);
+  const measure = (id: string) => {
+    const th = scroller.current?.querySelector<HTMLElement>(`th[data-column="${id}"]`);
+    setBox(th ? { id, left: th.offsetLeft, width: th.offsetWidth } : null);
+  };
   const ignored = new Set(mapping.ignoreRows ?? []);
   const spotted = new Set(bandIds);
   const filled = sheet.rows.map((row, index) => ({ row, index })).filter(({ row }) => row.kind !== "data" || Object.values(row.cells).some((v) => v !== null && v !== "" && v !== false));
   const shownRows = filled.slice(0, onPick ? 300 : 14);
   const pickable = (id: string) =>
-    onPick ? { onMouseEnter: () => onHover?.(id), onClick: () => onPick(id), style: { cursor: "pointer" } as React.CSSProperties } : {};
+    onPick
+      ? {
+          onMouseEnter: () => {
+            onHover?.(id);
+            measure(id);
+          },
+          onClick: () => onPick(id),
+          style: { cursor: "pointer" } as React.CSSProperties,
+        }
+      : {};
   const tint = (id: string) => (selected === id ? "bg-primary/35" : peek === id ? "bg-primary/20" : "");
   React.useEffect(() => {
     if (!peek) return;
@@ -866,6 +881,15 @@ function SheetPreview({
       onMouseLeave={() => onHover?.(null)}
       data-testid="task-assets-preview-sheet"
     >
+      <div className="relative w-max min-w-full">
+      {box && box.id === peek && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 z-20 rounded-sm border-2 border-primary"
+          style={{ left: box.left, width: box.width }}
+          data-testid="preview-column-box"
+        />
+      )}
       <table className="w-max min-w-full border-collapse text-xs">
         <thead className="sticky top-0 z-10 bg-surface">
           <tr>
@@ -914,6 +938,7 @@ function SheetPreview({
           )}
         </tbody>
       </table>
+      </div>
       {filled.length > shownRows.length && <p className="px-2 py-1 text-2xs text-muted-foreground">and {filled.length - shownRows.length} more rows</p>}
     </div>
   );

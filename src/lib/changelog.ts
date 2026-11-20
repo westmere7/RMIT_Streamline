@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.132.4",
+    date: "2026-11-20",
+    title: "Column box",
+    changes: ["Column picker pop-up: the column under the pointer is boxed top to bottom."],
+  },
+  {
     version: "0.132.3",
     date: "2026-11-20",
     title: "Pick columns on the sheet",
