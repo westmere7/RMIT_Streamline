@@ -21,7 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: "0.121.4",
     date: "2026-11-20",
     title: "Allocation on the published form",
-    changes: ["The published form card says where its services send bookings: how many auto-allocate, go to a team, or go to Task Allocation."],
+    changes: ["The published form card says where its services send bookings: how many auto-allocate, go to a team, or go to Task Allocation; hover it for each service."],
   },
   {
     version: "0.121.3",

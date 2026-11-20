@@ -7,6 +7,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -72,9 +73,12 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
         </li>
         <li className="flex items-center gap-1.5">
           <Split className="size-3 shrink-0" aria-hidden />
-          <span className="truncate" data-testid="booking-published-allocation">
-            {allocationRecap(info.template)}
-          </span>
+          {/* Each service and where it sends bookings, on hover. */}
+          <SimpleTooltip label={<AllocationDetails template={info.template} />}>
+            <span className="cursor-default truncate underline decoration-dotted underline-offset-2" data-testid="booking-published-allocation">
+              {allocationRecap(info.template)}
+            </span>
+          </SimpleTooltip>
         </li>
         <li className="flex items-center gap-1.5">
           <CalendarClock className="size-3 shrink-0" aria-hidden />
@@ -313,5 +317,37 @@ export function allocationRecap(template: BookingFormTemplate): string {
   }
   const parts = [auto && `${auto} auto-allocated`, team && `${team} to ${team === 1 ? "a team" : "teams"}`, queue && `${queue} to Task Allocation`].filter(Boolean);
   return parts.join(" · ");
+}
+
+/** Each service of the form, and where its bookings go: a team's board, Task Allocation, or its Auto-allocation rules. */
+function AllocationDetails({ template }: { template: BookingFormTemplate }) {
+  const ws = useWorkspace();
+  const queue = ws.boards.find((b) => b.system === "TASK_ALLOCATION")?.name ?? "Task Allocation";
+  const viaTeam = (teamId: string | null) => {
+    const team = ws.teamById(teamId);
+    if (!team) return queue;
+    return ws.boardById(team.bookingBoardId ?? null)?.name ?? `${queue}, for ${team.name}`;
+  };
+  return (
+    <ul className="max-w-xs space-y-1 text-left" data-testid="booking-published-allocation-details">
+      {template.services.map((service) => {
+        const routing = service.routing?.enabled ? service.routing : null;
+        const rest = !routing
+          ? viaTeam(service.teamId)
+          : routing.otherwise.kind === "board"
+            ? (ws.boardById(routing.otherwise.boardId)?.name ?? "a board no longer there")
+            : routing.otherwise.kind === "allocation"
+              ? queue
+              : viaTeam(service.teamId);
+        return (
+          <li key={service.id}>
+            <span className="font-medium">{service.name || "Untitled"}</span>
+            {" → "}
+            {routing ? `Auto-allocation (${routing.rules.length === 1 ? "1 rule" : `${routing.rules.length} rules`}, else ${rest})` : rest}
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
