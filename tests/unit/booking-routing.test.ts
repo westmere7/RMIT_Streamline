@@ -4,6 +4,7 @@ import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { Board, BookingFormTemplate, BookingRequest, BookingRouting, Team } from "@/domain";
 import { bookingDestination, serviceById } from "@/domain";
+import { allocationRecap } from "@/features/booking/editor/published-form";
 import { createServices } from "@/services";
 
 /**
@@ -221,5 +222,15 @@ describe("routing a booking by its work types", { timeout: 20_000 }, () => {
     // Only regenerating it does, on purpose.
     await services.workspace.regenerateBookingKey(SEED_WORKSPACE_ID);
     expect(await key()).not.toBe(before);
+  });
+});
+
+describe("the published form's allocation recap", () => {
+  it("counts services by where they send bookings", () => {
+    const template = fixtureBookingFormTemplate();
+    expect(allocationRecap(template)).toBe("3 to Task Allocation");
+    serviceById(template, "svc-design")!.routing = { enabled: true, rules: [], otherwise: { kind: "team" } };
+    serviceById(template, "svc-brand")!.teamId = "00000000-0000-4000-8000-000000000001";
+    expect(allocationRecap(template)).toBe("1 auto-allocated · 1 to a team · 1 to Task Allocation");
   });
 });

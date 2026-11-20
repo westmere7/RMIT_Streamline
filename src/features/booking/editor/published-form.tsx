@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ClipboardCheck, History, ListChecks, LoaderCircle, Rocket } from "lucide-react";
+import { CalendarClock, ClipboardCheck, History, ListChecks, LoaderCircle, Rocket, Split } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,12 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
           <ListChecks className="size-3 shrink-0" aria-hidden />
           <span data-testid="booking-published-fields">
             {templateQuestionCount(info.template)} questions · {services === 1 ? "1 service" : `${services} services`}
+          </span>
+        </li>
+        <li className="flex items-center gap-1.5">
+          <Split className="size-3 shrink-0" aria-hidden />
+          <span className="truncate" data-testid="booking-published-allocation">
+            {allocationRecap(info.template)}
           </span>
         </li>
         <li className="flex items-center gap-1.5">
@@ -293,5 +299,19 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
 
 function titleOf(row: Pick<BookingFormPublication, "name" | "template">): string {
   return row.name ?? (row.template ? "Published form" : "Built-in form");
+}
+
+/** Where the form's services send bookings, counted: "2 auto-allocated · 1 to a team · 1 to Task Allocation". */
+export function allocationRecap(template: BookingFormTemplate): string {
+  let auto = 0;
+  let team = 0;
+  let queue = 0;
+  for (const service of template.services) {
+    if (service.routing?.enabled) auto++;
+    else if (service.teamId) team++;
+    else queue++;
+  }
+  const parts = [auto && `${auto} auto-allocated`, team && `${team} to ${team === 1 ? "a team" : "teams"}`, queue && `${queue} to Task Allocation`].filter(Boolean);
+  return parts.join(" · ");
 }
 

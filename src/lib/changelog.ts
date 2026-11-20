@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.121.4",
+    date: "2026-11-20",
+    title: "Allocation on the published form",
+    changes: ["The published form card says where its services send bookings: how many auto-allocate, go to a team, or go to Task Allocation."],
+  },
+  {
     version: "0.121.3",
     date: "2026-11-20",
     title: "Auto-allocation at a glance",
