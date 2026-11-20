@@ -33,8 +33,8 @@ import { colorClasses } from "@/lib/colors";
  * reads the same whatever theme the reader has on. Charts stay sharp at any
  * zoom, and every word can be selected and searched.
  *
- * The official RMIT logo is not in the repository. Put it at
- * public/brand/rmit-logo.png and it appears on the cover.
+ * The RMIT logo is public/brand/rmit-logo.svg, on the cover; the booking PDF
+ * (src/features/booking/booking-pdf.ts) heads its page with it too.
  */
 
 export interface ExportMeta {
@@ -125,7 +125,7 @@ export function tint(hex: string, amount: number): string {
 }
 
 /** An image from the site as a PNG, or null when it is not there. */
-async function loadPng(src: string, width: number): Promise<{ data: string; ratio: number } | null> {
+export async function loadPng(src: string, width: number): Promise<{ data: string; ratio: number } | null> {
   try {
     const image = new Image();
     image.src = src;
@@ -787,7 +787,7 @@ export function reportSections(props: DashboardViewProps): Section[] {
 
 /** Builds the report and returns it, unsaved. */
 export async function buildDashboardPdf(props: DashboardViewProps, meta: ExportMeta, now: Date = new Date()): Promise<JsPdf> {
-  const [{ jsPDF }, streamline, rmit] = await Promise.all([import("jspdf"), loadPng("/logo-light.svg", 900), loadPng("/brand/rmit-logo.png", 600)]);
+  const [{ jsPDF }, streamline, rmit] = await Promise.all([import("jspdf"), loadPng("/logo-light.svg", 900), loadPng("/brand/rmit-logo.svg", 600)]);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4", compress: true });
   const pen = new Pen(doc);
   const stamp = reportTimestamp(now, meta.timezone);

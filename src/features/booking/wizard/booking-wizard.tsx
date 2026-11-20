@@ -1,8 +1,9 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, CheckCircle2, History, LoaderCircle, LogIn, MessageSquareQuote, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, FileDown, History, LoaderCircle, LogIn, MessageSquareQuote, UserRound } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
@@ -169,6 +170,8 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [failure, setFailure] = React.useState<string | null>(null);
   const [receipt, setReceipt] = React.useState<BookingReceipt | null>(null);
+  // What was sent, for the receipt's PDF: the form itself is cleared for the next booking.
+  const [submitted, setSubmitted] = React.useState<BookingRequest | null>(null);
   /** Which past booking this one was started from, so the strip can say so. */
   const [startedFrom, setStartedFrom] = React.useState<string | null>(null);
   const bodyRef = React.useRef<HTMLDivElement>(null);
@@ -337,6 +340,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     onSuccess: (result, value) => {
       if (!preview) memory.remember(value, result.ticket, result.submittedAt);
       setRestored(false);
+      setSubmitted(value);
       setReceipt(result);
       onBooked?.(result);
     },
@@ -412,8 +416,9 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     memory.saveDraft(null);
   };
 
-  if (receipt) return <Receipt receipt={receipt} template={template} itemHref={itemHref} onAnother={() => {
+  if (receipt) return <Receipt receipt={receipt} request={submitted} workspaceName={form.workspaceName} template={template} itemHref={itemHref} onAnother={() => {
     setReceipt(null);
+    setSubmitted(null);
     setItemId(newId());
     setIndex(0);
     startBlank();
@@ -694,9 +699,38 @@ function Identity({
 }
 
 /** The receipt: the ticket to quote, what was booked, and whatever the team wrote back. */
-function Receipt({ receipt, template, itemHref, onAnother }: { receipt: BookingReceipt; template: BookingFormTemplate; itemHref?: (receipt: BookingReceipt) => string | null; onAnother: () => void }) {
+function Receipt({
+  receipt,
+  request,
+  workspaceName,
+  template,
+  itemHref,
+  onAnother,
+}: {
+  receipt: BookingReceipt;
+  /** What was sent, for the PDF; null hides the button. */
+  request: BookingRequest | null;
+  workspaceName: string;
+  template: BookingFormTemplate;
+  itemHref?: (receipt: BookingReceipt) => string | null;
+  onAnother: () => void;
+}) {
   const href = itemHref?.(receipt) ?? null;
   const reply = template.review.autoReply.trim();
+  const [saving, setSaving] = React.useState(false);
+  // Loaded on the click: the PDF library is large and most people never press it.
+  const downloadPdf = async () => {
+    if (!request) return;
+    setSaving(true);
+    try {
+      const { downloadBookingPdf } = await import("../booking-pdf");
+      await downloadBookingPdf({ receipt, request, template, workspaceName });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not make the PDF");
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="space-y-5" data-testid="booking-receipt" role="status" aria-live="polite">
       <div className="flex items-start gap-3">
@@ -730,6 +764,11 @@ function Receipt({ receipt, template, itemHref, onAnother }: { receipt: BookingR
         </div>
       )}
       <div className="flex flex-wrap gap-2">
+        {request && (
+          <Button type="button" variant="outline" onClick={() => void downloadPdf()} disabled={saving} data-testid="booking-download-pdf">
+            {saving ? <LoaderCircle className="animate-spin" /> : <FileDown />} Download PDF
+          </Button>
+        )}
         <Button type="button" variant="outline" onClick={onAnother} data-testid="booking-another">
           Book another task
         </Button>

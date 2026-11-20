@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.119.0",
+    date: "2026-11-20",
+    title: "Booking as a PDF",
+    changes: [
+      "After booking, Download PDF saves the booking: the ticket, the details, the brief and the assets, headed by the RMIT and Streamline logos. Vietnamese names and words print as typed.",
+      "The dashboard's PDF now carries the RMIT logo on its cover.",
+    ],
+  },
+  {
     version: "0.118.1",
     date: "2026-11-19",
     title: "Allocators can allocate",

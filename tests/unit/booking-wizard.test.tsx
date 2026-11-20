@@ -355,6 +355,8 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
 
     const ticket = await screen.findByTestId("booking-receipt");
     expect(within(ticket).getByTestId("booking-ticket")).toHaveTextContent("TA-7C3F");
+    // The booking as a PDF, from the receipt.
+    expect(within(ticket).getByTestId("booking-download-pdf")).toHaveTextContent("Download PDF");
     expect(screen.getByTestId("booking-auto-reply")).toHaveTextContent("Thanks — a producer reads every booking.");
   });
 
