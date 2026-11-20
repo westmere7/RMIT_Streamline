@@ -643,6 +643,8 @@ export interface BookingReviewStep {
   autoReply: string;
   /** The receipt's Download PDF button. Absent means on, as it always was. */
   offerPdf?: boolean;
+  /** That button's wording; absent or blank reads "Download PDF". */
+  pdfLabel?: string;
   /**
    * The receipt lists the other bookings made with the same email. Off unless
    * switched on: anyone who types a colleague's email sees their bookings.

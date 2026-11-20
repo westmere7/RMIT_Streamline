@@ -1109,13 +1109,24 @@ function ReviewPane({ draft, update, ticketPrefix }: { draft: BookingFormTemplat
         <p className="text-2xs text-muted-foreground">Shown with the ticket once a booking is in. Say what happens next and how long it usually takes.</p>
         {/* What the two switches add to the ticket. Example rows: there is nobody's bookings to show here. */}
         {(draft.review.showPastBookings === true || draft.review.offerPdf !== false) && (
-          <div className="pointer-events-none mt-1 grid gap-3" aria-hidden data-testid="editor-ticket-extras">
-            {draft.review.showPastBookings === true && <PastBookingsList rows={samplePastBookings(ticketPrefix)} />}
+          <div className="mt-1 grid gap-3" data-testid="editor-ticket-extras">
+            {draft.review.showPastBookings === true && (
+              <div className="pointer-events-none" aria-hidden>
+                <PastBookingsList rows={samplePastBookings(ticketPrefix)} />
+              </div>
+            )}
             {draft.review.offerPdf !== false && (
-              <span>
-                <Button type="button" variant="outline" tabIndex={-1}>
-                  <FileDown /> Download PDF
-                </Button>
+              // The button's wording is the team's; what it does is not.
+              <span className="flex h-9 w-60 max-w-full items-center gap-1.5 rounded-lg border border-border bg-card pl-3 text-sm font-medium shadow-xs">
+                <FileDown className="size-4 shrink-0" aria-hidden />
+                <TextBox
+                  value={draft.review.pdfLabel ?? "Download PDF"}
+                  onChange={(v) => update((t) => (t.review.pdfLabel = v))}
+                  ariaLabel="Download PDF button label"
+                  placeholder="Download PDF"
+                  className="min-w-0 flex-1 border-transparent px-1 py-0.5"
+                  testId="editor-pdf-label"
+                />
               </span>
             )}
           </div>

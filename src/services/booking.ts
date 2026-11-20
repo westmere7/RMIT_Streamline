@@ -261,6 +261,7 @@ export const bookingFormTemplateSchema = z
       submitNote: z.string().trim().max(200),
       autoReply: z.string().trim().max(1000),
       offerPdf: z.boolean().optional(),
+      pdfLabel: z.string().trim().max(60).optional(),
       showPastBookings: z.boolean().optional(),
     }),
   })

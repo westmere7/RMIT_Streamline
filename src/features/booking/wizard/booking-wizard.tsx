@@ -6,6 +6,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingPastSummary, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { serviceById } from "@/domain";
@@ -613,38 +614,41 @@ function Identity({
       )}
 
       {history.length > 0 && !restored && (
-        <div className="rounded-xl border border-border/60 bg-surface/40 p-3.5" data-testid="booking-history">
-          <p className="flex flex-wrap items-center gap-x-2 text-[13px] font-medium">
-            <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            Book something like last time?
-            <span className="font-normal text-muted-foreground">Pick one to fill this in — you can change anything.</span>
-          </p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
-            {history.map((past) => (
-              <button
-                key={past.id}
-                type="button"
-                onClick={() => onStartFrom(past)}
-                className={cn("group max-w-[18rem] min-w-0 rounded-xl border px-3 py-2 text-left transition-colors", startedFrom === past.id ? "border-primary/50 bg-primary/[0.06]" : "border-border/60 bg-card hover:bg-accent/50")}
-                data-testid="booking-history-item"
-              >
-                <span className="block truncate text-[13px] font-medium" title={past.title}>
-                  {past.title || "Untitled request"}
-                </span>
-                <span className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted-foreground">
-                  <span className="tabular">{formatShortDate(past.bookedAt.slice(0, 10))}</span>
-                  {past.assets.length > 0 && <span>· {past.assets.length === 1 ? "1 deliverable" : `${past.assets.length} deliverables`}</span>}
-                </span>
-              </button>
-            ))}
-          </div>
+        // One line, not a row of cards: a way in for the people who want it, out of the way of everyone else.
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px]" data-testid="booking-history">
+          <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="text-muted-foreground">Book something like last time?</span>
+          <Select
+            value={startedFrom ?? ""}
+            onValueChange={(id) => {
+              const past = history.find((p) => p.id === id);
+              if (past) onStartFrom(past);
+            }}
+          >
+            <SelectTrigger className="h-8 w-auto max-w-full min-w-[12rem] text-[13px]" aria-label="Start from a past booking" data-testid="booking-history-select">
+              <SelectValue placeholder="Pick a past booking">{history.find((p) => p.id === startedFrom)?.title || undefined}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {history.map((past) => (
+                <SelectItem key={past.id} value={past.id} data-testid="booking-history-item">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="max-w-[22rem] truncate font-medium">{past.title || "Untitled request"}</span>
+                    <span className="text-2xs text-muted-foreground">
+                      <span className="tabular">{past.ticket}</span> · <span className="tabular">{formatShortDate(past.bookedAt.slice(0, 10))}</span>
+                      {past.assets.length > 0 && <> · {past.assets.length === 1 ? "1 deliverable" : `${past.assets.length} deliverables`}</>}
+                    </span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           {startedFrom && (
-            <p className="mt-2.5 flex flex-wrap items-center gap-x-2 text-2xs text-muted-foreground" data-testid="booking-history-note">
-              Filled in from that booking. The deadline is left blank on purpose.
+            <span className="flex flex-wrap items-center gap-x-2 text-2xs text-muted-foreground" data-testid="booking-history-note">
+              Deadline left blank.
               <button type="button" className="font-medium text-foreground/80 underline-offset-4 hover:underline" onClick={onStartBlank}>
                 Start blank instead
               </button>
-            </p>
+            </span>
           )}
         </div>
       )}
@@ -777,7 +781,7 @@ function Receipt({
       <div className="flex flex-wrap gap-2">
         {request && (
           <Button type="button" variant="outline" onClick={() => void downloadPdf()} disabled={saving} data-testid="booking-download-pdf">
-            {saving ? <LoaderCircle className="animate-spin" /> : <FileDown />} Download PDF
+            {saving ? <LoaderCircle className="animate-spin" /> : <FileDown />} {template.review.pdfLabel?.trim() || "Download PDF"}
           </Button>
         )}
         <Button type="button" variant="outline" onClick={onAnother} data-testid="booking-another">

@@ -110,8 +110,9 @@ describe("past bookings of the same email", { timeout: 20_000 }, () => {
     const template = fixtureBookingFormTemplate();
     expect(template.review.offerPdf).toBeUndefined();
     expect(template.review.showPastBookings).toBeUndefined();
-    const parsed = bookingFormTemplateSchema.parse({ ...template, review: { ...template.review, offerPdf: false, showPastBookings: true } });
+    const parsed = bookingFormTemplateSchema.parse({ ...template, review: { ...template.review, offerPdf: false, showPastBookings: true, pdfLabel: "  Save as PDF " } });
     expect(parsed.review.offerPdf).toBe(false);
     expect(parsed.review.showPastBookings).toBe(true);
+    expect(parsed.review.pdfLabel).toBe("Save as PDF");
   });
 });

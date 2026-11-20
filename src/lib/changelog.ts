@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.124.1",
+    date: "2026-11-20",
+    title: "Compact past bookings, PDF button wording",
+    changes: [
+      "Booking form, first step: “Book something like last time?” is one line with a dropdown; each entry shows its name, ticket, date and deliverables.",
+      "The Download PDF button can be renamed in the editor, like the submit button. Only the wording changes.",
+    ],
+  },
+  {
     version: "0.124.0",
     date: "2026-11-20",
     title: "Past bookings on the ticket",
