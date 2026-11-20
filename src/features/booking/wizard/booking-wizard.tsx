@@ -6,11 +6,12 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
+import type { BookingForm as BookingFormData, BookingFormTemplate, BookingPastSummary, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { serviceById } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
+import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { bookingRequestSchema, composeBrief, emptyBookingRequest, validateBookingStep } from "@/services/booking";
 import { newAssetRow, type AssetRow, type EmailCheck } from "../booking-fields";
@@ -75,6 +76,8 @@ export interface BookingWizardProps {
    * filled in as they finish typing it. Absent when signed in: the account says who.
    */
   lookupRequester?: (email: string) => Promise<string | null>;
+  /** The other bookings made with an email, for the receipt when the form lists them. */
+  pastBookings?: (email: string) => Promise<BookingPastSummary[]>;
   /** Where the booked item can be opened, for people who may see its board. Null hides the link. */
   itemHref?: (receipt: BookingReceipt) => string | null;
   onBooked?: (receipt: BookingReceipt) => void;
@@ -124,7 +127,7 @@ interface StepDef {
   label: string;
 }
 
-function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, lookupRequester, itemHref, onBooked }: BookingWizardProps) {
+function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, lookupRequester, pastBookings, itemHref, onBooked }: BookingWizardProps) {
   const template = form.template;
   const memory = useBookingMemory(remember ?? null);
 
@@ -416,7 +419,11 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     memory.saveDraft(null);
   };
 
-  if (receipt) return <Receipt receipt={receipt} request={submitted} workspaceName={form.workspaceName} template={template} itemHref={itemHref} onAnother={() => {
+  const showPast = template.review.showPastBookings === true;
+  const pastFor = !preview && showPast && pastBookings && submitted?.requesterEmail.trim() ? submitted.requesterEmail.trim() : null;
+  // A preview books nothing and looks nobody up: made-up rows, so the list can be seen as it will look.
+  const past = preview && showPast ? { email: "preview", load: async () => [] as BookingPastSummary[], sample: samplePastBookings(form.ticketPrefix) } : pastFor && pastBookings ? { email: pastFor, load: pastBookings } : null;
+  if (receipt) return <Receipt receipt={receipt} request={template.review.offerPdf === false ? null : submitted} past={past} workspaceName={form.workspaceName} template={template} itemHref={itemHref} onAnother={() => {
     setReceipt(null);
     setSubmitted(null);
     setItemId(newId());
@@ -706,10 +713,13 @@ function Receipt({
   template,
   itemHref,
   onAnother,
+  past,
 }: {
   receipt: BookingReceipt;
   /** What was sent, for the PDF; null hides the button. */
   request: BookingRequest | null;
+  /** The email the booking was made with and how to list its other bookings; null lists nothing. `sample` is shown instead (a preview). */
+  past: { email: string; load: (email: string) => Promise<BookingPastSummary[]>; sample?: BookingPastSummary[] } | null;
   workspaceName: string;
   template: BookingFormTemplate;
   itemHref?: (receipt: BookingReceipt) => string | null;
@@ -763,6 +773,7 @@ function Receipt({
           <p className="min-w-0 whitespace-pre-wrap">{reply}</p>
         </div>
       )}
+      {past && (past.sample ? <PastBookingsList rows={past.sample} /> : <PastBookings email={past.email} load={past.load} exclude={receipt.itemId} />)}
       <div className="flex flex-wrap gap-2">
         {request && (
           <Button type="button" variant="outline" onClick={() => void downloadPdf()} disabled={saving} data-testid="booking-download-pdf">
@@ -780,6 +791,105 @@ function Receipt({
       </div>
     </div>
   );
+}
+
+/** The other bookings made with the same email: ticket, name, when, and where each has got to. */
+function PastBookings({ email, load, exclude }: { email: string; load: (email: string) => Promise<BookingPastSummary[]>; exclude: string }) {
+  const [rows, setRows] = React.useState<BookingPastSummary[] | null>(null);
+  const loadRef = React.useRef(load);
+  React.useEffect(() => {
+    let live = true;
+    loadRef
+      .current(email)
+      .catch(() => [] as BookingPastSummary[])
+      .then((found) => {
+        if (live) setRows(found.filter((row) => row.itemId !== exclude));
+      });
+    return () => {
+      live = false;
+    };
+  }, [email, exclude]);
+  if (!rows || rows.length === 0) return null;
+  return <PastBookingsList rows={rows} />;
+}
+
+/**
+ * Rows for the editor and the preview, where nobody has booked anything: real
+ * tickets, dates and statuses in the workspace's own series, with names that
+ * are plainly placeholders.
+ */
+export function samplePastBookings(prefix: string): BookingPastSummary[] {
+  const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toISOString();
+  return [
+    { itemId: "sample-1", ticket: `${prefix}_041`, title: "Example booking one", bookedAt: day(6), status: { name: "Working on it", color: "orange" }, portalPath: null },
+    { itemId: "sample-2", ticket: `${prefix}_033`, title: "Example booking two", bookedAt: day(19), status: { name: "Not Started", color: "gray" }, portalPath: null },
+    { itemId: "sample-3", ticket: `${prefix}_027`, title: "Example booking three", bookedAt: day(40), status: { name: "Done", color: "green" }, portalPath: null },
+  ];
+}
+
+/** The list itself, as the ticket shows it. */
+export function PastBookingsList({ rows }: { rows: BookingPastSummary[] }) {
+  return (
+    <section className="rounded-xl border border-border/60 bg-card p-4" data-testid="booking-past">
+      <h3 className="flex items-center gap-2 text-[13px] font-medium">
+        <History className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        Your other bookings
+      </h3>
+      <ul className="mt-2.5 divide-y divide-border/60">
+        {rows.map((row) => (
+          <li key={row.itemId} className="flex items-start gap-3 py-2 text-[13px]" data-testid="booking-past-row">
+            {row.ticket ? (
+              <button
+                type="button"
+                title={`Copy ${row.ticket}`}
+                onClick={() => void copyTicket(row.ticket!)}
+                className="w-16 shrink-0 text-left font-medium text-muted-foreground tabular underline-offset-4 hover:text-foreground hover:underline"
+                data-testid="booking-past-ticket"
+              >
+                {row.ticket}
+              </button>
+            ) : (
+              <span className="w-16 shrink-0 text-muted-foreground">—</span>
+            )}
+            {row.portalPath ? (
+              <a href={row.portalPath} target="_blank" rel="noreferrer" className="min-w-0 flex-1 break-words underline-offset-4 hover:underline" data-testid="booking-past-open">
+                {row.title}
+              </a>
+            ) : (
+              <span className="min-w-0 flex-1 break-words">{row.title}</span>
+            )}
+            <span className="shrink-0 text-2xs text-muted-foreground tabular">{formatShortDate(row.bookedAt.slice(0, 10))}</span>
+            {row.status && <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium", colorClasses(row.status.color).soft)}>{row.status.name}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * Copies a ticket. The clipboard API first; where a page may not use it (an
+ * embedded or older browser), the old select-and-copy way.
+ */
+async function copyTicket(ticket: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(ticket);
+  } catch {
+    const box = document.createElement("textarea");
+    box.value = ticket;
+    box.setAttribute("readonly", "");
+    box.style.position = "fixed";
+    box.style.opacity = "0";
+    document.body.appendChild(box);
+    box.select();
+    const copied = document.execCommand("copy");
+    box.remove();
+    if (!copied) {
+      toast.error(`Could not copy. The ticket is ${ticket}.`);
+      return;
+    }
+  }
+  toast.success(`Copied ${ticket}`);
 }
 
 /** `name` as the workspace's list spells it, or null when the list has no such department. */

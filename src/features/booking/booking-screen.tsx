@@ -100,6 +100,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
               remember={signedIn ? null : `book:${workspaceSlug}`}
               onSubmit={(request) => services.booking.submit({ workspaceSlug, key: bookingKey, request, actorId: signedIn ? user.id : null })}
               lookupRequester={(email) => services.booking.lookupRequester({ workspaceSlug, key: bookingKey, email })}
+              pastBookings={(email) => services.booking.pastBookings({ workspaceSlug, key: bookingKey, email })}
               // A member can follow the ticket to the board; a board they may
               // not open says so itself.
               itemHref={signedIn ? (receipt) => routes.board(workspaceSlug, receipt.boardSlug, { itemId: receipt.itemId }) : undefined}

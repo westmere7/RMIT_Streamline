@@ -11,6 +11,7 @@ import type {
   BookingTemplate,
   BookingFormPublication,
   BookingFormPublicationInput,
+  BookingPastSummary,
   ColumnValue,
   EntityId,
   Item,
@@ -40,6 +41,7 @@ import {
 import type { ItemAssetService } from "./item-asset-service";
 import { richTextToPlain } from "@/lib/rich-text";
 import { mapColumns, translateValue } from "./item-link-sync";
+import { projectStatus } from "./portal/portal-projection";
 import type { ItemService } from "./item-service";
 import type { NotificationService } from "./notification-service";
 import type { TicketService } from "./ticket-service";
@@ -62,6 +64,8 @@ export interface BookingTransport {
    * be able to edit the board it goes to (src/server/allocation.ts).
    */
   allocate?(input: { itemId: EntityId; boardId: EntityId }): Promise<{ item: Item; board: Board }>;
+  /** The bookings made with this email, when the published form lists them on its receipt. */
+  pastBookings?(input: { workspaceSlug: string; key: string | null; email: string }): Promise<BookingPastSummary[]>;
 }
 
 /**
@@ -184,6 +188,62 @@ export class BookingService {
     if (this.transport) return this.transport.lookupRequester({ ...input, email });
     const workspace = await this.requireWorkspace(input.workspaceSlug, input.key);
     return (await this.requesters.find(workspace.id, email))?.name ?? null;
+  }
+
+  /**
+   * The bookings made with this email, newest first, for the receipt to list.
+   * Nothing unless the published form says to show them.
+   */
+  async pastBookings(input: { workspaceSlug: string; key: string | null; email: string }): Promise<BookingPastSummary[]> {
+    const email = input.email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return [];
+    if (this.transport) return this.transport.pastBookings ? this.transport.pastBookings({ ...input, email }) : [];
+    const workspace = await this.requireWorkspace(input.workspaceSlug, input.key);
+    return this.pastBookingsFor(workspace.id, email);
+  }
+
+  /**
+   * The tasks whose Requester column names the person with this email, on any
+   * board of the workspace (a booking moves when it is allocated). Ticket, name,
+   * when and status only. The form's own switch decides, here on the server,
+   * so a form that does not list them answers nothing to anyone who asks.
+   */
+  async pastBookingsFor(workspaceId: EntityId, email: string, limit = 20): Promise<BookingPastSummary[]> {
+    const clean = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return [];
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    if (!workspace || resolveBookingTemplate(workspace).review.showPastBookings !== true) return [];
+    const person = await this.requesters.find(workspaceId, clean);
+    if (!person) return [];
+    const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((b) => b.archivedAt === null);
+    const named = await this.repos.items.listValuesNamingUser(
+      boards.map((b) => b.id),
+      person.userId,
+    );
+    const ids = [...new Set(named.filter((v) => v.value.type === "REQUESTER").map((v) => v.itemId))];
+    if (ids.length === 0) return [];
+    const items = (await this.repos.items.listByIds(ids))
+      .filter((item) => item.archivedAt === null && item.parentItemId === null)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit);
+    const onBoards = [...new Set(items.map((item) => item.boardId))];
+    const [columnsByBoard, values, portal] = await Promise.all([
+      Promise.all(onBoards.map(async (id) => [id, await this.repos.boards.listColumns(id)] as const)).then((rows) => new Map(rows)),
+      this.repos.items.listValuesByItems(items.map((item) => item.id)),
+      // The workspace's portal opens each one; its own password still stands in front of it.
+      this.repos.stakeholderPortals.getUnifiedPortal(workspaceId).catch(() => null),
+    ]);
+    const portalPath = (itemId: EntityId) => (portal?.enabled ? `/portal/${encodeURIComponent(portal.token)}?task=${encodeURIComponent(itemId)}` : null);
+    const valuesByItem = new Map<EntityId, Map<string, ColumnValue>>();
+    for (const row of values) {
+      const map = valuesByItem.get(row.itemId) ?? new Map<string, ColumnValue>();
+      map.set(row.columnId, row.value);
+      valuesByItem.set(row.itemId, map);
+    }
+    return items.map((item) => {
+      const status = projectStatus(columnsByBoard.get(item.boardId) ?? [], valuesByItem.get(item.id));
+      return { itemId: item.id, ticket: item.ticket ?? null, title: item.name, bookedAt: item.createdAt, status: status ? { name: status.name, color: status.color } : null, portalPath: portalPath(item.id) };
+    });
   }
 
   /**

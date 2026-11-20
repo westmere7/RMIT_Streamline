@@ -641,6 +641,13 @@ export interface BookingReviewStep {
    * Written once by the team, shown after every booking.
    */
   autoReply: string;
+  /** The receipt's Download PDF button. Absent means on, as it always was. */
+  offerPdf?: boolean;
+  /**
+   * The receipt lists the other bookings made with the same email. Off unless
+   * switched on: anyone who types a colleague's email sees their bookings.
+   */
+  showPastBookings?: boolean;
 }
 
 export interface BookingFormTemplate {

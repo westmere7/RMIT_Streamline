@@ -160,6 +160,17 @@ export interface BookingRequest {
   itemId?: EntityId | null;
 }
 
+/** One of the requester's other bookings, as the receipt lists them: no brief, no answers. */
+export interface BookingPastSummary {
+  itemId: EntityId;
+  ticket: string | null;
+  title: string;
+  bookedAt: string;
+  status: { name: string; color: ColorToken } | null;
+  /** Where the portal opens this task (/portal/<token>?task=<id>); null while the workspace's portal is off. */
+  portalPath: string | null;
+}
+
 /** What the stakeholder sees once the booking is in. */
 export interface BookingReceipt {
   itemId: EntityId;

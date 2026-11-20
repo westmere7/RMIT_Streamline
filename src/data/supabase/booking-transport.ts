@@ -1,4 +1,4 @@
-import type { Board, BookingForm, BookingReceipt, Item } from "@/domain";
+import type { Board, BookingForm, BookingPastSummary, BookingReceipt, Item } from "@/domain";
 import type { BookingSubmission, BookingTransport } from "@/services/booking-service";
 import { callApi } from "./api-call";
 
@@ -23,6 +23,15 @@ export class HttpBookingTransport implements BookingTransport {
       { auth: "optional" },
     );
     return found.name;
+  }
+
+  async pastBookings(input: { workspaceSlug: string; key: string | null; email: string }): Promise<BookingPastSummary[]> {
+    const found = await callApi<{ bookings: BookingPastSummary[] }>(
+      `/api/book/${encodeURIComponent(input.workspaceSlug)}/past`,
+      { method: "POST", body: JSON.stringify({ key: input.key, email: input.email }) },
+      { auth: "optional" },
+    );
+    return found.bookings;
   }
 
   /** Allocating goes through src/app/api/allocate (src/server/allocation.ts), with the member's session. */

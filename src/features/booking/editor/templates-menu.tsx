@@ -1,6 +1,6 @@
 "use client";
 
-import { FileCheck2, LayoutTemplate, LoaderCircle, RefreshCcw, RotateCcw, Save, Trash2 } from "lucide-react";
+import { FileCheck2, LayoutTemplate, LoaderCircle, Plus, RefreshCcw, RotateCcw, Save, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import type { BookingFormTemplate, BookingTemplate } from "@/domain";
 import { MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME } from "@/domain";
@@ -86,8 +86,9 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         <div className="flex items-center gap-1.5">
           <Select
             value={loadedId ?? ""}
-            disabled={templates.length === 0}
             onValueChange={(id) => {
+              // Opened once the list has closed, so the dialog keeps its focus.
+              if (id === SAVE_NEW) return void window.setTimeout(() => setSaveOpen(true), 0);
               const picked = templates.find((t) => t.id === id);
               if (picked) onLoad(picked);
             }}
@@ -101,6 +102,12 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
                   {t.name}
                 </SelectItem>
               ))}
+              {templates.length > 0 && <SelectSeparator />}
+              <SelectItem value={SAVE_NEW} data-testid="template-quick-save-new">
+                <span className="flex items-center gap-2">
+                  <Plus className="size-4 text-muted-foreground" /> Save as new template
+                </span>
+              </SelectItem>
             </SelectContent>
           </Select>
           <SimpleTooltip label="Save as a template">
@@ -206,6 +213,9 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
     </>
   );
 }
+
+/** The list's last row: not a template, the way to make one. */
+const SAVE_NEW = "__save-new__";
 
 /** One action in the panel: a quiet full-width row. */
 function PanelRow({ icon: Icon, onClick, disabled, testId, children }: { icon: React.ComponentType<{ className?: string }>; onClick: () => void; disabled?: boolean; testId: string; children: React.ReactNode }) {

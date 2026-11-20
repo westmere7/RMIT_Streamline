@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.124.0",
+    date: "2026-11-20",
+    title: "Past bookings on the ticket",
+    changes: [
+      "Booking form editor, Confirm step: switches for the ticket's Download PDF button (on) and a list of the other bookings made with the same email (off). The list shows ticket, name, date and status; a name opens the task in the portal (while the portal is on), a ticket copies. The editor and Preview the form show both, with example rows.",
+      "Templates: Save as new template at the foot of the list.",
+      "Saved blocks show their whole name on hover.",
+    ],
+  },
+  {
     version: "0.123.2",
     date: "2026-11-20",
     title: "No hover outlines, wrapping text",

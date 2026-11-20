@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, Info, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
+import { Boxes, Check, Info, ChevronDown, CircleCheck, Copy, Eye, FileDown, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -33,6 +33,7 @@ import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { bookingFormTemplateSchema, normaliseBookingTemplate } from "@/services/booking";
 import { AssetList, AssetTypePicker, Chip, ChipGroup, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
+import { PastBookingsList, samplePastBookings } from "../wizard/booking-wizard";
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
@@ -426,7 +427,7 @@ export function BookingFormEditor({
       )}
 
       {tab === "assets" && <AssetsPane form={form} draft={draft} update={update} />}
-      {tab === "review" && <ReviewPane draft={draft} update={update} />}
+      {tab === "review" && <ReviewPane draft={draft} update={update} ticketPrefix={form.ticketPrefix} />}
 
       <PreviewDialog open={previewing !== null} onOpenChange={(open) => !open && setPreviewing(null)} form={form} template={previewing === "live" ? live : draft} />
       <ConfirmDialog
@@ -1047,7 +1048,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
   );
 }
 
-function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void }) {
+function ReviewPane({ draft, update, ticketPrefix }: { draft: BookingFormTemplate; update: (fn: (t: BookingFormTemplate) => void) => void; ticketPrefix: string }) {
   return (
     <div className="space-y-4">
       <EditorSection title="Heading of this step" testId="editor-review-heading" hoverOutline>
@@ -1089,10 +1090,36 @@ function ReviewPane({ draft, update }: { draft: BookingFormTemplate; update: (fn
             <MessageSquareQuote className="size-3" aria-hidden /> On the ticket
           </>
         }
+        aside={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground">
+            <span>Also show</span>
+            <label className="flex items-center gap-1.5">
+              <Switch size="sm" checked={draft.review.offerPdf !== false} aria-label="Show Download PDF on the ticket" onCheckedChange={(on) => update((t) => (t.review.offerPdf = on))} data-testid="editor-offer-pdf" />
+              Download PDF
+            </label>
+            <label className="flex items-center gap-1.5" title="Anyone who types an email sees that person's bookings">
+              <Switch size="sm" checked={draft.review.showPastBookings === true} aria-label="Show past bookings of the same email on the ticket" onCheckedChange={(on) => update((t) => (t.review.showPastBookings = on))} data-testid="editor-show-past" />
+              Past bookings of this email
+            </label>
+          </span>
+        }
         testId="editor-review-reply"
       >
         <TextBox value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="text-[13px]" multiline rows={3} testId="editor-auto-reply" />
         <p className="text-2xs text-muted-foreground">Shown with the ticket once a booking is in. Say what happens next and how long it usually takes.</p>
+        {/* What the two switches add to the ticket. Example rows: there is nobody's bookings to show here. */}
+        {(draft.review.showPastBookings === true || draft.review.offerPdf !== false) && (
+          <div className="pointer-events-none mt-1 grid gap-3" aria-hidden data-testid="editor-ticket-extras">
+            {draft.review.showPastBookings === true && <PastBookingsList rows={samplePastBookings(ticketPrefix)} />}
+            {draft.review.offerPdf !== false && (
+              <span>
+                <Button type="button" variant="outline" tabIndex={-1}>
+                  <FileDown /> Download PDF
+                </Button>
+              </span>
+            )}
+          </div>
+        )}
       </EditorSection>
     </div>
   );

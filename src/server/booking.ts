@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { BookingForm, BookingReceipt, BookingRequest } from "@/domain";
+import type { BookingForm, BookingPastSummary, BookingReceipt, BookingRequest } from "@/domain";
 import { isPlausibleBookingKey } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
@@ -40,6 +40,15 @@ export async function lookupRequester(request: Request, slug: string, key: strin
   const clean = email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return { name: null };
   return { name: (await serverRequesterDirectory().find(workspaceId, clean))?.name ?? null };
+}
+
+/**
+ * The bookings made with an email, for the receipt. Same access as booking; the
+ * published form's own switch decides whether there is anything to list.
+ */
+export async function listPastBookings(request: Request, slug: string, key: string | null, email: string): Promise<{ bookings: BookingPastSummary[] }> {
+  const { workspaceId } = await authorise(request, slug, key);
+  return { bookings: await serverServices().booking.pastBookingsFor(workspaceId, email) };
 }
 
 export async function submitBooking(request: Request, slug: string, key: string | null, booking: BookingRequest): Promise<BookingReceipt> {

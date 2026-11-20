@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BookingBlock, BookingBlockKind, BookingChoiceBlock, BookingQuestionBlock, BookingChoiceDisplay, BookingFollowUps, BookingSavedBlock, BookingServiceType, BookingTextLevel, ColorToken, TagOption } from "@/domain";
 import { BOOKING_BLOCK_LABELS, BOOKING_CHOICE_DISPLAYS, BOOKING_CHOICE_DISPLAY_LABELS, BOOKING_TEXT_LEVELS, BOOKING_TEXT_LEVEL_LABELS, MAX_BOOKING_SAVED_BLOCK_NAME, convertBlock, copyBlockWithNewIds, isQuestionBlock, newBookingBlock, questionNumbers, renameFollowUpKey, switchableKinds } from "@/domain";
 import { cn } from "@/lib/utils";
@@ -272,10 +273,13 @@ function InsertLine({ position, saved, onInsert, testId }: { position: "top" | "
                     const Icon = BLOCK_ICONS[entry.block.kind];
                     return (
                       <li key={entry.id}>
-                        <button type="button" onClick={() => insert(copyBlockWithNewIds(entry.block))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent" data-testid={testId ? `${testId}-saved-${entry.id}` : undefined}>
-                          <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                          <span className="truncate">{entry.name}</span>
-                        </button>
+                        {/* The name is cut to the menu's width; the whole of it on hover. */}
+                        <SimpleTooltip label={<SavedBlockTip entry={entry} />} side="right">
+                          <button type="button" onClick={() => insert(copyBlockWithNewIds(entry.block))} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent" data-testid={testId ? `${testId}-saved-${entry.id}` : undefined}>
+                            <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate">{entry.name}</span>
+                          </button>
+                        </SimpleTooltip>
                       </li>
                     );
                   })}
@@ -740,21 +744,23 @@ function SavedBlocksMenu({ saved, onInsert, onDelete }: { saved: BookingSavedBlo
                 const Icon = BLOCK_ICONS[entry.block.kind];
                 return (
                   <li key={entry.id} className="flex items-center gap-1 rounded-md hover:bg-accent" data-testid={`saved-block-${entry.id}`}>
-                    <button
-                      type="button"
-                      className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[13px]"
-                      onClick={() => {
-                        onInsert(entry);
-                        setOpen(false);
-                      }}
-                      data-testid={`saved-block-insert-${entry.id}`}
-                    >
-                      <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">{entry.name}</span>
-                        <span className="block truncate text-2xs text-muted-foreground">{describeBlock(entry.block)}</span>
-                      </span>
-                    </button>
+                    <SimpleTooltip label={<SavedBlockTip entry={entry} />} side="right">
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[13px]"
+                        onClick={() => {
+                          onInsert(entry);
+                          setOpen(false);
+                        }}
+                        data-testid={`saved-block-insert-${entry.id}`}
+                      >
+                        <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{entry.name}</span>
+                          <span className="block truncate text-2xs text-muted-foreground">{describeBlock(entry.block)}</span>
+                        </span>
+                      </button>
+                    </SimpleTooltip>
                     <Handle label={`Delete saved block ${entry.name}`} onClick={() => setDeleting(entry)} destructive testId={`saved-block-delete-${entry.id}`}>
                       <Trash2 />
                     </Handle>
@@ -844,5 +850,15 @@ function SaveBlockDialog({ block, existing, onOpenChange, onSave }: { block: Boo
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A saved block in full: its whole name, and what kind of block it is. */
+function SavedBlockTip({ entry }: { entry: BookingSavedBlock }) {
+  return (
+    <span className="block max-w-72 whitespace-normal" data-testid="saved-block-tip">
+      <span className="block font-medium">{entry.name}</span>
+      <span className="block opacity-70">{describeBlock(entry.block)}</span>
+    </span>
   );
 }
