@@ -49,8 +49,8 @@ interface Option {
 const OPTIONS: Option[] = [
   {
     id: "current",
-    name: "A · Current",
-    note: "For comparison: glows and a faint grid.",
+    name: "A · Before",
+    note: "What B replaced: glows and a faint grid.",
     ground: (
       <>
         <div className="absolute -bottom-40 -left-24 size-[560px] rounded-full bg-primary/30 blur-3xl" />
@@ -61,7 +61,7 @@ const OPTIONS: Option[] = [
   },
   {
     id: "watermark",
-    name: "B · Watermark",
+    name: "B · Watermark (live)",
     note: "One large pixel bleeding off the corner, navy on navy, a red glow behind it.",
     ground: (
       <>
@@ -182,7 +182,7 @@ export function BrandBackgrounds() {
     <main className="min-h-screen bg-canvas px-6 py-10 text-foreground sm:px-10">
       <header className="mx-auto mb-8 max-w-7xl">
         <h1 className="text-xl font-semibold tracking-tight">Brand panel backgrounds</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">Options for the panel beside the booking and sign-in pages, each built from RMIT&apos;s pixel on RMIT navy. A is what is there now.</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">Options for the panel beside the booking and sign-in pages, each built from RMIT&apos;s pixel on RMIT navy. B is live; A is what it replaced.</p>
       </header>
       <div className="mx-auto grid max-w-7xl gap-8 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
         {OPTIONS.map((option) => (
@@ -195,7 +195,60 @@ export function BrandBackgrounds() {
           </figure>
         ))}
       </div>
+
+      <section className="mx-auto mt-14 max-w-7xl" data-testid="bg-pixel-sizes">
+        <h2 className="text-base font-semibold tracking-tight">B · pixel size</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">
+          The live panel on a {TALL.width}×{TALL.height} screen (the panel is {TALL.width}px wide), drawn at half size. The pixel is a share of the screen&apos;s height, never under {PIXEL_FLOOR}px.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-6">
+          {PIXEL_SIZES.map((size) => (
+            <figure key={size.vh} className="space-y-2">
+              <div className="overflow-hidden rounded-2xl" style={{ width: PANEL_W / 2, height: TALL.height / 2 }}>
+                <div style={{ width: PANEL_W, height: TALL.height, transform: "scale(0.5)", transformOrigin: "top left" }}>
+                  <WatermarkPanel pixel={Math.max(PIXEL_FLOOR, (size.vh / 100) * TALL.height)} />
+                </div>
+              </div>
+              <figcaption>
+                <p className="text-[13px] font-semibold">
+                  {size.vh}vh{size.note && <span className="ml-1.5 font-normal text-muted-foreground">{size.note}</span>}
+                </p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
     </main>
+  );
+}
+
+/** A tall desktop screen, the kind the pixel's size matters on. */
+const TALL = { width: 2000, height: 1175 };
+/** The panel's width on a wide screen (xl:w-[520px] in AuthShell). */
+const PANEL_W = 520;
+const PIXEL_FLOOR = 560;
+const PIXEL_SIZES: Array<{ vh: number; note?: string }> = [{ vh: 60 }, { vh: 70 }, { vh: 82, note: "now" }, { vh: 90 }, { vh: 97, note: "before" }];
+
+/** Option B as AuthShell draws it, for a pixel this many px wide: the same offsets and glow, in proportion. */
+function WatermarkPanel({ pixel }: { pixel: number }) {
+  return (
+    <div className="relative flex h-full w-full flex-col justify-between overflow-hidden bg-navy p-10 text-white">
+      <div className="pointer-events-none absolute rounded-full bg-primary/25 blur-3xl" style={{ right: pixel * -0.21, bottom: pixel * -0.26, width: pixel * 0.84, height: pixel * 0.84 }} />
+      <svg aria-hidden viewBox={`0 0 ${PIXEL_W} ${PIXEL_H}`} className="pointer-events-none absolute opacity-[0.05]" style={{ right: pixel * -0.532, bottom: pixel * -0.463, width: pixel, height: (pixel * PIXEL_H) / PIXEL_W }}>
+        <path fill="#ffffff" d={PIXEL} />
+      </svg>
+      <div aria-hidden className="relative">
+        <BrandLogo tone="onNavy" className="h-8" />
+      </div>
+      <div aria-hidden className="relative space-y-6">
+        <h2 className="max-w-md text-[34px] leading-[1.15] font-semibold tracking-tight text-balance">Book a task with the creative team.</h2>
+        <p className="max-w-sm text-[15px] leading-relaxed text-white/70">Tell Vietnam marketing what you need and by when. You get a ticket straight away, and can follow the work as it moves.</p>
+      </div>
+      <div aria-hidden className="relative text-xs text-white/50">
+        Central Creative Team · Streamline
+        <span className="mt-0.5 block text-[10px] text-white/35">Published 20 Nov 2026, 14:25</span>
+      </div>
+    </div>
   );
 }
 
