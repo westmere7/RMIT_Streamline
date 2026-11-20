@@ -1031,12 +1031,12 @@ describe("shaping the booking form", () => {
     };
     const saved = await services.booking.saveBlock(SEED_WORKSPACE_ID, { name: "Deadline", block }, owner);
     const stored = (await services.booking.listSavedBlocks(SEED_WORKSPACE_ID)).find((b) => b.id === saved.id)!.block as BookingChoiceBlock;
-    expect(stored.followUps?.[yes]?.map((b) => b.label)).toEqual(["When is it?", "Why then?"]);
+    expect(stored.followUps?.[yes]?.map((b) => ("label" in b ? b.label : null))).toEqual(["When is it?", "Why then?"]);
 
     // Inserted into a brief, the copy and its follow-ups get new ids, so the same block can sit in two services.
     const copy = copyBlockWithNewIds(stored) as BookingChoiceBlock;
     expect(copy.id).not.toBe(stored.id);
-    expect(copy.followUps?.[yes]?.map((b) => b.label)).toEqual(["When is it?", "Why then?"]);
+    expect(copy.followUps?.[yes]?.map((b) => ("label" in b ? b.label : null))).toEqual(["When is it?", "Why then?"]);
     expect(copy.followUps?.[yes]?.map((b) => b.id)).not.toContain("when");
   });
 
