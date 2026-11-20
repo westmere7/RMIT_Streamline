@@ -46,7 +46,6 @@ const PORTAL_TOKEN = "auditportal1d69e8bd755d44779ad43";
 
 describe.skipIf(!enabled)("booking allocation on the disposable stack", { timeout: 60_000 }, () => {
   const require = createRequire(process.cwd() + "/package.json");
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const postgres = require("postgres");
   const sql = enabled ? postgres(env.SUPABASE_DB_URL, { max: 1 }) : null;
   let wsId = "";
@@ -215,7 +214,7 @@ describe.skipIf(!enabled)("booking allocation on the disposable stack", { timeou
     expect(await boardOf(itemId)).toBe(OPEN_DAY);
   });
 
-  let queued: string[] = [];
+  const queued: string[] = [];
   it("6. with Otherwise set to the queue, unmatched bookings wait on Task Allocation", async () => {
     await servicesAs(joanne).booking.publishForm(wsId, routedTemplate("allocation"), "Stack test 2", { publishedBy: joanne.id });
     for (let i = 0; i < 4; i++) {
