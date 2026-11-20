@@ -22,7 +22,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-11-20",
     title: "Auto-allocation at a glance",
     changes: [
-      "With Auto-allocation on, the Bookings go to picker shows its rules in one line, in full on hover; the picker spans the box under its title.",
+      "With Auto-allocation on, the Bookings go to picker shows its rule (or how many there are, and where the rest go), every rule on hover; the picker spans the box under its title.",
     ],
   },
   {

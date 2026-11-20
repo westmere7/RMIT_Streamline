@@ -685,7 +685,7 @@ function ServicePanel({
   // "Print → DOOH · Print + Key Visual only → Open Day · else → Task Allocation"
   const rulesSummary = React.useMemo(() => {
     const routing = service.routing;
-    if (!routing?.enabled) return "";
+    if (!routing?.enabled) return { all: "", glance: "" };
     const queue = allocationBoard?.name ?? "Task Allocation";
     const boardName = (id: string) => ws.boardById(id)?.name ?? "a board no longer there";
     const team = ws.teamById(service.teamId);
@@ -699,7 +699,9 @@ function ServicePanel({
       const exact = rule.match === "exact";
       return `${rule.workTypes.join(exact ? " + " : " / ") || "—"}${exact ? " only" : ""} → ${boardName(rule.boardId)}`;
     });
-    return [...rules, `else → ${rest}`].join(" · ");
+    const all = [...rules, `else → ${rest}`].join(" · ");
+    // In the picker: one rule as it is; several as a count, every rule still on hover.
+    return { all, glance: rules.length > 1 ? `${rules.length} rules · else → ${rest}` : all };
   }, [service.routing, service.teamId, allocationBoard, ws]);
   const key = slug(service.name);
   return (
@@ -772,7 +774,7 @@ function ServicePanel({
                 <SelectTrigger
                   className="h-9 min-w-0 flex-1 bg-card text-[13px]"
                   aria-label={`Where ${service.name} bookings go`}
-                  title={byWorkType ? rulesSummary : undefined}
+                  title={byWorkType ? rulesSummary.all : undefined}
                   data-testid={`editor-service-team-${key}`}
                 >
                   {byWorkType ? (
@@ -781,7 +783,7 @@ function ServicePanel({
                       <Split className="size-3.5 shrink-0 text-muted-foreground" />
                       <span className="shrink-0">Auto-allocation</span>
                       <span className="min-w-0 truncate text-muted-foreground" data-testid={`editor-service-routing-summary-${key}`}>
-                        {rulesSummary}
+                        {rulesSummary.glance}
                       </span>
                     </span>
                   ) : (
