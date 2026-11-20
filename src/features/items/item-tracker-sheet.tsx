@@ -399,21 +399,26 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
   const queryClient = useQueryClient();
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const [creating, setCreating] = React.useState(false);
-  // A tracker named after the task, on its board's team, with one sheet laid out for assets.
+  // The new tracker's name: the task's to start with, the person's to change. Null while the box is closed.
+  const [newName, setNewName] = React.useState<string | null>(null);
+  // A tracker on the task's board's team, with one sheet laid out for assets.
   const createTracker = async () => {
+    const name = (newName ?? "").trim();
+    if (!name) return;
     setCreating(true);
     try {
       const { sheets } = await services.trackers.create(
         {
           workspaceId: ws.workspace.id,
           teamId: ws.boardById(item.boardId)?.teamId ?? null,
-          name: item.name.trim() || "Assets",
+          name,
           layout: "blank",
           sheets: [assetSheet("", "Assets", assetTypes.map((t) => t.name))],
         },
         ws.currentUser.id,
       );
       await queryClient.invalidateQueries({ queryKey: ["trackers"] });
+      setNewName(null);
       onOpenChange(false);
       onPick(sheets[0]!);
     } catch (error) {
@@ -422,11 +427,29 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
       setCreating(false);
     }
   };
-  const newButton = (
-    <Button type="button" variant="outline" size="sm" onClick={() => void createTracker()} disabled={creating} className="self-start" data-testid="pick-sheet-new-tracker">
-      {creating ? <Loader2 className="animate-spin" /> : <Plus />} New tracker for this task
-    </Button>
-  );
+  const newButton =
+    newName === null ? (
+      <Button type="button" variant="outline" size="sm" onClick={() => setNewName(item.name.trim() || "Assets")} className="self-start" data-testid="pick-sheet-new-tracker">
+        <Plus /> New tracker for this task
+      </Button>
+    ) : (
+      <form
+        className="flex w-full items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void createTracker();
+        }}
+        data-testid="pick-sheet-new-tracker-form"
+      >
+        <Input value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="New tracker name" placeholder="Tracker name" maxLength={120} autoFocus className="h-8 min-w-0 flex-1" data-testid="pick-sheet-new-tracker-name" />
+        <Button type="button" variant="ghost" size="sm" onClick={() => setNewName(null)} disabled={creating}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" disabled={creating || !newName.trim()} data-testid="pick-sheet-new-tracker-create">
+          {creating ? <Loader2 className="animate-spin" /> : <Plus />} Create
+        </Button>
+      </form>
+    );
   const data = useQuery({
     queryKey: ["tracker-sheet-picker", ws.workspace.id],
     queryFn: async () => {
@@ -437,7 +460,13 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
     staleTime: 5_000,
   });
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setNewName(null);
+        onOpenChange(next);
+      }}
+    >
       <DialogContent size="md" data-testid="pick-sheet-dialog">
         <DialogHeader>
           <DialogTitle>Use a tracker sheet</DialogTitle>
@@ -450,7 +479,7 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
         ) : (data.data ?? []).length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-4">
             <p className="text-center text-[13px] text-muted-foreground">No trackers in this workspace yet.</p>
-            <div className="flex justify-center">{newButton}</div>
+            <div className="flex w-full justify-center">{newButton}</div>
           </div>
         ) : (
           <ul className="max-h-[50dvh] space-y-3 overflow-y-auto">
@@ -466,6 +495,7 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
                         type="button"
                         disabled={!!sheet.itemId}
                         onClick={() => {
+                          setNewName(null);
                           onOpenChange(false);
                           onPick(sheet);
                         }}

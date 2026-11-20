@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.127.1",
+    date: "2026-11-20",
+    title: "Name the new tracker",
+    changes: ["New tracker for this task asks for a name first, filled in with the task's."],
+  },
+  {
     version: "0.127.0",
     date: "2026-11-20",
     title: "New tracker from a task",
