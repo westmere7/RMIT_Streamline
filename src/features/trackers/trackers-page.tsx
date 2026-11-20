@@ -74,7 +74,7 @@ export function TrackersPage() {
                     <RowMenu label={`Options for ${tracker.name}`} actions={actions} hideButton>
                       <Link
                         href={routes.tracker(ws.slug, tracker.id)}
-                        className="flex min-h-28 flex-col rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md"
+                        className="flex min-h-28 flex-col rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[background-color,border-color,box-shadow] hover:shadow-md"
                         data-testid="tracker-card"
                       >
                         <span className="flex items-center gap-2.5">

@@ -886,7 +886,7 @@ function HoursCell({ member, name, editable }: { member: WorkspaceMember; name: 
       onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
       aria-label={`${name}'s hours a week`}
       title="Hours a week in this workspace, in half hours, for capacity. Empty is a full week."
-      className="h-7 w-14 rounded-md border border-transparent bg-transparent px-1.5 text-right tabular outline-none placeholder:text-muted-foreground hover:border-border focus:border-ring focus:bg-background [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+      className="h-7 w-14 rounded-md border border-transparent bg-transparent px-1.5 text-right tabular outline-none placeholder:text-muted-foreground focus:border-ring focus:bg-background [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
       data-testid="member-hours-input"
     />
   );

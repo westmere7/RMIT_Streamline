@@ -197,7 +197,7 @@ function BugReportForm({ pageUrl, onDone }: { pageUrl: string | null; onDone: ()
               <button
                 type="button"
                 onClick={() => fileInput.current?.click()}
-                className="flex h-20 min-w-20 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
+                className="flex h-20 min-w-20 flex-1 items-center justify-center gap-2 rounded-lg border border-dashed border-border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
                 data-testid="bug-report-add-screenshot"
               >
                 <ImagePlus className="size-4 shrink-0" /> Upload, drop or paste

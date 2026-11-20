@@ -106,7 +106,7 @@ describe("the demo seed", () => {
     expect(allocationBoards).toHaveLength(1);
     const board = allocationBoards[0]!;
     expect(board.teamId).toBe(adminTeams[0]!.id);
-    expect(board.visibility).toBe("TEAM");
+    expect(board.visibility).toBe("PRIVATE"); // its own setting since v0.118.0, not the Admin team's
     expect(seed.boardGroups.filter((g) => g.boardId === board.id).map((g) => g.name)).toEqual(["Incoming", "Allocated", "Closed"]);
     expect(seed.boardColumns.filter((c) => c.boardId === board.id).sort((a, b) => a.position - b.position).map((c) => c.name)).toEqual(taskAllocationColumns([]).map((c) => c.name));
     // Only owners and admins are on the board and in the team.

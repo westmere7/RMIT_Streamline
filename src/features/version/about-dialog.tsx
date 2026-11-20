@@ -70,7 +70,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
           <button
             type="button"
             onClick={() => setChangelogOpen(true)}
-            className="group flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left text-[13px] transition-colors hover:border-border hover:bg-surface-strong/60"
+            className="group flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-surface-strong/60"
             data-testid="about-changelog"
           >
             <Sparkles className="size-4 text-primary" />
@@ -83,7 +83,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
               onOpenChange(false);
               reportBug();
             }}
-            className="group -mt-3 flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left text-[13px] transition-colors hover:border-border hover:bg-surface-strong/60"
+            className="group -mt-3 flex w-full items-center gap-2.5 rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-surface-strong/60"
             data-testid="about-report-bug"
           >
             <Bug className="size-4 text-muted-foreground" />

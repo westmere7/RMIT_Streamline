@@ -94,7 +94,7 @@ export function AddToWorkspaceDialog({ user, onOpenChange }: { user: User | null
                         onClick={() => setTeamIds((now) => (checked ? now.filter((id) => id !== team.id) : [...now, team.id]))}
                         className={cn(
                           "inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring",
-                          checked ? cn("border-transparent font-medium", colorClasses(team.color).soft) : "border-border/70 bg-surface-strong/40 text-muted-foreground hover:border-border hover:text-foreground",
+                          checked ? cn("border-transparent font-medium", colorClasses(team.color).soft) : "border-border/70 bg-surface-strong/40 text-muted-foreground hover:text-foreground",
                         )}
                       >
                         {checked && <Check className="size-3.5" />}

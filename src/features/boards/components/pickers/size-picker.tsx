@@ -96,7 +96,7 @@ export function SizePicker({
                 onMouseEnter={() => setHovered(size)}
                 onFocus={() => setHovered(size)}
                 className={cn(
-                  "relative flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg ring-2 ring-transparent transition-shadow hover:ring-ring/50 focus-visible:outline-none focus-visible:ring-ring/70",
+                  "relative flex h-12 flex-col items-center justify-center gap-0.5 rounded-lg ring-2 ring-transparent transition-[box-shadow,filter] hover:brightness-110 focus-visible:outline-none focus-visible:ring-ring/70",
                   colorClasses(T_SHIRT_SIZE_COLORS[size]).soft,
                   active && "ring-ring",
                 )}

@@ -300,7 +300,7 @@ export function LinkTile({
     // ruled-off footer. Hovered, it lifts, its edge takes the accent and a faint
     // wash, to say the blank space opens the link.
     <div
-      className="relative flex min-w-0 cursor-pointer flex-col gap-6 rounded-xl border border-border/70 bg-card p-5 transition-[border-color,background-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:border-ring hover:bg-accent/25 hover:shadow-lg hover:shadow-ring/10 max-md:p-4"
+      className="relative flex min-w-0 cursor-pointer flex-col gap-6 rounded-xl border border-border/70 bg-card p-5 transition-[border-color,background-color,box-shadow,transform] duration-150 hover:-translate-y-0.5 hover:bg-accent/25 hover:shadow-lg hover:shadow-ring/10 max-md:p-4"
       data-testid={`${testId}-block`}
     >
       {/* The tile's blank space opens the link, as its Open button does: a real
@@ -521,7 +521,7 @@ function StakeholderList({ rows, counts }: { rows: DepartmentOverview[]; counts:
       {rows.map(({ department, requests }) => (
         <li
           key={department.id}
-          className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-2xs transition-colors hover:border-ring/50"
+          className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-card px-2.5 py-1 text-2xs transition-colors"
           data-testid="portal-stakeholder-row"
           data-department={department.name}
         >
@@ -762,7 +762,7 @@ function ColumnLayoutEditor({ layout, columns, onChange }: { layout: PortalColum
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="group flex w-full items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5 text-left transition-colors hover:border-border hover:bg-accent/40"
+          className="group flex w-full items-center gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
           data-testid="portal-columns-open"
         >
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">

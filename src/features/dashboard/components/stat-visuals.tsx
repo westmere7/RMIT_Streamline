@@ -118,7 +118,7 @@ export function StatBar({
       className={cn(
         "flex flex-col items-start rounded-xl border border-border/50 bg-surface/50 text-left transition-colors",
         size === "lg" ? "h-full justify-between px-4 py-4" : "px-3 py-2.5",
-        onSelect && value > 0 && "hover:border-border hover:bg-surface-strong/60",
+        onSelect && value > 0 && " hover:bg-surface-strong/60",
       )}
       data-testid={testId}
     >

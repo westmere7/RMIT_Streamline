@@ -659,7 +659,7 @@ function ReplyPrompt({ onOpen }: { onOpen: () => void }) {
     <button
       type="button"
       onClick={onOpen}
-      className="flex w-full items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+      className="flex w-full items-center gap-2 rounded-lg border border-border/70 bg-card px-2.5 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground"
       data-testid="comment-reply-prompt"
     >
       <UserAvatar user={ws.currentUser} size="xs" tooltip={false} />

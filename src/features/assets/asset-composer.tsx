@@ -548,7 +548,7 @@ function AssetRowCard({
               data-testid="asset-done"
               className={cn(
                 "flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors",
-                done ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80 hover:border-ring",
+                done ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80",
                 !canEdit && "cursor-default opacity-70",
               )}
             >

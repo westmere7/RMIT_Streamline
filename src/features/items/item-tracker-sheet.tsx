@@ -247,7 +247,7 @@ function SheetLine({
             aria-label={finished ? `Open ${line.name} again` : `Mark ${line.name} done`}
             disabled={!canEdit}
             onClick={onToggle}
-            className={cn("flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors", finished ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80", canEdit ? "hover:border-ring" : "cursor-default opacity-70")}
+            className={cn("flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors", finished ? "border-emerald-500 bg-emerald-500 text-white" : "border-border/80", canEdit ? "" : "cursor-default opacity-70")}
           >
             {finished && <Check className="size-3" strokeWidth={3} />}
           </button>

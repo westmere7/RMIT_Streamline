@@ -347,7 +347,7 @@ function PersonChoices() {
                   // The ring is on or off, rather than coloured or transparent:
                   // two classes setting the same ring colour fight, and which
                   // one wins is down to the order Tailwind emits them in.
-                  active ? "ring-2 ring-ring" : "hover:ring-2 hover:ring-ring/40",
+                  active ? "ring-2 ring-ring" : "hover:brightness-110",
                 )}
               >
                 <UserAvatar user={user} size="lg" />
@@ -429,9 +429,9 @@ function TagChoices({ options }: { options: ReturnType<typeof useTagOptions>["op
                 aria-pressed={active}
                 onClick={() => toggle(option.name)}
                 className={cn(
-                  "rounded-md px-2 py-0.5 text-2xs font-medium ring-2 ring-transparent transition-shadow hover:ring-ring/50",
+                  "rounded-md px-2 py-0.5 text-2xs font-medium transition-[filter] hover:brightness-110",
                   colorClasses(option.color).soft,
-                  active && "ring-ring",
+                  active && "ring-2 ring-ring",
                 )}
               >
                 {formatTag(option.name)}

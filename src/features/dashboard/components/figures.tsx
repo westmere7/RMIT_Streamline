@@ -83,7 +83,7 @@ export function HeadlineFigure({
           : "border-border/60 bg-card",
         // A card the page can be switched with. The button is the whole card
         // rather than a control inside it: the card *is* the choice.
-        onSelect && !accent && "cursor-pointer hover:border-border hover:bg-accent/30",
+        onSelect && !accent && "cursor-pointer hover:bg-accent/30",
       )}
       onClick={onSelect && !accent ? onSelect : undefined}
       role={onSelect && !accent ? "button" : undefined}

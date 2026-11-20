@@ -67,7 +67,7 @@ export function LookPicker({
           title="Colour and icon"
           disabled={disabled}
           className={cn(
-            "flex size-9 shrink-0 items-center justify-center rounded-lg text-white transition-[box-shadow] hover:ring-2 hover:ring-ring/50 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
+            "flex size-9 shrink-0 items-center justify-center rounded-lg text-white transition-[box-shadow,filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none",
             colorClasses(color).solid,
           )}
           data-testid={testId}

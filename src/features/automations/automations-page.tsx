@@ -350,7 +350,7 @@ function RecipeGrid({ boards, onPick }: { boards: Board[]; onPick: (board: Board
                 onClick={() => onPick(board, recipe)}
                 className={cn(
                   "group relative flex h-full w-full flex-col gap-1.5 rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-xs transition-[border-color,box-shadow,transform]",
-                  why ? "cursor-not-allowed opacity-55" : "hover:-translate-y-0.5 hover:border-ring/60 hover:shadow-md",
+                  why ? "cursor-not-allowed opacity-55" : "hover:-translate-y-0.5 hover:shadow-md",
                 )}
                 data-testid="automation-recipe"
               >

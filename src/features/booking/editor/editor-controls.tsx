@@ -11,10 +11,9 @@ import { cn } from "@/lib/utils";
  * A box for one line of the form's wording.
  *
  * It is styled like the text it stands for — a heading's box is heading-sized,
- * a hint's box is hint-sized — but it is visibly a box: a faint edge at rest, a
- * firmer one under the cursor, the ring on focus. An earlier version hid the
- * edge until hovered, which made the page read as the form and made finding
- * what could be edited a matter of sweeping the cursor over everything.
+ * a hint's box is hint-sized — but it is visibly a box: a faint edge at rest and
+ * the ring on focus. Long words wrap and the box grows to hold them, so nothing
+ * is cut off at the edge; a one-line box still takes no line breaks.
  */
 export function TextBox({
   value,
@@ -35,12 +34,45 @@ export function TextBox({
   multiline?: boolean;
   rows?: number;
 }) {
-  const classes = cn(
-    "block w-full rounded-md border border-border/50 bg-transparent px-2 py-1 text-inherit outline-none transition-colors placeholder:text-muted-foreground/60 hover:border-border focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20",
-    className,
+  const ref = React.useRef<HTMLTextAreaElement>(null);
+  // Fit the height to the wrapped text, again whenever the width changes.
+  const fit = React.useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, []);
+  React.useLayoutEffect(fit, [fit, value]);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      fit();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fit]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(multiline ? e.target.value : e.target.value.replace(/[\r\n]+/g, " "))}
+      onKeyDown={multiline ? undefined : (e) => e.key === "Enter" && e.preventDefault()}
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      rows={multiline ? (rows ?? 2) : 1}
+      // No width of its own: a textarea asks for 20 columns, which pushed narrow grids apart.
+      cols={1}
+      className={cn(
+        "block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded-md border border-border/50 bg-transparent px-2 py-1 text-inherit outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-ring focus:bg-background focus:ring-2 focus:ring-ring/20",
+        className,
+      )}
+      data-testid={testId}
+    />
   );
-  if (multiline) return <textarea value={value} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel} placeholder={placeholder} rows={rows ?? 2} className={cn(classes, "resize-y")} data-testid={testId} />;
-  return <input value={value} onChange={(e) => onChange(e.target.value)} aria-label={ariaLabel} placeholder={placeholder} className={classes} data-testid={testId} />;
 }
 
 /**

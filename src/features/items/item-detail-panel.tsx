@@ -809,7 +809,7 @@ function TicketField({
         onDoubleClick={edit}
         title="Take the next ticket in the series"
         data-testid="panel-ticket-add"
-        className="inline-flex h-6 items-center gap-1 rounded-md border border-dashed border-border/70 px-1.5 text-2xs text-muted-foreground transition-colors hover:border-border hover:text-foreground disabled:opacity-60"
+        className="inline-flex h-6 items-center gap-1 rounded-md border border-dashed border-border/70 px-1.5 text-2xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
       >
         {issuing ? <LoaderCircle className="size-3 animate-spin" /> : <Hash className="size-3" />} Add a ticket
       </button>
@@ -935,7 +935,7 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
           aria-label={canEdit ? "Edit description" : undefined}
           className={cn(
             "w-full rounded-xl border border-border/70 bg-card px-3 py-2 text-left text-[13px] text-foreground/90 shadow-xs",
-            canEdit && "cursor-text hover:border-border focus-visible:outline-2 focus-visible:outline-ring",
+            canEdit && "cursor-text focus-visible:outline-2 focus-visible:outline-ring",
           )}
           data-testid="panel-description"
         >
@@ -945,7 +945,7 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
         <button
           type="button"
           onClick={startEditing}
-          className="flex h-9 w-full items-center rounded-xl border border-dashed border-border/70 px-3 text-[13px] text-muted-foreground transition-colors hover:border-border hover:text-foreground"
+          className="flex h-9 w-full items-center rounded-xl border border-dashed border-border/70 px-3 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           data-testid="panel-description-empty"
         >
           Add a description

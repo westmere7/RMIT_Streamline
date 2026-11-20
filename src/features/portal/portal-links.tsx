@@ -97,7 +97,7 @@ function LinkCard({
     return () => clearTimeout(timer);
   }, [copied]);
   return (
-    <li className="group relative flex min-h-[84px] items-center gap-3.5 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-xs transition-[border-color,box-shadow] hover:border-ring/60 hover:shadow-md">
+    <li className="group relative flex min-h-[84px] items-center gap-3.5 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-xs transition-[border-color,box-shadow] hover:shadow-md">
       {/* The whole card opens the link, in a new tab; the copy button is its own. */}
       <a href={href} target="_blank" rel="noopener noreferrer" className="absolute inset-0 rounded-xl" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={testId} />
       <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", serving ? "bg-accent-soft text-accent-soft-foreground" : "bg-surface text-muted-foreground")}>

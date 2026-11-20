@@ -618,7 +618,7 @@ function Identity({
                 key={past.id}
                 type="button"
                 onClick={() => onStartFrom(past)}
-                className={cn("group max-w-[18rem] min-w-0 rounded-xl border px-3 py-2 text-left transition-colors", startedFrom === past.id ? "border-primary/50 bg-primary/[0.06]" : "border-border/60 bg-card hover:border-border hover:bg-accent/50")}
+                className={cn("group max-w-[18rem] min-w-0 rounded-xl border px-3 py-2 text-left transition-colors", startedFrom === past.id ? "border-primary/50 bg-primary/[0.06]" : "border-border/60 bg-card hover:bg-accent/50")}
                 data-testid="booking-history-item"
               >
                 <span className="block truncate text-[13px] font-medium" title={past.title}>

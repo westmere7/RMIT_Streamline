@@ -287,7 +287,7 @@ export function LinksEditor({ links, canEdit, onChange }: { links: readonly Asse
   );
 }
 
-const addChipClass = "flex h-7 items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-2xs font-medium text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-accent hover:text-foreground";
+const addChipClass = "flex h-7 items-center gap-1 rounded-full border border-dashed border-border px-2.5 text-2xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground";
 
 function IconPicker({ value, onChange }: { value: AssetLinkIcon; onChange: (icon: AssetLinkIcon) => void }) {
   const [open, setOpen] = React.useState(false);

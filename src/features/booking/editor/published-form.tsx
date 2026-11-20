@@ -57,7 +57,7 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
         onOpen();
       }}
       aria-label={`Open the published form, ${title}`}
-      className="block w-full cursor-pointer rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:border-ring/60 hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
+      className="block w-full cursor-pointer rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
       data-testid="booking-published-form"
     >
       <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">Published form</p>

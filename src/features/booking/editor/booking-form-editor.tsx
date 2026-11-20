@@ -134,6 +134,22 @@ export function BookingFormEditor({
    */
   const [saved, setSaved] = React.useState<BookingFormTemplate>(() => clone(initial));
   const [tab, setTab] = React.useState<StepTab>("basics");
+  // A step opens at its top: switching scrolls whatever holds the editor back
+  // up to it, instead of landing partway down the new step.
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const openStep = (key: StepTab) => {
+    setTab(key);
+    const root = rootRef.current;
+    let scroller = root?.parentElement ?? null;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    if (!root) return;
+    if (scroller) {
+      const top = root.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+      if (scroller.scrollTop > top) scroller.scrollTo({ top: Math.max(0, top - 8) });
+    } else if (root.getBoundingClientRect().top < 0) {
+      window.scrollTo({ top: Math.max(0, window.scrollY + root.getBoundingClientRect().top - 8) });
+    }
+  };
   /** The service picked on step one and open on step two: one choice, both places. */
   const [selectedService, setSelectedService] = React.useState<string | null>(() => initial.services[0]?.id ?? null);
   const [removingService, setRemovingService] = React.useState<string | null>(null);
@@ -333,7 +349,7 @@ export function BookingFormEditor({
   );
 
   return (
-    <div className="space-y-5" data-testid="booking-editor">
+    <div ref={rootRef} className="space-y-5" data-testid="booking-editor">
       {panelContainer ? createPortal(panel, panelContainer) : panel}
 
       {/* Pinned, like the bar it stands for: a form long enough to scroll is
@@ -352,7 +368,7 @@ export function BookingFormEditor({
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setTab(key)}
+                onClick={() => openStep(key)}
                 className={cn(
                   "flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-ring/50",
                   // Open: the whole tab filled, as anything picked is; no badge-like colour on the number.
@@ -509,8 +525,9 @@ function BasicsPane({
             {requester.map((field) => (
               <div key={field.id} className="min-w-0 grid gap-1.5">
                 <TextBox value={field.label} onChange={(v) => patchField(field.id, { label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
+                <FieldHintBox field={field} onPatch={(patch) => patchField(field.id, patch)} />
                 <div className="pointer-events-none" aria-hidden>
-                  <StandardField field={field} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
+                  <StandardField field={{ ...field, description: null }} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
                 </div>
               </div>
             ))}
@@ -564,7 +581,7 @@ function BasicsPane({
 
       <EditorSection
         hoverOutline
-        title="Kind of work"
+        title="Service"
         aside={
           <Button type="button" variant="ghost" size="sm" className="text-muted-foreground" onClick={onAddService} data-testid="editor-add-service">
             <Plus /> Add a service
@@ -622,11 +639,26 @@ function StandardFieldEditor({ field, form, previewRequest, onPatch }: { field: 
           </span>
         )}
       </span>
-      {/* The control itself, inert: it belongs to whoever fills the form in. */}
+      <FieldHintBox field={field} onPatch={onPatch} />
+      {/* The control itself, inert: it belongs to whoever fills the form in. The hint is the box above. */}
       <div className="pointer-events-none" aria-hidden>
-        <StandardField field={field} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
+        <StandardField field={{ ...field, description: null }} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
       </div>
     </div>
+  );
+}
+
+/** The line under a fixed question, as the form prints it: editable, and left out when empty. */
+function FieldHintBox({ field, onPatch }: { field: BookingStandardField; onPatch: (patch: Partial<BookingStandardField>) => void }) {
+  return (
+    <TextBox
+      value={field.description ?? ""}
+      onChange={(v) => onPatch({ description: v.trim() ? v : null })}
+      ariaLabel={`Hint for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`}
+      placeholder="A line under it (optional)"
+      className="-mt-1 text-2xs text-muted-foreground"
+      testId={`editor-field-hint-${field.id}`}
+    />
   );
 }
 
@@ -1103,7 +1135,7 @@ function ServicePicker({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex h-12 w-full max-w-xl min-w-0 items-center gap-2.5 rounded-xl border border-border bg-card px-4 text-left text-base font-semibold shadow-xs transition-colors hover:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring sm:w-auto sm:min-w-96"
+            className="flex h-12 w-full max-w-xl min-w-0 items-center gap-2.5 rounded-xl border border-border bg-card px-4 text-left text-base font-semibold shadow-xs transition-colors focus-visible:outline-2 focus-visible:outline-ring sm:w-auto sm:min-w-96"
             aria-label={`Brief for ${selected.name || "Untitled"}. Change service`}
             data-testid="editor-brief-service-picker"
           >

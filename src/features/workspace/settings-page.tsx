@@ -380,7 +380,7 @@ function OverviewSection({ onGo }: { onGo: (section: Section) => void }) {
     { label: "People", value: ws.activeUsers.length, icon: UserCog, href: routes.members(ws.slug) },
     { label: "Tickets issued", value: ws.workspace.ticketCounter ?? 0, icon: Hash, onClick: () => onGo("tickets") },
   ];
-  const tile = "group flex flex-col gap-1 rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-xs transition-colors hover:border-border hover:bg-accent/40";
+  const tile = "group flex flex-col gap-1 rounded-xl border border-border/70 bg-card p-3.5 text-left shadow-xs transition-colors hover:bg-accent/40";
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -674,7 +674,7 @@ function AppearanceSection() {
               onClick={() => setTheme(value)}
               className={cn(
                 "flex flex-col gap-2 rounded-lg border p-2 text-left transition-colors",
-                theme === value ? "border-foreground/60 ring-2 ring-ring/30" : "border-border/70 hover:border-border hover:bg-accent/40",
+                theme === value ? "border-foreground/60 ring-2 ring-ring/30" : "border-border/70 hover:bg-accent/40",
               )}
               data-testid={`setting-theme-${value}`}
             >

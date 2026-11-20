@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.123.2",
+    date: "2026-11-20",
+    title: "No hover outlines, wrapping text",
+    changes: [
+      "Pointing at cards, chips, tiles and rows no longer draws an outline; the fill still changes. The booking editor's blocks keep theirs.",
+      "In the booking form editor the line under each fixed question (task name, needed by, urgency, who is asking) can be edited.",
+      "The editor's text boxes wrap long text and grow to fit it. Kind of work is now Service.",
+      "Switching step in the editor opens the new step at its top.",
+    ],
+  },
+  {
     version: "0.123.1",
     date: "2026-11-20",
     title: "Calmer step tabs",

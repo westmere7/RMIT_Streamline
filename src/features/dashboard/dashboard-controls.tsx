@@ -289,7 +289,7 @@ function MeasureHelp({ measure, onChange, effortAvailable }: { measure: MeasureK
                   "flex flex-col rounded-2xl border p-4 text-left transition-colors",
                   active
                     ? "border-primary/40 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-primary)_10%,var(--color-card)),var(--color-card)_65%)]"
-                    : "border-border/60 bg-card hover:border-border hover:bg-accent/40",
+                    : "border-border/60 bg-card hover:bg-accent/40",
                 )}
                 data-testid={`dashboard-measure-help-${entry.measure}`}
               >

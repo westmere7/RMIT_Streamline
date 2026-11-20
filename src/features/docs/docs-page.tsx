@@ -74,7 +74,7 @@ export function DocsPage() {
                 return (
                   <li key={doc.id}>
                     <RowMenu label={`Options for ${doc.title}`} actions={actions} hideButton>
-                      <Link href={routes.doc(ws.slug, doc.id)} className="flex min-h-28 flex-col rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[background-color,border-color,box-shadow] hover:border-ring/60 hover:shadow-md" data-testid="doc-card">
+                      <Link href={routes.doc(ws.slug, doc.id)} className="flex min-h-28 flex-col rounded-xl border border-border/70 bg-card p-4 shadow-xs transition-[background-color,border-color,box-shadow] hover:shadow-md" data-testid="doc-card">
                         <span className="flex items-center gap-2.5">
                           <DocGlyph doc={doc} className="size-9 text-lg" />
                           <span className="min-w-0">

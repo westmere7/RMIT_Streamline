@@ -599,7 +599,7 @@ export function ServiceCardShell({
         interactive && "cursor-pointer",
         // Picked: filled, like every other "on" state, rather than outlined.
         selected ? "state-on border-transparent" : "border-border bg-card",
-        interactive && !selected && "hover:border-foreground/30 hover:bg-accent/40",
+        interactive && !selected && " hover:bg-accent/40",
         className,
       )}
     >
@@ -763,7 +763,7 @@ function OwnChoiceAdder({ onAdd, disabled, testId }: { onAdd: (value: string) =>
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-border px-3 text-[13px] text-muted-foreground transition-colors enabled:hover:border-foreground/40 enabled:hover:text-foreground disabled:opacity-70 max-md:h-11 max-md:text-[15px]"
+        className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-border px-3 text-[13px] text-muted-foreground transition-colors enabled:hover:text-foreground disabled:opacity-70 max-md:h-11 max-md:text-[15px]"
         data-testid={testId}
       >
         <Plus className="size-3.5" aria-hidden /> Add your own
@@ -826,7 +826,7 @@ export function Chip({
       className={cn(
         "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-default disabled:opacity-70 max-md:h-11 max-md:text-[15px]",
         // Picked: the same fill as a picked service card.
-        active ? "state-on border-transparent" : "border-border bg-card text-foreground enabled:hover:border-foreground/40 enabled:hover:bg-accent",
+        active ? "state-on border-transparent" : "border-border bg-card text-foreground enabled:hover:bg-accent",
         locked && "cursor-default",
       )}
     >
@@ -882,7 +882,7 @@ export function AssetTypePicker({
           }}
           className={cn(
             "flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-xl border border-border bg-card px-2 py-1.5 text-left text-[13px] transition-colors",
-            disabled ? "cursor-default opacity-70" : "cursor-pointer hover:border-foreground/30",
+            disabled ? "cursor-default opacity-70" : "cursor-pointer",
             "focus-visible:outline-2 focus-visible:outline-ring max-md:min-h-11 max-md:text-[15px]",
           )}
           data-testid={tid("booking-asset-picker")}

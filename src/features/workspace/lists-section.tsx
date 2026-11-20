@@ -354,7 +354,7 @@ function ListRow({
             <button
               type="button"
               aria-label={`Colour of ${row.name}`}
-              className={cn("relative size-4 shrink-0 rounded-full after:absolute after:-inset-3 after:content-['']", colorClasses(row.color).dot, canEdit && !removed && "hover:ring-2 hover:ring-ring")}
+              className={cn("relative size-4 shrink-0 rounded-full after:absolute after:-inset-3 after:content-['']", colorClasses(row.color).dot, canEdit && !removed && "hover:brightness-110")}
               data-testid="list-option-color"
             />
           </PopoverTrigger>

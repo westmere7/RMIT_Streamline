@@ -76,7 +76,7 @@ export function ChoiceChips({
         type="button"
         onClick={add}
         className={cn(
-          "inline-flex h-8 items-center gap-1 border border-dashed border-border text-[13px] text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground",
+          "inline-flex h-8 items-center gap-1 border border-dashed border-border text-[13px] text-muted-foreground transition-colors hover:text-foreground",
           list ? "w-full justify-start rounded-lg px-2.5" : "rounded-full px-2.5",
         )}
         data-testid={testIdPrefix ? `${testIdPrefix}-add` : undefined}
