@@ -128,6 +128,11 @@ export interface TrackerAssetMapping {
   spec: EntityId[];
   /** Link columns, each becoming a link on the line under the column's name. */
   links: EntityId[];
+  /**
+   * Data rows that are not assets (a repeated header row, a total), kept in the
+   * sheet and left out of the task's lines. Absent on older mappings: none.
+   */
+  ignoreRows?: EntityId[];
 }
 
 export interface Tracker extends Timestamps {

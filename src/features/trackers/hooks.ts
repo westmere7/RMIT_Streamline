@@ -190,6 +190,12 @@ export function useSheetAssetMutations() {
     onError: fail("Could not save the asset settings"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
+  /** Section or channel labels typed as rows, made into bands. */
+  const bandRows = useMutation({
+    mutationFn: ({ sheetId, rowIds }: { sheetId: string; trackerId: string; rowIds: string[] }) => services.trackers.bandRows(sheetId, rowIds, user.id),
+    onError: fail("Could not make those rows bands"),
+    onSettled: (_data, _error, { trackerId }) => settle(trackerId),
+  });
   /** A column for a part the sheet has none for; the settings then point the part at it. */
   const addColumn = useMutation({
     mutationFn: ({ sheetId, role, options }: { sheetId: string; trackerId: string; role: Exclude<AssetRole, "spec">; options?: string[] }) => services.trackers.addAssetColumn(sheetId, role, user.id, options),
@@ -203,7 +209,7 @@ export function useSheetAssetMutations() {
     onError: fail("Could not unlink the sheet"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
-  return { link, setMapping, unlink, addColumn };
+  return { link, setMapping, unlink, addColumn, bandRows };
 }
 
 /** The sheet holding a task's assets, for the task's Assets tab. */

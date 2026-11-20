@@ -70,6 +70,7 @@ export function normalizeAssetMapping(raw: unknown, columns: readonly TrackerCol
     done: { columnId: column(done.columnId), values: Array.isArray(done.values) ? done.values.filter((v): v is string => typeof v === "string") : [] },
     spec: Array.isArray(m.spec) ? m.spec.map((id) => (specBreakKind(id) ? (id as string) : column(id))).filter((id): id is string => !!id) : [],
     links: Array.isArray(m.links) ? m.links.map(column).filter((id): id is string => !!id) : [],
+    ...(Array.isArray(m.ignoreRows) && m.ignoreRows.length ? { ignoreRows: [...new Set(m.ignoreRows.filter((id): id is string => typeof id === "string" && !!id))] } : {}),
   };
 }
 
@@ -360,6 +361,49 @@ export function suggestAssetMapping(sheet: Pick<TrackerSheet, "columns">): Track
   return mapping;
 }
 
+/** What a data row that is not an asset looks like: a repeated header, a section label, a total. */
+export type NonAssetRowKind = "header" | "section" | "total";
+
+/** Words a section or channel label tends to start with ("Phase 1 — Connect", "Channel: Web"). */
+const SECTION_WORDS = /^(phase|channel|section|stage|part|week|day|month|category|group|platform|market|campaign|placement|deliverables?)\b/i;
+
+/**
+ * Data rows of a sheet that read as something other than an asset, for the
+ * asset settings to show and deal with:
+ *  - a header: its cells repeat the column names (a pasted or second header row);
+ *  - a total: it opens with Total, Subtotal or Grand total;
+ *  - a section or channel label: one short piece of text and nothing else, in
+ *    capitals, ending with a colon, or starting with Phase, Channel, Week… —
+ *    only in a sheet whose other rows hold several values (a sheet of bare
+ *    names is a list of assets, not of labels).
+ * Bands are already bands; rows the mapping leaves out are not reported again.
+ */
+export function detectNonAssetRows(sheet: Pick<TrackerSheet, "columns" | "rows">, mapping?: Pick<TrackerAssetMapping, "ignoreRows"> | null): Array<{ rowId: string; kind: NonAssetRowKind; text: string }> {
+  const ignored = new Set(mapping?.ignoreRows ?? []);
+  const names = new Set(sheet.columns.map((c) => c.name.trim().toLowerCase()).filter(Boolean));
+  const valuesOf = (row: TrackerSheet["rows"][number]) => sheet.columns.map((c) => row.cells[c.id]).filter((v) => typeof v === "string" || typeof v === "number").map((v) => String(v).trim()).filter(Boolean);
+  const data = sheet.rows.filter((r) => r.kind === "data");
+  const structured = data.filter((r) => valuesOf(r).length >= 2).length >= 2;
+  const out: Array<{ rowId: string; kind: NonAssetRowKind; text: string }> = [];
+  for (const row of data) {
+    if (ignored.has(row.id)) continue;
+    const values = valuesOf(row);
+    if (values.length === 0) continue;
+    const asNames = values.filter((v) => names.has(v.toLowerCase())).length;
+    if (asNames >= 2 && asNames * 2 >= values.length) out.push({ rowId: row.id, kind: "header", text: values.join(" · ") });
+    else if (/^(grand\s+)?(sub)?totals?\b/i.test(values[0]!)) out.push({ rowId: row.id, kind: "total", text: values[0]! });
+    else if (structured && values.length === 1 && looksLikeLabel(values[0]!)) out.push({ rowId: row.id, kind: "section", text: values[0]! });
+  }
+  return out;
+}
+
+function looksLikeLabel(text: string): boolean {
+  if (text.length > 80 || /^[\d\s.,%$-]+$/.test(text)) return false;
+  const letters = text.replace(/[^\p{L}]/gu, "");
+  const shouting = letters.length >= 3 && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
+  return shouting || /:\s*$/.test(text) || SECTION_WORDS.test(text);
+}
+
 function cellText(value: TrackerCellValue | undefined): string {
   if (value === null || value === undefined || value === false) return "";
   if (value === true) return "Yes";
@@ -401,8 +445,10 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
   const linkCols = mapping.links.map(col).filter((c): c is TrackerColumn => !!c);
 
   const lines: SheetAssetLine[] = [];
+  const ignored = new Set(mapping.ignoreRows ?? []);
   let band: { id: string; name: string } | null = null;
   for (const row of sheet.rows) {
+    if (row.kind === "data" && ignored.has(row.id)) continue;
     if (row.kind !== "data") {
       // item_assets.block_name holds 200 characters; longer would fail the whole sync.
       band = { id: asUuid(row.id), name: (row.label?.trim() || (row.kind === "section" ? "Phase" : "Channel")).slice(0, 200) };

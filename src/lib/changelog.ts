@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.132.0",
+    date: "2026-11-20",
+    title: "See the sheet while matching columns",
+    changes: [
+      "Task assets settings show the sheet itself, each column tagged with the part it plays; pointing at a column in a dropdown or chip lights it up in the sheet.",
+      "Rows that are not assets are spotted: a repeated header, a section or channel label typed as a row, a total. Sections become bands; headers and totals are left out of the assets and stay in the sheet. One switch turns this off.",
+    ],
+  },
+  {
     version: "0.131.0",
     date: "2026-11-20",
     title: "Fresh sheets set themselves up",

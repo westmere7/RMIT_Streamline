@@ -406,6 +406,23 @@ export class TrackerService {
     throw new Error("The sheet kept changing. Try again in a moment.");
   }
 
+  /**
+   * Turns data rows that are really section or channel labels into bands
+   * (labelled with their text), as the asset settings offer when they spot them.
+   * Saved like any edit, so a linked sheet's lines pick up the new blocks.
+   */
+  async bandRows(sheetId: EntityId, rowIds: EntityId[], actorId: EntityId): Promise<TrackerSheet> {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const sheet = await this.getSheet(sheetId);
+      const ids = rowIds.filter((id) => sheet.rows.some((r) => r.id === id && r.kind === "data"));
+      if (ids.length === 0) return sheet;
+      const banded = TrackerService.setRowKind(sheet, ids, "section");
+      const result = await this.saveSheetDraft(sheetId, { rows: banded.rows }, sheet.updatedAt, actorId);
+      if (!("conflict" in result)) return result.sheet;
+    }
+    throw new Error("The sheet kept changing. Try again in a moment.");
+  }
+
   /** Changes how a linked (or not yet linked) sheet's rows read as assets. */
   async setAssetMapping(sheetId: EntityId, mapping: TrackerAssetMapping, actorId: EntityId): Promise<{ sheet: TrackerSheet; sync: SheetSyncResult | null }> {
     const sheet = await this.getSheet(sheetId);
