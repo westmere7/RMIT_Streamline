@@ -227,10 +227,12 @@ export function roleMismatch(
 
 function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue | undefined, text: string, people: readonly AssetPerson[]): boolean {
   switch (role) {
-    // A tick is no name or type ("Yes"); a done mark reads from anything (the rest are just not done).
+    // A tick is no name or type ("Yes"). A done mark reads from any text (the rest are just not done), never from a date, a number or a person.
     case "name":
     case "type":
       return typeof value !== "boolean";
+    case "done":
+      return !WRONG_COLUMN_TYPES.done!.includes(column.type);
     case "quantity":
       return readQuantity(value) !== null;
     case "pic":
@@ -242,6 +244,11 @@ function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue
     default:
       return true;
   }
+}
+
+/** The type a column is turned into when its own cannot hold a part (the asset type stays free text, not a dropdown). */
+export function fitTypeFor(role: Exclude<AssetRole, "spec">): TrackerColumnType {
+  return role === "type" ? "text" : NEW_ASSET_COLUMN[role].type;
 }
 
 /** The column a part gets when the sheet has none for it: a name and a type that read as that part. */

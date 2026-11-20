@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { emptyAssetMapping, readDate, readQuantity, roleMismatch, sheetAssetLines, sheetLineCells, wrongColumnType, type TrackerAssetMapping, type TrackerColumn, type TrackerRow } from "@/domain";
+import { createLocalRepositories } from "@/data/local";
+import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
+import { createServices } from "@/services";
 import { TrackerService } from "@/services/tracker-service";
 
 /**
@@ -77,7 +80,7 @@ describe("a column of the wrong kind", () => {
   it("a name from a Checkbox column is flagged (it would read as Yes); a done mark reads from any text but not from a Date column", () => {
     expect(roleMismatch(sheet, "ok", "name")).toMatchObject({ wrongType: "checkbox", rowIds: ["a", "c"] });
     expect(roleMismatch(sheet, "st", "done")).toBeNull();
-    expect(roleMismatch(sheet, "dt", "done")).toEqual({ unreadable: 0, filled: 1, expected: "a done mark", rowIds: [], wrongType: "date" });
+    expect(roleMismatch(sheet, "dt", "done")).toEqual({ unreadable: 1, filled: 1, expected: "a done mark", rowIds: ["a"], wrongType: "date" });
   });
 
   it("an empty column of the wrong type is still called out", () => {
@@ -102,5 +105,67 @@ describe("a column of the wrong kind", () => {
     // A column of the right type takes it as before.
     expect(into("txt", { dueDate: "2026-04-01" }, { due: { columnId: "txt", value: null } })).toEqual({ cells: [{ columnId: "txt", value: "2026-04-01" }], refused: null });
     expect(into("ok", { completedAt: "2026-04-01T00:00:00Z" }, { done: { columnId: "ok", values: [] } })).toEqual({ cells: [{ columnId: "ok", value: true }], refused: null });
+  });
+});
+
+describe("making a column fit its part (v0.133.1)", () => {
+  const columns = [col("n", "Asset", "text"), col("ok", "Approved", "checkbox"), col("num", "Day", "number"), col("txt", "When", "text"), col("q", "Count", "text")];
+  const rows = [
+    data("a", { n: "Poster", ok: true, num: 46000, txt: "14/03/2026", q: "3 pcs" }),
+    data("b", { n: "Flyer", ok: false, num: 3, txt: "next week", q: "lots" }),
+    data("c", { n: "Banner", num: 46010, txt: "2026-04-01", q: 2 }),
+    { id: "band", kind: "section" as const, label: "Print", cells: {} },
+  ];
+  const base = { id: "s", trackerId: "t", name: "S", position: 0, columns, rows, frozenColumns: 1, itemId: null, assetMapping: null, createdAt: "", updatedAt: "" } as unknown as Parameters<typeof TrackerService.fitColumn>[0];
+
+  it("clears only what the part cannot read in a column of the right type, and leaves the rest as typed", () => {
+    const out = TrackerService.fitColumn(base, "txt", "due");
+    expect(out.cleared).toBe(1);
+    expect(out.retyped).toBeNull();
+    expect(out.sheet.rows.map((r) => r.cells.txt ?? null)).toEqual(["14/03/2026", null, "2026-04-01", null]);
+    expect(out.sheet.columns.find((c) => c.id === "txt")!.type).toBe("text");
+    // Nothing else in the sheet moves.
+    expect(out.sheet.rows.map((r) => r.cells.n ?? null)).toEqual(["Poster", "Flyer", "Banner", null]);
+  });
+
+  it("a Number column as the due date becomes a Date column: Excel days become dates, a 3 is cleared", () => {
+    const out = TrackerService.fitColumn(base, "num", "due");
+    expect(out).toMatchObject({ cleared: 1, retyped: "date" });
+    expect(out.sheet.columns.find((c) => c.id === "num")!.type).toBe("date");
+    expect(out.sheet.rows.map((r) => r.cells.num ?? null)).toEqual(["2025-12-09", null, "2025-12-19", null]);
+    expect(roleMismatch(out.sheet, "num", "due")).toBeNull();
+  });
+
+  it("a Checkbox column as the due date: every tick cleared, and it becomes a Date column", () => {
+    const out = TrackerService.fitColumn(base, "ok", "due");
+    expect(out).toMatchObject({ cleared: 1, retyped: "date" });
+    expect(out.sheet.rows.every((r) => !("ok" in r.cells))).toBe(true);
+  });
+
+  it("quantities: words cleared, counts with units kept", () => {
+    const out = TrackerService.fitColumn(base, "q", "quantity");
+    expect(out.cleared).toBe(1);
+    expect(out.sheet.rows.map((r) => r.cells.q ?? null)).toEqual(["3 pcs", null, 2, null]);
+    expect(roleMismatch(out.sheet, "q", "quantity")).toBeNull();
+  });
+
+  it("a column that already fits is left alone", () => {
+    const out = TrackerService.fitColumn(base, "n", "name");
+    expect(out).toEqual({ sheet: base, cleared: 0, retyped: null });
+  });
+
+  it("saves through the service and the column fits afterwards", async () => {
+    const services = createServices(createLocalRepositories({ databaseName: `fit-${Date.now()}-${Math.random()}` }));
+    const { sheets } = await services.trackers.create(
+      { workspaceId: SEED_WORKSPACE_ID, teamId: null, name: "Fit", layout: "blank", sheets: [{ name: "S", columns, frozenColumns: 1, rows: rows.filter((r) => r.kind === "data") }] },
+      SEED_USER_IDS.jun,
+    );
+    const done = await services.trackers.fitAssetColumn(sheets[0]!.id, "num", "due", SEED_USER_IDS.jun);
+    expect(done).toMatchObject({ cleared: 1, retyped: "date" });
+    const saved = await services.trackers.getSheet(sheets[0]!.id);
+    expect(saved.columns.find((c) => c.id === "num")!.type).toBe("date");
+    expect(roleMismatch(saved, "num", "due")).toBeNull();
+    // Asked again, nothing is left to do.
+    expect(await services.trackers.fitAssetColumn(sheets[0]!.id, "num", "due", SEED_USER_IDS.jun)).toMatchObject({ cleared: 0, retyped: null });
   });
 });

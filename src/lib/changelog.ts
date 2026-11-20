@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.133.1",
+    date: "2026-11-20",
+    title: "When a column doesn't fit",
+    changes: ["Choosing a column whose data doesn't fit a part (from the settings, the sheet or a column's menu) now asks what to do: clear the cells it can't read (and change the column's type when that can't hold the part), choose another column, make a new one, or cancel. It shows a few of the values and warns when the column gives another part too."],
+  },
+  {
     version: "0.133.0",
     date: "2026-11-20",
     title: "Mark rows by hand",

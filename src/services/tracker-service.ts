@@ -1,5 +1,5 @@
 import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, excelSerialToDate, readDate, toIsoDate, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
+import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, excelSerialToDate, fitTypeFor, readDate, readQuantity, roleMismatch, toIsoDate, type AssetPerson, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -447,6 +447,54 @@ export class TrackerService {
       if (!("conflict" in result)) return { sheet: result.sheet, column };
     }
     throw new Error("The sheet kept changing. Try again in a moment.");
+  }
+
+  /**
+   * Makes a column fit a part of the task's assets, as asked from the prompt
+   * when it does not: clears the cells the part cannot read and, when the
+   * column's type cannot hold the part, turns it into the part's own type.
+   */
+  async fitAssetColumn(sheetId: EntityId, columnId: EntityId, role: Exclude<AssetRole, "spec">, actorId: EntityId, people: readonly AssetPerson[] = []): Promise<{ sheet: TrackerSheet; cleared: number; retyped: TrackerColumnType | null }> {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const sheet = await this.getSheet(sheetId);
+      const fitted = TrackerService.fitColumn(sheet, columnId, role, people);
+      if (!fitted.cleared && !fitted.retyped) return { sheet, cleared: 0, retyped: null };
+      const result = await this.saveSheetDraft(sheetId, { columns: fitted.sheet.columns, rows: fitted.sheet.rows }, sheet.updatedAt, actorId);
+      if (!("conflict" in result)) return { sheet: result.sheet, cleared: fitted.cleared, retyped: fitted.retyped };
+    }
+    throw new Error("The sheet kept changing. Try again in a moment.");
+  }
+
+  /**
+   * The sheet with one column made to fit a part: the cells the part cannot
+   * read emptied, and a column whose type cannot hold the part turned into the
+   * part's own type, every value left read as the part reads it (14/03/2026 as
+   * 2026-03-14, "3 pcs" as 3) so nothing that counted is lost.
+   */
+  static fitColumn(sheet: TrackerSheet, columnId: EntityId, role: Exclude<AssetRole, "spec">, people: readonly AssetPerson[] = []): { sheet: TrackerSheet; cleared: number; retyped: TrackerColumnType | null } {
+    const mismatch = roleMismatch(sheet, columnId, role, people);
+    if (!mismatch) return { sheet, cleared: 0, retyped: null };
+    const clear = new Set(mismatch.rowIds);
+    const retyped = mismatch.wrongType ? fitTypeFor(role) : null;
+    const read = (value: TrackerCellValue): TrackerCellValue => {
+      if (!retyped) return value;
+      // An unticked box is no value of the new type (and was never a filled cell to clear).
+      if (typeof value === "boolean" && retyped !== "checkbox") return null;
+      if (role === "due") return readDate(value) ?? value;
+      if (role === "quantity") return readQuantity(value) ?? value;
+      return value;
+    };
+    const rows = sheet.rows.map((row) => {
+      if (row.kind !== "data" || !(columnId in row.cells)) return row;
+      const cells = { ...row.cells };
+      const value = clear.has(row.id) ? null : read(cells[columnId]!);
+      if (value === null) delete cells[columnId];
+      else cells[columnId] = value;
+      return { ...row, cells };
+    });
+    const cleared = sheet.rows.filter((r) => clear.has(r.id) && r.kind === "data").length;
+    const next = { ...sheet, rows };
+    return { sheet: retyped ? TrackerService.updateColumn(next, columnId, { type: retyped }) : next, cleared, retyped };
   }
 
   /** Lets the sheet go of its task: the task's lines from it are taken off. The rows stay in the sheet. */

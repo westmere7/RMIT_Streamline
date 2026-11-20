@@ -15,13 +15,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { assignAssetRole, isMappingUsable, roleMismatch, suggestAssetMapping, trackerPeople, type AssetRole, type TrackerAssetMapping, type TrackerColumn, type TrackerSheet } from "@/domain";
+import { assignAssetRole, isMappingUsable, suggestAssetMapping, type AssetRole, type TrackerAssetMapping, type TrackerColumn, type TrackerSheet } from "@/domain";
 import { exportSheetToCsv, exportTrackerToFile, useSheetAssetMutations, useTracker, useTrackerMutations, useTrackerRealtime, useTrackerSheets } from "@/features/trackers/hooks";
 import { DeleteTrackerDialog, KeepAssetsSwitch, useLinkedTaskNames } from "@/features/trackers/delete-tracker-dialog";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
-import { ASSET_ROLE_LABELS, LinkedSheetBar, TaskAssetsDialog, mismatchText, useLinkedTask, useTrackerPeopleDirectory } from "@/features/trackers/tracker-asset-ui";
+import { ColumnFitPrompt, LinkedSheetBar, TaskAssetsDialog, fitCheckFor, useLinkedTask, useTrackerPeopleDirectory, type FitCheck } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { canEditTrackers } from "@/lib/permissions/permissions";
@@ -51,7 +51,7 @@ export function TrackerPage() {
   const [seedMapping, setSeedMapping] = React.useState<TrackerAssetMapping | null>(null);
   const sheetAssets = useSheetAssetMutations();
   // A role picked for a column whose cells it cannot all read waits here for a yes.
-  const [roleCheck, setRoleCheck] = React.useState<{ sheet: TrackerSheet; column: TrackerColumn; role: AssetRole; message: string } | null>(null);
+  const [roleCheck, setRoleCheck] = React.useState<{ sheet: TrackerSheet; check: FitCheck } | null>(null);
 
   const sheetParam = searchParams.get("sheet");
   const activeSheet: TrackerSheet | undefined = sheets.data?.find((s) => s.id === sheetParam) ?? sheets.data?.[0];
@@ -62,9 +62,18 @@ export function TrackerPage() {
 
   /** A column's part, picked from its header menu: saved at once on a linked sheet, else the dialog opens on it to choose the task. */
   const pickAssetRole = (sheet: TrackerSheet, column: TrackerColumn, role: AssetRole | null) => {
-    const mismatch = role ? roleMismatch(sheet, column.id, role, trackerPeople()) : null;
-    if (mismatch && role) return setRoleCheck({ sheet, column, role, message: mismatchText(mismatch) });
+    const check = role && role !== "spec" ? fitCheckFor(sheet, column.id, role, sheet.assetMapping) : null;
+    if (check) return setRoleCheck({ sheet, check });
     applyAssetRole(sheet, column, role);
+  };
+  /** A part given to a column just made for it: saved on a linked sheet, else the dialog opens on it. */
+  const newColumnFor = async (sheet: TrackerSheet, role: Exclude<AssetRole, "spec">) => {
+    const made = await sheetAssets.addColumn.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, role });
+    const mapping = assignAssetRole(made.sheet.assetMapping ?? suggestAssetMapping(made.sheet), made.column, role);
+    if (!made.sheet.itemId) {
+      setSeedMapping(mapping);
+      setAssetsOpen(true);
+    } else if (isMappingUsable(mapping)) sheetAssets.setMapping.mutate({ sheetId: sheet.id, trackerId: sheet.trackerId, mapping });
   };
   const applyAssetRole = (sheet: TrackerSheet, column: TrackerColumn, role: AssetRole | null) => {
     const mapping = assignAssetRole(sheet.assetMapping ?? suggestAssetMapping(sheet), column, role);
@@ -267,16 +276,30 @@ export function TrackerPage() {
 
         <ActiveGrid canEdit={canEditSheet} onAssetRole={canEditSheet ? pickAssetRole : undefined} />
 
-        <ConfirmDialog
-          open={!!roleCheck}
-          onOpenChange={(open) => !open && setRoleCheck(null)}
-          title={roleCheck ? `Use “${roleCheck.column.name}” as ${(roleCheck.role === "pic" ? "PIC" : ASSET_ROLE_LABELS[roleCheck.role].toLowerCase())}?` : ""}
-          description={roleCheck?.message}
-          confirmLabel="Use anyway"
-          onConfirm={() => {
-            if (roleCheck) applyAssetRole(roleCheck.sheet, roleCheck.column, roleCheck.role);
+        <ColumnFitPrompt
+          check={roleCheck?.check ?? null}
+          busy={sheetAssets.fitColumn.isPending}
+          onFix={async () => {
+            if (!roleCheck) return;
+            const { sheet, check } = roleCheck;
+            const fitted = await sheetAssets.fitColumn.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, columnId: check.column.id, role: check.role });
+            setRoleCheck(null);
+            const mapping = assignAssetRole(fitted.sheet.assetMapping ?? suggestAssetMapping(fitted.sheet), check.column, check.role);
+            if (!fitted.sheet.itemId) {
+              setSeedMapping(mapping);
+              setAssetsOpen(true);
+            } else if (isMappingUsable(mapping)) sheetAssets.setMapping.mutate({ sheetId: sheet.id, trackerId: sheet.trackerId, mapping });
+          }}
+          onOther={() => {
+            setRoleCheck(null);
+            setSeedMapping(null);
+            setAssetsOpen(true);
+          }}
+          onNew={() => {
+            if (roleCheck) void newColumnFor(roleCheck.sheet, roleCheck.check.role).catch(() => undefined);
             setRoleCheck(null);
           }}
+          onCancel={() => setRoleCheck(null)}
         />
         {activeSheet && (
           <ActiveTaskAssetsDialog

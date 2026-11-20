@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import type { AssetRole, Tracker, TrackerAssetMapping, TrackerSheet } from "@/domain";
-import { mergeSheets } from "@/domain";
+import { mergeSheets, trackerPeople } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { canSeeTeamId } from "@/lib/permissions/permissions";
@@ -196,6 +196,13 @@ export function useSheetAssetMutations() {
     onError: fail("Could not make those rows bands"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
+  /** A column made to fit a part: the cells it cannot read cleared, its type changed when that cannot hold the part. */
+  const fitColumn = useMutation({
+    mutationFn: ({ sheetId, columnId, role }: { sheetId: string; trackerId: string; columnId: string; role: Exclude<AssetRole, "spec"> }) => services.trackers.fitAssetColumn(sheetId, columnId, role, user.id, trackerPeople()),
+    onSuccess: ({ sheet }, { trackerId }) => queryClient.setQueryData<TrackerSheet[]>(queryKeys.trackerSheets(trackerId), (old) => old?.map((s) => (s.id === sheet.id ? sheet : s))),
+    onError: fail("Could not change the column"),
+    onSettled: (_data, _error, { trackerId }) => settle(trackerId),
+  });
   /** A column for a part the sheet has none for; the settings then point the part at it. */
   const addColumn = useMutation({
     mutationFn: ({ sheetId, role, options }: { sheetId: string; trackerId: string; role: Exclude<AssetRole, "spec">; options?: string[] }) => services.trackers.addAssetColumn(sheetId, role, user.id, options),
@@ -209,7 +216,7 @@ export function useSheetAssetMutations() {
     onError: fail("Could not unlink the sheet"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
-  return { link, setMapping, unlink, addColumn, bandRows };
+  return { link, setMapping, unlink, addColumn, bandRows, fitColumn };
 }
 
 /** The sheet holding a task's assets, for the task's Assets tab. */

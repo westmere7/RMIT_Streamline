@@ -15,9 +15,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
+  assetRoleOf,
   assignAssetRole,
   canBeBand,
   columnLetter,
+  fitTypeFor,
   nonAssetPlan,
   type RowMark,
   detectNonAssetRows,
@@ -436,8 +438,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
     });
   // The part whose column is being chosen on the sheet, when the pop-up is open.
   const [picking, setPicking] = React.useState<PickRequest | null>(null);
-  const onSheet = (label: string, role: Exclude<AssetRole, "spec" | "link">, value: string | null, allowNone: boolean) =>
-    pickOnSheet ? () => setPicking({ label, role, value, allowNone, onChoose: pick(role), onCreate: newColumn(role) }) : undefined;
+  const onSheet = (role: SinglePart) => (pickOnSheet ? () => setPicking(pickerFor(role)) : undefined);
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
   const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending || mutations.bandRows.isPending;
@@ -456,6 +457,21 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
       return column ? assignAssetRole(m, column, columnId ? role : null) : m;
     });
   const taken = new Set([mapping.name, mapping.type.columnId, mapping.quantity.columnId, mapping.pic.columnId, mapping.due.columnId, mapping.done.columnId].filter((id): id is string => !!id));
+  // A column that does not fit its part waits here: clear what it cannot read, choose another, make a new one, or cancel.
+  const [fitCheck, setFitCheck] = React.useState<FitCheck | null>(null);
+  const choose = (role: SinglePart) => (columnId: string | null) => {
+    const check = columnId ? fitCheckFor(shown, columnId, role, mapping) : null;
+    if (check) return setFitCheck(check);
+    pick(role)(columnId);
+  };
+  const pickerFor = (role: SinglePart): PickRequest => ({
+    label: PART_LABELS[role],
+    role,
+    value: role === "name" ? mapping.name : mapping[role].columnId,
+    allowNone: role !== "name",
+    onChoose: choose(role),
+    onCreate: newColumn(role),
+  });
 
   const save = async () => {
     // Section labels first become bands, so the lines come out in their blocks.
@@ -593,11 +609,11 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         <section className="space-y-2.5">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
           <MapRow label="Asset name">
-            <ColumnSelect columns={columns} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("Asset name", "name", mapping.name, false)} />
+            <ColumnSelect columns={columns} value={mapping.name} onChange={choose("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("name")} />
           </MapRow>
           {warn(mapping.name, "name")}
           <MapRow label="Type">
-            <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("Type", "type", mapping.type.columnId, true)} />
+            <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={choose("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("type")} />
             <select
               value={mapping.type.value ?? ""}
               onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
@@ -616,7 +632,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           </MapRow>
           {warn(mapping.type.columnId, "type")}
           <MapRow label="Quantity">
-            <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("Quantity", "quantity", mapping.quantity.columnId, true)} />
+            <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={choose("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("quantity")} />
             <Input
               type="number"
               min={0}
@@ -629,12 +645,12 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           </MapRow>
           {warn(mapping.quantity.columnId, "quantity")}
           <MapRow label="PIC">
-            <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" onPickOnSheet={onSheet("PIC", "pic", mapping.pic.columnId, true)} />
+            <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={choose("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" onPickOnSheet={onSheet("pic")} />
             <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
           </MapRow>
           {warn(mapping.pic.columnId, "pic")}
           <MapRow label="Due date">
-            <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" onPickOnSheet={onSheet("Due date", "due", mapping.due.columnId, true)} />
+            <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={choose("due")} onCreate={newColumn("due")} none="No column" testId="map-due" onPickOnSheet={onSheet("due")} />
             <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
           </MapRow>
           {warn(mapping.due.columnId, "due")}
@@ -642,10 +658,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
             <ColumnSelect
               columns={columns}
               value={mapping.done.columnId}
-              onChange={pick("done")}
+              onChange={choose("done")}
               onCreate={newColumn("done")}
               none="Nothing counts as done"
-              testId="map-done" onPickOnSheet={onSheet("Done", "done", mapping.done.columnId, true)}
+              testId="map-done" onPickOnSheet={onSheet("done")}
             />
           </MapRow>
           {warn(mapping.done.columnId, "done")}
@@ -712,6 +728,25 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
       )}
 
       <ColumnPickerDialog request={picking} sheet={previewSheet} mapping={effectiveMapping} bandIds={bandIds} onClose={() => setPicking(null)} />
+      <ColumnFitPrompt
+        check={fitCheck}
+        busy={mutations.fitColumn.isPending}
+        onFix={async () => {
+          if (!fitCheck) return;
+          await mutations.fitColumn.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, columnId: fitCheck.column.id, role: fitCheck.role });
+          pick(fitCheck.role)(fitCheck.column.id);
+          setFitCheck(null);
+        }}
+        onOther={() => {
+          if (fitCheck && fitCheck.role !== "link") setPicking(pickerFor(fitCheck.role));
+          setFitCheck(null);
+        }}
+        onNew={() => {
+          if (fitCheck) void newColumn(fitCheck.role)().catch(() => undefined);
+          setFitCheck(null);
+        }}
+        onCancel={() => setFitCheck(null)}
+      />
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
@@ -723,6 +758,116 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         </Button>
       </DialogFooter>
     </>
+  );
+}
+
+/** The parts one column plays alone (spec and links take several). */
+type SinglePart = Exclude<AssetRole, "spec" | "link">;
+
+/** What each part is called where its column is chosen. */
+const PART_LABELS: Record<SinglePart, string> = { name: "Asset name", type: "Type", quantity: "Quantity", pic: "PIC", due: "Due date", done: "Done" };
+
+/** A column chosen for a part it does not fit, with what is wrong with it. */
+export interface FitCheck {
+  role: Exclude<AssetRole, "spec">;
+  column: TrackerColumn;
+  mismatch: RoleMismatch;
+  /** A few of the values the part cannot read, as they show. */
+  samples: string[];
+  /** The part the column plays now, when another: clearing it takes from that part too. */
+  plays: AssetRole | null;
+}
+
+/** The check for a column chosen for a part, or null when it fits. */
+export function fitCheckFor(sheet: Pick<TrackerSheet, "columns" | "rows">, columnId: string, role: Exclude<AssetRole, "spec">, mapping?: TrackerAssetMapping | null): FitCheck | null {
+  const column = sheet.columns.find((c) => c.id === columnId);
+  const mismatch = column ? roleMismatch(sheet, columnId, role, trackerPeople()) : null;
+  if (!column || !mismatch) return null;
+  const show = (value: TrackerCellValue | undefined) =>
+    value === true ? "✓" : column.type === "person" ? personIds(value).map((id) => trackerPersonName(id)).join(", ") : String(value ?? "").trim();
+  const ids = new Set(mismatch.rowIds);
+  const samples = [...new Set(sheet.rows.filter((r) => ids.has(r.id)).map((r) => show(r.cells[columnId])))].filter(Boolean);
+  const plays = assetRoleOf(mapping, columnId);
+  return { role, column, mismatch, samples, plays: plays && plays !== role ? plays : null };
+}
+
+/**
+ * A column that does not fit the part it was chosen for, and the ways out:
+ * clear the cells the part cannot read (turning the column into the part's
+ * type when its own cannot hold it), choose another column, make a new one,
+ * or leave things as they were.
+ */
+export function ColumnFitPrompt({
+  check,
+  busy,
+  onFix,
+  onOther,
+  onNew,
+  onCancel,
+}: {
+  check: FitCheck | null;
+  busy: boolean;
+  onFix: () => Promise<void>;
+  onOther: () => void;
+  onNew: () => void;
+  onCancel: () => void;
+}) {
+  const m = check?.mismatch;
+  const type = check && m?.wrongType ? TRACKER_COLUMN_TYPE_LABELS[fitTypeFor(check.role)] : null;
+  const cells = m ? `${m.unreadable} ${m.unreadable === 1 ? "cell" : "cells"}` : "";
+  const fixLabel = !m ? "" : m.unreadable && type ? `Clear ${cells} and make it a ${type} column` : m.unreadable ? `Clear ${cells}` : `Make it a ${type} column`;
+  const part = check ? (check.role === "pic" ? "PIC" : ASSET_ROLE_LABELS[check.role].toLowerCase()) : "";
+  return (
+    <Dialog open={!!check} onOpenChange={(open) => !open && !busy && onCancel()}>
+      <DialogContent size="sm" data-testid="column-fit-prompt">
+        {check && m && (
+          <>
+            <DialogHeader>
+              <DialogTitle>
+                “{check.column.name}” doesn’t fit {part}
+              </DialogTitle>
+              <DialogDescription>
+                {m.wrongType && `A ${TRACKER_COLUMN_TYPE_LABELS[m.wrongType]} column can’t hold ${m.expected}. `}
+                {m.unreadable > 0 && `${m.unreadable === m.filled ? (m.filled === 1 ? "Its one filled cell isn’t" : `All ${m.filled} filled cells aren’t`) : `${m.unreadable} of ${m.filled} filled cells aren’t`} ${m.expected}.`}
+              </DialogDescription>
+            </DialogHeader>
+            {check.samples.length > 0 && (
+              <div className="flex flex-wrap gap-1.5" data-testid="column-fit-samples">
+                {check.samples.slice(0, 5).map((s) => (
+                  <span key={s} className="max-w-48 truncate rounded border border-amber-500/40 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-800 dark:text-amber-200">
+                    {s}
+                  </span>
+                ))}
+                {check.samples.length > 5 && <span className="px-1 py-0.5 text-xs text-muted-foreground">+{check.samples.length - 5} more</span>}
+              </div>
+            )}
+            <div className="grid gap-2">
+              <Button type="button" disabled={busy} onClick={() => void onFix().catch(() => undefined)} data-testid="column-fit-fix">
+                {busy && <Loader2 className="animate-spin" />}
+                {fixLabel}
+              </Button>
+              {check.role !== "link" && (
+                <Button type="button" variant="outline" disabled={busy} onClick={onOther} data-testid="column-fit-other">
+                  <Table2 /> Choose another column
+                </Button>
+              )}
+              <Button type="button" variant="outline" disabled={busy} onClick={onNew} data-testid="column-fit-new">
+                <Plus /> New column
+              </Button>
+              <Button type="button" variant="ghost" disabled={busy} onClick={onCancel} data-testid="column-fit-cancel">
+                Cancel
+              </Button>
+            </div>
+            {m.unreadable > 0 && (
+              <p className={cn("text-2xs", check.plays ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} data-testid="column-fit-note">
+                Clearing empties those cells in the sheet.
+                {check.plays && ` It’s the ${check.plays === "pic" ? "PIC" : ASSET_ROLE_LABELS[check.plays].toLowerCase()} column now, so that loses them too.`}
+              </p>
+            )}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
