@@ -109,6 +109,22 @@ describe("routing a booking by its work types", { timeout: 20_000 }, () => {
     expect((await bookPublic(["Digital / Social", "Print"])).boardId).toBe(socialBoard.id);
   });
 
+  it("3b. a rule can ask for exactly its work types, or just for any of them", async () => {
+    // Exactly Print and Key Visual -> social; anything that includes Print -> print; the rest -> other.
+    await route({
+      enabled: true,
+      rules: [
+        { id: "exact", workTypes: ["Print", "Key Visual"], boardId: socialBoard.id, match: "exact" },
+        { id: "any", workTypes: ["Print"], boardId: printBoard.id },
+      ],
+      otherwise: { kind: "board", boardId: otherBoard.id },
+    });
+    expect((await bookPublic(["Key Visual", "Print"])).boardId).toBe(socialBoard.id); // exactly the pair, any order
+    expect((await bookPublic(["Print"])).boardId).toBe(printBoard.id); // fewer: not exact, but includes Print
+    expect((await bookPublic(["Print", "Key Visual", "Publication"])).boardId).toBe(printBoard.id); // more: not exact
+    expect((await bookPublic(["Key Visual"])).boardId).toBe(otherBoard.id); // neither rule
+  });
+
   it("4. nothing matches: the fallback, which may be a board, the team's board or the queue", async () => {
     await route(rules());
     expect((await bookPublic(["Publication"])).boardId).toBe(otherBoard.id);

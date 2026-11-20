@@ -478,11 +478,26 @@ export interface BookingServiceType {
 /** Where a booking goes: its team's nominated booking board, the allocation queue, or a board named here. */
 export type BookingRouteTarget = { kind: "team" } | { kind: "allocation" } | { kind: "board"; boardId: EntityId };
 
-/** One rule: a booking that picked any of these work types goes to this board. */
+/**
+ * One rule: a booking whose work types match goes to this board. "any" (the
+ * default, and what a rule saved before there was a choice means) matches a
+ * booking that picked any of them, whatever else it picked; "exact" only one
+ * that picked precisely these, no more and no fewer.
+ */
 export interface BookingRouteRule {
   id: string;
   workTypes: string[];
   boardId: EntityId;
+  match?: "any" | "exact";
+}
+
+/** Whether a booking that picked `picked` meets this rule. */
+export function ruleMatches(rule: Pick<BookingRouteRule, "workTypes" | "match">, picked: readonly string[]): boolean {
+  const wanted = new Set(rule.workTypes.map((w) => w.trim().toLowerCase()));
+  const chosen = new Set(picked.map((w) => w.trim().toLowerCase()));
+  if (wanted.size === 0) return false;
+  if (rule.match === "exact") return wanted.size === chosen.size && [...wanted].every((w) => chosen.has(w));
+  return [...wanted].some((w) => chosen.has(w));
 }
 
 /** A service's own routing: on or off, the rules in order (first match wins), and where everything else goes. */
@@ -501,8 +516,7 @@ export interface BookingRouting {
 export function routeBooking(service: Pick<BookingServiceType, "routing">, workTypes: readonly string[]): BookingRouteTarget {
   const routing = service.routing;
   if (!routing?.enabled) return { kind: "team" };
-  const picked = new Set(workTypes.map((w) => w.trim().toLowerCase()));
-  for (const rule of routing.rules) if (rule.workTypes.some((w) => picked.has(w.trim().toLowerCase()))) return { kind: "board", boardId: rule.boardId };
+  for (const rule of routing.rules) if (ruleMatches(rule, workTypes)) return { kind: "board", boardId: rule.boardId };
   return routing.otherwise;
 }
 

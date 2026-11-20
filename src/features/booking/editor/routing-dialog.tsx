@@ -89,9 +89,10 @@ function RoutingForm({ service, onCancel, onSave }: { service: BookingServiceTyp
           <div className="space-y-2">
             {rules.map((rule, index) => (
               <div key={rule.id} className="space-y-2 rounded-xl border border-border/70 p-3" data-testid="routing-rule">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-2xs font-semibold text-muted-foreground tabular">{index + 1}</span>
-                  <span className="text-[13px] font-medium">If work types include</span>
+                  <span className="text-[13px] font-medium">If work types</span>
+                  <MatchToggle value={rule.match ?? "any"} onChange={(match) => patchRule(rule.id, { match: match === "any" ? undefined : match })} index={index} />
                   <Button
                     type="button"
                     variant="ghost"
@@ -222,3 +223,33 @@ function BoardSelect({ value, boards, onChange, ariaLabel, testId, extra }: { va
     </Select>
   );
 }
+
+/** How a rule's work types are matched: any of them among those picked, or exactly these. */
+function MatchToggle({ value, onChange, index }: { value: "any" | "exact"; onChange: (next: "any" | "exact") => void; index: number }) {
+  const options = [
+    { key: "any" as const, label: "Include", hint: "Any of these, whatever else is picked" },
+    { key: "exact" as const, label: "Are exactly", hint: "These and nothing else" },
+  ];
+  return (
+    <div role="radiogroup" aria-label={`How rule ${index + 1} matches`} className="inline-flex rounded-lg border border-border/70 bg-surface p-0.5" data-testid="routing-rule-match">
+      {options.map((option) => (
+        <button
+          key={option.key}
+          type="button"
+          role="radio"
+          aria-checked={value === option.key}
+          title={option.hint}
+          onClick={() => onChange(option.key)}
+          className={cn(
+            "h-7 rounded-md px-2.5 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring",
+            value === option.key ? "state-on" : "text-muted-foreground hover:text-foreground",
+          )}
+          data-testid={`routing-rule-match-${option.key}`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.121.2",
+    date: "2026-11-20",
+    title: "Exact work type rules",
+    changes: [
+      "Each Auto-allocation rule matches either work types that include any of its picks, or exactly its picks and nothing else.",
+    ],
+  },
+  {
     version: "0.121.1",
     date: "2026-11-20",
     title: "Auto-allocation",

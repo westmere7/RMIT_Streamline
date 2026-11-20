@@ -764,6 +764,11 @@ describe("booking a task", () => {
     expect(routeBooking(service, ["video"])).toEqual({ kind: "board", boardId: "b-2" });
     expect(routeBooking(service, [])).toEqual({ kind: "allocation" });
     expect(routeBooking({ routing: { ...service.routing, enabled: false } }, ["Print"])).toEqual({ kind: "team" });
+    // Exactly: the same set, any order and case, and nothing more or less.
+    const exact = { routing: { enabled: true, rules: [{ id: "e", workTypes: ["Print", "Video"], boardId: "b-3", match: "exact" as const }], otherwise: { kind: "team" as const } } };
+    expect(routeBooking(exact, ["video", "PRINT"])).toEqual({ kind: "board", boardId: "b-3" });
+    expect(routeBooking(exact, ["Print"])).toEqual({ kind: "team" });
+    expect(routeBooking(exact, ["Print", "Video", "Web"])).toEqual({ kind: "team" });
 
     const template = fixtureBookingFormTemplate();
     const design = serviceById(template, "svc-design")!;
