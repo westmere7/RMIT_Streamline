@@ -101,6 +101,15 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     await tx.done;
   }
 
+  async detachFromSheet(sheetId: string): Promise<void> {
+    const db = await this.conn.getDb();
+    const tx = db.transaction("itemAssets", "readwrite");
+    for (const asset of await tx.store.getAll()) {
+      if (asset.trackerSheetId === sheetId) await tx.store.put({ ...asset, trackerSheetId: null, trackerRowId: null });
+    }
+    await tx.done;
+  }
+
   async listBySheet(sheetId: string): Promise<ItemAsset[]> {
     const db = await this.conn.getDb();
     return (await db.getAll("itemAssets")).filter((a) => a.trackerSheetId === sheetId).map(normalize).sort(byPosition);

@@ -893,7 +893,7 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
                 }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onDoubleClick={(e) => e.stopPropagation()}
-                className="h-6 bg-white px-1 text-xs text-foreground"
+                className="h-6 border-white/40 bg-white/15 px-1 text-xs font-semibold text-white caret-white selection:bg-white/35 selection:text-white focus-visible:border-white/70 dark:bg-white/15"
                 aria-label="Column name"
               />
             ) : (

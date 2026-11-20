@@ -17,6 +17,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { assignAssetRole, isMappingUsable, roleMismatch, suggestAssetMapping, trackerPeople, type AssetRole, type TrackerAssetMapping, type TrackerColumn, type TrackerSheet } from "@/domain";
 import { exportSheetToCsv, exportTrackerToFile, useSheetAssetMutations, useTracker, useTrackerMutations, useTrackerRealtime, useTrackerSheets } from "@/features/trackers/hooks";
+import { DeleteTrackerDialog, KeepAssetsSwitch, useLinkedTaskNames } from "@/features/trackers/delete-tracker-dialog";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
@@ -288,22 +289,7 @@ export function TrackerPage() {
           />
         )}
 
-        <ConfirmDialog
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          title={`Delete “${t.name}”?`}
-          description={
-            (sheets.data ?? []).some((s) => s.itemId)
-              ? "This permanently deletes the tracker and every sheet in it, and the assets its sheets give their tasks. Export it first if you want a copy."
-              : "This permanently deletes the tracker and every sheet in it. Export it first if you want a copy."
-          }
-          confirmLabel="Delete tracker"
-          destructive
-          onConfirm={async () => {
-            await mutations.remove.mutateAsync(t.id);
-            router.push(routes.trackers(ws.slug));
-          }}
-        />
+        <DeleteTrackerDialog tracker={deleteOpen ? t : null} onOpenChange={setDeleteOpen} onDeleted={() => router.push(routes.trackers(ws.slug))} />
       </div>
     </SheetEditorProvider>
   );
@@ -400,6 +386,8 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect, onTaskAsset
   const mutations = useTrackerMutations();
   const [renamingId, setRenamingId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState<TrackerSheet | null>(null);
+  const [keepAssets, setKeepAssets] = React.useState(true);
+  const deletingTask = useLinkedTaskNames(deleting ? [deleting] : []);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [dropAt, setDropAt] = React.useState<number | null>(null);
   const activeSheet = sheets.find((sheet) => sheet.id === activeId) ?? null;
@@ -551,18 +539,26 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect, onTaskAsset
       )}
       <ConfirmDialog
         open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleting(null);
+            setKeepAssets(true);
+          }
+        }}
         title={`Delete “${deleting?.name}”?`}
-        description={deleting?.itemId ? "Every row on this sheet is permanently removed, and the task it holds the assets of loses them." : "Every row on this sheet is permanently removed."}
+        description="Every row on this sheet is permanently removed."
         confirmLabel="Delete sheet"
         destructive
         onConfirm={async () => {
           if (!deleting) return;
-          await mutations.deleteSheet.mutateAsync(deleting.id);
+          await mutations.deleteSheet.mutateAsync({ sheetId: deleting.id, keepAssets });
+          setKeepAssets(true);
           const remaining = sheets.filter((s) => s.id !== deleting.id);
           if (deleting.id === activeId && remaining[0]) onSelect(remaining[0].id);
         }}
-      />
+      >
+        <KeepAssetsSwitch taskNames={deletingTask} keep={keepAssets} onKeep={setKeepAssets} />
+      </ConfirmDialog>
     </div>
   );
 }

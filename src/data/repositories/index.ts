@@ -471,6 +471,8 @@ export interface ItemAssetRepository {
   delete(id: EntityId): Promise<void>;
   /** The lines a tracker sheet wrote. */
   listBySheet(sheetId: EntityId): Promise<ItemAsset[]>;
+  /** Lets a sheet's lines go of it: they stay on their task as lines of its own. */
+  detachFromSheet(sheetId: EntityId): Promise<void>;
   /** Several lines in one write, as a sheet is linked or grows. */
   createMany(inputs: ItemAssetInput[]): Promise<ItemAsset[]>;
   deleteMany(ids: EntityId[]): Promise<void>;

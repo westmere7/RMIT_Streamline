@@ -324,6 +324,48 @@ describe("a linked sheet keeps the task's assets", () => {
     await expect(services.trackers.linkSheet(second.id, itemId, suggestAssetMapping(second), SEED_USER_IDS.jun)).rejects.toThrow(/already takes its assets/);
   });
 
+  it("deleting the tracker can keep its lines on the task as the task's own (v0.128.0)", async () => {
+    await services.trackers.linkSheet(sheet.id, itemId, suggestAssetMapping(sheet), SEED_USER_IDS.jun);
+    const before = await sheetLines();
+    expect(before.map((l) => l.name)).toEqual(["Tile 1", "Tile 2"]);
+    await services.trackers.delete(sheet.trackerId, SEED_USER_IDS.jun, { keepAssets: true });
+    const after = (await services.assets.list(itemId)).filter((a) => before.some((b) => b.id === a.id));
+    expect(after.map((l) => [l.name, l.quantity, l.assetType, l.trackerSheetId, l.trackerRowId])).toEqual([
+      ["Tile 1", 2, "Social post", null, null],
+      ["Tile 2", null, "Social post", null, null],
+    ]);
+    expect(await services.trackers.sheetForItem(itemId)).toBeNull();
+  });
+
+  it("deleting a sheet can keep its lines too; without keeping they go", async () => {
+    await services.trackers.linkSheet(sheet.id, itemId, suggestAssetMapping(sheet), SEED_USER_IDS.jun);
+    const spare = await services.trackers.addSheet(sheet.trackerId, "Spare", "blank");
+    await services.trackers.deleteSheet(sheet.id, SEED_USER_IDS.jun, { keepAssets: true });
+    expect((await services.assets.list(itemId)).filter((a) => a.name.startsWith("Tile")).map((l) => [l.name, l.trackerSheetId])).toEqual([
+      ["Tile 1", null],
+      ["Tile 2", null],
+    ]);
+
+    // A second tracker, linked to the other task and deleted without keeping: its lines go.
+    const other = await services.trackers.create({ workspaceId: SEED_WORKSPACE_ID, teamId: null, name: "Other", layout: "blank", sheets: [{ name: "S", columns: COLUMNS, frozenColumns: 1, rows: [data("x1", { "c-asset": "Gone soon" })] }] }, SEED_USER_IDS.jun);
+    await services.trackers.linkSheet(other.sheets[0]!.id, otherItemId, suggestAssetMapping(other.sheets[0]!), SEED_USER_IDS.jun);
+    expect((await services.assets.list(otherItemId)).map((a) => a.name)).toContain("Gone soon");
+    await services.trackers.delete(other.tracker.id, SEED_USER_IDS.jun, { keepAssets: false });
+    expect((await services.assets.list(otherItemId)).map((a) => a.name)).not.toContain("Gone soon");
+    expect(spare.id).toBeTruthy();
+  });
+
+  it("renaming the tracker or the sheet keeps the link: it is by id, never by name", async () => {
+    await services.trackers.linkSheet(sheet.id, itemId, suggestAssetMapping(sheet), SEED_USER_IDS.jun);
+    await services.trackers.update(sheet.trackerId, { name: "Renamed kit" });
+    await services.trackers.renameSheet(sheet.id, "Renamed tab");
+    expect((await services.trackers.sheetForItem(itemId))?.id).toBe(sheet.id);
+    const renamed = await services.trackers.getSheet(sheet.id);
+    const edited = TrackerService.applyEdits(renamed, [{ rowId: "r2", columnId: "c-asset", value: "Tile 2b" }]);
+    await services.trackers.saveSheet(sheet.id, { rows: edited.rows }, SEED_USER_IDS.jun);
+    expect((await sheetLines()).map((l) => l.name)).toEqual(["Tile 1", "Tile 2b"]);
+  });
+
   it("takes the lines off when the sheet is unlinked or deleted, and leaves the task's own lines alone", async () => {
     await services.assets.add({ itemId, boardId: (await services.repos.items.getById(itemId))!.boardId, name: "Hand-made line" }, SEED_USER_IDS.jun);
     await services.trackers.linkSheet(sheet.id, itemId, suggestAssetMapping(sheet), SEED_USER_IDS.jun);

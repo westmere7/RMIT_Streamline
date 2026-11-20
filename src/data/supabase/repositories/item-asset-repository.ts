@@ -127,6 +127,10 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
     for (const part of chunk(ids)) assertOk(await db().from("item_assets").delete().in("id", part), "item_assets.deleteMany");
   }
 
+  async detachFromSheet(sheetId: string): Promise<void> {
+    assertOk(await db().from("item_assets").update({ tracker_sheet_id: null, tracker_row_id: null }).eq("tracker_sheet_id", sheetId), "item_assets.detachFromSheet");
+  }
+
   async listBySheet(sheetId: string): Promise<ItemAsset[]> {
     const result = await db().from("item_assets").select(ASSET).eq("tracker_sheet_id", sheetId).order("position", { ascending: true });
     return unwrapList<ItemAssetRow>(result, "item_assets.listBySheet").map(toItemAsset);

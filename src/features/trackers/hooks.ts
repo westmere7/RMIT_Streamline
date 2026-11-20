@@ -103,7 +103,7 @@ export function useTrackerMutations() {
     onSettled: settle,
   });
   const remove = useMutation({
-    mutationFn: (trackerId: string) => services.trackers.delete(trackerId, user.id),
+    mutationFn: ({ trackerId, keepAssets }: { trackerId: string; keepAssets?: boolean }) => services.trackers.delete(trackerId, user.id, { keepAssets }),
     onSuccess: () => toast.success("Tracker deleted"),
     onError: fail("Could not delete the tracker"),
     onSettled: settle,
@@ -131,7 +131,7 @@ export function useTrackerMutations() {
     onSettled: settle,
   });
   const deleteSheet = useMutation({
-    mutationFn: (sheetId: string) => services.trackers.deleteSheet(sheetId, user.id),
+    mutationFn: ({ sheetId, keepAssets }: { sheetId: string; keepAssets?: boolean }) => services.trackers.deleteSheet(sheetId, user.id, { keepAssets }),
     onError: fail("Could not delete the sheet"),
     onSettled: settle,
   });

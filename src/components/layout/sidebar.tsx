@@ -30,9 +30,10 @@ import type { UnreadCounts } from "@/domain";
 import { useUnreadCounts } from "@/features/notifications/hooks";
 import { CreateTeamDialog } from "@/features/teams/components/create-team-dialog";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
+import { DeleteTrackerDialog } from "@/features/trackers/delete-tracker-dialog";
 import { CreateDocDialog } from "@/features/docs/create-doc-dialog";
 import { useDocMutations, useDocs } from "@/features/docs/hooks";
-import { useTrackerMutations, useTrackers } from "@/features/trackers/hooks";
+import { useTrackers } from "@/features/trackers/hooks";
 import { BrandLogo, BrandMark } from "@/features/auth/components/auth-shell";
 import { useBoardMenuActions } from "@/features/boards/board-menu";
 import { useStarredIds } from "@/features/my-work/hooks";
@@ -116,7 +117,6 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const [createTrackerOpen, setCreateTrackerOpen] = React.useState(false);
   const [deletingTracker, setDeletingTracker] = React.useState<Tracker | null>(null);
   const trackers = useTrackers();
-  const trackerMutations = useTrackerMutations();
   const [createDocTeamId, setCreateDocTeamId] = React.useState<string | null>(null);
   const [createDocOpen, setCreateDocOpen] = React.useState(false);
   const [deletingDoc, setDeletingDoc] = React.useState<DocSummary | null>(null);
@@ -482,17 +482,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         defaultTeamId={createBoardTeamId}
       />
       <CreateTrackerDialog open={createTrackerOpen} onOpenChange={setCreateTrackerOpen} defaultTeamId={createTrackerTeamId} />
-      <ConfirmDialog
-        open={deletingTracker !== null}
-        onOpenChange={(open) => !open && setDeletingTracker(null)}
-        title={`Delete “${deletingTracker?.name}”?`}
-        description="This permanently deletes the tracker and every sheet in it. Export it first if you want a copy."
-        confirmLabel="Delete tracker"
-        destructive
-        onConfirm={async () => {
-          if (deletingTracker) await trackerMutations.remove.mutateAsync(deletingTracker.id);
-        }}
-      />
+      <DeleteTrackerDialog tracker={deletingTracker} onOpenChange={(open) => !open && setDeletingTracker(null)} />
       <CreateDocDialog key={createDocOpen ? `open:${createDocTeamId ?? ""}` : "closed"} open={createDocOpen} onOpenChange={setCreateDocOpen} defaultTeamId={createDocTeamId} />
       <ConfirmDialog
         open={deletingDoc !== null}

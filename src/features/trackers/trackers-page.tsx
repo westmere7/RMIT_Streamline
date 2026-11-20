@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { type MenuAction, RowMenu } from "@/components/layout/row-menu";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -14,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Tracker } from "@/domain";
 import { CreateTrackerDialog } from "@/features/trackers/create-tracker-dialog";
-import { useTrackerMutations, useTrackers } from "@/features/trackers/hooks";
+import { DeleteTrackerDialog } from "@/features/trackers/delete-tracker-dialog";
+import { useTrackers } from "@/features/trackers/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { canEditTrackers } from "@/lib/permissions/permissions";
@@ -26,7 +26,6 @@ export function TrackersPage() {
   const ws = useWorkspace();
   const router = useRouter();
   const trackers = useTrackers();
-  const { remove } = useTrackerMutations();
   const canEdit = canEditTrackers(ws.permissions);
   const [createOpen, setCreateOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState<Tracker | null>(null);
@@ -109,17 +108,7 @@ export function TrackersPage() {
       </div>
 
       <CreateTrackerDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={`Delete “${deleting?.name}”?`}
-        description="This permanently deletes the tracker and every sheet in it. Export it first if you want a copy."
-        confirmLabel="Delete tracker"
-        destructive
-        onConfirm={async () => {
-          if (deleting) await remove.mutateAsync(deleting.id);
-        }}
-      />
+      <DeleteTrackerDialog tracker={deleting} onOpenChange={(open) => !open && setDeleting(null)} />
     </div>
   );
 }

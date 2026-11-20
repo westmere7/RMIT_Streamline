@@ -87,10 +87,28 @@ export class TrackerService {
     return this.repos.trackers.update(trackerId, patch.name !== undefined ? { ...patch, name: patch.name.trim() } : patch);
   }
 
-  /** Deletes the tracker. Linked sheets let go of their tasks first, so each task's counts and PIC are put right. */
-  async delete(trackerId: EntityId, actorId?: EntityId): Promise<void> {
-    if (actorId) for (const sheet of await this.repos.trackers.listSheets(trackerId)) if (sheet.itemId) await this.unlinkSheet(sheet.id, actorId);
+  /**
+   * Deletes the tracker. A sheet holding a task's assets lets go of the task
+   * first: with `keepAssets` its lines stay on the task as ordinary assets of
+   * its own; without, they go, and the task's counts and PIC are put right.
+   */
+  async delete(trackerId: EntityId, actorId?: EntityId, options: { keepAssets?: boolean } = {}): Promise<void> {
+    if (actorId) for (const sheet of await this.repos.trackers.listSheets(trackerId)) if (sheet.itemId) await this.releaseSheet(sheet.id, actorId, options.keepAssets === true);
     await this.repos.trackers.delete(trackerId);
+  }
+
+  /**
+   * A linked sheet lets go of its task. Kept, its lines are detached and become
+   * the task's own (the sheet is matched by id, so nothing about its name
+   * matters here); otherwise they are taken off, as unlinking does.
+   */
+  private async releaseSheet(sheetId: EntityId, actorId: EntityId, keepAssets: boolean): Promise<void> {
+    if (!keepAssets) {
+      await this.unlinkSheet(sheetId, actorId);
+      return;
+    }
+    await this.repos.itemAssets.detachFromSheet(sheetId);
+    await this.repos.trackers.updateSheet(sheetId, { itemId: null });
   }
 
   /** Copies a tracker: every sheet with its rows. Copies hold no task's assets. */
@@ -149,11 +167,11 @@ export class TrackerService {
     return this.repos.trackers.updateSheet(sheetId, { name: trimmed });
   }
 
-  async deleteSheet(sheetId: EntityId, actorId?: EntityId): Promise<void> {
+  async deleteSheet(sheetId: EntityId, actorId?: EntityId, options: { keepAssets?: boolean } = {}): Promise<void> {
     const sheet = await this.getSheet(sheetId);
     const siblings = await this.repos.trackers.listSheets(sheet.trackerId);
     if (siblings.length <= 1) throw new Error("A tracker needs at least one sheet");
-    if (sheet.itemId && actorId) await this.unlinkSheet(sheetId, actorId);
+    if (sheet.itemId && actorId) await this.releaseSheet(sheetId, actorId, options.keepAssets === true);
     await this.repos.trackers.deleteSheet(sheetId);
   }
 

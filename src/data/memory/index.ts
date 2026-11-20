@@ -260,6 +260,7 @@ export function createMemoryRepositories(
       update: readOnly("editing an asset"),
       delete: readOnly("deleting an asset"),
       listBySheet: async (sheetId) => payload().assets.filter((a) => a.trackerSheetId === sheetId),
+      detachFromSheet: readOnly("keeping a sheet's assets"),
       createMany: readOnly("adding assets"),
       deleteMany: readOnly("deleting assets"),
     },

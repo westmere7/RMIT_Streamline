@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.128.0",
+    date: "2026-11-20",
+    title: "Keep a deleted tracker's assets",
+    changes: [
+      "Deleting a tracker, or one of its sheets, that holds a task's assets asks whether to keep them on the task. Kept (the default), they stay as the task's own assets.",
+      "A sheet stays linked to its task by id, so trackers and tabs can be renamed freely.",
+      "Renaming a tracker column: the name box is readable in dark mode.",
+    ],
+  },
+  {
     version: "0.127.1",
     date: "2026-11-20",
     title: "Name the new tracker",
