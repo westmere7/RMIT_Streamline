@@ -24,7 +24,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       "Past forms, beside Undo changes in the booking form editor, lists every form published here, newest first, with the live one marked; any of them can be published again.",
       "Save draft is gone: keep work as a template, or publish it. Saving a template selects it, and a new reload button beside it puts it back, dropping changes since.",
-      "The publish button reads Publish current form, and Already published when there is nothing new to publish.",
+      "The publish button reads Publish current form, and Already published when there is nothing new to publish; the note above it is gone.",
     ],
   },
   {

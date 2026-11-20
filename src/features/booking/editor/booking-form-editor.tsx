@@ -230,12 +230,6 @@ export function BookingFormEditor({
     <div className="space-y-3">
       <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
         <PublishedFormCard info={{ ...published, template: live }} onOpen={() => setPreviewing("live")} />
-        <div>
-          <p className="text-[13px] font-medium">Editing the form</p>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">
-            {matchesLive ? "This matches the form people are using." : "These changes are yours alone until you publish them."}
-          </p>
-        </div>
         {problem && (
           <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
             {problem}
