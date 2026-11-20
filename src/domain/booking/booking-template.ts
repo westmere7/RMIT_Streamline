@@ -614,6 +614,23 @@ export interface BookingTemplate extends Timestamps {
 
 export type BookingTemplateInput = Pick<BookingTemplate, "workspaceId" | "name" | "description" | "template" | "createdBy">;
 
+/**
+ * One publish of a workspace's booking form, for the past forms list
+ * (migration 0127). The live form itself stays on the workspace row.
+ */
+export interface BookingFormPublication {
+  id: EntityId;
+  workspaceId: EntityId;
+  /** What it was published as; null when it had no name. */
+  name: string | null;
+  /** The form as published; null for the built-in form. */
+  template: BookingFormTemplate | null;
+  publishedAt: string;
+  publishedBy: EntityId | null;
+}
+
+export type BookingFormPublicationInput = Omit<BookingFormPublication, "id">;
+
 export const MAX_BOOKING_TEMPLATE_NAME = 80;
 export const MAX_BOOKING_TEMPLATE_DESCRIPTION = 280;
 

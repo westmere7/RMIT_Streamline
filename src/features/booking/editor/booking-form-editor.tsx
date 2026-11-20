@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
+import { Boxes, CircleCheck, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -36,7 +36,7 @@ import { AssetList, AssetTypePicker, Chip, ChipGroup, SPAN, ServiceCardShell, St
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
-import { PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
+import { PastFormsButton, PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesPanel } from "./templates-menu";
 import Link from "next/link";
@@ -69,9 +69,9 @@ export interface BookingFormEditorProps {
   initial: BookingFormTemplate;
   templates: BookingTemplate[];
   savedBlocks: BookingSavedBlock[];
-  savingDraft: boolean;
   publishing: boolean;
-  onSaveDraft: (template: BookingFormTemplate) => Promise<void>;
+  /** After a past form is published again from the published form card: the page refreshes what is live. */
+  onRepublished?: () => Promise<void>;
   /** `keepDraft` leaves the saved draft alone: for a template published straight from the list. */
   onPublish: (template: BookingFormTemplate, name: string, options?: { keepDraft?: boolean }) => Promise<void>;
   /** The form stakeholders are using: its name, when it went live, how much it has been booked through. */
@@ -108,9 +108,8 @@ export function BookingFormEditor({
   initial,
   templates,
   savedBlocks,
-  savingDraft,
   publishing,
-  onSaveDraft,
+  onRepublished,
   onPublish,
   published,
   teamName,
@@ -149,6 +148,15 @@ export function BookingFormEditor({
    */
   const [fromTemplate, setFromTemplate] = React.useState<{ id: string; name: string; description: string | null; template: BookingFormTemplate } | null>(null);
   const [updatingTemplate, setUpdatingTemplate] = React.useState(false);
+  /** A template just saved from the editor, until the list brings it back with its id. */
+  const [justSaved, setJustSaved] = React.useState<{ name: string; description: string | null; template: BookingFormTemplate } | null>(null);
+  if (justSaved) {
+    const found = templates.find((t) => t.name.trim().toLowerCase() === justSaved.name.trim().toLowerCase());
+    if (found) {
+      setFromTemplate({ id: found.id, name: found.name, description: found.description ?? null, template: justSaved.template });
+      setJustSaved(null);
+    }
+  }
 
   const check = bookingFormTemplateSchema.safeParse(draft);
   const problem = check.success ? null : (check.error.issues[0]?.message ?? "Something in the form is not right yet");
@@ -174,6 +182,20 @@ export function BookingFormEditor({
   // there are any the browser asks first. Several people edit this form.
   const unsaved = !savedHere && !matchesLive;
   React.useEffect(() => (unsaved ? beginUnsavedWork() : undefined), [unsaved]);
+
+  // The live form changed under the editor (a past form published again, or
+  // someone else publishing): an editor that held the old live form and
+  // nothing else moves to the new one; one holding changes keeps them.
+  const [lastLive, setLastLive] = React.useState(liveKey);
+  if (lastLive !== liveKey) {
+    setLastLive(liveKey);
+    if (draftKey === lastLive) {
+      setDraft(clone(live));
+      setSaved(clone(live));
+      setFromTemplate(null);
+      setSelectedService(live.services[0]?.id ?? null);
+    }
+  }
 
   const update = (fn: (t: BookingFormTemplate) => void) =>
     setDraft((prev) => {
@@ -220,34 +242,21 @@ export function BookingFormEditor({
           </p>
         )}
         <div className="grid gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              void onSaveDraft(draft).then(() => {
-                setSaved(clone(draft));
-                toast.success("Draft saved", { description: "Nothing has changed on the live form yet." });
-              })
-            }
-            disabled={savingDraft || publishing || !check.success || savedHere}
-            title={problem ?? undefined}
-            data-testid="booking-editor-save-draft"
-          >
-            {savingDraft ? <LoaderCircle className="animate-spin" /> : <Save />} {savedHere ? "Draft saved" : "Save draft"}
-          </Button>
-          <Button type="button" onClick={() => setConfirmPublish(true)} disabled={publishing || savingDraft || !check.success || matchesLive} title={problem ?? undefined} data-testid="booking-editor-publish">
-            {publishing ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish the form
+          <Button type="button" onClick={() => setConfirmPublish(true)} disabled={publishing || !check.success || matchesLive} title={problem ?? undefined} data-testid="booking-editor-publish">
+            {/* Says so when there is nothing to publish: what is on screen is what people get. */}
+            {publishing ? <LoaderCircle className="animate-spin" /> : matchesLive ? <CircleCheck /> : <Rocket />} {matchesLive ? "Already published" : "Publish current form"}
           </Button>
           {/* The draft, run as the real thing. Nothing it does is sent or kept. */}
           <Button type="button" variant="outline" onClick={() => setPreviewing("draft")} disabled={!check.success} title={problem ?? undefined} data-testid="booking-editor-preview">
             <Eye /> Preview the form
           </Button>
           <div className="flex items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(clone(saved))} disabled={savedHere || savingDraft || publishing} data-testid="booking-editor-revert">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setDraft(clone(saved))} disabled={savedHere || publishing} data-testid="booking-editor-revert">
               <Undo2 /> Undo changes
             </Button>
+            {onRepublished && <PastFormsButton onRepublished={onRepublished} className="ml-auto" />}
             {onClose && (
-              <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={onClose} disabled={savingDraft || publishing} data-testid="booking-editor-close">
+              <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={onClose} disabled={publishing} data-testid="booking-editor-close">
                 Done
               </Button>
             )}
@@ -271,9 +280,13 @@ export function BookingFormEditor({
           setDraft(clone(syncFormWorkTypes(t.template, normaliseWorkTypes(ws.workspace.workTypes).workTypes)));
           setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
           setSelectedService(t.template.services[0]?.id ?? null);
-          toast.success(`Loaded “${t.name}”`, { description: "Save it as a draft, or publish it, to keep it." });
+          toast.success(`Loaded “${t.name}”`, { description: "Nothing is live until you publish it." });
         }}
-        onSaveTemplate={onSaveTemplate}
+        onSaveTemplate={async (input) => {
+          await onSaveTemplate(input);
+          // Saved from here, the editor is now that template's: the picker names it and reload goes back to it.
+          setJustSaved({ name: input.name, description: input.description, template: clone(input.template) });
+        }}
         onDeleteTemplate={onDeleteTemplate}
         onReset={() => {
           const fresh = defaultBookingFormTemplate();
@@ -285,10 +298,11 @@ export function BookingFormEditor({
           setDraft(clone(live));
           setFromTemplate(null);
           setSelectedService(live.services[0]?.id ?? null);
-          toast.success("Loaded the published form", { description: "Your saved draft is kept until you save over it." });
+          toast.success("Loaded the published form");
         }}
         showingLive={matchesLive}
         loadedId={template?.id ?? null}
+        loadedChanged={templateChanged}
       >
         {template && (
           // The picker above names the template; this is the way back into it.

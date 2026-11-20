@@ -1,14 +1,19 @@
 "use client";
 
 import { format } from "date-fns";
-import { CalendarClock, ClipboardCheck, ListChecks, LoaderCircle, Rocket } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { CalendarClock, ClipboardCheck, History, ListChecks, LoaderCircle, Rocket } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useServices } from "@/features/data/data-context";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { BookingFormTemplate } from "@/domain";
-import { templateQuestionCount } from "@/domain";
+import type { BookingFormPublication, BookingFormTemplate } from "@/domain";
+import { defaultBookingFormTemplate, templateQuestionCount } from "@/domain";
 import { PersonChip } from "@/features/members/person-chip";
 
 /** What is known about the form stakeholders are being served. */
@@ -162,3 +167,131 @@ function PublishForm({ teamName, templateName, busy, onCancel, onSubmit }: { tea
     </form>
   );
 }
+
+/**
+ * The past forms button on the published form card, and the list it opens:
+ * every form this workspace has published, newest first (migration 0127),
+ * with the one live now marked. Any other can go live again as it was.
+ */
+export function PastFormsButton({ onRepublished, className }: { onRepublished: () => Promise<void>; className?: string }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <Button type="button" variant="ghost" size="sm" className={className} onClick={() => setOpen(true)} data-testid="booking-past-forms">
+        <History /> Past forms
+      </Button>
+      {open && <PastFormsDialog onOpenChange={setOpen} onRepublished={onRepublished} />}
+    </>
+  );
+}
+
+function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open: boolean) => void; onRepublished: () => Promise<void> }) {
+  const ws = useWorkspace();
+  const services = useServices();
+  const past = useQuery({
+    queryKey: ["booking-publications", ws.workspace.id],
+    queryFn: () => services.booking.listPublications(ws.workspace.id),
+    staleTime: 0,
+  });
+  const [confirming, setConfirming] = React.useState<BookingFormPublication | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const rows = past.data ?? [];
+  // The newest entry is the form live now, unless something changed the form without leaving one.
+  const liveId = rows[0] && rows[0].publishedAt === ws.workspace.bookingFormPublishedAt ? rows[0].id : null;
+
+  const republish = async (row: BookingFormPublication) => {
+    setBusy(true);
+    try {
+      await services.booking.republish(ws.workspace.id, row.id, ws.currentUser.id);
+      await onRepublished();
+      toast.success(`“${titleOf(row)}” is live again`, { description: "Everyone sees it from now on." });
+      setConfirming(null);
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not publish that form");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Dialog open onOpenChange={(next) => !busy && onOpenChange(next)}>
+        <DialogContent size="md" data-testid="booking-past-forms-dialog">
+          <DialogHeader>
+            <DialogTitle>Past forms</DialogTitle>
+            <DialogDescription>Every form published here. Any of them can go live again.</DialogDescription>
+          </DialogHeader>
+          {past.isLoading ? (
+            <p className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground" role="status">
+              <LoaderCircle className="size-4 animate-spin" /> Loading…
+            </p>
+          ) : past.isError ? (
+            <p className="py-6 text-[13px] text-destructive">{past.error instanceof Error ? past.error.message : "Could not load the past forms."}</p>
+          ) : rows.length === 0 ? (
+            <p className="py-6 text-[13px] text-muted-foreground">Nothing published yet.</p>
+          ) : (
+            <ul className="scrollbar-thin -mx-1 max-h-[60vh] divide-y divide-border/60 overflow-y-auto px-1" data-testid="booking-past-forms-list">
+              {rows.map((row) => {
+                const template = row.template ?? defaultBookingFormTemplate();
+                const count = template.services.length;
+                const live = row.id === liveId;
+                return (
+                  <li key={row.id} className="flex items-center gap-3 py-2.5" data-testid="booking-past-form">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex min-w-0 items-center gap-2 text-[13px] font-medium">
+                        <span className="truncate">{titleOf(row)}</span>
+                        {live && (
+                          <Badge variant="primary" className="shrink-0">
+                            Live
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-1 text-2xs text-muted-foreground">
+                        {format(new Date(row.publishedAt), "d MMM yyyy, HH:mm")}
+                        {row.publishedBy && ws.userById(row.publishedBy) && (
+                          <>
+                            {" "}
+                            by <PersonChip userId={row.publishedBy} plain />
+                          </>
+                        )}
+                        <span aria-hidden>·</span>
+                        {templateQuestionCount(template)} questions · {count === 1 ? "1 service" : `${count} services`}
+                      </p>
+                    </div>
+                    {!live && (
+                      <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(row)} disabled={busy} data-testid="booking-past-form-republish">
+                        <Rocket /> Re-publish
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!confirming} onOpenChange={(next) => !busy && !next && setConfirming(null)}>
+        <DialogContent size="sm" data-testid="booking-republish-dialog">
+          <DialogHeader>
+            <DialogTitle>{confirming ? `Publish “${titleOf(confirming)}” again?` : "Publish again?"}</DialogTitle>
+            <DialogDescription>Everyone booking gets it straight away. Anyone mid-booking finishes on the form they started.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setConfirming(null)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => confirming && void republish(confirming)} disabled={busy} data-testid="booking-republish-confirm">
+              {busy ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function titleOf(row: Pick<BookingFormPublication, "name" | "template">): string {
+  return row.name ?? (row.template ? "Published form" : "Built-in form");
+}
+

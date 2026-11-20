@@ -170,7 +170,7 @@ test.describe("on a phone", () => {
   test("the form's save and publish controls sit above the form, not under it", async ({ page }) => {
     await page.goto("/workspace/rmit/book/form");
     await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
-    const publish = page.getByRole("button", { name: "Publish the form" });
+    const publish = page.getByTestId("booking-editor-publish");
     await expect(publish).toBeVisible();
     const steps = page.getByRole("tablist", { name: "The steps of the form" });
     expect((await publish.boundingBox())!.y).toBeLessThan((await steps.boundingBox())!.y);

@@ -761,6 +761,38 @@ describe("booking a task", () => {
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormPublishedBy).toBe(SEED_USER_IDS.danh);
   });
 
+  it("keeps every published form, and puts a past one live again", async () => {
+    window.localStorage.clear();
+    const first = fixtureBookingFormTemplate();
+    const second = fixtureBookingFormTemplate();
+    second.services = second.services.slice(0, 1);
+    await services.booking.publishForm(SEED_WORKSPACE_ID, first, "First", { publishedBy: SEED_USER_IDS.danh });
+    await services.booking.publishForm(SEED_WORKSPACE_ID, second, "Second", { publishedBy: SEED_USER_IDS.danh });
+    await services.booking.resetForm(SEED_WORKSPACE_ID, SEED_USER_IDS.danh);
+
+    const past = await services.booking.listPublications(SEED_WORKSPACE_ID);
+    expect(past.map((p) => p.name)).toEqual([null, "Second", "First"]);
+    // The built-in form is recorded as no form at all.
+    expect(past[0]!.template).toBeNull();
+    expect(past[1]!.template?.services).toHaveLength(1);
+
+    // An editor draft that was only ever the live form goes; the form people use is "First" again.
+    await services.booking.saveDraft(SEED_WORKSPACE_ID, (await services.booking.getForm({ workspaceSlug: "rmit", key: null })).template);
+    await services.booking.republish(SEED_WORKSPACE_ID, past[2]!.id, SEED_USER_IDS.danh);
+    const workspace = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!;
+    expect(workspace.bookingFormName).toBe("First");
+    expect(workspace.bookingForm?.services).toHaveLength(first.services.length);
+    expect(workspace.bookingFormDraft).toBeNull();
+    expect((await services.booking.listPublications(SEED_WORKSPACE_ID)).map((p) => p.name)).toEqual(["First", null, "Second", "First"]);
+
+    // A draft with changes of its own stays put.
+    const mine = fixtureBookingFormTemplate();
+    mine.services = mine.services.slice(0, 2);
+    await services.booking.saveDraft(SEED_WORKSPACE_ID, mine);
+    await services.booking.republish(SEED_WORKSPACE_ID, past[1]!.id, SEED_USER_IDS.danh);
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormDraft?.services).toHaveLength(2);
+  });
+
   it("names the published form, stamps when, and counts bookings from then", async () => {
     await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
     await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate(), "  RMIT Marketing · 25 Sep 2026, 10:42  ");

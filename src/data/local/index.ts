@@ -9,6 +9,7 @@ import { LocalBookingSavedBlockRepository } from "./repositories/booking-saved-b
 import { LocalSubscriptionRepository } from "./repositories/subscription-repository";
 import { LocalItemFavouriteRepository } from "./repositories/item-favourite-repository";
 import { LocalBookingTemplateRepository } from "./repositories/booking-template-repository";
+import { LocalBookingPublicationRepository } from "./repositories/booking-publication-repository";
 import { LocalBoardTemplateRepository } from "./repositories/board-template-repository";
 import { LocalSavedViewRepository } from "./repositories/saved-view-repository";
 import { LocalDocRepository } from "./repositories/doc-repository";
@@ -71,6 +72,7 @@ export function createLocalRepositories(options: LocalRepositoriesOptions = {}):
     workspaceLists: new LocalWorkspaceListRepository(connection),
     stakeholderPortals: new LocalStakeholderPortalRepository(connection),
     bookingTemplates: new LocalBookingTemplateRepository(connection),
+    bookingPublications: new LocalBookingPublicationRepository(),
     boardTemplates: new LocalBoardTemplateRepository(connection),
     savedViews: new LocalSavedViewRepository(connection),
     baselines: new LocalBaselineRepository(connection),

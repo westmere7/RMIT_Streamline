@@ -9,6 +9,8 @@ import type {
   BookingTeamOption,
   BookingSavedBlock,
   BookingTemplate,
+  BookingFormPublication,
+  BookingFormPublicationInput,
   ColumnValue,
   EntityId,
   Item,
@@ -457,21 +459,61 @@ export class BookingService {
     // so the workspace goes on following the built-in form as the app improves
     // it rather than pinning today's copy of it.
     const stored = isDefaultBookingTemplate(template) ? null : template;
+    const publishedAt = new Date().toISOString();
+    const named = name?.trim().slice(0, 120) || null;
     await this.repos.workspaces.update(workspaceId, {
       bookingForm: stored,
       ...(options.keepDraft ? {} : { bookingFormDraft: null }),
-      bookingFormName: name?.trim().slice(0, 120) || null,
-      bookingFormPublishedAt: new Date().toISOString(),
+      bookingFormName: named,
+      bookingFormPublishedAt: publishedAt,
       bookingFormPublishedBy: options.publishedBy ?? null,
       bookingFormBookings: 0,
     });
+    await this.recordPublication({ workspaceId, name: named, template: stored, publishedAt, publishedBy: options.publishedBy ?? null });
     return template;
   }
 
   /** Back to the built-in form, live and in the editor. */
   async resetForm(workspaceId: EntityId, publishedBy: EntityId | null = null): Promise<BookingFormTemplate> {
-    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null, bookingFormName: null, bookingFormPublishedAt: new Date().toISOString(), bookingFormPublishedBy: publishedBy, bookingFormBookings: 0 });
+    const publishedAt = new Date().toISOString();
+    await this.repos.workspaces.update(workspaceId, { bookingForm: null, bookingFormDraft: null, bookingFormName: null, bookingFormPublishedAt: publishedAt, bookingFormPublishedBy: publishedBy, bookingFormBookings: 0 });
+    await this.recordPublication({ workspaceId, name: null, template: null, publishedAt, publishedBy });
     return defaultBookingFormTemplate();
+  }
+
+  /**
+   * The publish, in the history of past forms. The form is live already, so
+   * a history that cannot be written (the table not there yet, a dropped
+   * connection) is noted and let go rather than reported as a failed publish.
+   */
+  private async recordPublication(input: BookingFormPublicationInput): Promise<void> {
+    try {
+      await this.repos.bookingPublications.create(input);
+    } catch (error) {
+      console.warn("The publish was not added to the past forms", error);
+    }
+  }
+
+  /** The forms this workspace has published, newest first, each read as a current one (null: the built-in form). */
+  async listPublications(workspaceId: EntityId, limit = 30): Promise<BookingFormPublication[]> {
+    const rows = await this.repos.bookingPublications.listByWorkspace(workspaceId, limit);
+    return rows.map((row) => ({ ...row, template: row.template ? (readBookingTemplate(row.template) ?? null) : null }));
+  }
+
+  /**
+   * A past form, live again, under its own name. It becomes the newest entry
+   * in the history. A draft somebody is part-way through stays; a draft that
+   * was only the old live form goes, so the editor opens on the form now live.
+   */
+  async republish(workspaceId: EntityId, publicationId: EntityId, publishedBy: EntityId | null): Promise<BookingFormTemplate> {
+    const row = await this.repos.bookingPublications.getById(publicationId);
+    if (!row || row.workspaceId !== workspaceId) throw new NotFoundError("Published form", publicationId);
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    const live = resolveBookingTemplate(workspace ?? ({} as never));
+    const draft = workspace?.bookingFormDraft ? readBookingTemplate(workspace.bookingFormDraft) : null;
+    const keepDraft = !!draft && JSON.stringify(normaliseBookingTemplate(draft)) !== JSON.stringify(normaliseBookingTemplate(live));
+    const template = row.template ? (readBookingTemplate(row.template) ?? defaultBookingFormTemplate()) : defaultBookingFormTemplate();
+    return this.publishForm(workspaceId, template, row.name, { keepDraft, publishedBy });
   }
 
   /**

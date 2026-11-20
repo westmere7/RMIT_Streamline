@@ -268,6 +268,11 @@ export function createMemoryRepositories(
       update: readOnly("saving a form"),
       delete: readOnly("deleting a form"),
     },
+    bookingPublications: {
+      listByWorkspace: async () => [],
+      getById: async () => null,
+      create: readOnly("publishing a form"),
+    },
     boardTemplates: {
       listByWorkspace: async () => [],
       getById: async () => null,

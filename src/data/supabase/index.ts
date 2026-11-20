@@ -6,6 +6,7 @@ import { SupabaseBookingSavedBlockRepository } from "./repositories/booking-save
 import { SupabaseSubscriptionRepository } from "./repositories/subscription-repository";
 import { SupabaseItemFavouriteRepository } from "./repositories/item-favourite-repository";
 import { SupabaseBookingTemplateRepository } from "./repositories/booking-template-repository";
+import { SupabaseBookingPublicationRepository } from "./repositories/booking-publication-repository";
 import { SupabaseBoardTemplateRepository } from "./repositories/board-template-repository";
 import { SupabaseSavedViewRepository } from "./repositories/saved-view-repository";
 import { SupabaseDocRepository } from "./repositories/doc-repository";
@@ -62,6 +63,7 @@ export function createSupabaseRepositories(): Repositories {
     stakeholderPortals: new SupabaseStakeholderPortalRepository(),
     itemShares: new SupabaseItemShareRepository(),
     bookingTemplates: new SupabaseBookingTemplateRepository(),
+    bookingPublications: new SupabaseBookingPublicationRepository(),
     boardTemplates: new SupabaseBoardTemplateRepository(),
     savedViews: new SupabaseSavedViewRepository(),
     baselines: new SupabaseBaselineRepository(),

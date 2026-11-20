@@ -1,6 +1,6 @@
 "use client";
 
-import { FileCheck2, LayoutTemplate, LoaderCircle, RotateCcw, Save, Trash2 } from "lucide-react";
+import { FileCheck2, LayoutTemplate, LoaderCircle, RefreshCcw, RotateCcw, Save, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -29,6 +29,8 @@ export interface TemplatesMenuProps {
   showingLive: boolean;
   /** The template the editor was filled from, if it still exists: what the quick picker shows. */
   loadedId: string | null;
+  /** The editor no longer matches that template: what reloading it would throw away. */
+  loadedChanged?: boolean;
   /** Shown at the top of the panel: the template the editor was filled from, and the way back into it. */
   children?: React.ReactNode;
 }
@@ -42,7 +44,7 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, loadedId, children }: TemplatesMenuProps) {
+export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, loadedId, loadedChanged = false, children }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [typed, setTyped] = React.useState<string | null>(null);
@@ -106,6 +108,22 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
               <Save />
             </Button>
           </SimpleTooltip>
+          {loaded && (
+            <SimpleTooltip label={loadedChanged ? `Reload “${loaded.name}”, dropping your changes` : `Matches “${loaded.name}”`}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-9 shrink-0 text-muted-foreground"
+                aria-label={`Reload template ${loaded.name}`}
+                disabled={!loadedChanged}
+                onClick={() => onLoad(loaded)}
+                data-testid="template-reload"
+              >
+                <RefreshCcw />
+              </Button>
+            </SimpleTooltip>
+          )}
           {loaded && (
             <SimpleTooltip label={`Delete “${loaded.name}”`}>
               <Button type="button" variant="ghost" size="icon-sm" className="size-9 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Delete template ${loaded.name}`} onClick={() => setDeleting(loaded)} data-testid="template-delete">

@@ -276,20 +276,17 @@ test.describe("task booking", () => {
     await block.getByLabel("Question", { exact: true }).fill("Which page is it?");
     await block.getByRole("switch").click();
 
-    // Saved, but not served: the public link is still on the form it was on.
-    await page.getByTestId("booking-editor-save-draft").click();
-    await expect(page.getByTestId("booking-editor-draft-waiting")).toBeVisible({ timeout: 15_000 });
-    await page.goto(publicUrl);
-    await expect(page.getByTestId("booking-services")).toBeVisible();
-    await expect(page.getByTestId("booking-service-web")).toHaveCount(0);
+    // Not served until published: the public link, in another tab, is still on the form it was on.
+    const visitor = await page.context().newPage();
+    await visitor.goto(publicUrl);
+    await expect(visitor.getByTestId("booking-services")).toBeVisible();
+    await expect(visitor.getByTestId("booking-service-web")).toHaveCount(0);
+    await visitor.close();
 
     // Published, and now everybody has it.
-    await page.goto("/workspace/rmit/book");
-    await openEditorTab(page);
-    await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
     await page.getByTestId("booking-editor-publish").click();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await expect(page.getByTestId("booking-editor-draft-waiting")).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId("booking-editor-publish")).toBeDisabled({ timeout: 15_000 });
 
     await signOut(page);
     await page.goto(publicUrl);
