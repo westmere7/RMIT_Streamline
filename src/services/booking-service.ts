@@ -335,7 +335,7 @@ export class BookingService {
     // The stakeholder groups, so "school or department" is picked from a list
     // rather than typed six different ways.
     const departments: TagOption[] = (await this.activeDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color as TagOption["color"] }));
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template, formName: workspace.bookingFormName ?? null, publishedAt: workspace.bookingFormPublishedAt ?? null };
+    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template, publishedAt: workspace.bookingFormPublishedAt ?? null };
   }
 
   /**
