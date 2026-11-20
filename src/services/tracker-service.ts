@@ -1,5 +1,5 @@
 import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
+import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, excelSerialToDate, readDate, toIsoDate, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -709,26 +709,8 @@ export class TrackerService {
         if (typeof raw === "string") {
           const s = raw.trim();
           if (!s) return null;
-          // Nothing is guessed: a date that cannot be is kept as the text typed.
-          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-          const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
-          if (dmy) {
-            const year = dmy[3]!.length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
-            const month = Number(dmy[2]);
-            const day = Number(dmy[1]);
-            return isRealDate(year, month, day) ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : s;
-          }
-          // Digits alone are a date only as an Excel serial (what a copied date
-          // pastes as): 20000-80000 is 1954 to 2119. "12" or "2026" stays text.
-          if (/^\d+(\.\d+)?$/.test(s)) {
-            const serial = Number(s);
-            return serial >= 20000 && serial <= 80000 ? toIsoDate(excelSerialToDate(serial)) : s;
-          }
-          // Written out ("14 September 2026", "Sep 14, 2026"): only with a year,
-          // and read on the calendar day as written, wherever the reader is.
-          if (!/\b\d{4}\b/.test(s)) return s;
-          const parsed = new Date(s);
-          return Number.isNaN(parsed.getTime()) ? s : localIsoDate(parsed);
+          // Nothing is guessed (readDate): a date that cannot be is kept as the text typed.
+          return readDate(s) ?? s;
         }
         if (typeof raw === "number") return toIsoDate(excelSerialToDate(raw));
         return String(raw);
@@ -758,17 +740,6 @@ function clampWidth(width: number): number {
   return Math.max(60, Math.min(Number.isFinite(width) ? Math.round(width) : 160, 1200));
 }
 
-/** A Gregorian date that exists (no 2026-02-30, no month 25). */
-function isRealDate(year: number, month: number, day: number): boolean {
-  if (year < 1000 || year > 9999 || month < 1 || month > 12 || day < 1) return false;
-  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
-}
-
-/** The calendar day a locally parsed date names (Date reads "Sep 14, 2026" as local midnight). */
-function localIsoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 /** "Column 7", or the next number no column already uses. */
 function nextColumnName(columns: readonly Pick<TrackerColumn, "name">[]): string {
   const taken = new Set(columns.map((c) => c.name.trim().toLowerCase()));
@@ -782,11 +753,3 @@ function SUMMARIES_BY_TYPE(type: TrackerColumnType): string[] {
   return ["none", "count", "empty"];
 }
 
-function toIsoDate(d: Date): string {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
-
-/** Excel stores dates as days since 1899-12-30. */
-export function excelSerialToDate(serial: number): Date {
-  return new Date(Math.round((serial - 25569) * 86400 * 1000));
-}

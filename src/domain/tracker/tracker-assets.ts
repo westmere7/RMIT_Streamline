@@ -1,6 +1,7 @@
 import type { EntityId } from "@/domain/common/types";
 import { normalizeAssetLinks, type AssetLink } from "@/domain/item/item-asset";
-import { personIds, personValue, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerSheet } from "@/domain/tracker/tracker";
+import { TRACKER_COLUMN_TYPE_LABELS, personIds, personValue, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerColumnType, type TrackerSheet } from "@/domain/tracker/tracker";
+import { MAX_QUANTITY, readDate, readQuantity } from "@/domain/tracker/tracker-values";
 
 /**
  * A tracker sheet as a task's deliverables.
@@ -159,48 +160,83 @@ export function cellNameFor(id: EntityId, people: readonly AssetPerson[]): strin
   return candidates[0] ?? null;
 }
 
-/** What a role calls one value it reads, for the warning about cells it cannot. */
-const ROLE_VALUE: Partial<Record<AssetRole, string>> = { quantity: "a number", pic: "a person", due: "a date", link: "a web address" };
+/** What a role calls one value it reads, for the warning about cells (or a column) it cannot. */
+const ROLE_VALUE: Partial<Record<AssetRole, string>> = { name: "a name", type: "a type", quantity: "a number", pic: "a person", due: "a date", done: "a done mark", link: "a web address" };
 
 /**
- * How many filled cells of a column a role cannot read, for a warning before
- * the column takes it: text in a Quantity column, "next week" as a due date,
- * a name nobody has as the PIC. The sheet keeps those cells; the task's assets
- * just get nothing from them. Null when every cell reads (or the role reads
- * anything, like the name or a spec).
+ * Column types a role cannot use: reading one gives nothing (or "Yes" for a
+ * name), and a change made on the task cannot be written back into it (a date
+ * into a Checkbox column would just untick it).
+ */
+const WRONG_COLUMN_TYPES: Partial<Record<AssetRole, readonly TrackerColumnType[]>> = {
+  name: ["checkbox"],
+  type: ["checkbox", "number", "date", "person"],
+  quantity: ["checkbox", "date", "person", "url"],
+  pic: ["checkbox", "number", "date", "url"],
+  due: ["checkbox", "number", "person", "url"],
+  done: ["number", "date", "person", "url"],
+  link: ["checkbox", "number", "date", "person"],
+};
+
+/** The column's type when a role cannot use it, else null. */
+export function wrongColumnType(column: Pick<TrackerColumn, "type">, role: AssetRole | null): TrackerColumnType | null {
+  return role && WRONG_COLUMN_TYPES[role]?.includes(column.type) ? column.type : null;
+}
+
+export interface RoleMismatch {
+  /** Filled cells the role cannot read. */
+  unreadable: number;
+  filled: number;
+  /** "a date", "a number"… */
+  expected: string;
+  /** The rows of the cells it cannot read, in sheet order. */
+  rowIds: string[];
+  /** The column's type when the role cannot use that type at all. */
+  wrongType: TrackerColumnType | null;
+}
+
+/**
+ * What a column does not give a role, for a warning before the column takes
+ * it: a type the role cannot use (a Checkbox column as the due date), and the
+ * filled cells it cannot read (text in a Quantity column, "next week" as a due
+ * date, a name nobody has as the PIC). The sheet keeps those cells; the task's
+ * assets just get nothing from them. Null when the column fits.
  */
 export function roleMismatch(
   sheet: Pick<TrackerSheet, "columns" | "rows">,
   columnId: string,
   role: AssetRole | null,
   people: readonly AssetPerson[] = [],
-): { unreadable: number; filled: number; expected: string } | null {
+): RoleMismatch | null {
   const column = sheet.columns.find((c) => c.id === columnId);
   const expected = role ? ROLE_VALUE[role] : undefined;
   if (!column || !role || !expected) return null;
+  const wrongType = wrongColumnType(column, role);
   let filled = 0;
-  let unreadable = 0;
+  const rowIds: string[] = [];
   for (const row of sheet.rows) {
     if (row.kind !== "data") continue;
     const value = row.cells[columnId];
     const text = cellText(value);
     if (!text) continue;
     filled++;
-    if (!readsAs(role, column, value, text, people)) unreadable++;
+    if (!readsAs(role, column, value, text, people)) rowIds.push(row.id);
   }
-  return unreadable > 0 ? { unreadable, filled, expected } : null;
+  return rowIds.length > 0 || wrongType ? { unreadable: rowIds.length, filled, expected, rowIds, wrongType } : null;
 }
 
 function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue | undefined, text: string, people: readonly AssetPerson[]): boolean {
   switch (role) {
-    case "quantity": {
-      const n = typeof value === "number" ? value : Number(text.replace(/[,\s]/g, ""));
-      return Number.isFinite(n) && n >= 0 && Math.round(n) <= MAX_QUANTITY;
-    }
+    // A tick is no name or type ("Yes"); a done mark reads from anything (the rest are just not done).
+    case "name":
+    case "type":
+      return typeof value !== "boolean";
+    case "quantity":
+      return readQuantity(value) !== null;
     case "pic":
       return column.type === "person" ? personIds(value).length > 0 : resolvePeople(text, people).length > 0;
     case "due":
-      return typeof value === "string" && isRealIsoDate(value);
+      return readDate(value) !== null;
     case "link":
       return column.type === "url" || LOOKS_LIKE_URL.test(text);
     default:
@@ -282,6 +318,9 @@ export interface SheetLinePatch {
   [other: string]: unknown;
 }
 
+/** The part of the mapping each line field is written back through. */
+const FIELD_ROLE: Record<SheetLineField, AssetRole> = { name: "name", assetType: "type", quantity: "quantity", assigneeIds: "pic", dueDate: "due", completedAt: "done", notes: "spec", links: "link" };
+
 /**
  * A change made to a sheet's line on the task, as the cells of its row to
  * write: the sheet stays the truth, and its save rewrites the line. Spec and
@@ -306,6 +345,8 @@ export function sheetLineCells(
     if (several) return { cells: [], refused: `The ${SHEET_LINE_FIELD_LABELS[field]} comes from several columns of the sheet. Change it there.` };
     const column = sheet.columns.find((c) => c.id === targets[field]);
     if (!column) return { cells: [], refused: `No column in the sheet gives the ${SHEET_LINE_FIELD_LABELS[field]}. Choose one in its asset settings.` };
+    const wrong = wrongColumnType(column, FIELD_ROLE[field]);
+    if (wrong) return { cells: [], refused: `“${column.name}” in the sheet is a ${TRACKER_COLUMN_TYPE_LABELS[wrong]} column and can't hold ${ROLE_VALUE[FIELD_ROLE[field]]}. Change it there.` };
     let value: TrackerCellValue;
     if (field === "name" || field === "notes") value = raw === null ? null : String(raw).trim() || null;
     else if (field === "links") value = (raw as Array<{ url: string }>)[0]?.url.trim() || null;
@@ -459,18 +500,15 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
     const name = cellText(cell(nameCol)) || (cellText(cell(typeCol)) ? type : null);
     if (!name) continue;
 
-    const rawQty = cell(qtyCol);
-    const qtyNumber = typeof rawQty === "number" ? rawQty : typeof rawQty === "string" && rawQty.trim() !== "" ? Number(rawQty.replace(/[,\s]/g, "")) : NaN;
     // item_assets.quantity is a SQL integer: anything beyond it reads as no quantity rather than failing the sync.
-    const quantity = Number.isFinite(qtyNumber) && qtyNumber >= 0 && Math.round(qtyNumber) <= MAX_QUANTITY ? Math.round(qtyNumber) : mapping.quantity.value;
+    const quantity = readQuantity(cell(qtyCol)) ?? mapping.quantity.value;
 
     const picCell = cell(picCol);
     const fromCell = picCol ? (picCol.type === "person" ? personIds(picCell) : resolvePeople(cellText(picCell), people)) : [];
     const assigneeIds = fromCell.length ? fromCell : (mapping.pic.value ?? []);
 
-    const dueCell = cell(dueCol);
-    // A date that cannot be (2026-02-30) would be refused by the date column and fail the whole sync.
-    const dueDate = typeof dueCell === "string" && isRealIsoDate(dueCell) ? dueCell : mapping.due.value;
+    // Dates typed as text or pasted from Excel count; one that cannot be (2026-02-30) would fail the whole sync, so it reads as none.
+    const dueDate = readDate(cell(dueCol)) ?? mapping.due.value;
 
     const doneCell = cell(doneCol);
     const done = doneCol ? (doneCol.type === "checkbox" ? doneCell === true : isDoneText(cellText(doneCell), doneCol, doneValues)) : false;
@@ -537,9 +575,6 @@ export function isFreshSheet(sheet: Pick<TrackerSheet, "columns" | "rows">): boo
   if (sheet.rows.some((r) => r.kind !== "data" || Object.values(r.cells).some((v) => v !== null && v !== "" && v !== false))) return false;
   return sheet.columns.every((c) => /^column \d+$/i.test(c.name.trim()));
 }
-
-/** The largest quantity item_assets.quantity (a SQL integer) holds. */
-const MAX_QUANTITY = 2147483647;
 
 /** "2026-02-28" yes, "2026-02-30" or "2026-13-45" no: a date the database's date column takes. */
 export function isRealIsoDate(value: string): boolean {

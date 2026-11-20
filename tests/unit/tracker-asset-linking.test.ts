@@ -226,8 +226,8 @@ describe("assignAssetRole, doneChoicesOf, roleMismatch, NEW_ASSET_COLUMN", () =>
   it("warns about PIC names nobody has and cells that are not addresses", () => {
     const columns = [col("p", "Owner", "text"), col("l", "Where", "text"), col("u", "Link", "url")];
     const rows = [data("a", { p: "Jane", l: "https://x.test", u: "not a url" }), data("b", { p: "Nobody", l: "see drive", u: "x" }), band("x", "Band")];
-    expect(roleMismatch({ columns, rows }, "p", "pic", PEOPLE)).toEqual({ unreadable: 1, filled: 2, expected: "a person" });
-    expect(roleMismatch({ columns, rows }, "l", "link")).toEqual({ unreadable: 1, filled: 2, expected: "a web address" });
+    expect(roleMismatch({ columns, rows }, "p", "pic", PEOPLE)).toEqual({ unreadable: 1, filled: 2, expected: "a person", rowIds: ["b"], wrongType: null });
+    expect(roleMismatch({ columns, rows }, "l", "link")).toEqual({ unreadable: 1, filled: 2, expected: "a web address", rowIds: ["b"], wrongType: null });
     // A Link column is taken at its word.
     expect(roleMismatch({ columns, rows }, "u", "link")).toBeNull();
     expect(roleMismatch({ columns, rows }, "missing", "due")).toBeNull();
@@ -287,7 +287,11 @@ describe("sheetAssetLines", () => {
     expect(qty(" 2.5 ")).toBe(3);
     expect(qty(0)).toBe(0);
     expect(qty("0")).toBe(0);
-    expect(qty("3 pcs")).toBe(7);
+    // A count with its unit (v0.132.5): read, not dropped.
+    expect(qty("3 pcs")).toBe(3);
+    expect(qty("x4")).toBe(4);
+    expect(qty("lots")).toBe(7);
+    expect(qty("0x10")).toBe(7);
     expect(qty(-2)).toBe(7);
     expect(qty("")).toBe(7);
     expect(qty(true)).toBe(7);
@@ -296,15 +300,18 @@ describe("sheetAssetLines", () => {
     expect(lines([data("a", { n: "A", q: "lots" })])[0]!.quantity).toBeNull();
   });
 
-  it("takes only ISO dates from a due cell; anything else gets the value for every row", () => {
+  it("reads a due cell as the sheet types dates (day first, Excel days, written with a year); anything else gets the value for every row", () => {
     const m = { ...mapping, due: { columnId: "d", value: "2030-01-01" } };
     const due = (d: string | number) => lines([data("a", { n: "A", d })], m)[0]!.dueDate;
     expect(due("2026-11-02")).toBe("2026-11-02");
-    expect(due("02/11/2026")).toBe("2030-01-01");
-    expect(due("2 Nov 2026")).toBe("2030-01-01");
-    expect(due("2026-11-02T10:00:00Z")).toBe("2030-01-01");
-    expect(due(" 2026-11-02")).toBe("2030-01-01");
-    expect(due(46000)).toBe("2030-01-01");
+    expect(due(" 2026-11-02")).toBe("2026-11-02");
+    expect(due("02/11/2026")).toBe("2026-11-02");
+    expect(due("2 Nov 2026")).toBe("2026-11-02");
+    expect(due(46000)).toBe("2025-12-09");
+    expect(due("next week")).toBe("2030-01-01");
+    expect(due("02/11")).toBe("2030-01-01");
+    expect(due(12)).toBe("2030-01-01");
+    expect(due("31/02/2026")).toBe("2030-01-01");
   });
 
   it("was a bug, fixed: an impossible calendar date in a due cell is passed through as the line's due date", () => {

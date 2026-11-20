@@ -103,8 +103,8 @@ describe("a sheet as assets", () => {
   it("counts the filled cells a part cannot read, for the warning before it is given", () => {
     const columns = [col("t", "When", "text"), col("q", "Count", "text")];
     const rows = [data("a", { t: "2026-10-01", q: "3" }), data("b", { t: "next week", q: "lots" }), data("c", {})];
-    expect(roleMismatch({ columns, rows }, "t", "due")).toEqual({ unreadable: 1, filled: 2, expected: "a date" });
-    expect(roleMismatch({ columns, rows }, "q", "quantity")).toEqual({ unreadable: 1, filled: 2, expected: "a number" });
+    expect(roleMismatch({ columns, rows }, "t", "due")).toMatchObject({ unreadable: 1, filled: 2, expected: "a date", rowIds: ["b"] });
+    expect(roleMismatch({ columns, rows }, "q", "quantity")).toMatchObject({ unreadable: 1, filled: 2, expected: "a number", rowIds: ["b"] });
     expect(roleMismatch({ columns, rows }, "t", "name")).toBeNull();
   });
 

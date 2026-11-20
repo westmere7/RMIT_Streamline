@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.132.5",
+    date: "2026-11-20",
+    title: "Columns with the wrong kind of data",
+    changes: [
+      "Task assets read dates typed as text (14/03/2026, 14 March 2026) and Excel date numbers, and counts like \"3 pcs\" or \"x3\".",
+      "Picking a column on the sheet marks the cells the part can't read, and says so when the column's type can't hold it (a Checkbox column as the due date).",
+      "A change made on the task is never written into a column that can't hold it; it says which column to fix instead.",
+    ],
+  },
+  {
     version: "0.132.4",
     date: "2026-11-20",
     title: "Column box",

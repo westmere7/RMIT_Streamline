@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { Check, CornerDownLeft, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { AlertTriangle, Check, CornerDownLeft, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -30,7 +30,9 @@ import {
   sheetAssetLines,
   suggestAssetMapping,
   trackerPersonName,
+  TRACKER_COLUMN_TYPE_LABELS,
   type AssetRole,
+  type RoleMismatch,
   type Item,
   type TrackerAssetMapping,
   type TrackerCellValue,
@@ -427,7 +429,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   // The part whose column is being chosen on the sheet, when the pop-up is open.
   const [picking, setPicking] = React.useState<PickRequest | null>(null);
   const onSheet = (label: string, role: Exclude<AssetRole, "spec" | "link">, value: string | null, allowNone: boolean) =>
-    pickOnSheet ? () => setPicking({ label, value, allowNone, onChoose: pick(role), onCreate: newColumn(role) }) : undefined;
+    pickOnSheet ? () => setPicking({ label, role, value, allowNone, onChoose: pick(role), onCreate: newColumn(role) }) : undefined;
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
   const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending || mutations.bandRows.isPending;
@@ -578,6 +580,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           <MapRow label="Asset name">
             <ColumnSelect columns={columns} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("Asset name", "name", mapping.name, false)} />
           </MapRow>
+          {warn(mapping.name, "name")}
           <MapRow label="Type">
             <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("Type", "type", mapping.type.columnId, true)} />
             <select
@@ -596,6 +599,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
               ))}
             </select>
           </MapRow>
+          {warn(mapping.type.columnId, "type")}
           <MapRow label="Quantity">
             <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("Quantity", "quantity", mapping.quantity.columnId, true)} />
             <Input
@@ -629,6 +633,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
               testId="map-done" onPickOnSheet={onSheet("Done", "done", mapping.done.columnId, true)}
             />
           </MapRow>
+          {warn(mapping.done.columnId, "done")}
           {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && (
             <MapRow label="">
               <span className="text-xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</span>
@@ -709,6 +714,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
 /** One part's column, chosen on the sheet. */
 interface PickRequest {
   label: string;
+  role: AssetRole;
   value: string | null;
   /** Whether the part can have no column (all but the asset name). */
   allowNone: boolean;
@@ -735,13 +741,31 @@ function ColumnPickerBody({ request, sheet, mapping, bandIds, onClose }: { reque
   const [chosen, setChosen] = React.useState<string | null>(request.value);
   const [hover, setHover] = React.useState<string | null>(null);
   const index = sheet.columns.findIndex((c) => c.id === chosen);
+  // What the column under the pointer, else the chosen one, gives this part: a type it cannot use, cells it cannot read.
+  const focus = hover ?? chosen;
+  const focusIndex = sheet.columns.findIndex((c) => c.id === focus);
+  const fit = React.useMemo(() => (focus ? roleMismatch(sheet, focus, request.role, trackerPeople()) : null), [sheet, focus, request.role]);
+  const flagged = React.useMemo(() => (focus && fit ? { columnId: focus, rowIds: new Set(fit.rowIds) } : null), [focus, fit]);
   return (
     <>
       <DialogHeader>
         <DialogTitle>{request.label}: choose a column</DialogTitle>
         <DialogDescription>Point at a column to see it, click to choose it.</DialogDescription>
       </DialogHeader>
-      <SheetPreview sheet={sheet} mapping={mapping} peek={hover} bandIds={bandIds} selected={chosen} onHover={setHover} onPick={setChosen} />
+      <p className={cn("flex min-h-5 items-start gap-1.5 text-xs", fit ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} aria-live="polite" data-testid="column-picker-fit">
+        {focusIndex >= 0 && (
+          <>
+            {fit ? <AlertTriangle className="mt-px size-3.5 shrink-0" /> : <Check className="mt-px size-3.5 shrink-0" />}
+            <span>
+              <span className="font-medium">
+                {columnLetter(focusIndex)} · {sheet.columns[focusIndex]!.name}:
+              </span>{" "}
+              {fit ? mismatchText(fit) : "every filled cell reads."}
+            </span>
+          </>
+        )}
+      </p>
+      <SheetPreview sheet={sheet} mapping={mapping} peek={hover} bandIds={bandIds} selected={chosen} flagged={flagged} onHover={setHover} onPick={setChosen} />
       <DialogFooter className="items-center gap-2 sm:justify-between">
         <div className="flex gap-1">
           {request.allowNone && (
@@ -829,6 +853,7 @@ function SheetPreview({
   peek,
   bandIds,
   selected = null,
+  flagged = null,
   onHover,
   onPick,
 }: {
@@ -837,6 +862,8 @@ function SheetPreview({
   peek: string | null;
   bandIds: readonly string[];
   selected?: string | null;
+  /** Cells of one column the part being picked cannot read, marked. */
+  flagged?: { columnId: string; rowIds: ReadonlySet<string> } | null;
   onHover?: (id: string | null) => void;
   onPick?: (id: string) => void;
 }) {
@@ -885,7 +912,7 @@ function SheetPreview({
       {box && box.id === peek && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 z-20 rounded-sm border-2 border-primary"
+          className={cn("pointer-events-none absolute inset-y-0 z-20 rounded-sm border-2", flagged?.columnId === box.id ? "border-amber-500" : "border-primary")}
           style={{ left: box.left, width: box.width }}
           data-testid="preview-column-box"
         />
@@ -929,7 +956,16 @@ function SheetPreview({
               <tr key={row.id} className={cn(ignored.has(row.id) && "opacity-40")} title={ignored.has(row.id) ? "Left out of the assets" : undefined} data-testid={ignored.has(row.id) ? "preview-left-out" : "preview-row"}>
                 <td className="border-t border-border/40 px-1 text-center text-[10px] text-muted-foreground">{index + 1}</td>
                 {sheet.columns.map((c) => (
-                  <td key={c.id} {...pickable(c.id)} className={cn("max-w-44 truncate border-t border-border/40 px-2 py-1 transition-colors", tint(c.id))}>
+                  <td
+                    key={c.id}
+                    {...pickable(c.id)}
+                    className={cn(
+                      "max-w-44 truncate border-t border-border/40 px-2 py-1 transition-colors",
+                      tint(c.id),
+                      flagged?.columnId === c.id && flagged.rowIds.has(row.id) && "bg-amber-500/25 text-amber-800 underline decoration-amber-500 decoration-wavy dark:text-amber-200",
+                    )}
+                    data-flagged={flagged?.columnId === c.id && flagged.rowIds.has(row.id) ? "" : undefined}
+                  >
                     {show(c, row.cells[c.id])}
                   </td>
                 ))}
@@ -947,9 +983,15 @@ function SheetPreview({
 /** The columns a fresh sheet gets when used for a task (assetSheet's, in order). */
 const FRESH_COLUMNS = ["Asset", "Type", "Quantity", "Spec", "PIC", "Due date", "Done"];
 
-/** The warning for cells a role cannot read; the sheet keeps them either way. */
-export function mismatchText({ unreadable, filled, expected }: { unreadable: number; filled: number; expected: string }): string {
-  return `${unreadable === filled ? `All ${filled}` : `${unreadable} of ${filled}`} filled cells aren’t ${expected}. Those assets get nothing from them; the sheet keeps them.`;
+/** The warning for a column type a role cannot use and cells it cannot read; the sheet keeps them either way. */
+export function mismatchText({ unreadable, filled, expected, wrongType }: RoleMismatch): string {
+  const parts: string[] = [];
+  if (wrongType) parts.push(`A ${TRACKER_COLUMN_TYPE_LABELS[wrongType]} column can’t hold ${expected}, so changes made on the task can’t go back to it.`);
+  if (unreadable) {
+    const cells = filled === 1 ? "The one filled cell isn’t" : `${unreadable === filled ? `All ${filled}` : `${unreadable} of ${filled}`} filled cells aren’t`;
+    parts.push(`${cells} ${expected}. ${unreadable === 1 ? "That asset gets" : "Those assets get"} nothing from ${unreadable === 1 ? "it" : "them"}; the sheet keeps ${unreadable === 1 ? "it" : "them"}.`);
+  }
+  return parts.join(" ");
 }
 
 function MapRow({ label, children }: { label: string; children: React.ReactNode }) {
