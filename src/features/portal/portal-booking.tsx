@@ -10,6 +10,7 @@ import type { BookingForm as BookingFormData, PortalStakeholderOption } from "@/
 import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
 import { AuthShell, RmitPixel } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
+import { BookingFootnote } from "@/features/booking/booking-footnote";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { newSubmissionKey, type PortalCredentials } from "@/features/portal/portal-client";
@@ -111,7 +112,7 @@ export function PortalBookingScreen({
     <AuthShell
       headline={headline || DEFAULT_BOOKING_HEADLINE}
       lead={lead || DEFAULT_BOOKING_LEAD}
-      footnote={`${creativeTeamName} · Streamline`}
+      footnote={<BookingFootnote team={creativeTeamName} form={form.data ?? null} />}
       cardTestId="portal-book"
       progress={form.isLoading || stakeholders === null}
       width="2xl"

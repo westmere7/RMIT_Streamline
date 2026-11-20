@@ -102,6 +102,9 @@ export interface BookingForm {
   ticketPrefix: string;
   /** The questions to ask, in the workspace's words. */
   template: BookingFormTemplate;
+  /** The live form's name and when it went live, for the small print under the page. Null for the built-in form never published. */
+  formName?: string | null;
+  publishedAt?: string | null;
 }
 
 /** One deliverable in a booking: what, how many, and the spec it has to meet. */

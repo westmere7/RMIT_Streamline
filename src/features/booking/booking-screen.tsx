@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAppThemeControl, usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
 import { RmitPixel, AuthShell } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
+import { BookingFootnote } from "@/features/booking/booking-footnote";
 import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
@@ -47,7 +48,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
     <AuthShell
       headline={DEFAULT_BOOKING_HEADLINE}
       lead={DEFAULT_BOOKING_LEAD}
-      footnote={`${form.data?.workspaceName ?? "RMIT Creative Team"} · Streamline`}
+      footnote={<BookingFootnote team={form.data?.workspaceName ?? "RMIT Creative Team"} form={form.data ?? null} />}
       cardTestId="booking-card"
       progress={form.isLoading || status === "loading"}
       width="2xl"
