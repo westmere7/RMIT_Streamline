@@ -1021,6 +1021,25 @@ describe("shaping the booking form", () => {
     expect(await services.booking.listTemplates(SEED_WORKSPACE_ID)).toEqual([]);
   });
 
+  it("saves a choice question with its follow-ups, and puts them back with ids of their own", async () => {
+    const base = newBookingBlock("single") as BookingChoiceBlock;
+    const yes = base.options[0]!.name;
+    const block: BookingChoiceBlock = {
+      ...base,
+      label: "Is there a deadline?",
+      followUps: { [yes]: [{ id: "when", kind: "short", label: "When is it?", description: null, required: true } as BookingBlock, { id: "why", kind: "long", label: "Why then?", description: null, required: false } as BookingBlock] },
+    };
+    const saved = await services.booking.saveBlock(SEED_WORKSPACE_ID, { name: "Deadline", block }, owner);
+    const stored = (await services.booking.listSavedBlocks(SEED_WORKSPACE_ID)).find((b) => b.id === saved.id)!.block as BookingChoiceBlock;
+    expect(stored.followUps?.[yes]?.map((b) => b.label)).toEqual(["When is it?", "Why then?"]);
+
+    // Inserted into a brief, the copy and its follow-ups get new ids, so the same block can sit in two services.
+    const copy = copyBlockWithNewIds(stored) as BookingChoiceBlock;
+    expect(copy.id).not.toBe(stored.id);
+    expect(copy.followUps?.[yes]?.map((b) => b.label)).toEqual(["When is it?", "Why then?"]);
+    expect(copy.followUps?.[yes]?.map((b) => b.id)).not.toContain("when");
+  });
+
   it("keeps blocks by name, replaces on the same name, and leaves out one that no longer reads", async () => {
     const block = { ...(newBookingBlock("single") as BookingChoiceBlock), label: "Has this been through brand?", display: "dropdown" as const };
     const saved = await services.booking.saveBlock(SEED_WORKSPACE_ID, { name: "Brand history", block }, owner);
