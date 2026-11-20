@@ -61,6 +61,8 @@ export function createMemoryRepositories(
       getBySlug: async () => null,
       accessTo: async () => "missing",
       listWaiting: async () => [],
+      getJoinApproval: async () => true,
+      setJoinApproval: readOnly("changing the join link"),
       update: readOnly("editing the workspace"),
       create: readOnly("creating a workspace"),
       delete: readOnly("deleting a workspace"),

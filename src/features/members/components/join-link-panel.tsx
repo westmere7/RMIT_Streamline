@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Link2, LoaderCircle, RefreshCw } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -27,6 +27,18 @@ export function JoinLinkPanel() {
   const [copied, setCopied] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const url = key ? (typeof window === "undefined" ? routes.selfJoin(key) : new URL(routes.selfJoin(key), window.location.origin).toString()) : "";
+
+  const queryClient = useQueryClient();
+  const approvalKey = ["join-approval", ws.workspace.id];
+  const approval = useQuery({ queryKey: approvalKey, queryFn: () => services.workspace.getJoinApproval(ws.workspace.id), enabled: !!key });
+  const setApproval = useMutation({
+    mutationFn: (on: boolean) => services.workspace.setJoinApproval(ws.workspace.id, on),
+    onSuccess: async (_none, on) => {
+      await queryClient.invalidateQueries({ queryKey: approvalKey });
+      toast.success(on ? "Sign-ups wait for an admin" : "Sign-ups join straight away");
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not change that"),
+  });
 
   const set = useMutation({
     mutationFn: (on: boolean) => services.workspace.setJoinLink(ws.workspace.id, on),
@@ -71,6 +83,22 @@ export function JoinLinkPanel() {
             <RefreshCw />
           </Button>
         </div>
+      )}
+      {key && (
+        // Whether each sign-up waits for an admin to let them in (Members, and the admin's inbox).
+        <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]">
+          <span className="min-w-0">
+            <span className="font-medium">Admins approve each sign-up</span>
+            <span className="block text-2xs text-muted-foreground">{(approval.data ?? true) ? "New people wait until an admin lets them in." : "New people get in as soon as they set a password."}</span>
+          </span>
+          <Switch
+            checked={approval.data ?? true}
+            onCheckedChange={(on) => setApproval.mutate(on)}
+            disabled={approval.isLoading || setApproval.isPending}
+            aria-label="Admins approve each sign-up"
+            data-testid="join-link-approval"
+          />
+        </label>
       )}
     </section>
   );

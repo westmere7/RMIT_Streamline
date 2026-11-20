@@ -92,6 +92,13 @@ export interface WorkspaceRepository {
    * else there yet, their own seat included.
    */
   listWaiting(userId: EntityId): Promise<Array<{ workspaceId: EntityId; name: string; slug: string }>>;
+  /**
+   * Whether people who sign up through the join link wait for an admin
+   * (migration 0128; on unless switched off). Read on its own, and on when it
+   * cannot be read, so nothing depends on the column being there yet.
+   */
+  getJoinApproval(workspaceId: EntityId): Promise<boolean>;
+  setJoinApproval(workspaceId: EntityId, on: boolean): Promise<void>;
   getById(id: EntityId): Promise<Workspace | null>;
   getBySlug(slug: string): Promise<Workspace | null>;
   update(id: EntityId, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace>;

@@ -49,9 +49,15 @@ export async function selfJoin(key: string, input: z.infer<typeof selfJoinSchema
   const result = await inviteMember({ workspaceId: workspace.id, email: input.email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] }, ownerId);
   // Only a brand-new email reaches this far, and a new person always gets a link.
   if (!result.invitation) throw new HttpError(409, SELF_JOIN_MESSAGES.known);
-  // Nobody chose this person yet: finishing the link leaves them waiting for an admin.
-  const flagged = await admin.from("workspace_invitations").update({ needs_approval: true }).eq("id", result.invitation.id);
-  if (flagged.error) throw new HttpError(500, `workspace_invitations.needsApproval: ${flagged.error.message}`);
+  // Nobody chose this person yet: finishing the link leaves them waiting for an
+  // admin, unless the workspace switched that off (migration 0128). Read on its
+  // own, and taken as on when it cannot be read.
+  const setting = await admin.from("workspaces").select("join_needs_approval").eq("id", workspace.id).maybeSingle();
+  const needsApproval = setting.error || !setting.data ? true : (setting.data as { join_needs_approval: boolean | null }).join_needs_approval !== false;
+  if (needsApproval) {
+    const flagged = await admin.from("workspace_invitations").update({ needs_approval: true }).eq("id", result.invitation.id);
+    if (flagged.error) throw new HttpError(500, `workspace_invitations.needsApproval: ${flagged.error.message}`);
+  }
   return { token: result.invitation.token };
 }
 

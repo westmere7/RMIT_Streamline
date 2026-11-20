@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.123.0",
+    date: "2026-11-20",
+    title: "Approval for the join link is a choice",
+    changes: ["Under the join link in Add member, admins choose whether each sign-up waits for their approval or gets in as soon as they set a password. It stays on until switched off."],
+  },
+  {
     version: "0.122.0",
     date: "2026-11-20",
     title: "Any board for a service",

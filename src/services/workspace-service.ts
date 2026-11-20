@@ -298,6 +298,15 @@ export class WorkspaceService {
     return this.repos.workspaces.update(workspaceId, { joinKey: on ? generateInvitationToken() : null });
   }
 
+  /** Whether join-link sign-ups wait for an admin's approval (on unless switched off). */
+  async getJoinApproval(workspaceId: EntityId): Promise<boolean> {
+    return this.repos.workspaces.getJoinApproval(workspaceId);
+  }
+
+  async setJoinApproval(workspaceId: EntityId, on: boolean): Promise<void> {
+    await this.repos.workspaces.setJoinApproval(workspaceId, on);
+  }
+
   /** The invited person sets their password and details; their membership becomes ACTIVE. */
   async completeOnboarding(input: CompleteOnboardingInput): Promise<{ email: string; userId: EntityId; waiting?: boolean }> {
     return this.repos.onboarding.complete(input);

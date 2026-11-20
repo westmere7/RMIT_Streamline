@@ -94,6 +94,18 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
     return out.sort((a, b) => a.name.localeCompare(b.name));
   }
 
+  async getJoinApproval(workspaceId: string): Promise<boolean> {
+    const db = await this.conn.getDb();
+    const workspace = (await db.get("workspaces", workspaceId)) as (Workspace & { joinNeedsApproval?: boolean }) | undefined;
+    return workspace?.joinNeedsApproval !== false;
+  }
+
+  async setJoinApproval(workspaceId: string, on: boolean): Promise<void> {
+    const db = await this.conn.getDb();
+    const workspace = await db.get("workspaces", workspaceId);
+    if (workspace) await db.put("workspaces", { ...workspace, joinNeedsApproval: on } as Workspace);
+  }
+
   async getBySlug(slug: string): Promise<Workspace | null> {
     const db = await this.conn.getDb();
     return (await db.getFromIndex("workspaces", "bySlug", slug)) ?? null;

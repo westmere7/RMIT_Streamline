@@ -160,8 +160,8 @@ export class LocalOnboardingRepository implements OnboardingRepository {
     const result = await this.invite({ workspaceId: workspace.id, invitedBy: owner?.userId ?? "", email, firstName: input.firstName, lastName: input.lastName, jobTitle: null, role: "MEMBER", teamIds: [] });
     // Only a brand-new email reaches this far, and a new person always gets a link.
     if (!result.invitation) throw new Error(SELF_JOIN_MESSAGES.known);
-    // Nobody chose this person yet: finishing the link leaves them waiting for an admin.
-    await db.put("workspaceInvitations", { ...result.invitation, needsApproval: true });
+    // Nobody chose this person yet: finishing the link leaves them waiting for an admin, unless switched off.
+    if ((workspace as { joinNeedsApproval?: boolean }).joinNeedsApproval !== false) await db.put("workspaceInvitations", { ...result.invitation, needsApproval: true });
     return { token: result.invitation.token };
   }
 

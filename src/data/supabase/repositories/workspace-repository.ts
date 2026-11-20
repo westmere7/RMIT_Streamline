@@ -31,6 +31,16 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     return ((result.data ?? []) as Array<{ workspace_id: string; workspace_name: string; workspace_slug: string }>).map((row) => ({ workspaceId: row.workspace_id, name: row.workspace_name, slug: row.workspace_slug }));
   }
 
+  async getJoinApproval(workspaceId: string): Promise<boolean> {
+    const result = await db().from("workspaces").select("join_needs_approval").eq("id", workspaceId).maybeSingle();
+    if (result.error || !result.data) return true;
+    return (result.data as { join_needs_approval: boolean | null }).join_needs_approval !== false;
+  }
+
+  async setJoinApproval(workspaceId: string, on: boolean): Promise<void> {
+    assertOk(await db().from("workspaces").update({ join_needs_approval: on }).eq("id", workspaceId), "workspaces.setJoinApproval");
+  }
+
   async getBySlug(slug: string): Promise<Workspace | null> {
     const result = await db().from("workspaces").select(WORKSPACE).eq("slug", slug).maybeSingle();
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getBySlug");
