@@ -977,23 +977,23 @@ function ServicePicker({
   const [open, setOpen] = React.useState(false);
   const questions = (s: BookingServiceType) => s.blocks.filter(isQuestionBlock).length;
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="label-quiet">Brief for</span>
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-sm font-medium text-muted-foreground">Brief for</span>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex h-10 w-full max-w-sm min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 text-left text-[13px] font-medium shadow-xs transition-colors hover:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring sm:w-auto sm:min-w-72"
+            className="flex h-12 w-full max-w-xl min-w-0 items-center gap-2.5 rounded-xl border border-border bg-card px-4 text-left text-base font-semibold shadow-xs transition-colors hover:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring sm:w-auto sm:min-w-96"
             aria-label={`Brief for ${selected.name || "Untitled"}. Change service`}
             data-testid="editor-brief-service-picker"
           >
-            <DynamicIcon name={selected.icon} className={cn("size-4 shrink-0", colorClasses(selected.color).text)} />
+            <DynamicIcon name={selected.icon} className={cn("size-5 shrink-0", colorClasses(selected.color).text)} />
             <span className="min-w-0 flex-1 truncate">{selected.name || "Untitled"}</span>
-            <span className="shrink-0 text-2xs text-muted-foreground tabular">{questions(selected) === 1 ? "1 question" : `${questions(selected)} questions`}</span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="shrink-0 text-[13px] font-normal text-muted-foreground tabular">{questions(selected) === 1 ? "1 question" : `${questions(selected)} questions`}</span>
+            <ChevronDown className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-1">
+        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-80 p-1.5">
           <ul role="listbox" aria-label="Services" className="scrollbar-thin max-h-80 overflow-y-auto">
             {services.map((s) => {
               const active = s.id === selected.id;
@@ -1008,13 +1008,13 @@ function ServicePicker({
                       onSelect(s.id);
                       setOpen(false);
                     }}
-                    className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px] hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                    className="flex h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 text-left text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                     data-testid={`editor-brief-service-${slug(s.name)}`}
                   >
-                    <DynamicIcon name={s.icon} className={cn("size-3.5 shrink-0", colorClasses(s.color).text)} />
+                    <DynamicIcon name={s.icon} className={cn("size-4 shrink-0", colorClasses(s.color).text)} />
                     <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
-                    <span className="shrink-0 text-2xs text-muted-foreground tabular">{questions(s)}</span>
-                    {active && <Check className="size-3.5 shrink-0" aria-hidden />}
+                    <span className="shrink-0 text-xs text-muted-foreground tabular">{questions(s)}</span>
+                    {active && <Check className="size-4 shrink-0" aria-hidden />}
                   </button>
                   {services.length > 1 && (
                     <button
@@ -1025,10 +1025,10 @@ function ServicePicker({
                       }}
                       aria-label={`Remove ${name}`}
                       title={`Remove ${name}`}
-                      className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-2 focus-visible:outline-ring"
+                      className="flex size-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-2 focus-visible:outline-ring"
                       data-testid={`editor-brief-remove-service-${slug(s.name)}`}
                     >
-                      <X className="size-3.5" />
+                      <X className="size-4" />
                     </button>
                   )}
                 </li>
@@ -1042,10 +1042,10 @@ function ServicePicker({
                 onAdd();
                 setOpen(false);
               }}
-              className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              className="flex h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
               data-testid="editor-brief-add-service"
             >
-              <Plus className="size-3.5" /> Add a service
+              <Plus className="size-4" /> Add a service
             </button>
           </div>
         </PopoverContent>

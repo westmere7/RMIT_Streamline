@@ -23,7 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Clearer steps in the form editor",
     changes: [
       "The four steps of the booking form editor run across the full width, numbered, the open one raised.",
-      "On step two, a Brief for picker chooses the service; its list adds a service and removes any, asking first.",
+      "On step two, a large Brief for picker chooses the service; its list adds a service and removes any, asking first.",
     ],
   },
   {
