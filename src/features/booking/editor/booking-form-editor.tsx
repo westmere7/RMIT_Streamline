@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
+import { Boxes, Check, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -15,7 +15,7 @@ import { IconPicker } from "@/components/shared/icon-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
 import {
@@ -61,6 +61,8 @@ import { beginUnsavedWork } from "@/lib/unsaved-work";
  */
 
 const ALLOCATION_TEAM = "__allocation__";
+/** "Auto-allocation…" in Bookings go to: opens its rules rather than choosing a team. */
+const BY_WORK_TYPE = "__by_work_type__";
 
 export interface BookingFormEditorProps {
   form: BookingFormData;
@@ -373,10 +375,6 @@ export function BookingFormEditor({
           onAddService={addService}
           onDuplicateService={duplicateService}
           onRemoveService={setRemovingService}
-          onEditBrief={(id) => {
-            setSelectedService(id);
-            setTab("brief");
-          }}
         />
       )}
 
@@ -464,7 +462,6 @@ function BasicsPane({
   onAddService,
   onDuplicateService,
   onRemoveService,
-  onEditBrief,
 }: {
   form: BookingFormData;
   draft: BookingFormTemplate;
@@ -474,7 +471,6 @@ function BasicsPane({
   onAddService: () => void;
   onDuplicateService: (id: string) => void;
   onRemoveService: (id: string) => void;
-  onEditBrief: (serviceId: string) => void;
 }) {
   const previewRequest = React.useMemo(() => emptyBookingRequest(), []);
   // The three about the requester are one block; everything else on this step
@@ -599,7 +595,6 @@ function BasicsPane({
             onPatch={(patch) => update((t) => Object.assign(t.services.find((x) => x.id === shown.id)!, patch))}
             onDuplicate={() => onDuplicateService(shown.id)}
             onRemove={() => onRemoveService(shown.id)}
-            onEditBrief={() => onEditBrief(shown.id)}
           />
         )}
       </EditorSection>
@@ -675,7 +670,6 @@ function ServicePanel({
   onPatch,
   onDuplicate,
   onRemove,
-  onEditBrief,
 }: {
   service: BookingServiceType;
   form: BookingFormData;
@@ -683,11 +677,11 @@ function ServicePanel({
   onPatch: (patch: Partial<BookingServiceType>) => void;
   onDuplicate: () => void;
   onRemove: () => void;
-  onEditBrief: () => void;
 }) {
   const ws = useWorkspace();
   const [routingOpen, setRoutingOpen] = React.useState(false);
-  const questions = service.blocks.filter(isQuestionBlock).length;
+  const byWorkType = !!service.routing?.enabled;
+  const allocationBoard = ws.boards.find((b) => b.system === "TASK_ALLOCATION") ?? null;
   const key = slug(service.name);
   return (
     <EditorSection
@@ -723,59 +717,9 @@ function ServicePanel({
         </>
       }
     >
-      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)]">
-        <Labeled label="Name">
-          <TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${key}`} />
-        </Labeled>
-        <Labeled label="Bookings go to">
-          <Select value={service.teamId ?? ALLOCATION_TEAM} onValueChange={(v) => onPatch({ teamId: v === ALLOCATION_TEAM ? null : v })}>
-            <SelectTrigger className="h-[30px] text-[13px]" aria-label={`Which team takes ${service.name}`} data-testid={`editor-service-team-${key}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALLOCATION_TEAM}>Task Allocation</SelectItem>
-              {form.teams.map((team) => {
-                // The board the team nominated in its settings, read live, so a
-                // change there shows here at once. Without one, the team itself.
-                const nominated = ws.boardById(ws.teamById(team.id)?.bookingBoardId ?? null);
-                return (
-                  <SelectItem key={team.id} value={team.id}>
-                    {nominated ? (
-                      <span className="flex min-w-0 items-center gap-2">
-                        <DynamicIcon name={nominated.icon} className={cn("size-3.5 shrink-0", colorClasses(nominated.color).text)} />
-                        <span className="truncate">{nominated.name}</span>
-                        <span className="truncate text-muted-foreground">{team.name}</span>
-                      </span>
-                    ) : (
-                      <span className="flex min-w-0 items-center gap-2">
-                        <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colorClasses(team.color).text)} />
-                        <span className="truncate">{team.name}</span>
-                      </span>
-                    )}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
-          {/* Which board, beyond the team's own: rules on the work types picked. */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 w-full min-w-0 justify-start text-[13px] font-normal"
-            onClick={() => setRoutingOpen(true)}
-            data-testid={`editor-service-routing-${key}`}
-          >
-            <Split className="text-muted-foreground" />
-            <span className="truncate">
-              {service.routing?.enabled
-                ? `By work type · ${service.routing.rules.length === 1 ? "1 rule" : `${service.routing.rules.length} rules`}`
-                : `Board: ${ws.boardById(ws.teamById(service.teamId)?.bookingBoardId ?? null)?.name ?? "Task Allocation"}`}
-            </span>
-          </Button>
-          <RoutingDialog service={service} open={routingOpen} onOpenChange={setRoutingOpen} onSave={(routing) => onPatch({ routing })} />
-        </Labeled>
-      </div>
+      <Labeled label="Name">
+        <TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${key}`} />
+      </Labeled>
       <Labeled label="Description">
         <TextBox value={service.description ?? ""} onChange={(v) => onPatch({ description: v || null })} ariaLabel="Service description" placeholder="A line on the card (optional)" className="text-[13px] text-muted-foreground" testId={`editor-service-description-${key}`} />
       </Labeled>
@@ -787,11 +731,85 @@ function ServicePanel({
         <WorkTypeToggles selected={service.subServices} onChange={(subServices) => onPatch({ subServices })} testIdPrefix={`editor-service-worktypes-${key}`} />
       </div>
 
-      <div className="flex justify-end border-t border-border/60 pt-2.5">
-        <Button type="button" variant="outline" size="sm" onClick={onEditBrief} data-testid={`editor-service-brief-${key}`}>
-          <Shapes /> {questions === 0 ? "Build its questions" : questions === 1 ? "1 question in step two" : `${questions} questions in step two`}
-        </Button>
-      </div>
+      {/* Where its bookings land, in one choice: the queue, a team (its own booking board), or rules on the
+          work types picked. A line on the left says what it is for; beside it when the box has room. */}
+      <section className="@container rounded-lg border border-border/60 bg-surface/40 p-2.5" aria-label="Bookings go to" data-testid={`editor-service-destination-${key}`}>
+        <div className="grid items-center gap-2 @md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] @md:gap-4">
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium">Bookings go to</p>
+            <p className="text-2xs text-muted-foreground">A team&apos;s board, Task Allocation, or auto-allocation by work type.</p>
+          </div>
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <Select
+                value={byWorkType ? BY_WORK_TYPE : (service.teamId ?? ALLOCATION_TEAM)}
+                onValueChange={(v) => {
+                  // Rules are set in their own dialog, opened once this menu has closed (or the closing
+                  // menu dismisses it); the choice changes only when the rules are saved there.
+                  if (v === BY_WORK_TYPE) return void window.setTimeout(() => setRoutingOpen(true), 0);
+                  // Back to the queue or a team: the rules are switched off and kept, for next time.
+                  onPatch({ teamId: v === ALLOCATION_TEAM ? null : v, ...(service.routing ? { routing: { ...service.routing, enabled: false } } : {}) });
+                }}
+              >
+                <SelectTrigger className="h-9 min-w-0 flex-1 bg-card text-[13px]" aria-label={`Where ${service.name} bookings go`} data-testid={`editor-service-team-${key}`}>
+                  {byWorkType ? (
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Split className="size-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate">Auto-allocation</span>
+                    </span>
+                  ) : (
+                    <SelectValue />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALLOCATION_TEAM}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <DynamicIcon name={allocationBoard?.icon ?? "Inbox"} className={cn("size-3.5 shrink-0", colorClasses(allocationBoard?.color ?? "red").text)} />
+                      <span className="truncate">{allocationBoard?.name ?? "Task Allocation"}</span>
+                      <span className="truncate text-muted-foreground">a manager places them</span>
+                    </span>
+                  </SelectItem>
+                  <SelectSeparator />
+                  {form.teams.map((team) => {
+                    // The board the team nominated in its settings, read live, so a
+                    // change there shows here at once. Without one, the team itself.
+                    const nominated = ws.boardById(ws.teamById(team.id)?.bookingBoardId ?? null);
+                    return (
+                      <SelectItem key={team.id} value={team.id}>
+                        {nominated ? (
+                          <span className="flex min-w-0 items-center gap-2">
+                            <DynamicIcon name={nominated.icon} className={cn("size-3.5 shrink-0", colorClasses(nominated.color).text)} />
+                            <span className="truncate">{nominated.name}</span>
+                            <span className="truncate text-muted-foreground">{team.name}</span>
+                          </span>
+                        ) : (
+                          <span className="flex min-w-0 items-center gap-2">
+                            <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colorClasses(team.color).text)} />
+                            <span className="truncate">{team.name}</span>
+                          </span>
+                        )}
+                      </SelectItem>
+                    );
+                  })}
+                  <SelectSeparator />
+                  <SelectItem value={BY_WORK_TYPE} data-testid={`editor-service-routing-${key}`}>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <Split className="size-3.5 shrink-0 text-muted-foreground" />
+                      Auto-allocation…
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {byWorkType && (
+                <Button type="button" variant="outline" size="sm" className="h-9 shrink-0" onClick={() => setRoutingOpen(true)} data-testid={`editor-service-routing-edit-${key}`}>
+                  Edit rules
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        <RoutingDialog service={service} open={routingOpen} onOpenChange={setRoutingOpen} onSave={({ routing, teamId }) => onPatch({ routing, teamId })} />
+      </section>
     </EditorSection>
   );
 }
@@ -1072,3 +1090,4 @@ function ServicePicker({
     </div>
   );
 }
+

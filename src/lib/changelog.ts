@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.121.1",
+    date: "2026-11-20",
+    title: "Auto-allocation",
+    changes: [
+      "Bookings go to is one choice at the bottom of each service: Task Allocation, a team's board, or Auto-allocation, which picks the board from the work types chosen.",
+      "Auto-allocation's rules set where everything else goes too: Task Allocation, a team's board or any board. Choosing a team again switches them off and keeps them.",
+      "The question count under each service is gone.",
+    ],
+  },
+  {
     version: "0.121.0",
     date: "2026-11-20",
     title: "Bookings routed by work type",
