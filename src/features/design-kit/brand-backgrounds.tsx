@@ -49,8 +49,8 @@ interface Option {
 const OPTIONS: Option[] = [
   {
     id: "current",
-    name: "A · Before",
-    note: "What B replaced: glows and a faint grid.",
+    name: "A · Glows and grid (live)",
+    note: "What the panel uses: a red glow low, a blue one high, and a faint grid.",
     ground: (
       <>
         <div className="absolute -bottom-40 -left-24 size-[560px] rounded-full bg-primary/30 blur-3xl" />
@@ -61,7 +61,7 @@ const OPTIONS: Option[] = [
   },
   {
     id: "watermark",
-    name: "B · Watermark (live)",
+    name: "B · Watermark",
     note: "One large pixel bleeding off the corner, navy on navy, a red glow behind it.",
     ground: (
       <>
@@ -313,7 +313,7 @@ export function BrandBackgrounds() {
     <main className="min-h-screen bg-canvas px-6 py-10 text-foreground sm:px-10">
       <header className="mx-auto mb-8 max-w-7xl">
         <h1 className="text-xl font-semibold tracking-tight">Brand panel backgrounds</h1>
-        <p className="mt-1 text-[13px] text-muted-foreground">Options for the panel beside the booking and sign-in pages, each built from RMIT&apos;s pixel on RMIT navy. B is live; A is what it replaced.</p>
+        <p className="mt-1 text-[13px] text-muted-foreground">Options for the panel beside the booking and sign-in pages, each built from RMIT&apos;s pixel on RMIT navy. A is live.</p>
       </header>
       <div className="mx-auto grid max-w-7xl gap-8 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
         {OPTIONS.map((option) => (

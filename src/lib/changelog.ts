@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.125.1",
+    date: "2026-11-20",
+    title: "Brand panel as it was",
+    changes: ["Sign-in, booking, portal and join pages keep their glows and grid; the pixel watermark tried in 0.125.0 is gone."],
+  },
+  {
     version: "0.125.0",
     date: "2026-11-20",
     title: "Tidy past forms",
@@ -25,7 +31,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Past forms: each one's menu saves it as a template or deletes it; Clean up deletes every past form but the live one. The live form's entry is never deleted.",
       "Brief editor: pointing at the plus between two blocks opens the gap, showing where the new block will go.",
       "Booking pages: when the live form was published, in small print under the team's name.",
-      "Sign-in, booking, portal, join and shared pages: a new brand panel, RMIT's pixel as a watermark with a red glow.",
     ],
   },
   {
