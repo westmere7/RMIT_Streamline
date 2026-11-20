@@ -228,7 +228,7 @@ function portalSettingsRows(portal: StakeholderPortal, columns: PortalColumnCand
 function bookingSettingsRows(portal: StakeholderPortal): Array<{ label: string; value: string }> {
   return [
     { label: "Theme", value: themeWord(portal.bookingTheme, portal.bookingThemeSwitch) },
-    { label: "Headline and intro", value: portal.bookingHeadline?.trim() || portal.bookingLead?.trim() ? "Your own" : "Built in" },
+    { label: "Left panel words", value: portal.bookingHeadline?.trim() || portal.bookingLead?.trim() ? "Your own" : "Built in" },
     { label: "Size", value: `${portal.bookingScale ?? 100}%${(portal.bookingScaleSwitch ?? true) ? ", visitors can change" : ""}` },
     { label: "Staff sign-in", value: portal.bookingSignIn ? "Offered" : "Not offered" },
   ];
@@ -856,11 +856,11 @@ function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
   return (
     <>
       <ThemeField theme={draft.bookingTheme} onTheme={(value) => set("bookingTheme", value)} allowSwitch={draft.bookingThemeSwitch} onAllowSwitch={(value) => set("bookingThemeSwitch", value)} testId="portal-booking-theme" />
-      <Field label="Headline">
-        <Input value={draft.bookingHeadline} onChange={(e) => set("bookingHeadline", e.target.value)} maxLength={MAX_BOOKING_HEADLINE} placeholder={DEFAULT_BOOKING_HEADLINE} aria-label="Booking page headline" className="h-9" data-testid="portal-booking-headline" />
+      <Field label="Left panel heading">
+        <Input value={draft.bookingHeadline} onChange={(e) => set("bookingHeadline", e.target.value)} maxLength={MAX_BOOKING_HEADLINE} placeholder={DEFAULT_BOOKING_HEADLINE} aria-label="Left panel heading" className="h-9" data-testid="portal-booking-headline" />
       </Field>
-      <Field label="Intro">
-        <Textarea value={draft.bookingLead} onChange={(e) => set("bookingLead", e.target.value)} maxLength={MAX_BOOKING_LEAD} placeholder={DEFAULT_BOOKING_LEAD} aria-label="Booking page intro" rows={2} className="min-h-0 resize-none" data-testid="portal-booking-lead" />
+      <Field label="Left panel text">
+        <Textarea value={draft.bookingLead} onChange={(e) => set("bookingLead", e.target.value)} maxLength={MAX_BOOKING_LEAD} placeholder={DEFAULT_BOOKING_LEAD} aria-label="Left panel text" rows={2} className="min-h-0 resize-none" data-testid="portal-booking-lead" />
       </Field>
       <Toggle label="Offers staff sign-in" checked={draft.bookingSignIn} onChange={(value) => set("bookingSignIn", value)} testId="portal-booking-sign-in" />
       <ScaleField value={draft.bookingScale} onChange={(value) => set("bookingScale", value)} />

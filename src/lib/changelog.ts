@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.125.3",
+    date: "2026-11-20",
+    title: "Clearer booking page settings",
+    changes: ["Booking form settings: Headline and Intro are now Left panel heading and Left panel text, the words on the dark panel beside the portal's booking form."],
+  },
+  {
     version: "0.125.2",
     date: "2026-11-20",
     title: "Tidier board members",
