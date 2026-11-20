@@ -682,6 +682,25 @@ function ServicePanel({
   const [routingOpen, setRoutingOpen] = React.useState(false);
   const byWorkType = !!service.routing?.enabled;
   const allocationBoard = ws.boards.find((b) => b.system === "TASK_ALLOCATION") ?? null;
+  // "Print → DOOH · Print + Key Visual only → Open Day · else → Task Allocation"
+  const rulesSummary = React.useMemo(() => {
+    const routing = service.routing;
+    if (!routing?.enabled) return "";
+    const queue = allocationBoard?.name ?? "Task Allocation";
+    const boardName = (id: string) => ws.boardById(id)?.name ?? "a board no longer there";
+    const team = ws.teamById(service.teamId);
+    const rest =
+      routing.otherwise.kind === "board"
+        ? boardName(routing.otherwise.boardId)
+        : routing.otherwise.kind === "team" && team
+          ? (ws.boardById(team.bookingBoardId ?? null)?.name ?? `${queue} (${team.name})`)
+          : queue;
+    const rules = routing.rules.map((rule) => {
+      const exact = rule.match === "exact";
+      return `${rule.workTypes.join(exact ? " + " : " / ") || "—"}${exact ? " only" : ""} → ${boardName(rule.boardId)}`;
+    });
+    return [...rules, `else → ${rest}`].join(" · ");
+  }, [service.routing, service.teamId, allocationBoard, ws]);
   const key = slug(service.name);
   return (
     <EditorSection
@@ -733,13 +752,12 @@ function ServicePanel({
 
       {/* Where its bookings land, in one choice: the queue, a team (its own booking board), or rules on the
           work types picked. A line on the left says what it is for; beside it when the box has room. */}
-      <section className="@container rounded-lg border border-border/60 bg-surface/40 p-2.5" aria-label="Bookings go to" data-testid={`editor-service-destination-${key}`}>
-        <div className="grid items-center gap-2 @md:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] @md:gap-4">
-          <div className="min-w-0">
-            <p className="text-[13px] font-medium">Bookings go to</p>
-            <p className="text-2xs text-muted-foreground">A team&apos;s board, Task Allocation, or auto-allocation by work type.</p>
-          </div>
-          <div className="min-w-0">
+      <section className="space-y-2 rounded-lg border border-border/60 bg-surface/40 p-2.5" aria-label="Bookings go to" data-testid={`editor-service-destination-${key}`}>
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium">Bookings go to</p>
+          <p className="text-2xs text-muted-foreground">A team&apos;s board, Task Allocation, or auto-allocation by work type.</p>
+        </div>
+        <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <Select
                 value={byWorkType ? BY_WORK_TYPE : (service.teamId ?? ALLOCATION_TEAM)}
@@ -751,11 +769,20 @@ function ServicePanel({
                   onPatch({ teamId: v === ALLOCATION_TEAM ? null : v, ...(service.routing ? { routing: { ...service.routing, enabled: false } } : {}) });
                 }}
               >
-                <SelectTrigger className="h-9 min-w-0 flex-1 bg-card text-[13px]" aria-label={`Where ${service.name} bookings go`} data-testid={`editor-service-team-${key}`}>
+                <SelectTrigger
+                  className="h-9 min-w-0 flex-1 bg-card text-[13px]"
+                  aria-label={`Where ${service.name} bookings go`}
+                  title={byWorkType ? rulesSummary : undefined}
+                  data-testid={`editor-service-team-${key}`}
+                >
                   {byWorkType ? (
+                    // The rules at a glance, after the name; the whole of them on hover.
                     <span className="flex min-w-0 items-center gap-2">
                       <Split className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate">Auto-allocation</span>
+                      <span className="shrink-0">Auto-allocation</span>
+                      <span className="min-w-0 truncate text-muted-foreground" data-testid={`editor-service-routing-summary-${key}`}>
+                        {rulesSummary}
+                      </span>
                     </span>
                   ) : (
                     <SelectValue />
@@ -806,7 +833,6 @@ function ServicePanel({
                 </Button>
               )}
             </div>
-          </div>
         </div>
         <RoutingDialog service={service} open={routingOpen} onOpenChange={setRoutingOpen} onSave={({ routing, teamId }) => onPatch({ routing, teamId })} />
       </section>

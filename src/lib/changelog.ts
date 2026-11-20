@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.121.3",
+    date: "2026-11-20",
+    title: "Auto-allocation at a glance",
+    changes: [
+      "With Auto-allocation on, the Bookings go to picker shows its rules in one line, in full on hover; the picker spans the box under its title.",
+    ],
+  },
+  {
     version: "0.121.2",
     date: "2026-11-20",
     title: "Exact work type rules",
