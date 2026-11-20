@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.129.1",
+    date: "2026-11-20",
+    title: "Tracker tidy-ups",
+    changes: [
+      "A checkbox column's Count empty counts unticked boxes; typing “done” ticks a box.",
+      "Number columns read decimal numbers only (“0x10” stays text); a cell of spaces is empty.",
+      "Column widths stay between 60 and 1200; a dropdown drops the colours of options it no longer has; a new column keeps the format and footer it was given.",
+      "A quantity typed on a task is rounded in the sheet too; moving a sheet's asset line on the task says to move the row in the sheet.",
+    ],
+  },
+  {
     version: "0.129.0",
     date: "2026-11-20",
     title: "Sturdier trackers",

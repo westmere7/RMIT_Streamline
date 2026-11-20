@@ -183,7 +183,8 @@ function numbersIn(column: TrackerColumn, rows: TrackerRow[]): number[] {
 export function summarize(column: TrackerColumn, rows: TrackerRow[]): SummaryResult {
   const kind = effectiveSummary(column);
   const data = rows.filter((r) => r.kind === "data");
-  const filled = data.filter((r) => !isBlankCell(r.cells[column.id]) || r.cells[column.id] === false).length;
+  // A checkbox is filled when ticked: "Count empty" on one counts the unticked boxes.
+  const filled = data.filter((r) => (column.type === "checkbox" ? r.cells[column.id] === true : !isBlankCell(r.cells[column.id]))).length;
   const format = (n: number) => formatNumber(n, column.numberFormat ?? "plain");
   switch (kind) {
     case "none":

@@ -656,11 +656,11 @@ describe("a linked sheet, through real saves", () => {
     expect(result.sync).toEqual({ added: 1, updated: 3, removed: 0 });
   });
 
-  it("takes every line off when the name column is deleted and no type column is mapped (the stored mapping keeps the dead id)", async () => {
+  it("takes every line off when the name column is deleted and no type column is mapped (the stored mapping lets go of the dead column)", async () => {
     await link(mapWith({ name: "c-name", done: { columnId: "c-done", values: [] } }));
     const result = await save((s) => TrackerService.deleteColumn(s, "c-name"));
     expect(result.sync).toEqual({ added: 0, updated: 0, removed: 3 });
-    expect((await current()).assetMapping?.name).toBe("c-name");
+    expect((await current()).assetMapping?.name).toBeNull();
     expect((await current()).itemId).toBe(item.id);
   });
 
@@ -798,10 +798,10 @@ describe("a linked sheet, through real saves", () => {
       expect((await lineFor("r1")).quantity).toBe(12);
     });
 
-    it("rounds a fractional quantity typed on the task (the sheet keeps 2.5, the line says 3)", async () => {
+    it("rounds a fractional quantity typed on the task, in the sheet and on the line alike", async () => {
       await link();
       const after = await edit("r1", { quantity: 2.5 });
-      expect((await row("r1")).cells["c-qty"]).toBe(2.5);
+      expect((await row("r1")).cells["c-qty"]).toBe(3);
       expect(after.quantity).toBe(3);
     });
 
@@ -834,8 +834,8 @@ describe("a linked sheet, through real saves", () => {
       await expect(edit("r1", { dueDate: "2030-01-01" })).rejects.toThrow("No column in the sheet gives the due date. Choose one in its asset settings.");
       await expect(edit("r1", { completedAt: "2030-01-01T00:00:00Z" })).rejects.toThrow(/done mark/);
       await expect(edit("r1", { name: "Kept?", blockName: "Elsewhere" })).rejects.toThrow("Bands come from the sheet. Change them there.");
-      // Reordering a sheet line on the task is refused with the same (band) message.
-      await expect(edit("r1", { position: 3 })).rejects.toThrow("Bands come from the sheet");
+      // Reordering a sheet line on the task is refused with its own message.
+      await expect(edit("r1", { position: 3 })).rejects.toThrow("Lines from a sheet keep the sheet's order. Move the rows there.");
       expect((await current()).updatedAt).toBe(before.updatedAt);
       expect((await lineFor("r1")).name).toBe("Tile 1");
     });

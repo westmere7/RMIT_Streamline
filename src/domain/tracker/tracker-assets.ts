@@ -298,6 +298,7 @@ export function sheetLineCells(
   const cells: Array<{ columnId: string; value: TrackerCellValue }> = [];
   for (const [key, raw] of Object.entries(patch)) {
     if (raw === undefined) continue;
+    if (key === "position") return { cells: [], refused: "Lines from a sheet keep the sheet's order. Move the rows there." };
     if (!(key in SHEET_LINE_FIELD_LABELS)) return { cells: [], refused: "Bands come from the sheet. Change them there." };
     const field = key as SheetLineField;
     const several = (field === "notes" && specColumnIds(mapping).length > 1) || (field === "links" && mapping.links.length > 1);
@@ -308,7 +309,8 @@ export function sheetLineCells(
     if (field === "name" || field === "notes") value = raw === null ? null : String(raw).trim() || null;
     else if (field === "links") value = (raw as Array<{ url: string }>)[0]?.url.trim() || null;
     else if (field === "assetType" || field === "dueDate") value = (raw as string | null) || null;
-    else if (field === "quantity") value = raw === null ? null : column.type === "number" ? (raw as number) : String(raw);
+    // Whole numbers, as the line reads them back: 2.5 typed on the task is 3 in both places.
+    else if (field === "quantity") value = raw === null ? null : column.type === "number" ? Math.round(raw as number) : String(Math.round(raw as number));
     else if (field === "assigneeIds") {
       const ids = raw as string[];
       value = column.type === "person" ? personValue(ids) : ids.map((id) => cellNameFor(id, people) ?? "").filter(Boolean).join(", ") || null;

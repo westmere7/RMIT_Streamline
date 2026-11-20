@@ -255,14 +255,14 @@ describe("applyEdits", () => {
     expect(next.rows).toHaveLength(sheet.rows.length);
   });
 
-  it("current behaviour: writes onto a band row and onto a column that does not exist (callers must filter)", () => {
+  it("drops an edit aimed at a band row or at a column the sheet has not got", () => {
     const { sheet } = standard();
     const next = TrackerService.applyEdits(sheet, [
       { rowId: "b1", columnId: "name", value: "inside a band" },
       { rowId: "r3", columnId: "deleted-col", value: "orphan" },
     ]);
-    expect(next.rows[0]!.cells).toEqual({ name: "inside a band" });
-    expect(next.rows[3]!.cells).toEqual({ "deleted-col": "orphan" });
+    expect(next.rows[0]!.cells).toEqual(sheet.rows[0]!.cells);
+    expect(next.rows[3]!.cells).toEqual(sheet.rows[3]!.cells);
   });
 });
 
@@ -288,10 +288,14 @@ describe("insertColumn", () => {
     expect(allUnique(ids(next.columns))).toBe(true);
   });
 
-  it("carries options and colours; current behaviour: summary and number format are not carried", () => {
+  it("carries options and colours, and a summary and number format the type offers", () => {
     const { sheet } = standard();
     const next = TrackerService.insertColumn(sheet, 0, { name: "Cost", type: "number", width: 90, summary: "average", numberFormat: "currency" });
-    expect(next.columns[0]).toEqual({ id: next.columns[0]!.id, name: "Cost", type: "number", width: 90 });
+    expect(next.columns[0]).toEqual({ id: next.columns[0]!.id, name: "Cost", type: "number", width: 90, summary: "average", numberFormat: "currency" });
+    // A format or footer the type has not got is left off.
+    expect(TrackerService.insertColumn(sheet, 0, { type: "text", summary: "sum", numberFormat: "currency" }).columns[0]).not.toHaveProperty("summary");
+    expect(TrackerService.insertColumn(sheet, 0, { type: "text", numberFormat: "currency" }).columns[0]).not.toHaveProperty("numberFormat");
+    expect(TrackerService.insertColumn(sheet, 0, { width: 5 }).columns[0]!.width).toBe(60);
     const list = TrackerService.insertColumn(sheet, 0, { type: "list", options: ["A"], optionColors: { A: "FFFFFF" } });
     expect(list.columns[0]).toMatchObject({ type: "list", options: ["A"], optionColors: { A: "FFFFFF" } });
   });
@@ -325,10 +329,12 @@ describe("updateColumn: rename, resize, format", () => {
     expect(sheet).toEqual(snapshot);
   });
 
-  it("current behaviour: widths are not clamped here (the grid clamps to 60px before calling)", () => {
+  it("clamps widths to what the grid can draw (60 to 1200)", () => {
     const { sheet } = standard();
-    expect(TrackerService.updateColumn(sheet, "name", { width: 0 }).columns[0]!.width).toBe(0);
-    expect(TrackerService.updateColumn(sheet, "name", { width: -40 }).columns[0]!.width).toBe(-40);
+    expect(TrackerService.updateColumn(sheet, "name", { width: 0 }).columns[0]!.width).toBe(60);
+    expect(TrackerService.updateColumn(sheet, "name", { width: -40 }).columns[0]!.width).toBe(60);
+    expect(TrackerService.updateColumn(sheet, "name", { width: 99999 }).columns[0]!.width).toBe(1200);
+    expect(TrackerService.updateColumn(sheet, "name", { width: 241.6 }).columns[0]!.width).toBe(242);
     // frozenOffsets trusts them as given.
     expect(frozenOffsets([col("a", "A", "text", { width: -40 }), col("b", "B")], 2, 32)).toEqual([32, -8]);
   });
@@ -363,10 +369,10 @@ describe("updateColumn: dropdown options", () => {
     expect(next.rows[1]!.cells.status).toBe("Open");
   });
 
-  it("current behaviour: patching options alone keeps colours for options that no longer exist", () => {
+  it("patching options alone drops the colours of options no longer offered", () => {
     const { sheet } = standard();
     const next = TrackerService.updateColumn(sheet, "status", { options: ["Done"] });
-    expect(next.columns[1]!.optionColors).toEqual({ Open: "FFC7CE", Done: "C6EFCE" });
+    expect(next.columns[1]!.optionColors).toEqual({ Done: "C6EFCE" });
   });
 
   it("dropdown to text drops the options and colours but keeps every value typed", () => {
@@ -490,9 +496,9 @@ describe("retype", () => {
     expect(retype("number", true)).toBe(true);
     expect(retype("number", "n/a")).toBe("n/a");
     expect(retype("number", "2026-03-04")).toBe("2026-03-04");
-    // Current behaviour worth a look: codes lose their form ("007" is 7, "0x1F" is 31).
+    // Decimal only: "007" reads as 7, hex is text.
     expect(retype("number", "007")).toBe(7);
-    expect(retype("number", "0x1F")).toBe(31);
+    expect(retype("number", "0x1F")).toBe("0x1F");
   });
 
   it("date: reads date text, never turns a number or a boolean into a date", () => {
@@ -518,9 +524,9 @@ describe("retype", () => {
     expect(retype("checkbox", false)).toBe(false);
   });
 
-  it("current behaviour: 'done' ticks a box when a column becomes a checkbox, but typing 'done' into one unticks it", () => {
+  it("'done' ticks a box both when a column becomes a checkbox and when it is typed into one", () => {
     expect(retype("checkbox", "done")).toBe(true);
-    expect(TrackerService.coerce({ type: "checkbox" }, "done")).toBe(false);
+    expect(TrackerService.coerce({ type: "checkbox" }, "done")).toBe(true);
   });
 
   it("text-like types: numbers become their digits, booleans Y/N, text unchanged", () => {
@@ -552,13 +558,13 @@ describe("summaries per type", () => {
     expect(summarize({ ...qty, summary: "max" }, [])).toEqual({ kind: "max", value: null, text: "Max —" });
   });
 
-  it("checkbox columns: checked and percent; current behaviour: an unticked box (false) does not count as empty", () => {
+  it("checkbox columns: checked and percent; an unticked box counts as empty", () => {
     const { sheet } = standard();
     const done = sheet.columns[3]!;
     expect(summarize(done, sheet.rows)).toEqual({ kind: "checked", value: 1, text: "1 of 4 checked" });
     expect(summarize({ ...done, summary: "percentChecked" }, sheet.rows).value).toBe(25);
-    // r1 true, r4 false, r2 and r3 never touched: only the untouched two are "empty".
-    expect(summarize({ ...done, summary: "empty" }, sheet.rows).value).toBe(2);
+    // r1 true; r4 false and r2, r3 never touched: three unticked boxes.
+    expect(summarize({ ...done, summary: "empty" }, sheet.rows).value).toBe(3);
     expect(summarize({ ...done, summary: "percentChecked" }, []).value).toBe(0);
   });
 
@@ -604,10 +610,11 @@ describe("deleteColumn", () => {
     expect(next.columns.slice(0, 2).map((c) => c.id)).toEqual(["status", "qty"]);
   });
 
-  it("current behaviour: an asset mapping that used the column keeps pointing at it", () => {
+  it("an asset mapping that used the column lets go of it, keeping the rest", () => {
     const sheet = { ...makeSheet([col("a", "Asset"), col("q", "Qty", "number")], [data("r")]), assetMapping: suggestAssetMapping({ columns: [col("a", "Asset"), col("q", "Qty", "number")] }) };
     const next = TrackerService.deleteColumn(sheet, "q");
-    expect(next.assetMapping!.quantity.columnId).toBe("q");
+    expect(next.assetMapping!.quantity.columnId).toBeNull();
+    expect(next.assetMapping!.name).toBe("a");
   });
 });
 
@@ -673,8 +680,9 @@ describe("coerce", () => {
     expect(coerce("number", "$5")).toBe("$5");
     expect(coerce("number", "12%")).toBe("12%");
     expect(coerce("number", "Infinity")).toBe("Infinity");
-    // Current behaviour worth a look: hex text is read as a number, a boolean becomes text.
-    expect(coerce("number", "0x10")).toBe(16);
+    // Decimal only: hex is text; a lone separator is not 0; a boolean becomes text.
+    expect(coerce("number", "0x10")).toBe("0x10");
+    expect(coerce("number", ",")).toBe(",");
     expect(coerce("number", true)).toBe("true");
   });
 
@@ -683,8 +691,8 @@ describe("coerce", () => {
   });
 
   it("checkbox: the usual yes words tick, anything else unticks", () => {
-    for (const yes of ["y", "Yes", "TRUE", "1", "✓", "X", " x "]) expect(coerce("checkbox", yes)).toBe(true);
-    for (const no of ["n", "no", "false", "0", "", "done"]) expect(coerce("checkbox", no)).toBe(false);
+    for (const yes of ["y", "Yes", "TRUE", "1", "✓", "X", " x ", "done", "Done"]) expect(coerce("checkbox", yes)).toBe(true);
+    for (const no of ["n", "no", "false", "0", ""]) expect(coerce("checkbox", no)).toBe(false);
     expect(coerce("checkbox", 1)).toBe(true);
     expect(coerce("checkbox", 0)).toBe(false);
     expect(coerce("checkbox", false)).toBe(false);
@@ -755,13 +763,14 @@ describe("coerce", () => {
     expect(coerce("person", "Jane")).toBeNull();
   });
 
-  it("text-like types: booleans as Y/N, numbers as text, empty as null; current behaviour: spaces are kept", () => {
+  it("text-like types: booleans as Y/N, numbers as text, empty or spaces alone as null", () => {
     for (const type of ["text", "longText", "list", "url"] as const) {
       expect(coerce(type, true)).toBe("Y");
       expect(coerce(type, false)).toBe("N");
       expect(coerce(type, 12.5)).toBe("12.5");
       expect(coerce(type, "")).toBeNull();
-      expect(coerce(type, "  ")).toBe("  ");
+      expect(coerce(type, "  ")).toBeNull();
+      expect(coerce(type, " a ")).toBe(" a ");
     }
   });
 });
@@ -954,10 +963,11 @@ describe("TrackerService (local store)", () => {
       expect(await services.trackers.getSheet(source.id)).toEqual(saved);
     });
 
-    it("current behaviour: 'copy' without a sheet to copy quietly makes a blank sheet", async () => {
+    it("refuses 'copy' or 'duplicate' without a sheet to copy, and makes nothing", async () => {
       const { tracker } = await blankTracker();
-      const sheet = await services.trackers.addSheet(tracker.id, "Copy", "copy");
-      expect(sheet.columns.map((c) => c.name)).toEqual(Array.from({ length: 6 }, (_, i) => `Column ${i + 1}`));
+      await expect(services.trackers.addSheet(tracker.id, "Copy", "copy")).rejects.toThrow(/Choose the sheet to copy/);
+      await expect(services.trackers.addSheet(tracker.id, "Copy", "duplicate")).rejects.toThrow(/Choose the sheet to copy/);
+      expect(await services.trackers.listSheets(tracker.id)).toHaveLength(1);
     });
 
     it("renames with trimming and refuses a blank name", async () => {
@@ -1056,9 +1066,11 @@ describe("TrackerService (local store)", () => {
       expect(final.columns.map((c) => c.name)).toEqual(["Column 1", "Theirs", "Column 3", "Column 4", "Column 5", "Column 6", "Mine"]);
     });
 
-    it("current behaviour: saveSheet writes whatever frozenColumns it is given", async () => {
+    it("saveSheet keeps frozenColumns between none and the column count", async () => {
       const { sheets } = await blankTracker();
-      expect((await services.trackers.saveSheet(sheets[0]!.id, { frozenColumns: 99 })).frozenColumns).toBe(99);
+      expect((await services.trackers.saveSheet(sheets[0]!.id, { frozenColumns: 99 })).frozenColumns).toBe(6);
+      expect((await services.trackers.saveSheet(sheets[0]!.id, { frozenColumns: -3 })).frozenColumns).toBe(0);
+      expect((await services.trackers.saveSheet(sheets[0]!.id, { frozenColumns: 2 })).frozenColumns).toBe(2);
     });
   });
 

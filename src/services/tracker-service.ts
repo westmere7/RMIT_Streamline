@@ -142,6 +142,7 @@ export class TrackerService {
 
   async addSheet(trackerId: EntityId, name: string, layout: "campaign" | "blank" | "copy" | "duplicate", copyOf?: EntityId): Promise<TrackerSheet> {
     const trimmed = name.trim() || "New sheet";
+    if ((layout === "copy" || layout === "duplicate") && !copyOf) throw new Error("Choose the sheet to copy.");
     if ((layout === "copy" || layout === "duplicate") && copyOf) {
       const source = await this.getSheet(copyOf);
       // A copy keeps the columns (ids included, so pastes between the two line up).
@@ -181,6 +182,11 @@ export class TrackerService {
 
   /** Replaces the sheet's grid (columns, rows, frozen columns) with the edited copy. */
   async saveSheet(sheetId: EntityId, patch: Partial<Pick<TrackerSheet, "columns" | "rows" | "frozenColumns" | "name">>, actorId?: EntityId): Promise<TrackerSheet> {
+    if (patch.frozenColumns !== undefined) {
+      // Never more frozen columns than there are columns, never fewer than none.
+      const count = (patch.columns ?? (await this.getSheet(sheetId)).columns).length;
+      patch = { ...patch, frozenColumns: Math.max(0, Math.min(Math.round(patch.frozenColumns) || 0, count)) };
+    }
     const saved = await this.repos.trackers.updateSheet(sheetId, patch);
     if (actorId) await this.syncAssets(saved, actorId);
     return saved;
@@ -321,11 +327,14 @@ export class TrackerService {
       list.push(edit);
       byRow.set(edit.rowId, list);
     }
+    // Cells belong to data rows and to columns the sheet has: an edit aimed at a
+    // band or at a column since deleted is dropped rather than stored unseen.
+    const columnIds = new Set(sheet.columns.map((c) => c.id));
     return {
       ...sheet,
       rows: sheet.rows.map((row) => {
-        const rowEdits = byRow.get(row.id);
-        if (!rowEdits) return row;
+        const rowEdits = byRow.get(row.id)?.filter((edit) => columnIds.has(edit.columnId));
+        if (!rowEdits?.length || row.kind !== "data") return row;
         const cells = { ...row.cells };
         for (const edit of rowEdits) {
           if (edit.value === null || edit.value === "") delete cells[edit.columnId];
@@ -387,7 +396,17 @@ export class TrackerService {
   }
 
   static insertColumn(sheet: TrackerSheet, index: number, column: Partial<TrackerColumn> = {}): TrackerSheet {
-    const fresh: TrackerColumn = { id: newId(), name: column.name ?? nextColumnName(sheet.columns), type: column.type ?? "text", width: column.width ?? 160, ...(column.options ? { options: column.options } : {}), ...(column.optionColors ? { optionColors: column.optionColors } : {}) };
+    const type = column.type ?? "text";
+    const fresh: TrackerColumn = {
+      id: newId(),
+      name: column.name ?? nextColumnName(sheet.columns),
+      type,
+      width: clampWidth(column.width ?? 160),
+      ...(type === "list" && column.options ? { options: column.options } : {}),
+      ...(type === "list" && column.optionColors ? { optionColors: column.optionColors } : {}),
+      ...(type === "number" && column.numberFormat ? { numberFormat: column.numberFormat } : {}),
+      ...(column.summary && SUMMARIES_BY_TYPE(type).includes(column.summary) ? { summary: column.summary } : {}),
+    };
     const columns = [...sheet.columns];
     columns.splice(Math.max(0, Math.min(index, columns.length)), 0, fresh);
     return { ...sheet, columns };
@@ -426,6 +445,12 @@ export class TrackerService {
           delete next.options;
           delete next.optionColors;
         }
+        if (patch.width !== undefined) next.width = clampWidth(patch.width);
+        // A colour for an option that is no longer offered goes with it.
+        if (next.type === "list" && next.optionColors) {
+          const offered = new Set(next.options ?? []);
+          next.optionColors = Object.fromEntries(Object.entries(next.optionColors).filter(([option]) => offered.has(option)));
+        }
         // A format or a footer the new type has no use for goes with the old type.
         if (next.type !== "number") delete next.numberFormat;
         if (next.summary && !SUMMARIES_BY_TYPE(next.type).includes(next.summary)) delete next.summary;
@@ -440,6 +465,8 @@ export class TrackerService {
     return {
       ...sheet,
       columns,
+      // The asset mapping no longer names the column (what it reads is unchanged: a deleted column gave nothing).
+      ...(sheet.assetMapping ? { assetMapping: normalizeAssetMapping(sheet.assetMapping, columns) } : {}),
       frozenColumns: Math.min(sheet.frozenColumns, columns.length),
       rows: sheet.rows.map((r) => {
         if (!(columnId in r.cells)) return r;
@@ -474,7 +501,7 @@ export class TrackerService {
       case "checkbox": {
         if (typeof value === "boolean") return value;
         const s = String(value).trim().toLowerCase();
-        if (["y", "yes", "true", "1", "✓", "x", "done"].includes(s)) return true;
+        if (CHECKED_WORDS.includes(s)) return true;
         if (["n", "no", "false", "0", ""].includes(s)) return false;
         return value;
       }
@@ -496,14 +523,14 @@ export class TrackerService {
         if (typeof raw === "number") return raw;
         if (String(raw).trim() === "") return null;
         const digits = String(raw).replace(/[,\s]/g, "");
-        // Separators and nothing else (",", " , ") read as no number at all, not 0.
-        const n = digits === "" ? NaN : Number(digits);
+        // Decimal only: separators alone (",") are no number, and "0x10" or "1e" are text, not 16 or NaN.
+        const n = /^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(digits) ? Number(digits) : NaN;
         return Number.isFinite(n) ? n : String(raw);
       }
       case "checkbox": {
         if (typeof raw === "boolean") return raw;
         const s = String(raw).trim().toLowerCase();
-        return ["y", "yes", "true", "1", "✓", "x"].includes(s);
+        return CHECKED_WORDS.includes(s);
       }
       case "date": {
         if (typeof raw === "string") {
@@ -541,14 +568,22 @@ export class TrackerService {
       }
       default: {
         if (typeof raw === "boolean") return raw ? "Y" : "N";
-        const s = typeof raw === "number" ? String(raw) : String(raw);
-        return s === "" ? null : s;
+        const s = String(raw);
+        return s.trim() === "" ? null : s;
       }
     }
   }
 }
 
 export const TRACKER_TYPE_ORDER: TrackerColumnType[] = ["text", "longText", "list", "date", "url", "number", "checkbox", "person"];
+
+/** What ticks a checkbox when typed, pasted or carried over from another type. */
+const CHECKED_WORDS = ["y", "yes", "true", "1", "✓", "x", "done"];
+
+/** Column widths the grid can draw (its resize handle stops at 60). */
+function clampWidth(width: number): number {
+  return Math.max(60, Math.min(Number.isFinite(width) ? Math.round(width) : 160, 1200));
+}
 
 /** A Gregorian date that exists (no 2026-02-30, no month 25). */
 function isRealDate(year: number, month: number, day: number): boolean {
