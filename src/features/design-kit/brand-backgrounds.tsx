@@ -177,6 +177,137 @@ const OPTIONS: Option[] = [
   },
 ];
 
+/** A's two glows. */
+function Glows({ red = 0.3, blue = 0.25 }: { red?: number; blue?: number }) {
+  return (
+    <>
+      <div className="absolute -bottom-40 -left-24 size-[560px] rounded-full blur-3xl" style={{ background: `rgba(230,30,42,${red})` }} />
+      <div className="absolute -top-32 -right-24 size-[420px] rounded-full blur-3xl" style={{ background: `rgba(75,82,214,${blue})` }} />
+    </>
+  );
+}
+
+/** A's grid, faded at the edges. */
+function Grid({ opacity = 0.045, mask = "radial-gradient(ellipse at center, black 35%, transparent 80%)" }: { opacity?: number; mask?: string }) {
+  return (
+    <div
+      className="absolute inset-0"
+      style={{
+        backgroundImage: `linear-gradient(rgba(255,255,255,${opacity}) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,${opacity}) 1px, transparent 1px)`,
+        backgroundSize: "40px 40px",
+        maskImage: mask,
+        WebkitMaskImage: mask,
+      }}
+    />
+  );
+}
+
+/** B's pixel, where B puts it, as SVG over the whole panel; `children` are drawn with the pixel as their clip. */
+const PIXEL_AT = `translate(150 330) scale(${620 / PIXEL_W})`;
+function PixelSvg({ id, children }: { id: string; children: (clip: string) => React.ReactNode }) {
+  return (
+    <svg aria-hidden className="absolute top-0 left-0" width={440} height={640} viewBox="0 0 440 640">
+      <defs>
+        <clipPath id={`${id}-clip`}>
+          <path d={PIXEL} transform={PIXEL_AT} />
+        </clipPath>
+        <pattern id={`${id}-grid`} width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M40 0H0V40" fill="none" stroke="#ffffff" strokeWidth="1" />
+        </pattern>
+        <radialGradient id={`${id}-glow`} cx="0.35" cy="0.85" r="0.8">
+          <stop offset="0" stopColor={RED} stopOpacity="0.55" />
+          <stop offset="0.6" stopColor="#4b52d6" stopOpacity="0.25" />
+          <stop offset="1" stopColor="#4b52d6" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {children(`url(#${id}-clip)`)}
+    </svg>
+  );
+}
+
+const COMBOS: Option[] = [
+  {
+    id: "ab-both",
+    name: "AB1 · Both",
+    note: "A as it was, with B's pixel laid over it.",
+    ground: (
+      <>
+        <Glows />
+        <Grid />
+        <Pixel size={620} x={150} y={330} fill="#ffffff" opacity={0.05} />
+      </>
+    ),
+  },
+  {
+    id: "ab-grid-in",
+    name: "AB2 · Grid in the pixel",
+    note: "A's glows; the grid only inside the pixel, so the pixel is drawn by the grid.",
+    ground: (
+      <>
+        <Glows />
+        <PixelSvg id="ab2">{(clip) => <rect width="440" height="640" fill="url(#ab2-grid)" opacity="0.2" clipPath={clip} />}</PixelSvg>
+      </>
+    ),
+  },
+  {
+    id: "ab-glow-in",
+    name: "AB3 · Glow in the pixel",
+    note: "Navy panel with A's faint grid; A's red and blue glow lives inside the pixel.",
+    ground: (
+      <>
+        <Grid />
+        <PixelSvg id="ab3">{(clip) => <rect width="440" height="640" fill="url(#ab3-glow)" clipPath={clip} />}</PixelSvg>
+      </>
+    ),
+  },
+  {
+    id: "ab-outline",
+    name: "AB4 · Outline over A",
+    note: "A untouched, with the pixel traced in a fine line.",
+    ground: (
+      <>
+        <Glows />
+        <Grid />
+        <Pixel size={620} x={150} y={330} stroke="rgba(255,255,255,0.14)" />
+      </>
+    ),
+  },
+  {
+    id: "ab-cutout",
+    name: "AB5 · Grid around the pixel",
+    note: "A's grid everywhere but the pixel, which reads as a quiet solid shape.",
+    ground: (
+      <>
+        <Glows />
+        <PixelSvg id="ab5">
+          {(clip) => (
+            <>
+              <mask id="ab5-out">
+                <rect width="440" height="640" fill="#ffffff" />
+                <path d={PIXEL} transform={PIXEL_AT} fill="#000000" />
+              </mask>
+              <rect width="440" height="640" fill="url(#ab5-grid)" opacity="0.06" mask="url(#ab5-out)" />
+              <rect width="440" height="640" fill="#ffffff" opacity="0.035" clipPath={clip} />
+            </>
+          )}
+        </PixelSvg>
+      </>
+    ),
+  },
+  {
+    id: "ab-soft",
+    name: "AB6 · Soft",
+    note: "A's glows, the grid only at the top, the pixel fainter at the foot: each in its own place.",
+    ground: (
+      <>
+        <Glows red={0.26} blue={0.25} />
+        <Grid mask="linear-gradient(to bottom, black, transparent 55%)" />
+        <Pixel size={620} x={150} y={330} fill="#ffffff" opacity={0.035} />
+      </>
+    ),
+  },
+];
+
 export function BrandBackgrounds() {
   return (
     <main className="min-h-screen bg-canvas px-6 py-10 text-foreground sm:px-10">
@@ -195,6 +326,22 @@ export function BrandBackgrounds() {
           </figure>
         ))}
       </div>
+
+      <section className="mx-auto mt-14 max-w-7xl" data-testid="bg-combos">
+        <h2 className="text-base font-semibold tracking-tight">A + B</h2>
+        <p className="mt-1 text-[13px] text-muted-foreground">A&apos;s glows and grid with B&apos;s pixel, put together six ways.</p>
+        <div className="mt-6 grid gap-8 [grid-template-columns:repeat(auto-fill,minmax(340px,1fr))]">
+          {COMBOS.map((option) => (
+            <figure key={option.id} className="space-y-2" data-testid={`bg-option-${option.id}`}>
+              <Panel ground={option.ground} />
+              <figcaption>
+                <p className="text-[13px] font-semibold">{option.name}</p>
+                <p className="text-2xs text-muted-foreground">{option.note}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
 
       <section className="mx-auto mt-14 max-w-7xl" data-testid="bg-pixel-sizes">
         <h2 className="text-base font-semibold tracking-tight">B · pixel size</h2>
