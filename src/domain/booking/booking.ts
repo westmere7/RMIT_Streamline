@@ -198,7 +198,7 @@ export function isPlausibleBookingKey(value: string): boolean {
  * server routes it.
  */
 export function bookingDestination(
-  service: Pick<BookingServiceType, "teamId" | "routing">,
+  service: Pick<BookingServiceType, "teamId" | "routing" | "boardId">,
   workTypes: readonly string[],
   form: Pick<BookingForm, "teams" | "boards">,
 ): { kind: "board"; boardName: string; teamName: string | null } | { kind: "queue"; teamName: string | null } {

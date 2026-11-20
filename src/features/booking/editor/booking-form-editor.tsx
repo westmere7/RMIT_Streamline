@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
+import { Boxes, Check, Info, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -15,9 +15,9 @@ import { IconPicker } from "@/components/shared/icon-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
+import type { Board, BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
 import {
   BOOKING_STANDARD_KEY_LABELS,
   defaultBookingFormTemplate,
@@ -62,6 +62,8 @@ import { beginUnsavedWork } from "@/lib/unsaved-work";
 
 const ALLOCATION_TEAM = "__allocation__";
 /** "Auto-allocation…" in Bookings go to: opens its rules rather than choosing a team. */
+/** A board picked directly in Bookings go to, as `board:<id>`. */
+const BOARD = "board:";
 const BY_WORK_TYPE = "__by_work_type__";
 
 export interface BookingFormEditorProps {
@@ -590,7 +592,6 @@ function BasicsPane({
           <ServicePanel
             key={shown.id}
             service={shown}
-            form={form}
             only={draft.services.length === 1}
             onPatch={(patch) => update((t) => Object.assign(t.services.find((x) => x.id === shown.id)!, patch))}
             onDuplicate={() => onDuplicateService(shown.id)}
@@ -665,14 +666,12 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
 /** The settings of the picked service: its words, its look, where it goes, and the work types it offers. */
 function ServicePanel({
   service,
-  form,
   only,
   onPatch,
   onDuplicate,
   onRemove,
 }: {
   service: BookingServiceType;
-  form: BookingFormData;
   only: boolean;
   onPatch: (patch: Partial<BookingServiceType>) => void;
   onDuplicate: () => void;
@@ -682,6 +681,33 @@ function ServicePanel({
   const [routingOpen, setRoutingOpen] = React.useState(false);
   const byWorkType = !!service.routing?.enabled;
   const allocationBoard = ws.boards.find((b) => b.system === "TASK_ALLOCATION") ?? null;
+  // A board picked directly (ignored while Auto-allocation is on), and the board its team nominates if that is another.
+  const directBoard = !byWorkType && service.boardId ? (ws.boardById(service.boardId) ?? null) : null;
+  const directTeam = directBoard ? ws.teamById(directBoard.teamId) : undefined;
+  const teamNominated = ws.boardById(directTeam?.bookingBoardId ?? null);
+  const nominatedInstead = directBoard && teamNominated && teamNominated.id !== directBoard.id ? teamNominated : null;
+  const boardGroups = React.useMemo(() => {
+    const byTeam = new Map<string, Board[]>();
+    for (const board of ws.boards) {
+      if (board.system || board.archivedAt) continue;
+      byTeam.set(board.teamId ?? "", [...(byTeam.get(board.teamId ?? "") ?? []), board]);
+    }
+    return [...byTeam.entries()]
+      .map(([teamId, boards]) => ({ team: ws.teamById(teamId || null) ?? null, boards: boards.sort((a, b) => a.name.localeCompare(b.name)) }))
+      .sort((a, b) => (a.team?.name ?? "~").localeCompare(b.team?.name ?? "~"));
+  }, [ws]);
+  // A team with no board of its own sends to the queue, marked for it.
+  const queueTeam = !byWorkType && !directBoard && service.teamId && !ws.teamById(service.teamId)?.bookingBoardId ? ws.teamById(service.teamId) : undefined;
+  // The picker's value: a team's nominated board stands for the team (it follows the nomination).
+  const pickerValue = byWorkType
+    ? BY_WORK_TYPE
+    : directBoard
+      ? directBoard.id === directTeam?.bookingBoardId
+        ? directTeam.id
+        : BOARD + directBoard.id
+      : service.teamId && !queueTeam
+        ? service.teamId
+        : ALLOCATION_TEAM;
   // "Print → DOOH · Print + Key Visual only → Open Day · else → Task Allocation"
   const rulesSummary = React.useMemo(() => {
     const routing = service.routing;
@@ -757,18 +783,25 @@ function ServicePanel({
       <section className="space-y-2 rounded-lg border border-border/60 bg-surface/40 p-2.5" aria-label="Bookings go to" data-testid={`editor-service-destination-${key}`}>
         <div className="min-w-0">
           <p className="text-[13px] font-medium">Bookings go to</p>
-          <p className="text-2xs text-muted-foreground">A team&apos;s board, Task Allocation, or auto-allocation by work type.</p>
+          <p className="text-2xs text-muted-foreground">Task Allocation, a team&apos;s board, any board, or auto-allocation by work type.</p>
         </div>
         <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-2">
               <Select
-                value={byWorkType ? BY_WORK_TYPE : (service.teamId ?? ALLOCATION_TEAM)}
+                value={pickerValue}
                 onValueChange={(v) => {
                   // Rules are set in their own dialog, opened once this menu has closed (or the closing
                   // menu dismisses it); the choice changes only when the rules are saved there.
                   if (v === BY_WORK_TYPE) return void window.setTimeout(() => setRoutingOpen(true), 0);
-                  // Back to the queue or a team: the rules are switched off and kept, for next time.
-                  onPatch({ teamId: v === ALLOCATION_TEAM ? null : v, ...(service.routing ? { routing: { ...service.routing, enabled: false } } : {}) });
+                  // Off Auto-allocation, the rules are switched off and kept, for next time.
+                  const rulesOff = service.routing ? { routing: { ...service.routing, enabled: false } } : {};
+                  // A board directly: it and its team; no rules.
+                  if (v.startsWith(BOARD)) {
+                    const board = ws.boardById(v.slice(BOARD.length));
+                    return onPatch({ boardId: board?.id ?? null, teamId: board?.teamId ?? null, ...rulesOff });
+                  }
+                  // The queue, or a team and the board it nominates.
+                  onPatch({ teamId: v === ALLOCATION_TEAM ? null : v, boardId: null, ...rulesOff });
                 }}
               >
                 <SelectTrigger
@@ -786,6 +819,18 @@ function ServicePanel({
                         {rulesSummary.glance}
                       </span>
                     </span>
+                  ) : queueTeam ? (
+                    <span className="flex min-w-0 items-center gap-2">
+                      <DynamicIcon name={allocationBoard?.icon ?? "Inbox"} className={cn("size-3.5 shrink-0", colorClasses(allocationBoard?.color ?? "red").text)} />
+                      <span className="truncate">{allocationBoard?.name ?? "Task Allocation"}</span>
+                      <span className="truncate text-muted-foreground">for {queueTeam.name}</span>
+                    </span>
+                  ) : directBoard && pickerValue.startsWith(BOARD) ? (
+                    <span className="flex min-w-0 items-center gap-2">
+                      <DynamicIcon name={directBoard.icon} className={cn("size-3.5 shrink-0", colorClasses(directBoard.color).text)} />
+                      <span className="truncate">{directBoard.name}</span>
+                      <span className="truncate text-muted-foreground">{ws.teamById(directBoard.teamId)?.name ?? "board"}</span>
+                    </span>
                   ) : (
                     <SelectValue />
                   )}
@@ -798,35 +843,35 @@ function ServicePanel({
                       <span className="truncate text-muted-foreground">a manager places them</span>
                     </span>
                   </SelectItem>
-                  <SelectSeparator />
-                  {form.teams.map((team) => {
-                    // The board the team nominated in its settings, read live, so a
-                    // change there shows here at once. Without one, the team itself.
-                    const nominated = ws.boardById(ws.teamById(team.id)?.bookingBoardId ?? null);
-                    return (
-                      <SelectItem key={team.id} value={team.id}>
-                        {nominated ? (
-                          <span className="flex min-w-0 items-center gap-2">
-                            <DynamicIcon name={nominated.icon} className={cn("size-3.5 shrink-0", colorClasses(nominated.color).text)} />
-                            <span className="truncate">{nominated.name}</span>
-                            <span className="truncate text-muted-foreground">{team.name}</span>
-                          </span>
-                        ) : (
-                          <span className="flex min-w-0 items-center gap-2">
-                            <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colorClasses(team.color).text)} />
-                            <span className="truncate">{team.name}</span>
-                          </span>
-                        )}
-                      </SelectItem>
-                    );
-                  })}
-                  <SelectSeparator />
                   <SelectItem value={BY_WORK_TYPE} data-testid={`editor-service-routing-${key}`}>
                     <span className="flex min-w-0 items-center gap-2">
                       <Split className="size-3.5 shrink-0 text-muted-foreground" />
-                      Auto-allocation…
+                      <span className="truncate">Auto-allocation…</span>
+                      <span className="truncate text-muted-foreground">by work type</span>
                     </span>
                   </SelectItem>
+                  {/* Every board, by team. The one a team nominates stands for the team, and follows it if the
+                      team nominates another; any other board is picked directly, over the team's choice. */}
+                  {boardGroups.map(({ team, boards }) => (
+                    <React.Fragment key={team?.id ?? "none"}>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel>{team?.name ?? "No team"}</SelectLabel>
+                        {boards.map((board) => {
+                          const nominated = !!team && team.bookingBoardId === board.id;
+                          return (
+                            <SelectItem key={board.id} value={nominated ? team!.id : BOARD + board.id} data-testid={`editor-service-board-${key}-${board.slug}`}>
+                              <span className="flex min-w-0 items-center gap-2">
+                                <DynamicIcon name={board.icon} className={cn("size-3.5 shrink-0", colorClasses(board.color).text)} />
+                                <span className="truncate">{board.name}</span>
+                                {nominated && <span className="truncate text-muted-foreground">{team!.name}&apos;s booking board</span>}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectGroup>
+                    </React.Fragment>
+                  ))}
                 </SelectContent>
               </Select>
               {byWorkType && (
@@ -835,8 +880,17 @@ function ServicePanel({
                 </Button>
               )}
             </div>
+            {/* Picked over what its team nominates: say so, so nobody wonders why the team's board stays empty. */}
+            {directBoard && nominatedInstead && (
+              <p className="mt-1.5 flex items-start gap-1.5 text-2xs text-amber-700 dark:text-amber-300" data-testid={`editor-service-board-note-${key}`}>
+                <Info className="mt-px size-3 shrink-0" aria-hidden />
+                <span>
+                  {directTeam!.name} nominates {nominatedInstead.name} for its bookings; these go to {directBoard.name} instead.
+                </span>
+              </p>
+            )}
         </div>
-        <RoutingDialog service={service} open={routingOpen} onOpenChange={setRoutingOpen} onSave={({ routing, teamId }) => onPatch({ routing, teamId })} />
+        <RoutingDialog service={service} open={routingOpen} onOpenChange={setRoutingOpen} onSave={({ routing, teamId }) => onPatch({ routing, teamId, boardId: null })} />
       </section>
     </EditorSection>
   );

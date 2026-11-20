@@ -468,6 +468,11 @@ export interface BookingServiceType {
   /** The team whose board takes these bookings, or null for the allocation queue. */
   teamId: EntityId | null;
   /**
+   * A board picked directly for these bookings, over the team's nominated
+   * booking board (the team is then the board's own). No rules: one board.
+   */
+  boardId?: EntityId | null;
+  /**
    * The board picked by the form itself rather than by the team's nominated
    * booking board: rules on the work types chosen, then a fallback. Absent or
    * switched off, bookings follow the team as before (routeBooking).
@@ -513,9 +518,9 @@ export interface BookingRouting {
  * team's nominated booking board. The server routes by this, and the form says
  * where a booking will go by this, so the two cannot disagree.
  */
-export function routeBooking(service: Pick<BookingServiceType, "routing">, workTypes: readonly string[]): BookingRouteTarget {
+export function routeBooking(service: Pick<BookingServiceType, "routing" | "boardId">, workTypes: readonly string[]): BookingRouteTarget {
   const routing = service.routing;
-  if (!routing?.enabled) return { kind: "team" };
+  if (!routing?.enabled) return service.boardId ? { kind: "board", boardId: service.boardId } : { kind: "team" };
   for (const rule of routing.rules) if (ruleMatches(rule, workTypes)) return { kind: "board", boardId: rule.boardId };
   return routing.otherwise;
 }

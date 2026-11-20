@@ -126,6 +126,35 @@ describe("routing a booking by its work types", { timeout: 20_000 }, () => {
     expect((await bookPublic(["Key Visual"])).boardId).toBe(otherBoard.id); // neither rule
   });
 
+  it("3c. a board picked directly, over the team's nominated one, and back to the team's when it has gone", async () => {
+    await publish((t) => {
+      const design = serviceById(t, "svc-design")!;
+      design.teamId = team.id;
+      design.boardId = socialBoard.id;
+    });
+    expect((await bookPublic(["Print"])).boardId).toBe(socialBoard.id);
+    expect((await bookPublic(["Publication"])).boardId).toBe(socialBoard.id);
+    const form = await services.booking.getForm({ workspaceSlug: "rmit", key: await key() });
+    expect(form.boards?.map((b) => b.id)).toEqual([socialBoard.id]);
+    expect(bookingDestination(serviceById(form.template, "svc-design")!, ["Print"], form)).toMatchObject({ kind: "board", boardName: socialBoard.name });
+    // Auto-allocation on takes over from it.
+    await publish((t) => {
+      const design = serviceById(t, "svc-design")!;
+      design.teamId = team.id;
+      design.boardId = socialBoard.id;
+      design.routing = rules();
+    });
+    expect((await bookPublic(["Print"])).boardId).toBe(printBoard.id);
+    // Gone: the team's own board.
+    await publish((t) => {
+      const design = serviceById(t, "svc-design")!;
+      design.teamId = team.id;
+      design.boardId = socialBoard.id;
+    });
+    await services.repos.boards.update(socialBoard.id, { archivedAt: new Date().toISOString() });
+    expect((await bookPublic(["Print"])).boardId).toBe(teamBoard.id);
+  });
+
   it("4. nothing matches: the fallback, which may be a board, the team's board or the queue", async () => {
     await route(rules());
     expect((await bookPublic(["Publication"])).boardId).toBe(otherBoard.id);
@@ -232,5 +261,7 @@ describe("the published form's allocation recap", () => {
     serviceById(template, "svc-design")!.routing = { enabled: true, rules: [], otherwise: { kind: "team" } };
     serviceById(template, "svc-brand")!.teamId = "00000000-0000-4000-8000-000000000001";
     expect(allocationRecap(template)).toBe("1 auto-allocated · 1 to a team · 1 to Task Allocation");
+    serviceById(template, "svc-production")!.boardId = "00000000-0000-4000-8000-000000000002";
+    expect(allocationRecap(template)).toBe("1 auto-allocated · 1 to a board · 1 to a team");
   });
 });

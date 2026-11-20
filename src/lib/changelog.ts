@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.122.0",
+    date: "2026-11-20",
+    title: "Any board for a service",
+    changes: [
+      "Bookings go to lists Task Allocation and Auto-allocation first, then every board by team, each team's booking board marked.",
+      "Picking a team's booking board follows the team; picking any other board sends that service's bookings there directly, with a note when its team nominates a different board.",
+    ],
+  },
+  {
     version: "0.121.4",
     date: "2026-11-20",
     title: "Allocation on the published form",

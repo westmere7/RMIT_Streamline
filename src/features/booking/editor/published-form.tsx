@@ -308,14 +308,21 @@ function titleOf(row: Pick<BookingFormPublication, "name" | "template">): string
 /** Where the form's services send bookings, counted: "2 auto-allocated · 1 to a team · 1 to Task Allocation". */
 export function allocationRecap(template: BookingFormTemplate): string {
   let auto = 0;
+  let board = 0;
   let team = 0;
   let queue = 0;
   for (const service of template.services) {
     if (service.routing?.enabled) auto++;
+    else if (service.boardId) board++;
     else if (service.teamId) team++;
     else queue++;
   }
-  const parts = [auto && `${auto} auto-allocated`, team && `${team} to ${team === 1 ? "a team" : "teams"}`, queue && `${queue} to Task Allocation`].filter(Boolean);
+  const parts = [
+    auto && `${auto} auto-allocated`,
+    board && `${board} to ${board === 1 ? "a board" : "boards"}`,
+    team && `${team} to ${team === 1 ? "a team" : "teams"}`,
+    queue && `${queue} to Task Allocation`,
+  ].filter(Boolean);
   return parts.join(" · ");
 }
 
@@ -333,7 +340,9 @@ function AllocationDetails({ template }: { template: BookingFormTemplate }) {
       {template.services.map((service) => {
         const routing = service.routing?.enabled ? service.routing : null;
         const rest = !routing
-          ? viaTeam(service.teamId)
+          ? service.boardId
+            ? (ws.boardById(service.boardId)?.name ?? viaTeam(service.teamId))
+            : viaTeam(service.teamId)
           : routing.otherwise.kind === "board"
             ? (ws.boardById(routing.otherwise.boardId)?.name ?? "a board no longer there")
             : routing.otherwise.kind === "allocation"

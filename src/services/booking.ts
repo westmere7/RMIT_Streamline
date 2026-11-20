@@ -211,6 +211,7 @@ const serviceSchema = z.object({
   briefHint: z.string().trim().max(400).nullable().default(null),
   blocks: z.array(blockSchema).max(60),
   teamId: z.uuid().nullable().default(null),
+  boardId: z.uuid().nullable().optional(),
   routing: z
     .object({
       enabled: z.boolean().default(false),

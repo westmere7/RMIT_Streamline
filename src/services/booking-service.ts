@@ -262,7 +262,10 @@ export class BookingService {
     const template = resolveBookingTemplate(workspace);
     const named = new Set<string>();
     for (const service of template.services) {
-      if (!service.routing?.enabled) continue;
+      if (!service.routing?.enabled) {
+        if (service.boardId) named.add(service.boardId);
+        continue;
+      }
       for (const rule of service.routing.rules) named.add(rule.boardId);
       if (service.routing.otherwise.kind === "board") named.add(service.routing.otherwise.boardId);
     }
