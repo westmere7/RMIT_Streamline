@@ -36,6 +36,15 @@ export class LocalBookingPublicationRepository implements BookingPublicationRepo
     }
     return saved;
   }
+
+  async deleteMany(workspaceId: string, ids: string[]): Promise<void> {
+    const gone = new Set(ids);
+    try {
+      window.localStorage.setItem(KEY(workspaceId), JSON.stringify(read(workspaceId).filter((p) => !gone.has(p.id))));
+    } catch {
+      // Storage refused: nothing changes.
+    }
+  }
 }
 
 function read(workspaceId: string): BookingFormPublication[] {

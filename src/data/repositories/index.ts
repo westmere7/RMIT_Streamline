@@ -524,6 +524,8 @@ export interface BookingPublicationRepository {
   listByWorkspace(workspaceId: EntityId, limit: number): Promise<BookingFormPublication[]>;
   getById(id: EntityId): Promise<BookingFormPublication | null>;
   create(input: BookingFormPublicationInput): Promise<BookingFormPublication>;
+  /** Removes these entries of one workspace's history (migration 0129; admins). */
+  deleteMany(workspaceId: EntityId, ids: EntityId[]): Promise<void>;
 }
 
 /** Board layouts saved under a name, per workspace, for new boards to start from. */

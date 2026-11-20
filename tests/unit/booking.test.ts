@@ -847,6 +847,28 @@ describe("booking a task", () => {
     expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormDraft?.services).toHaveLength(2);
   });
 
+  it("deletes past forms one at a time or all but the live one, and never the live one", async () => {
+    window.localStorage.removeItem(`streamline.booking-publications.${SEED_WORKSPACE_ID}`);
+    const first = fixtureBookingFormTemplate();
+    await services.booking.publishForm(SEED_WORKSPACE_ID, first, "One", { publishedBy: SEED_USER_IDS.danh });
+    await services.booking.publishForm(SEED_WORKSPACE_ID, first, "Two", { publishedBy: SEED_USER_IDS.danh });
+    await services.booking.publishForm(SEED_WORKSPACE_ID, first, "Three", { publishedBy: SEED_USER_IDS.danh });
+    await services.booking.publishForm(SEED_WORKSPACE_ID, first, "Four", { publishedBy: SEED_USER_IDS.danh });
+    const names = async () => (await services.booking.listPublications(SEED_WORKSPACE_ID)).map((p) => p.name);
+    const past = await services.booking.listPublications(SEED_WORKSPACE_ID);
+    expect(past.map((p) => p.name)).toEqual(["Four", "Three", "Two", "One"]);
+
+    // One at a time; the live one ("Four") is refused even when asked for.
+    expect(await services.booking.deletePublications(SEED_WORKSPACE_ID, [past[2]!.id, past[0]!.id])).toBe(1);
+    expect(await names()).toEqual(["Four", "Three", "One"]);
+
+    // Clean up: everything but the live form.
+    expect(await services.booking.cleanUpPublications(SEED_WORKSPACE_ID)).toBe(2);
+    expect(await names()).toEqual(["Four"]);
+    expect((await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!.bookingFormName).toBe("Four");
+    expect(await services.booking.cleanUpPublications(SEED_WORKSPACE_ID)).toBe(0);
+  });
+
   it("names the published form, stamps when, and counts bookings from then", async () => {
     await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ assets: [] }) });
     await services.booking.publishForm(SEED_WORKSPACE_ID, fixtureBookingFormTemplate(), "  RMIT Marketing · 25 Sep 2026, 10:42  ");

@@ -35,4 +35,10 @@ export class SupabaseBookingPublicationRepository implements BookingPublicationR
     const result = await db().from("booking_form_publications").insert(payload).select(PUBLICATION).single();
     return toPublication(unwrap<PublicationRow>(result, "booking_form_publications.create"));
   }
+
+  async deleteMany(workspaceId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const result = await db().from("booking_form_publications").delete().eq("workspace_id", workspaceId).in("id", ids);
+    if (result.error) throw new Error(`booking_form_publications.delete: ${result.error.message}`);
+  }
 }

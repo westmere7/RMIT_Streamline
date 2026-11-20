@@ -1,11 +1,15 @@
 "use client";
 
 import { format } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
-import { CalendarClock, ClipboardCheck, History, ListChecks, LoaderCircle, Rocket, Split } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BrushCleaning, CalendarClock, ClipboardCheck, History, LayoutTemplate, ListChecks, LoaderCircle, MoreHorizontal, Rocket, Split, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { queryKeys } from "@/lib/query/keys";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { Button } from "@/components/ui/button";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useServices } from "@/features/data/data-context";
@@ -14,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { BookingFormPublication, BookingFormTemplate } from "@/domain";
-import { defaultBookingFormTemplate, templateQuestionCount } from "@/domain";
+import { MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, templateQuestionCount } from "@/domain";
 import { PersonChip } from "@/features/members/person-chip";
 
 /** What is known about the form stakeholders are being served. */
@@ -204,8 +208,50 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
     staleTime: 0,
   });
   const [confirming, setConfirming] = React.useState<BookingFormPublication | null>(null);
+  const [deleting, setDeleting] = React.useState<BookingFormPublication | null>(null);
+  const [cleaning, setCleaning] = React.useState(false);
+  const [saving, setSaving] = React.useState<BookingFormPublication | null>(null);
+  const [templateName, setTemplateName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const queryClient = useQueryClient();
   const rows = past.data ?? [];
+  const reload = () => queryClient.invalidateQueries({ queryKey: ["booking-publications", ws.workspace.id] });
+
+  const remove = async (row: BookingFormPublication) => {
+    try {
+      await services.booking.deletePublications(ws.workspace.id, [row.id]);
+      await reload();
+      toast.success(`Deleted “${titleOf(row)}”`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete that form");
+    }
+    setDeleting(null);
+  };
+  const cleanUp = async () => {
+    try {
+      const gone = await services.booking.cleanUpPublications(ws.workspace.id);
+      await reload();
+      toast.success(gone === 1 ? "Deleted 1 past form" : `Deleted ${gone} past forms`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not clean up");
+    }
+    setCleaning(false);
+  };
+  const saveAsTemplate = async () => {
+    if (!saving || !templateName.trim()) return;
+    setBusy(true);
+    try {
+      await services.booking.saveTemplate(ws.workspace.id, { name: templateName, template: saving.template ?? defaultBookingFormTemplate() }, ws.currentUser.id);
+      publishDataChange({ kinds: ["settings"] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.bookingTemplates(ws.workspace.id) });
+      toast.success(`Saved as “${templateName.trim()}”`);
+      setSaving(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the template");
+    } finally {
+      setBusy(false);
+    }
+  };
   // The newest entry is the form live now, unless something changed the form without leaving one.
   const liveId = rows[0] && rows[0].publishedAt === ws.workspace.bookingFormPublishedAt ? rows[0].id : null;
 
@@ -229,7 +275,14 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
       <Dialog open onOpenChange={(next) => !busy && onOpenChange(next)}>
         <DialogContent size="md" data-testid="booking-past-forms-dialog">
           <DialogHeader>
-            <DialogTitle>Past forms</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              Past forms
+              {rows.length > 1 && (
+                <Button type="button" variant="ghost" size="sm" className="mr-6 ml-auto text-muted-foreground" onClick={() => setCleaning(true)} disabled={busy} data-testid="booking-past-forms-clean">
+                  <BrushCleaning /> Clean up
+                </Button>
+              )}
+            </DialogTitle>
             <DialogDescription>Every form published here. Any of them can go live again.</DialogDescription>
           </DialogHeader>
           {past.isLoading ? (
@@ -274,6 +327,33 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
                         <Rocket /> Re-publish
                       </Button>
                     )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" aria-label={`More for ${titleOf(row)}`} disabled={busy} data-testid="booking-past-form-menu">
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          // Opened once the menu has closed and handed focus back, or the dialog shuts at once.
+                          onSelect={() => {
+                            setTemplateName(row.name ?? titleOf(row));
+                            window.setTimeout(() => setSaving(row), 0);
+                          }}
+                          data-testid="booking-past-form-save-template"
+                        >
+                          <LayoutTemplate /> Save as template
+                        </DropdownMenuItem>
+                        {!live && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onSelect={() => window.setTimeout(() => setDeleting(row), 0)} data-testid="booking-past-form-delete">
+                              <Trash2 /> Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </li>
                 );
               })}
@@ -295,6 +375,52 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
               {busy ? <LoaderCircle className="animate-spin" /> : <Rocket />} Publish
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={`Delete “${deleting ? titleOf(deleting) : ""}”?`}
+        description="It goes from the list for good. The live form is not affected."
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => (deleting ? remove(deleting) : undefined)}
+      />
+      <ConfirmDialog
+        open={cleaning}
+        onOpenChange={setCleaning}
+        title={`Delete ${rows.length - 1 === 1 ? "1 past form" : `${rows.length - 1} past forms`}?`}
+        description="Everything but the live form goes, for good."
+        confirmLabel="Clean up"
+        destructive
+        onConfirm={cleanUp}
+      />
+      <Dialog open={!!saving} onOpenChange={(next) => !busy && !next && setSaving(null)}>
+        <DialogContent size="sm" data-testid="booking-past-form-template-dialog">
+          <DialogHeader>
+            <DialogTitle>Save as template</DialogTitle>
+            <DialogDescription>A template with the same name is replaced.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveAsTemplate();
+            }}
+          >
+            <div className="grid gap-1.5">
+              <Label htmlFor="past-form-template-name">Name</Label>
+              <Input id="past-form-template-name" value={templateName} onChange={(e) => setTemplateName(e.target.value)} maxLength={MAX_BOOKING_TEMPLATE_NAME} autoFocus data-testid="booking-past-form-template-name" />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setSaving(null)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={busy || !templateName.trim()} data-testid="booking-past-form-template-save">
+                {busy ? <LoaderCircle className="animate-spin" /> : <LayoutTemplate />} Save template
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </>

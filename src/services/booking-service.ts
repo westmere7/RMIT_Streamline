@@ -584,6 +584,38 @@ export class BookingService {
   }
 
   /**
+   * Removes past forms. The live form's own entry always stays: it is the one
+   * the workspace published last, and Re-publish elsewhere relies on it.
+   * Returns how many went.
+   */
+  async deletePublications(workspaceId: EntityId, ids: EntityId[]): Promise<number> {
+    const all = await this.repos.bookingPublications.listByWorkspace(workspaceId, 1000);
+    const live = await this.livePublicationId(workspaceId, all);
+    const wanted = new Set(ids);
+    const doomed = all.filter((row) => wanted.has(row.id) && row.id !== live).map((row) => row.id);
+    await this.repos.bookingPublications.deleteMany(workspaceId, doomed);
+    return doomed.length;
+  }
+
+  /** Every past form but the live one. Returns how many went. */
+  async cleanUpPublications(workspaceId: EntityId): Promise<number> {
+    const all = await this.repos.bookingPublications.listByWorkspace(workspaceId, 1000);
+    // When the live entry cannot be told apart, the newest stays: deleting too little is the safe mistake.
+    const keep = (await this.livePublicationId(workspaceId, all)) ?? all[0]?.id ?? null;
+    const doomed = all.filter((row) => row.id !== keep).map((row) => row.id);
+    await this.repos.bookingPublications.deleteMany(workspaceId, doomed);
+    return doomed.length;
+  }
+
+  /** The entry for the form live now: the newest, when it was published when the workspace says it was. */
+  private async livePublicationId(workspaceId: EntityId, rows: readonly BookingFormPublication[]): Promise<EntityId | null> {
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    const newest = rows[0];
+    if (!newest || !workspace?.bookingFormPublishedAt) return null;
+    return Date.parse(newest.publishedAt) === Date.parse(workspace.bookingFormPublishedAt) ? newest.id : null;
+  }
+
+  /**
    * A past form, live again, under its own name. It becomes the newest entry
    * in the history. A draft somebody is part-way through stays; a draft that
    * was only the old live form goes, so the editor opens on the form now live.

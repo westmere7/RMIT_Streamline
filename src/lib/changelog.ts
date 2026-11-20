@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.125.0",
+    date: "2026-11-20",
+    title: "Tidy past forms",
+    changes: [
+      "Past forms: each one's menu saves it as a template or deletes it; Clean up deletes every past form but the live one. The live form's entry is never deleted.",
+    ],
+  },
+  {
     version: "0.124.1",
     date: "2026-11-20",
     title: "Compact past bookings, PDF button wording",

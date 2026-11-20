@@ -274,6 +274,7 @@ export function createMemoryRepositories(
       listByWorkspace: async () => [],
       getById: async () => null,
       create: readOnly("publishing a form"),
+      deleteMany: readOnly("deleting a past form"),
     },
     boardTemplates: {
       listByWorkspace: async () => [],
