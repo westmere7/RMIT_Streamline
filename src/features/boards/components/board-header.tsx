@@ -204,7 +204,7 @@ export function BoardHeader({ board }: { board: Board }) {
           {/* Who is on the board, and adding someone, as one soft group. */}
           <div className="hidden items-center rounded-lg bg-surface-strong/60 p-0.5 sm:flex" data-testid="board-members-group">
             <button type="button" onClick={() => setSettings("members")} aria-label={`${members.length} board members`} className="flex h-8 items-center rounded-md px-1.5 transition-colors hover:bg-accent/70">
-              <AvatarStack users={members} size="sm" max={4} />
+              <AvatarStack users={members} size="sm" max={4} apart />
             </button>
             {manage && (
               <SimpleTooltip label="Invite people to this board">

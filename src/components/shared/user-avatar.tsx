@@ -105,6 +105,8 @@ export interface AvatarStackProps {
   size?: AvatarSize;
   max?: number;
   className?: string;
+  /** Side by side with a small gap instead of overlapping, where there is room and a pile would read as a mess. */
+  apart?: boolean;
 }
 
 /** Each user once, first appearance kept: one person can sit in two people columns. */
@@ -114,12 +116,12 @@ export function uniqueUsers<U extends { id: string }>(users: U[]): U[] {
 }
 
 /** Overlapping avatars for multi-assignee cells. */
-export function AvatarStack({ users: given, size = "md", max = 3, className }: AvatarStackProps) {
+export function AvatarStack({ users: given, size = "md", max = 3, className, apart = false }: AvatarStackProps) {
   const users = uniqueUsers(given);
   const visible = users.slice(0, max);
   const overflow = users.length - visible.length;
   return (
-    <span className={cn("inline-flex items-center -space-x-1.5", className)}>
+    <span className={cn("inline-flex items-center", apart ? "gap-1" : "-space-x-1.5", className)}>
       {visible.map((u) => (
         <UserAvatar key={u.id} user={u} size={size} />
       ))}
