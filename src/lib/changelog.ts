@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.130.0",
+    date: "2026-11-20",
+    title: "Move a task's assets into a sheet",
+    changes: [
+      "New tracker for a task, or using an existing sheet for one, offers to move the task's own assets into it (on by default). They go in below the sheet's rows, never over them: loose assets above its first band, a block under the band of the same name or a new one.",
+      "A column the assets need and the sheet lacks (due date, PIC, done, link, spec…) is added first, and new types join the Type dropdown, so nothing is lost. The task's old assets go only once the sheet's are in.",
+    ],
+  },
+  {
     version: "0.129.2",
     date: "2026-11-20",
     title: "Version in the menu",

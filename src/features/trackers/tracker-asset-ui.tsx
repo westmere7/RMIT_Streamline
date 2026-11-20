@@ -35,6 +35,7 @@ import {
   type TrackerSheet,
   type User,
 } from "@/domain";
+import { Switch } from "@/components/ui/switch";
 import { useServices } from "@/features/data/data-context";
 import { useSheetAssetMutations } from "@/features/trackers/hooks";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
@@ -379,6 +380,16 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
     setMapping((m) => assignAssetRole(m, column, role));
   };
   const [chosen, setChosen] = React.useState<Item | null>(presetItem);
+  const services = useServices();
+  // The chosen task's own lines (not ones from a sheet): offered to the sheet when it is first linked.
+  const ownLines = useQuery({
+    queryKey: ["item-own-asset-lines", chosen?.id ?? ""],
+    queryFn: async () => (await services.assets.list(chosen!.id)).filter((a) => a.itemId === chosen!.id && !a.trackerSheetId).length,
+    enabled: !!chosen && !sheet.itemId,
+    staleTime: 5_000,
+  });
+  const movable = sheet.itemId ? 0 : (ownLines.data ?? 0);
+  const [moveAssets, setMoveAssets] = React.useState(true);
   const [query, setQuery] = React.useState("");
   const hits = useTaskSearch(query, !sheet.itemId && !presetItem);
   const task = sheet.itemId ? linked.item : chosen;
@@ -404,7 +415,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
 
   const save = async () => {
     if (sheet.itemId) await mutations.setMapping.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, mapping });
-    else if (chosen) await mutations.link.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, itemId: chosen.id, mapping });
+    else if (chosen) await mutations.link.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, itemId: chosen.id, mapping, moveAssets: movable > 0 && moveAssets });
     onClose();
   };
 
@@ -594,6 +605,17 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           <span className="text-muted-foreground">Choose the column that names each asset.</span>
         )}
       </p>
+
+      {movable > 0 && (
+        // The task's own lines, moved in as rows below what the sheet holds, or left beside the sheet's.
+        <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="task-assets-move">
+          <span className="min-w-0">
+            Move the task&rsquo;s {movable === 1 ? "asset" : `${movable} assets`} into this sheet
+            <span className="block text-2xs text-muted-foreground">{moveAssets ? "Added below the sheet's rows; columns they need are added." : "They stay on the task, beside the sheet's."}</span>
+          </span>
+          <Switch checked={moveAssets} onCheckedChange={setMoveAssets} aria-label="Move the task's assets into this sheet" data-testid="task-assets-move-switch" />
+        </label>
+      )}
 
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>

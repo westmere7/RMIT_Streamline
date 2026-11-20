@@ -10,6 +10,8 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { queryKeys } from "@/lib/query/keys";
 import { sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAssetPatch, type SheetLineField, type TrackerSheet } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useAssetMutations } from "@/features/items/asset-hooks";
@@ -399,6 +401,15 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
   const queryClient = useQueryClient();
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const [creating, setCreating] = React.useState(false);
+  // The task's own lines (not ones another sheet gives it), offered to the new tracker.
+  const ownLines = useQuery({
+    queryKey: ["item-own-asset-lines", item.id],
+    queryFn: async () => (await services.assets.list(item.id)).filter((a) => a.itemId === item.id && !a.trackerSheetId).length,
+    enabled: open,
+    staleTime: 5_000,
+  });
+  const movable = ownLines.data ?? 0;
+  const [moveAssets, setMoveAssets] = React.useState(true);
   // The new tracker's name: the task's to start with, the person's to change. Null while the box is closed.
   const [newName, setNewName] = React.useState<string | null>(null);
   // A tracker on the task's board's team, with one sheet laid out for assets.
@@ -407,6 +418,23 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
     if (!name) return;
     setCreating(true);
     try {
+      if (movable > 0 && moveAssets) {
+        // Made, filled with the task's lines and linked in one go: nothing left to set up.
+        const { moved } = await services.trackers.createForItem(
+          { workspaceId: ws.workspace.id, teamId: ws.boardById(item.boardId)?.teamId ?? null, itemId: item.id, name, assetTypes: assetTypes.map((t) => t.name), moveAssets: true },
+          ws.currentUser.id,
+        );
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["trackers"] }),
+          queryClient.invalidateQueries({ queryKey: queryKeys.itemAssets(item.id) }),
+          queryClient.invalidateQueries({ queryKey: ["item-tracker-sheet", item.id] }),
+          queryClient.invalidateQueries({ queryKey: ["item-own-asset-lines", item.id] }),
+        ]);
+        toast.success(moved === 1 ? `Moved 1 asset into “${name}”` : `Moved ${moved} assets into “${name}”`);
+        setNewName(null);
+        onOpenChange(false);
+        return;
+      }
       const { sheets } = await services.trackers.create(
         {
           workspaceId: ws.workspace.id,
@@ -434,20 +462,31 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
       </Button>
     ) : (
       <form
-        className="flex w-full items-center gap-2"
+        className="grid w-full gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           void createTracker();
         }}
         data-testid="pick-sheet-new-tracker-form"
       >
-        <Input value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="New tracker name" placeholder="Tracker name" maxLength={120} autoFocus className="h-8 min-w-0 flex-1" data-testid="pick-sheet-new-tracker-name" />
-        <Button type="button" variant="ghost" size="sm" onClick={() => setNewName(null)} disabled={creating}>
-          Cancel
-        </Button>
-        <Button type="submit" size="sm" disabled={creating || !newName.trim()} data-testid="pick-sheet-new-tracker-create">
-          {creating ? <Loader2 className="animate-spin" /> : <Plus />} Create
-        </Button>
+        <div className="flex w-full items-center gap-2">
+          <Input value={newName} onChange={(e) => setNewName(e.target.value)} aria-label="New tracker name" placeholder="Tracker name" maxLength={120} autoFocus className="h-8 min-w-0 flex-1" data-testid="pick-sheet-new-tracker-name" />
+          <Button type="button" variant="ghost" size="sm" onClick={() => setNewName(null)} disabled={creating}>
+            Cancel
+          </Button>
+          <Button type="submit" size="sm" disabled={creating || !newName.trim()} data-testid="pick-sheet-new-tracker-create">
+            {creating ? <Loader2 className="animate-spin" /> : <Plus />} Create
+          </Button>
+        </div>
+        {movable > 0 && (
+          <label className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="pick-sheet-move-assets">
+            <span className="min-w-0">
+              Move this task&rsquo;s {movable === 1 ? "asset" : `${movable} assets`} into it
+              <span className="block text-2xs text-muted-foreground">{moveAssets ? "They become rows of the sheet, and are edited there." : "They stay on the task, beside the sheet's."}</span>
+            </span>
+            <Switch checked={moveAssets} onCheckedChange={setMoveAssets} aria-label="Move this task's assets into the new tracker" data-testid="pick-sheet-move-assets-switch" />
+          </label>
+        )}
       </form>
     );
   const data = useQuery({

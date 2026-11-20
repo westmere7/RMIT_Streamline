@@ -176,8 +176,12 @@ export function useSheetAssetMutations() {
   };
   const fail = (title: string) => (error: unknown) => toast.error(title, { description: error instanceof Error ? error.message : undefined });
   const link = useMutation({
-    mutationFn: ({ sheetId, itemId, mapping }: { sheetId: string; trackerId: string; itemId: string; mapping: TrackerAssetMapping }) => services.trackers.linkSheet(sheetId, itemId, mapping, user.id),
-    onSuccess: ({ sync }) => toast.success("The sheet now holds the task's assets", { description: sync ? `${sync.added} asset${sync.added === 1 ? "" : "s"} added to the task.` : undefined }),
+    mutationFn: ({ sheetId, itemId, mapping, moveAssets }: { sheetId: string; trackerId: string; itemId: string; mapping: TrackerAssetMapping; moveAssets?: boolean }) =>
+      services.trackers.linkSheet(sheetId, itemId, mapping, user.id, { moveAssets }),
+    onSuccess: ({ sync, moved }) =>
+      toast.success("The sheet now holds the task's assets", {
+        description: moved > 0 ? `${moved} of the task's asset${moved === 1 ? "" : "s"} moved into the sheet.` : sync ? `${sync.added} asset${sync.added === 1 ? "" : "s"} added to the task.` : undefined,
+      }),
     onError: fail("Could not use the sheet for that task"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
