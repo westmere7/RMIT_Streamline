@@ -3,7 +3,7 @@ import { fixtureBookingFormTemplate } from "./helpers/booking-fixture";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { BoardColumn, BookingAnswer, BookingBlock, BookingChoiceBlock, BookingFormTemplate, BookingRequest, ColumnType, PriorityColumnSettings, TagsColumnSettings } from "@/domain";
-import { copyBlockWithNewIds, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, flattenBlocks, newBookingBlock, numberedQuestions, questionNumber, renameFollowUpKey, serviceById, standardFieldFor, templateQuestionCount, visibleBlocks } from "@/domain";
+import { copyBlockWithNewIds, routeBooking, syncFormWorkTypes, defaultBookingFormTemplate, defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, flattenBlocks, newBookingBlock, numberedQuestions, questionNumber, renameFollowUpKey, serviceById, standardFieldFor, templateQuestionCount, visibleBlocks } from "@/domain";
 import { boardRoleFor, buildPermissionContext, canViewBoard } from "@/lib/permissions/permissions";
 import { richTextToPlain } from "@/lib/rich-text";
 import { createServices } from "@/services";
@@ -722,6 +722,55 @@ describe("booking a task", () => {
     const gone = services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ serviceTypeId: "svc-gone" }) });
     await expect(gone).rejects.toThrow(/no longer on the form/);
     await expect(gone).rejects.toBeInstanceOf(BookingValidationError);
+  });
+
+  it("routes by the service's own rules on the work types, falling back when a board has gone", async () => {
+    const teams = await services.repos.teams.listByWorkspace(SEED_WORKSPACE_ID);
+    const boards = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => !b.archivedAt && !b.system);
+    const team = teams.find((t) => !t.system && boards.some((b) => b.teamId === t.id))!;
+    const teamBoard = boards.find((b) => b.teamId === team.id)!;
+    const [printBoard, otherBoard] = boards.filter((b) => b.id !== teamBoard.id);
+    await services.workspace.updateTeam(team.id, { bookingBoardId: teamBoard.id });
+
+    const template = fixtureBookingFormTemplate();
+    const design = serviceById(template, "svc-design")!;
+    design.teamId = team.id;
+    design.routing = { enabled: true, rules: [{ id: "r1", workTypes: ["Print"], boardId: printBoard!.id }], otherwise: { kind: "board", boardId: otherBoard!.id } };
+    await services.booking.publishForm(SEED_WORKSPACE_ID, template);
+
+    // Print picked: the rule's board. The form names it, so it can say so beforehand.
+    const printed = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ subServices: ["Print"] }) });
+    expect(printed.boardId).toBe(printBoard!.id);
+    const form = await services.booking.getForm({ workspaceSlug: "rmit", key: null });
+    expect(form.boards?.map((b) => b.id).sort()).toEqual([printBoard!.id, otherBoard!.id].sort());
+    // Anything else: the fallback board.
+    const other = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ subServices: ["Publication"] }) });
+    expect(other.boardId).toBe(otherBoard!.id);
+
+    // A rule's board archived since: the team's own board, not a failure.
+    await services.repos.boards.update(printBoard!.id, { archivedAt: new Date().toISOString() });
+    const fellBack = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ subServices: ["Print"] }) });
+    expect(fellBack.boardId).toBe(teamBoard.id);
+
+    // Switched off, it follows the team as before.
+    design.routing = { ...design.routing, enabled: false };
+    await services.booking.publishForm(SEED_WORKSPACE_ID, template);
+    expect((await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request({ subServices: ["Publication"] }) })).boardId).toBe(teamBoard.id);
+  });
+
+  it("picks the first rule that matches, and keeps rules in step when a work type is renamed or removed", () => {
+    const service = { routing: { enabled: true, rules: [{ id: "a", workTypes: ["Print"], boardId: "b-1" }, { id: "b", workTypes: ["Video", "Print"], boardId: "b-2" }], otherwise: { kind: "allocation" as const } } };
+    expect(routeBooking(service, ["Print", "Video"])).toEqual({ kind: "board", boardId: "b-1" });
+    expect(routeBooking(service, ["video"])).toEqual({ kind: "board", boardId: "b-2" });
+    expect(routeBooking(service, [])).toEqual({ kind: "allocation" });
+    expect(routeBooking({ routing: { ...service.routing, enabled: false } }, ["Print"])).toEqual({ kind: "team" });
+
+    const template = fixtureBookingFormTemplate();
+    const design = serviceById(template, "svc-design")!;
+    design.routing = { enabled: true, rules: [{ id: "a", workTypes: ["Print", "Others"], boardId: "00000000-0000-4000-8000-000000000001" }], otherwise: { kind: "team" } };
+    const workTypes = design.subServices.filter((w) => w.name !== "Others").map((w) => (w.name === "Print" ? { ...w, name: "Print & signage" } : w));
+    const synced = syncFormWorkTypes(template, workTypes, new Map([["Print", "Print & signage"]]));
+    expect(serviceById(synced, "svc-design")!.routing?.rules[0]?.workTypes).toEqual(["Print & signage"]);
   });
 
   it("routes by the service, not by anything the caller sends, and lands on the team's own board", async () => {

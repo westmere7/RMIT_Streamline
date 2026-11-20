@@ -1,6 +1,7 @@
 import type { ColorToken, EntityId, ISODate } from "@/domain/common/types";
 import type { TagOption } from "@/domain/board/column";
-import type { BookingAnswer, BookingFormTemplate } from "./booking-template";
+import type { BookingAnswer, BookingFormTemplate, BookingServiceType } from "./booking-template";
+import { routeBooking } from "./booking-template";
 
 /**
  * Task booking: how people outside the team ask for work.
@@ -95,6 +96,8 @@ export interface BookingForm {
   /** Priority labels of the Task Allocation board, in order. */
   priorities: Array<{ name: string; color: ColorToken }>;
   teams: BookingTeamOption[];
+  /** The boards the form's own routing names (a service's rules and fallbacks), so it can say where a booking goes. */
+  boards?: Array<{ id: EntityId; name: string; teamName: string | null }>;
   /** What this workspace stamps on its tickets, for the code the receipt will show. */
   ticketPrefix: string;
   /** The questions to ask, in the workspace's words. */
@@ -188,4 +191,24 @@ export function isPlausibleBookingKey(value: string): boolean {
   return /^[a-z0-9]{16,64}$/.test(value);
 }
 
+/**
+ * Where a booking will land, in words the form can show: straight onto a
+ * board (with its team when it has one), or the allocation queue (marked for
+ * the service's team when there is one). Worked out by routeBooking, as the
+ * server routes it.
+ */
+export function bookingDestination(
+  service: Pick<BookingServiceType, "teamId" | "routing">,
+  workTypes: readonly string[],
+  form: Pick<BookingForm, "teams" | "boards">,
+): { kind: "board"; boardName: string; teamName: string | null } | { kind: "queue"; teamName: string | null } {
+  const team = service.teamId ? (form.teams.find((t) => t.id === service.teamId) ?? null) : null;
+  const route = routeBooking(service, workTypes);
+  if (route.kind === "board") {
+    const board = form.boards?.find((b) => b.id === route.boardId);
+    if (board) return { kind: "board", boardName: board.name, teamName: board.teamName };
+  }
+  if (route.kind !== "allocation" && team?.boardName) return { kind: "board", boardName: team.boardName, teamName: team.name };
+  return { kind: "queue", teamName: team?.name ?? null };
+}
 

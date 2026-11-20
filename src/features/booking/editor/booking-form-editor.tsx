@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2, X } from "lucide-react";
+import { Boxes, Check, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -36,6 +36,7 @@ import { AssetList, AssetTypePicker, Chip, ChipGroup, SPAN, ServiceCardShell, St
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
+import { RoutingDialog } from "./routing-dialog";
 import { PastFormsButton, PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesPanel } from "./templates-menu";
@@ -685,6 +686,7 @@ function ServicePanel({
   onEditBrief: () => void;
 }) {
   const ws = useWorkspace();
+  const [routingOpen, setRoutingOpen] = React.useState(false);
   const questions = service.blocks.filter(isQuestionBlock).length;
   const key = slug(service.name);
   return (
@@ -755,6 +757,23 @@ function ServicePanel({
               })}
             </SelectContent>
           </Select>
+          {/* Which board, beyond the team's own: rules on the work types picked. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 w-full min-w-0 justify-start text-[13px] font-normal"
+            onClick={() => setRoutingOpen(true)}
+            data-testid={`editor-service-routing-${key}`}
+          >
+            <Split className="text-muted-foreground" />
+            <span className="truncate">
+              {service.routing?.enabled
+                ? `By work type · ${service.routing.rules.length === 1 ? "1 rule" : `${service.routing.rules.length} rules`}`
+                : `Board: ${ws.boardById(ws.teamById(service.teamId)?.bookingBoardId ?? null)?.name ?? "Task Allocation"}`}
+            </span>
+          </Button>
+          <RoutingDialog service={service} open={routingOpen} onOpenChange={setRoutingOpen} onSave={(routing) => onPatch({ routing })} />
         </Labeled>
       </div>
       <Labeled label="Description">

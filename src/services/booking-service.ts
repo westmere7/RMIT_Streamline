@@ -20,7 +20,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, isEmptyValue, isQuestionBlock, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -258,10 +258,21 @@ export class BookingService {
     const assetTypes = listTypes.length > 0 ? toTagOptions(listTypes) : columnTypes;
 
     const options: BookingTeamOption[] = offered.map((team, i) => ({ id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: receiving[i]?.name ?? null }));
+    // The boards the form's own routing names, so it can tell the requester where a booking goes. Only those.
+    const template = resolveBookingTemplate(workspace);
+    const named = new Set<string>();
+    for (const service of template.services) {
+      if (!service.routing?.enabled) continue;
+      for (const rule of service.routing.rules) named.add(rule.boardId);
+      if (service.routing.otherwise.kind === "board") named.add(service.routing.otherwise.boardId);
+    }
+    const routedBoards = boards
+      .filter((b) => named.has(b.id) && b.archivedAt === null && !b.system)
+      .map((b) => ({ id: b.id, name: b.name, teamName: teams.find((t) => t.id === b.teamId)?.name ?? null }));
     // The stakeholder groups, so "school or department" is picked from a list
     // rather than typed six different ways.
     const departments: TagOption[] = (await this.activeDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color as TagOption["color"] }));
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template: resolveBookingTemplate(workspace) };
+    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template };
   }
 
   /**
@@ -329,9 +340,18 @@ export class BookingService {
     // the caller sent as one. What the team reads is what the form asked for.
     request.brief = composeBrief(request, template);
 
-    const receiving = team?.bookingBoardId ? await this.repos.boards.getById(team.bookingBoardId) : null;
-    const direct = !!receiving && receiving.workspaceId === workspaceId && receiving.archivedAt === null && !receiving.system;
+    // Where it goes: the service's own rules when it has them switched on, else
+    // the team's nominated board. A board a rule names that has gone (archived,
+    // deleted, moved) falls back to the team's board, then the queue.
+    const route = service ? routeBooking(service, request.subServices) : ({ kind: "team" } as const);
+    const usable = (b: Board | null): b is Board => !!b && b.workspaceId === workspaceId && b.archivedAt === null && !b.system;
+    let receiving: Board | null = null;
+    if (route.kind === "board") receiving = await this.repos.boards.getById(route.boardId);
+    if (!usable(receiving) && route.kind !== "allocation" && team?.bookingBoardId) receiving = await this.repos.boards.getById(team.bookingBoardId);
+    const direct = usable(receiving);
     const board = direct ? receiving! : allocation;
+    // The team whose board it landed on, which a rule may make another than the service's.
+    const landedTeam = direct ? (teams.find((t) => t.id === board.teamId) ?? null) : null;
 
     const [columns, groups, members] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id), this.repos.workspaces.listMembers(workspaceId)]);
     const actorId = this.actorFor(members, board, memberId);
@@ -354,7 +374,7 @@ export class BookingService {
       }
     }
 
-    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department, requesterId, teamOwnsBoard: direct });
+    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: department, requesterId, teamOwnsBoard: direct && !!team && board.teamId === team.id });
     const description = describeBooking(request, placement);
     // The form names the id the item will have so a submission that is retried
     // cannot book the same thing twice. Honoured only if it is still free: an id
@@ -404,7 +424,7 @@ export class BookingService {
       boardId: board.id,
       boardName: board.name,
       boardSlug: board.slug,
-      teamName: direct ? team!.name : null,
+      teamName: direct ? (landedTeam?.name ?? team?.name ?? board.name) : null,
       ticket: item.ticket ?? ticket,
       submittedAt: item.createdAt,
       assetCount: request.assets.length,

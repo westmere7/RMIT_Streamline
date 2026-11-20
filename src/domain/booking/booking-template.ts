@@ -467,6 +467,43 @@ export interface BookingServiceType {
   blocks: BookingBlock[];
   /** The team whose board takes these bookings, or null for the allocation queue. */
   teamId: EntityId | null;
+  /**
+   * The board picked by the form itself rather than by the team's nominated
+   * booking board: rules on the work types chosen, then a fallback. Absent or
+   * switched off, bookings follow the team as before (routeBooking).
+   */
+  routing?: BookingRouting | null;
+}
+
+/** Where a booking goes: its team's nominated booking board, the allocation queue, or a board named here. */
+export type BookingRouteTarget = { kind: "team" } | { kind: "allocation" } | { kind: "board"; boardId: EntityId };
+
+/** One rule: a booking that picked any of these work types goes to this board. */
+export interface BookingRouteRule {
+  id: string;
+  workTypes: string[];
+  boardId: EntityId;
+}
+
+/** A service's own routing: on or off, the rules in order (first match wins), and where everything else goes. */
+export interface BookingRouting {
+  enabled: boolean;
+  rules: BookingRouteRule[];
+  otherwise: BookingRouteTarget;
+}
+
+/**
+ * Where a booking for `service` goes, given the work types picked: the first
+ * rule naming any of them, else the fallback; with routing off (or none), the
+ * team's nominated booking board. The server routes by this, and the form says
+ * where a booking will go by this, so the two cannot disagree.
+ */
+export function routeBooking(service: Pick<BookingServiceType, "routing">, workTypes: readonly string[]): BookingRouteTarget {
+  const routing = service.routing;
+  if (!routing?.enabled) return { kind: "team" };
+  const picked = new Set(workTypes.map((w) => w.trim().toLowerCase()));
+  for (const rule of routing.rules) if (rule.workTypes.some((w) => picked.has(w.trim().toLowerCase()))) return { kind: "board", boardId: rule.boardId };
+  return routing.otherwise;
 }
 
 // ---- the standard questions of step one --------------------------------------
@@ -742,9 +779,21 @@ export function syncFormWorkTypes(template: BookingFormTemplate, workTypes: read
       seen.add(match.name);
       next.push({ name: match.name, color: match.color });
     }
-    if (next.length === service.subServices.length && next.every((o, i) => o.name === service.subServices[i]!.name && o.color === service.subServices[i]!.color)) return service;
+    // Rules name work types too: a renamed one is renamed in them, a removed one leaves them.
+    const offered = new Set(next.map((o) => o.name));
+    const routing = service.routing
+      ? {
+          ...service.routing,
+          rules: service.routing.rules.map((rule) => ({
+            ...rule,
+            workTypes: [...new Set(rule.workTypes.map((w) => byName.get((lowerRenames.get(w.trim().toLowerCase()) ?? w).trim().toLowerCase())?.name ?? w))].filter((w) => offered.has(w)),
+          })),
+        }
+      : service.routing;
+    const sameRouting = JSON.stringify(routing) === JSON.stringify(service.routing);
+    if (sameRouting && next.length === service.subServices.length && next.every((o, i) => o.name === service.subServices[i]!.name && o.color === service.subServices[i]!.color)) return service;
     changed = true;
-    return { ...service, subServices: next };
+    return { ...service, subServices: next, ...(routing === undefined ? {} : { routing }) };
   });
   return changed ? { ...template, services } : template;
 }

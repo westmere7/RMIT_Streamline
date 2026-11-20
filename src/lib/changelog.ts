@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.121.0",
+    date: "2026-11-20",
+    title: "Bookings routed by work type",
+    changes: [
+      "In the booking form editor, the button under Bookings go to opens where a service's bookings land: switch on picking the board by work type, add rules (first match wins), and choose where everything else goes.",
+      "The form tells the requester where their booking will go as they pick work types, and a rule's board that has since gone falls back to the team's own board.",
+    ],
+  },
+  {
     version: "0.120.1",
     date: "2026-11-20",
     title: "Clearer steps in the form editor",

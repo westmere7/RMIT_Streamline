@@ -4,7 +4,8 @@ import { Eye } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest } from "@/domain";
-import { formatTicket, serviceById } from "@/domain";
+import { bookingDestination, formatTicket, serviceById } from "@/domain";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId } from "@/lib/ids";
 import { BookingWizard } from "../wizard/booking-wizard";
 
@@ -26,20 +27,29 @@ import { BookingWizard } from "../wizard/booking-wizard";
 export function PreviewDialog({ open, onOpenChange, form, template }: { open: boolean; onOpenChange: (open: boolean) => void; form: BookingFormData; template: BookingFormTemplate }) {
   // The dialog's content is unmounted while it is shut, so every look starts on
   // step one with a blank form. Nothing here has to reset anything.
-  const preview = React.useMemo(() => ({ ...form, template }), [form, template]);
+  // The draft's rules may name boards the published form does not: the editor is in the app, so it knows them all.
+  const ws = useWorkspace();
+  const preview = React.useMemo(
+    () => ({
+      ...form,
+      template,
+      boards: ws.boards.filter((b) => !b.system && b.archivedAt === null).map((b) => ({ id: b.id, name: b.name, teamName: ws.teamById(b.teamId)?.name ?? null })),
+    }),
+    [form, template, ws],
+  );
 
   const pretend = React.useCallback(
     async (request: BookingRequest): Promise<BookingReceipt> => {
       const itemId = request.itemId ?? newId();
       const service = serviceById(template, request.serviceTypeId);
-      const team = service?.teamId ? (form.teams.find((t) => t.id === service.teamId) ?? null) : null;
+      const where = service ? bookingDestination(service, request.subServices, preview) : null;
       return {
         itemId,
         itemName: request.title,
         boardId: "preview",
-        boardName: team?.boardName ?? "Task Allocation",
+        boardName: where?.kind === "board" ? where.boardName : "Task Allocation",
         boardSlug: "preview",
-        teamName: team?.boardName ? team.name : null,
+        teamName: where?.kind === "board" ? (where.teamName ?? where.boardName) : null,
         // Nothing is written, so nothing is issued: the receipt shows the shape
         // of a ticket rather than taking a number out of the real series.
         ticket: formatTicket(form.ticketPrefix, 14),
@@ -47,7 +57,7 @@ export function PreviewDialog({ open, onOpenChange, form, template }: { open: bo
         assetCount: request.assets.length,
       };
     },
-    [form.teams, form.ticketPrefix, template],
+    [form.ticketPrefix, preview, template],
   );
 
   return (

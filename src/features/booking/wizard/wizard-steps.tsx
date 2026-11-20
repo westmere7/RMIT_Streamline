@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichText } from "@/components/shared/rich-text";
 import type { BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingRequest, BookingServiceType, BookingStandardKey } from "@/domain";
-import { isAnswerEmpty, isQuestionBlock, openFollowUps, questionNumbers, serviceById, usableAnswer, visibleBlocks } from "@/domain";
+import { bookingDestination, isAnswerEmpty, isQuestionBlock, openFollowUps, questionNumbers, serviceById, usableAnswer, visibleBlocks } from "@/domain";
 import { SPAN } from "../booking-fields";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate } from "@/lib/dates/dates";
@@ -143,7 +143,7 @@ export function StepBasics({
           </Field>
         )}
 
-        {service && <RoutingNote service={service} form={form} />}
+        {service && <RoutingNote service={service} form={form} workTypes={request.subServices} />}
       </div>
     </div>
   );
@@ -163,14 +163,15 @@ function ServiceCard({ service, selected, onSelect }: { service: BookingServiceT
   );
 }
 
-/** Where this booking will go, said before it is sent rather than after. */
-function RoutingNote({ service, form }: { service: BookingServiceType; form: BookingFormData }) {
-  const team = service.teamId ? (form.teams.find((t) => t.id === service.teamId) ?? null) : null;
-  const text = !team
-    ? "This goes to our allocation queue, and a manager places it with the right team."
-    : team.boardName
-      ? `This goes straight to ${team.name}.`
-      : `This goes to our allocation queue, marked for ${team.name}.`;
+/** Where this booking will go, said before it is sent rather than after; it follows the work types picked when the service routes by them. */
+function RoutingNote({ service, form, workTypes }: { service: BookingServiceType; form: BookingFormData; workTypes: readonly string[] }) {
+  const where = bookingDestination(service, workTypes, form);
+  const text =
+    where.kind === "board"
+      ? `This goes straight to ${where.teamName ?? where.boardName}.`
+      : where.teamName
+        ? `This goes to our allocation queue, marked for ${where.teamName}.`
+        : "This goes to our allocation queue, and a manager places it with the right team.";
   return (
     <p className="flex items-start gap-1.5 text-2xs text-muted-foreground" data-testid="booking-routing">
       <Info className="mt-px size-3 shrink-0" aria-hidden />
@@ -314,7 +315,7 @@ export function StepAssets({ form, template, request, patch, assets, onAssets, d
 export function StepReview({ form, template, request, assets, omit, onEditStep }: StepProps & { assets: AssetRow[]; onEditStep: (step: number) => void }) {
   const omitted = new Set<BookingStandardKey>(omit ?? []);
   const service = serviceById(template, request.serviceTypeId);
-  const team = service?.teamId ? (form.teams.find((t) => t.id === service.teamId) ?? null) : null;
+  const where = service ? bookingDestination(service, request.subServices, form) : null;
   const named = assets.filter((a) => a.name.trim());
   const answered = visibleBlocks(service?.blocks ?? [], request.answers)
     .filter(isQuestionBlock)
@@ -329,7 +330,10 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
   rows.push(["Service", service ? (request.subServices.length ? `${service.name} — ${request.subServices.join(", ")}` : service.name) : <Missing />]);
   if (ask("priority")) rows.push(["Urgency", request.priority ?? "Normal turnaround"]);
   if (ask("dueDate")) rows.push(["Needed by", request.dueDate ? formatShortDate(request.dueDate) : <NotGiven />]);
-  rows.push(["Goes to", team ? (team.boardName ? `${team.name} (${team.boardName})` : `The allocation queue, marked for ${team.name}`) : "The allocation queue"]);
+  rows.push([
+    "Goes to",
+    where?.kind === "board" ? (where.teamName ? `${where.teamName} (${where.boardName})` : where.boardName) : where?.teamName ? `The allocation queue, marked for ${where.teamName}` : "The allocation queue",
+  ]);
 
   return (
     <div className="space-y-5" data-testid="booking-step-review">

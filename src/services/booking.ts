@@ -211,6 +211,17 @@ const serviceSchema = z.object({
   briefHint: z.string().trim().max(400).nullable().default(null),
   blocks: z.array(blockSchema).max(60),
   teamId: z.uuid().nullable().default(null),
+  routing: z
+    .object({
+      enabled: z.boolean().default(false),
+      rules: z
+        .array(z.object({ id: z.string().trim().min(1).max(80), workTypes: z.array(z.string().trim().min(1).max(120)).max(40), boardId: z.uuid() }))
+        .max(30)
+        .default([]),
+      otherwise: z.discriminatedUnion("kind", [z.object({ kind: z.literal("team") }), z.object({ kind: z.literal("allocation") }), z.object({ kind: z.literal("board"), boardId: z.uuid() })]).default({ kind: "team" }),
+    })
+    .nullable()
+    .optional(),
 });
 
 /**
