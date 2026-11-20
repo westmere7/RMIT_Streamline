@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { Check, CornerDownLeft, Eye, EyeOff, GripVertical, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { Check, CornerDownLeft, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -407,20 +407,16 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   const previewSheet = React.useMemo(() => (bandIds.length ? TrackerService.setRowKind(shown, bandIds, "section") : shown), [shown, bandIds]);
   const effectiveMapping = React.useMemo<TrackerAssetMapping>(() => (skipIds.length ? { ...mapping, ignoreRows: [...new Set([...(mapping.ignoreRows ?? []), ...skipIds])] } : mapping), [mapping, skipIds]);
   const lines = React.useMemo(() => (isMappingUsable(effectiveMapping) ? sheetAssetLines(previewSheet, effectiveMapping) : []), [previewSheet, effectiveMapping]);
-  // The column under the pointer (or keyboard) in a dropdown or chip, lit up in the preview.
-  const [peek, setPeek] = React.useState<string | null>(null);
-  // The preview's box: dropdowns open below it, never over it.
-  const sheetRef = React.useRef<HTMLElement>(null);
-  // The live preview of the sheet: off unless asked for, and remembered in this browser.
-  const [showSheet, setShowSheet] = React.useState(() => {
+  // Choosing columns on the sheet itself, in a pop-up of their own: off unless asked for, remembered in this browser.
+  const [pickOnSheet, setPickOnSheet] = React.useState(() => {
     try {
       return window.localStorage.getItem(PREVIEW_KEY) === "1";
     } catch {
       return false;
     }
   });
-  const toggleSheet = () =>
-    setShowSheet((on) => {
+  const togglePickOnSheet = () =>
+    setPickOnSheet((on) => {
       try {
         window.localStorage.setItem(PREVIEW_KEY, on ? "0" : "1");
       } catch {
@@ -428,6 +424,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
       }
       return !on;
     });
+  // The part whose column is being chosen on the sheet, when the pop-up is open.
+  const [picking, setPicking] = React.useState<PickRequest | null>(null);
+  const onSheet = (label: string, role: Exclude<AssetRole, "spec" | "link">, value: string | null, allowNone: boolean) =>
+    pickOnSheet ? () => setPicking({ label, value, allowNone, onChoose: pick(role), onCreate: newColumn(role) }) : undefined;
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
   const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending || mutations.bandRows.isPending;
@@ -553,23 +553,14 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         </section>
       ) : (
         <>
-        {/* min-w-0: the dialog lays out as a grid, and a wide sheet must scroll inside its box, not widen the dialog. */}
-        <section
-          ref={sheetRef}
-          // Pinned to the top while the settings scroll (wide screens), so a dropdown below can light a column up in view.
-          className={cn(
-            "min-w-0 space-y-2 bg-popover",
-            showSheet && "md:sticky md:-top-6 md:z-20 md:-mx-6 md:-mt-2 md:px-6 md:pt-2 md:pb-3 md:shadow-[0_10px_10px_-10px_rgba(0,0,0,0.35)]",
-          )}
-          data-testid="task-assets-sheet"
-        >
+        <section className="min-w-0 space-y-2" data-testid="task-assets-sheet">
           <div className="flex items-center justify-between gap-2">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
-            <Button type="button" variant="ghost" size="sm" className="h-7 text-muted-foreground" onClick={toggleSheet} aria-pressed={showSheet} data-testid="task-assets-sheet-toggle">
-              {showSheet ? <EyeOff /> : <Eye />} {showSheet ? "Hide the sheet" : "Show the sheet"}
-            </Button>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              Pick columns on the sheet
+              <Switch size="sm" checked={pickOnSheet} onCheckedChange={togglePickOnSheet} aria-label="Pick columns on the sheet" data-testid="task-assets-sheet-toggle" />
+            </label>
           </div>
-          {showSheet && <SheetPreview sheet={previewSheet} mapping={effectiveMapping} peek={peek} bandIds={bandIds} />}
           {detected.length > 0 && (
             <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="task-assets-nonasset">
               <span className="min-w-0">
@@ -585,10 +576,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         <section className="space-y-2.5">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
           <MapRow label="Asset name">
-            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" />
+            <ColumnSelect columns={columns} value={mapping.name} onChange={pick("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("Asset name", "name", mapping.name, false)} />
           </MapRow>
           <MapRow label="Type">
-            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" />
+            <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={pick("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("Type", "type", mapping.type.columnId, true)} />
             <select
               value={mapping.type.value ?? ""}
               onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
@@ -606,7 +597,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
             </select>
           </MapRow>
           <MapRow label="Quantity">
-            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" />
+            <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={pick("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("Quantity", "quantity", mapping.quantity.columnId, true)} />
             <Input
               type="number"
               min={0}
@@ -619,23 +610,23 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           </MapRow>
           {warn(mapping.quantity.columnId, "quantity")}
           <MapRow label="PIC">
-            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" />
+            <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={pick("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" onPickOnSheet={onSheet("PIC", "pic", mapping.pic.columnId, true)} />
             <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
           </MapRow>
           {warn(mapping.pic.columnId, "pic")}
           <MapRow label="Due date">
-            <ColumnSelect columns={columns} onPeek={setPeek} clearOf={sheetRef} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" />
+            <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={pick("due")} onCreate={newColumn("due")} none="No column" testId="map-due" onPickOnSheet={onSheet("Due date", "due", mapping.due.columnId, true)} />
             <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
           </MapRow>
           {warn(mapping.due.columnId, "due")}
           <MapRow label="Done">
             <ColumnSelect
-              columns={columns} onPeek={setPeek} clearOf={sheetRef}
+              columns={columns}
               value={mapping.done.columnId}
               onChange={pick("done")}
               onCreate={newColumn("done")}
               none="Nothing counts as done"
-              testId="map-done"
+              testId="map-done" onPickOnSheet={onSheet("Done", "done", mapping.done.columnId, true)}
             />
           </MapRow>
           {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && (
@@ -665,10 +656,10 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
             </MapRow>
           )}
           <MapRow label="Spec">
-            <SpecChips onPeek={setPeek} columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
+            <SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
           </MapRow>
           <MapRow label="Links">
-            <ColumnChips onPeek={setPeek} columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
+            <ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
           </MapRow>
         </section>
         <p className="rounded-lg bg-surface px-3 py-2 text-[13px]" data-testid="task-assets-preview">
@@ -700,6 +691,8 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         </label>
       )}
 
+      <ColumnPickerDialog request={picking} sheet={previewSheet} mapping={effectiveMapping} bandIds={bandIds} onClose={() => setPicking(null)} />
+
       <DialogFooter>
         <Button variant="ghost" onClick={onClose}>
           Cancel
@@ -708,6 +701,92 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
           {pending && <Loader2 className="animate-spin" />}
           {sheet.itemId ? "Save" : "Use for this task"}
         </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+/** One part's column, chosen on the sheet. */
+interface PickRequest {
+  label: string;
+  value: string | null;
+  /** Whether the part can have no column (all but the asset name). */
+  allowNone: boolean;
+  onChoose: (columnId: string | null) => void;
+  onCreate?: () => Promise<void>;
+}
+
+/**
+ * The sheet in full, for choosing one part's column on it: pointing at a
+ * column lights it up, clicking chooses it, and nothing changes until "Use".
+ * A pop-up of its own over the settings, so the sheet has the room.
+ */
+function ColumnPickerDialog({ request, sheet, mapping, bandIds, onClose }: { request: PickRequest | null; sheet: TrackerSheet; mapping: TrackerAssetMapping; bandIds: readonly string[]; onClose: () => void }) {
+  return (
+    <Dialog open={!!request} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="xl" className="max-w-[min(96vw,1400px)]" data-testid="column-picker-dialog">
+        {request && <ColumnPickerBody key={request.label} request={request} sheet={sheet} mapping={mapping} bandIds={bandIds} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ColumnPickerBody({ request, sheet, mapping, bandIds, onClose }: { request: PickRequest; sheet: TrackerSheet; mapping: TrackerAssetMapping; bandIds: readonly string[]; onClose: () => void }) {
+  const [chosen, setChosen] = React.useState<string | null>(request.value);
+  const [hover, setHover] = React.useState<string | null>(null);
+  const index = sheet.columns.findIndex((c) => c.id === chosen);
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>{request.label}: choose a column</DialogTitle>
+        <DialogDescription>Point at a column to see it, click to choose it.</DialogDescription>
+      </DialogHeader>
+      <SheetPreview sheet={sheet} mapping={mapping} peek={hover} bandIds={bandIds} selected={chosen} onHover={setHover} onPick={setChosen} />
+      <DialogFooter className="items-center gap-2 sm:justify-between">
+        <div className="flex gap-1">
+          {request.allowNone && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                request.onChoose(null);
+                onClose();
+              }}
+              data-testid="column-picker-none"
+            >
+              No column
+            </Button>
+          )}
+          {request.onCreate && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                void request.onCreate?.().catch(() => undefined);
+                onClose();
+              }}
+              data-testid="column-picker-new"
+            >
+              <Plus /> New column
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={!chosen}
+            onClick={() => {
+              request.onChoose(chosen);
+              onClose();
+            }}
+            data-testid="column-picker-use"
+          >
+            {index >= 0 ? `Use column ${columnLetter(index)} · ${sheet.columns[index]!.name}` : "Choose a column"}
+          </Button>
+        </div>
       </DialogFooter>
     </>
   );
@@ -744,12 +823,31 @@ const ROLE_TAGS: Array<{ label: string; has: (m: TrackerAssetMapping, id: string
  * chip is pointing at lit up (and scrolled to) so a choice can be seen before
  * it is made.
  */
-function SheetPreview({ sheet, mapping, peek, bandIds }: { sheet: TrackerSheet; mapping: TrackerAssetMapping; peek: string | null; bandIds: readonly string[] }) {
+function SheetPreview({
+  sheet,
+  mapping,
+  peek,
+  bandIds,
+  selected = null,
+  onHover,
+  onPick,
+}: {
+  sheet: TrackerSheet;
+  mapping: TrackerAssetMapping;
+  peek: string | null;
+  bandIds: readonly string[];
+  selected?: string | null;
+  onHover?: (id: string | null) => void;
+  onPick?: (id: string) => void;
+}) {
   const scroller = React.useRef<HTMLDivElement>(null);
   const ignored = new Set(mapping.ignoreRows ?? []);
   const spotted = new Set(bandIds);
   const filled = sheet.rows.map((row, index) => ({ row, index })).filter(({ row }) => row.kind !== "data" || Object.values(row.cells).some((v) => v !== null && v !== "" && v !== false));
-  const shownRows = filled.slice(0, 14);
+  const shownRows = filled.slice(0, onPick ? 300 : 14);
+  const pickable = (id: string) =>
+    onPick ? { onMouseEnter: () => onHover?.(id), onClick: () => onPick(id), style: { cursor: "pointer" } as React.CSSProperties } : {};
+  const tint = (id: string) => (selected === id ? "bg-primary/35" : peek === id ? "bg-primary/20" : "");
   React.useEffect(() => {
     if (!peek) return;
     scroller.current?.querySelector<HTMLElement>(`[data-column="${peek}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -762,7 +860,12 @@ function SheetPreview({ sheet, mapping, peek, bandIds }: { sheet: TrackerSheet; 
   };
   if (filled.length === 0) return <p className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-center text-[13px] text-muted-foreground">Nothing in the sheet yet.</p>;
   return (
-    <div ref={scroller} className="scrollbar-thin max-h-60 w-full max-w-full min-w-0 overflow-auto rounded-lg border border-border/60" data-testid="task-assets-preview-sheet">
+    <div
+      ref={scroller}
+      className={cn("scrollbar-thin w-full max-w-full min-w-0 overflow-auto rounded-lg border border-border/60", onPick ? "max-h-[62dvh]" : "max-h-60")}
+      onMouseLeave={() => onHover?.(null)}
+      data-testid="task-assets-preview-sheet"
+    >
       <table className="w-max min-w-full border-collapse text-xs">
         <thead className="sticky top-0 z-10 bg-surface">
           <tr>
@@ -771,7 +874,7 @@ function SheetPreview({ sheet, mapping, peek, bandIds }: { sheet: TrackerSheet; 
               const roles = ROLE_TAGS.filter((r) => r.has(mapping, c.id)).map((r) => r.label);
               const hot = peek === c.id;
               return (
-                <th key={c.id} data-column={c.id} className={cn("border-b border-border/60 px-2 py-1 text-left align-bottom font-medium transition-colors", hot ? "bg-primary/20" : roles.length ? "bg-primary/5" : "text-muted-foreground")}>
+                <th key={c.id} data-column={c.id} {...pickable(c.id)} className={cn("border-b border-border/60 px-2 py-1 text-left align-bottom font-medium transition-colors", tint(c.id) || (hot ? "bg-primary/20" : roles.length ? "bg-primary/5" : "text-muted-foreground"))}>
                   <span className="mb-0.5 flex min-h-4 flex-wrap gap-1">
                     {roles.map((r) => (
                       <span key={r} className="rounded bg-primary/15 px-1 text-[10px] leading-4 font-semibold text-primary">
@@ -802,7 +905,7 @@ function SheetPreview({ sheet, mapping, peek, bandIds }: { sheet: TrackerSheet; 
               <tr key={row.id} className={cn(ignored.has(row.id) && "opacity-40")} title={ignored.has(row.id) ? "Left out of the assets" : undefined} data-testid={ignored.has(row.id) ? "preview-left-out" : "preview-row"}>
                 <td className="border-t border-border/40 px-1 text-center text-[10px] text-muted-foreground">{index + 1}</td>
                 {sheet.columns.map((c) => (
-                  <td key={c.id} className={cn("max-w-44 truncate border-t border-border/40 px-2 py-1", peek === c.id && "bg-primary/10")}>
+                  <td key={c.id} {...pickable(c.id)} className={cn("max-w-44 truncate border-t border-border/40 px-2 py-1 transition-colors", tint(c.id))}>
                     {show(c, row.cells[c.id])}
                   </td>
                 ))}
@@ -853,8 +956,7 @@ function ColumnSelect({
   onCreate,
   none,
   testId,
-  onPeek,
-  clearOf,
+  onPickOnSheet,
 }: {
   columns: TrackerColumn[];
   value: string | null;
@@ -862,19 +964,34 @@ function ColumnSelect({
   onCreate?: () => Promise<void>;
   none: string;
   testId?: string;
-  /** The column an option points at as the pointer or keyboard reaches it; null as the list closes. */
-  onPeek?: (id: string | null) => void;
-  /** An element the open list must not cover (the sheet preview): the list keeps below its bottom edge. */
-  clearOf?: React.RefObject<HTMLElement | null>;
+  /** Chosen on the sheet in a pop-up instead of from the list. */
+  onPickOnSheet?: () => void;
 }) {
-  const [clearTop, setClearTop] = React.useState(8);
+  if (onPickOnSheet) {
+    const index = columns.findIndex((c) => c.id === value);
+    return (
+      <button
+        type="button"
+        onClick={onPickOnSheet}
+        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-2 text-left text-[13px] max-md:h-10"
+        aria-label={`${none}: choose on the sheet`}
+        data-testid={testId}
+      >
+        {index >= 0 ? (
+          <>
+            <ColumnBadge index={index} />
+            <span className="min-w-0 flex-1 truncate">{columns[index]!.name}</span>
+          </>
+        ) : (
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">{none}</span>
+        )}
+        <Table2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      </button>
+    );
+  }
   return (
     <Select
       value={value ?? NO_COLUMN}
-      onOpenChange={(open) => {
-        if (open) setClearTop(Math.max(8, Math.round((clearOf?.current?.getBoundingClientRect().bottom ?? 0) + 6)));
-        onPeek?.(open ? value : null);
-      }}
       onValueChange={(next) => {
         if (next === NEW_COLUMN) void onCreate?.().catch(() => undefined);
         else onChange(next === NO_COLUMN ? null : next);
@@ -883,13 +1000,13 @@ function ColumnSelect({
       <SelectTrigger className="h-8 min-w-0 flex-1 rounded-md bg-background px-2 max-md:h-10" aria-label={none} data-testid={testId}>
         <SelectValue />
       </SelectTrigger>
-      <SelectContent collisionPadding={{ top: clearTop, bottom: 8 }}>
+      <SelectContent>
         <SelectItem value={NO_COLUMN} className="text-muted-foreground">
           {none}
         </SelectItem>
         <SelectSeparator />
         {columns.map((c, index) => (
-          <SelectItem key={c.id} value={c.id} onFocus={() => onPeek?.(c.id)} onPointerEnter={() => onPeek?.(c.id)}>
+          <SelectItem key={c.id} value={c.id}>
             {/* One flex row inside the item's text, so the letter keeps its distance from the name here and in the closed select. */}
             <span className="flex min-w-0 items-center gap-2">
               <ColumnBadge index={index} />
@@ -914,7 +1031,7 @@ function ColumnSelect({
 }
 
 /** Columns as toggles, each with its letter; `hidden` are playing another part. */
-function ColumnChips({ columns, hidden, value, onChange, onPeek }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void; onPeek?: (id: string | null) => void }) {
+function ColumnChips({ columns, hidden, value, onChange }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void }) {
   const shown = columns.map((c, index) => ({ c, index })).filter(({ c }) => !hidden.has(c.id));
   if (shown.length === 0) return <span className="text-[13px] text-muted-foreground">No columns left</span>;
   return (
@@ -927,10 +1044,6 @@ function ColumnChips({ columns, hidden, value, onChange, onPeek }: { columns: Tr
             type="button"
             aria-pressed={on}
             onClick={() => onChange(on ? value.filter((id) => id !== c.id) : [...value, c.id])}
-            onMouseEnter={() => onPeek?.(c.id)}
-            onMouseLeave={() => onPeek?.(null)}
-            onFocus={() => onPeek?.(c.id)}
-            onBlur={() => onPeek?.(null)}
             className={cn("inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-xs", on ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-accent")}
           >
             <ColumnBadge index={index} />
@@ -947,7 +1060,7 @@ function ColumnChips({ columns, hidden, value, onChange, onPeek }: { columns: Tr
  * ("Duration: 30s · Aspect ratio: 9:16"), dragged to reorder and clicked to
  * take out; the rest after them, clicked to add at the end.
  */
-function SpecChips({ columns, hidden, value, onChange, onPeek }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void; onPeek?: (id: string | null) => void }) {
+function SpecChips({ columns, hidden, value, onChange }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const indexOf = new Map(columns.map((c, i) => [c.id, i]));
   const chosen = value.filter((id) => indexOf.has(id) || specBreakKind(id));
@@ -962,7 +1075,7 @@ function SpecChips({ columns, hidden, value, onChange, onPeek }: { columns: Trac
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onDragEnd}>
         <SortableContext items={chosen} strategy={rectSortingStrategy}>
           {chosen.map((id) => (
-            <SortableSpecChip key={id} id={id} index={indexOf.get(id) ?? null} name={columns[indexOf.get(id) ?? -1]?.name ?? ""} onRemove={() => onChange(chosen.filter((x) => x !== id))} onPeek={onPeek} />
+            <SortableSpecChip key={id} id={id} index={indexOf.get(id) ?? null} name={columns[indexOf.get(id) ?? -1]?.name ?? ""} onRemove={() => onChange(chosen.filter((x) => x !== id))} />
           ))}
         </SortableContext>
       </DndContext>
@@ -987,10 +1100,6 @@ function SpecChips({ columns, hidden, value, onChange, onPeek }: { columns: Trac
           type="button"
           aria-pressed={false}
           onClick={() => onChange([...chosen, c.id])}
-          onMouseEnter={() => onPeek?.(c.id)}
-          onMouseLeave={() => onPeek?.(null)}
-          onFocus={() => onPeek?.(c.id)}
-          onBlur={() => onPeek?.(null)}
           className="inline-flex items-center gap-1.5 rounded-full border py-0.5 pr-2.5 pl-1 text-xs text-muted-foreground hover:bg-accent"
         >
           <ColumnBadge index={index} />
@@ -1001,7 +1110,7 @@ function SpecChips({ columns, hidden, value, onChange, onPeek }: { columns: Trac
   );
 }
 
-function SortableSpecChip({ id, index, name, onRemove, onPeek }: { id: string; index: number | null; name: string; onRemove: () => void; onPeek?: (id: string | null) => void }) {
+function SortableSpecChip({ id, index, name, onRemove }: { id: string; index: number | null; name: string; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const kind = specBreakKind(id);
   if (kind) {
@@ -1031,8 +1140,6 @@ function SortableSpecChip({ id, index, name, onRemove, onPeek }: { id: string; i
       {...attributes}
       {...listeners}
       onClick={onRemove}
-      onMouseEnter={() => onPeek?.(id)}
-      onMouseLeave={() => onPeek?.(null)}
       title="Drag to reorder, click to take out"
       className={cn("inline-flex cursor-grab touch-none items-center gap-1 rounded-full border border-primary bg-primary/10 py-0.5 pr-2.5 pl-0.5 text-xs text-foreground active:cursor-grabbing", isDragging && "z-10 shadow-md")}
       data-testid={`map-spec-${id}`}

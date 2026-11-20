@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.132.3",
+    date: "2026-11-20",
+    title: "Pick columns on the sheet",
+    changes: ["Task assets settings: with Pick columns on the sheet on, each column picker opens the whole sheet in a pop-up. Point at a column to see it, click to choose, then Use it or Cancel."],
+  },
+  {
     version: "0.132.2",
     date: "2026-11-20",
     title: "Sheet preview on request",
