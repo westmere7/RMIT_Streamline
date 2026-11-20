@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.133.0",
+    date: "2026-11-20",
+    title: "Mark rows by hand",
+    changes: ["Task assets settings: Mark rows opens the whole sheet. Select rows (shift-click for a range) and make them assets, leave them out or make them bands; marks beat what was spotted and can bring back a row left out before. Only a row with one value can become a band, so nothing in the sheet is lost."],
+  },
+  {
     version: "0.132.5",
     date: "2026-11-20",
     title: "Columns with the wrong kind of data",

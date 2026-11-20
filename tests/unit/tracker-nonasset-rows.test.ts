@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
-import { detectNonAssetRows, normalizeAssetMapping, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow } from "@/domain";
+import { canBeBand, detectNonAssetRows, nonAssetPlan, normalizeAssetMapping, sheetAssetLines, suggestAssetMapping, type TrackerColumn, type TrackerRow } from "@/domain";
 import { createServices } from "@/services";
 
 /**
@@ -82,5 +82,40 @@ describe("dealing with them on a real sheet", () => {
       ["Story tile", "SOCIAL"],
       ["Feed post", "SOCIAL"],
     ]);
+  });
+});
+
+describe("marking rows by hand (v0.133.0)", () => {
+  const rows = [
+    row("h", { n: "Asset", t: "Type", q: "Qty" }),
+    row("s1", { n: "SOCIAL" }),
+    row("a1", { n: "Story tile", t: "Social", q: 3 }),
+    row("a2", { n: "Feed post", t: "Social", q: 2 }),
+    row("note", { n: "Ask Jun about sizes" }),
+    row("tot", { n: "Total", q: 5 }),
+  ];
+  const detected = detectNonAssetRows(sheet(rows));
+
+  it("follows what was spotted when nothing is marked", () => {
+    expect(nonAssetPlan(sheet(rows), [], detected, {})).toEqual({ bandIds: ["s1"], ignoreRows: ["h", "tot"] });
+  });
+
+  it("marks win: a spotted row made an asset, a missed row left out, another made a band", () => {
+    expect(nonAssetPlan(sheet(rows), [], detected, { tot: "asset", a2: "skip", note: "band" })).toEqual({ bandIds: ["s1", "note"], ignoreRows: ["h", "a2"] });
+  });
+
+  it("brings back a row left out before, and keeps the others left out", () => {
+    expect(nonAssetPlan(sheet(rows), ["a1", "a2"], [], { a1: "asset" })).toEqual({ bandIds: [], ignoreRows: ["a2"] });
+  });
+
+  it("never makes a band of a row with several values (its cells would be lost): it is left out instead", () => {
+    expect(canBeBand(rows[2]!)).toBe(false);
+    expect(canBeBand(rows[1]!)).toBe(true);
+    expect(nonAssetPlan(sheet(rows), [], [], { a1: "band" })).toEqual({ bandIds: [], ignoreRows: ["a1"] });
+  });
+
+  it("drops marks for rows the sheet no longer has, and ignores bands", () => {
+    const withBand: TrackerRow[] = [{ id: "b", kind: "section", label: "Print", cells: {} }, ...rows];
+    expect(nonAssetPlan(sheet(withBand), ["gone"], [], { gone: "skip", b: "skip" })).toEqual({ bandIds: [], ignoreRows: [] });
   });
 });

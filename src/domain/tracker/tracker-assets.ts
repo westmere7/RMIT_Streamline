@@ -1,6 +1,6 @@
 import type { EntityId } from "@/domain/common/types";
 import { normalizeAssetLinks, type AssetLink } from "@/domain/item/item-asset";
-import { TRACKER_COLUMN_TYPE_LABELS, personIds, personValue, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerColumnType, type TrackerSheet } from "@/domain/tracker/tracker";
+import { TRACKER_COLUMN_TYPE_LABELS, personIds, personValue, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerColumnType, type TrackerRow, type TrackerSheet } from "@/domain/tracker/tracker";
 import { MAX_QUANTITY, readDate, readQuantity } from "@/domain/tracker/tracker-values";
 
 /**
@@ -436,6 +436,42 @@ export function detectNonAssetRows(sheet: Pick<TrackerSheet, "columns" | "rows">
     else if (structured && values.length === 1 && looksLikeLabel(values[0]!)) out.push({ rowId: row.id, kind: "section", text: values[0]! });
   }
   return out;
+}
+
+/** How a row is read for a task's assets, as marked by hand in the asset settings. */
+export type RowMark = "asset" | "skip" | "band";
+
+/**
+ * What becomes of each data row: the rows the mapping already leaves out, then
+ * what detection spotted (sections become bands, the rest are left out), then
+ * the marks made by hand, which win. "asset" brings a row back, even one left
+ * out before. Only a row with at most one value can become a band (a band
+ * keeps a label, not cells); any other band mark is ignored. Ids in sheet order.
+ */
+export function nonAssetPlan(
+  sheet: Pick<TrackerSheet, "rows">,
+  savedIgnore: readonly string[],
+  detected: ReadonlyArray<{ rowId: string; kind: NonAssetRowKind }>,
+  marks: Readonly<Record<string, RowMark>>,
+): { bandIds: string[]; ignoreRows: string[] } {
+  const mark = new Map<string, RowMark>();
+  for (const id of savedIgnore) mark.set(id, "skip");
+  for (const d of detected) mark.set(d.rowId, d.kind === "section" ? "band" : "skip");
+  for (const [id, m] of Object.entries(marks)) mark.set(id, m);
+  const bandIds: string[] = [];
+  const ignoreRows: string[] = [];
+  for (const row of sheet.rows) {
+    if (row.kind !== "data") continue;
+    const m = mark.get(row.id);
+    if (m === "band" && canBeBand(row)) bandIds.push(row.id);
+    else if (m === "skip" || m === "band") ignoreRows.push(row.id);
+  }
+  return { bandIds, ignoreRows };
+}
+
+/** A row that can become a band without losing anything: one value at most, which becomes its label. */
+export function canBeBand(row: Pick<TrackerRow, "kind" | "cells">): boolean {
+  return row.kind === "data" && Object.values(row.cells).filter((v) => v !== null && v !== "" && v !== false).length <= 1;
 }
 
 function looksLikeLabel(text: string): boolean {

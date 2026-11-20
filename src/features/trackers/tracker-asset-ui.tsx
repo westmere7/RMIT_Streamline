@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, CornerDownLeft, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { AlertTriangle, Check, CornerDownLeft, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -16,7 +16,10 @@ import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, Sele
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import {
   assignAssetRole,
+  canBeBand,
   columnLetter,
+  nonAssetPlan,
+  type RowMark,
   detectNonAssetRows,
   isFreshSheet,
   isMappingUsable,
@@ -404,10 +407,15 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   // Rows that are not assets (a repeated header, a section label, a total): sections become bands, the rest are left out.
   const detected = React.useMemo(() => detectNonAssetRows(shown, mapping), [shown, mapping]);
   const [handleDetected, setHandleDetected] = React.useState(true);
-  const bandIds = React.useMemo(() => (handleDetected ? detected.filter((d) => d.kind === "section").map((d) => d.rowId) : []), [detected, handleDetected]);
-  const skipIds = React.useMemo(() => (handleDetected ? detected.filter((d) => d.kind !== "section").map((d) => d.rowId) : []), [detected, handleDetected]);
+  // Rows marked by hand (Mark rows): they win over what was spotted and over rows left out before.
+  const [marks, setMarks] = React.useState<Record<string, RowMark>>({});
+  const [marking, setMarking] = React.useState(false);
+  const savedIgnore = mapping.ignoreRows;
+  const spottedRows = React.useMemo(() => (handleDetected ? detected : []), [handleDetected, detected]);
+  const plan = React.useMemo(() => nonAssetPlan(shown, savedIgnore ?? [], spottedRows, marks), [shown, savedIgnore, spottedRows, marks]);
+  const bandIds = plan.bandIds;
   const previewSheet = React.useMemo(() => (bandIds.length ? TrackerService.setRowKind(shown, bandIds, "section") : shown), [shown, bandIds]);
-  const effectiveMapping = React.useMemo<TrackerAssetMapping>(() => (skipIds.length ? { ...mapping, ignoreRows: [...new Set([...(mapping.ignoreRows ?? []), ...skipIds])] } : mapping), [mapping, skipIds]);
+  const effectiveMapping = React.useMemo<TrackerAssetMapping>(() => ({ ...mapping, ignoreRows: plan.ignoreRows }), [mapping, plan.ignoreRows]);
   const lines = React.useMemo(() => (isMappingUsable(effectiveMapping) ? sheetAssetLines(previewSheet, effectiveMapping) : []), [previewSheet, effectiveMapping]);
   // Choosing columns on the sheet itself, in a pop-up of their own: off unless asked for, remembered in this browser.
   const [pickOnSheet, setPickOnSheet] = React.useState(() => {
@@ -574,7 +582,14 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
               <Switch checked={handleDetected} onCheckedChange={setHandleDetected} aria-label="Deal with rows that are not assets" data-testid="task-assets-nonasset-switch" />
             </label>
           )}
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span data-testid="task-assets-rows-summary">{rowsSummary(plan, Object.keys(marks).length)}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => setMarking(true)} data-testid="task-assets-mark-rows">
+              <ListChecks /> Mark rows
+            </Button>
+          </div>
         </section>
+        <RowMarkDialog open={marking} sheet={shown} mapping={mapping} savedIgnore={savedIgnore ?? []} detected={spottedRows} marks={marks} onApply={setMarks} onClose={() => setMarking(false)} />
         <section className="space-y-2.5">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
           <MapRow label="Asset name">
@@ -816,6 +831,151 @@ function ColumnPickerBody({ request, sheet, mapping, bandIds, onClose }: { reque
   );
 }
 
+/** "2 rows left out, 1 becomes a band · 3 marked by hand" */
+function rowsSummary(plan: { bandIds: readonly string[]; ignoreRows: readonly string[] }, byHand: number): string {
+  const parts: string[] = [];
+  if (plan.ignoreRows.length) parts.push(`${plan.ignoreRows.length} ${plan.ignoreRows.length === 1 ? "row" : "rows"} left out`);
+  if (plan.bandIds.length) parts.push(`${plan.bandIds.length} ${plan.bandIds.length === 1 ? "becomes a band" : "become bands"}`);
+  const text = parts.length ? parts.join(", ") : "Every row is an asset";
+  return byHand ? `${text} · ${byHand} marked by hand` : text;
+}
+
+/**
+ * The sheet in full, for marking rows by hand: select rows (shift for a range)
+ * and make them assets, leave them out (they stay in the sheet) or make them
+ * bands. Nothing changes until Done; the dialog's Save then applies it.
+ */
+function RowMarkDialog({
+  open,
+  onClose,
+  ...body
+}: {
+  open: boolean;
+  sheet: TrackerSheet;
+  mapping: TrackerAssetMapping;
+  savedIgnore: readonly string[];
+  detected: ReadonlyArray<{ rowId: string; kind: "header" | "section" | "total" }>;
+  marks: Record<string, RowMark>;
+  onApply: (marks: Record<string, RowMark>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="xl" className="max-w-[min(96vw,1400px)]" data-testid="row-mark-dialog">
+        {open && <RowMarkBody {...body} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RowMarkBody({
+  sheet,
+  mapping,
+  savedIgnore,
+  detected,
+  marks,
+  onApply,
+  onClose,
+}: {
+  sheet: TrackerSheet;
+  mapping: TrackerAssetMapping;
+  savedIgnore: readonly string[];
+  detected: ReadonlyArray<{ rowId: string; kind: "header" | "section" | "total" }>;
+  marks: Record<string, RowMark>;
+  onApply: (marks: Record<string, RowMark>) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = React.useState(marks);
+  const [selected, setSelected] = React.useState<ReadonlySet<string>>(() => new Set());
+  const anchor = React.useRef<string | null>(null);
+  const plan = React.useMemo(() => nonAssetPlan(sheet, savedIgnore, detected, draft), [sheet, savedIgnore, detected, draft]);
+  const preview = React.useMemo(() => (plan.bandIds.length ? TrackerService.setRowKind(sheet, plan.bandIds, "section") : sheet), [sheet, plan.bandIds]);
+  const previewMapping = React.useMemo(() => ({ ...mapping, ignoreRows: plan.ignoreRows }), [mapping, plan.ignoreRows]);
+  // The rows that can be marked, in sheet order: data rows with something in them.
+  const rows = React.useMemo(() => sheet.rows.filter((r) => r.kind === "data" && Object.values(r.cells).some((v) => v !== null && v !== "" && v !== false)), [sheet.rows]);
+  const onRow = (id: string, shift: boolean) => {
+    const next = new Set(selected);
+    const from = shift && anchor.current ? rows.findIndex((r) => r.id === anchor.current) : -1;
+    const to = rows.findIndex((r) => r.id === id);
+    if (from >= 0 && to >= 0) for (let i = Math.min(from, to); i <= Math.max(from, to); i++) next.add(rows[i]!.id);
+    else {
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      anchor.current = id;
+    }
+    setSelected(next);
+  };
+  const bandable = [...selected].every((id) => {
+    const row = rows.find((r) => r.id === id);
+    return !row || canBeBand(row);
+  });
+  const mark = (m: RowMark) => {
+    setDraft((d) => ({ ...d, ...Object.fromEntries([...selected].map((id) => [id, m])) }));
+    setSelected(new Set());
+  };
+  const byHand = Object.keys(draft).length;
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Mark rows</DialogTitle>
+        <DialogDescription>Rows left out stay in the sheet. A band groups the rows under it.</DialogDescription>
+      </DialogHeader>
+      <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs" data-testid="row-mark-actions">
+        {selected.size > 0 ? (
+          <>
+            <span className="font-medium">
+              {selected.size} {selected.size === 1 ? "row" : "rows"}:
+            </span>
+            <Button type="button" size="sm" variant="outline" onClick={() => mark("asset")} data-testid="row-mark-asset">
+              Asset
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => mark("skip")} data-testid="row-mark-skip">
+              Leave out
+            </Button>
+            <span title={bandable ? undefined : "Only a row with one value can become a band"}>
+              <Button type="button" size="sm" variant="outline" disabled={!bandable} onClick={() => mark("band")} data-testid="row-mark-band">
+                Band
+              </Button>
+            </span>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+              Clear
+            </Button>
+          </>
+        ) : (
+          <span className="text-muted-foreground">
+            {rowsSummary(plan, byHand)} · Click rows to select them, shift-click for a range.
+          </span>
+        )}
+      </div>
+      <SheetPreview sheet={preview} mapping={previewMapping} peek={null} bandIds={plan.bandIds} rowSelect={{ selected, onRow }} />
+      <DialogFooter className="items-center gap-2 sm:justify-between">
+        <div>
+          {byHand > 0 && (
+            <Button type="button" variant="ghost" onClick={() => setDraft({})} data-testid="row-mark-reset">
+              Undo my marks
+            </Button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              onApply(draft);
+              onClose();
+            }}
+            data-testid="row-mark-done"
+          >
+            Done
+          </Button>
+        </div>
+      </DialogFooter>
+    </>
+  );
+}
+
 /** Where this browser remembers whether the Task assets dialog shows the sheet. */
 const PREVIEW_KEY = "streamline.task-assets.show-sheet";
 
@@ -854,6 +1014,7 @@ function SheetPreview({
   bandIds,
   selected = null,
   flagged = null,
+  rowSelect,
   onHover,
   onPick,
 }: {
@@ -864,6 +1025,8 @@ function SheetPreview({
   selected?: string | null;
   /** Cells of one column the part being picked cannot read, marked. */
   flagged?: { columnId: string; rowIds: ReadonlySet<string> } | null;
+  /** Rows are chosen instead of columns (Mark rows): click one, shift-click for a range. */
+  rowSelect?: { selected: ReadonlySet<string>; onRow: (id: string, shift: boolean) => void };
   onHover?: (id: string | null) => void;
   onPick?: (id: string) => void;
 }) {
@@ -877,7 +1040,17 @@ function SheetPreview({
   const ignored = new Set(mapping.ignoreRows ?? []);
   const spotted = new Set(bandIds);
   const filled = sheet.rows.map((row, index) => ({ row, index })).filter(({ row }) => row.kind !== "data" || Object.values(row.cells).some((v) => v !== null && v !== "" && v !== false));
-  const shownRows = filled.slice(0, onPick ? 300 : 14);
+  const full = !!onPick || !!rowSelect;
+  const shownRows = filled.slice(0, full ? 300 : 14);
+  const selectable = (id: string, canSelect = true) =>
+    rowSelect && canSelect
+      ? {
+          onClick: (e: React.MouseEvent) => rowSelect.onRow(id, e.shiftKey),
+          "aria-selected": rowSelect.selected.has(id),
+          "data-row-id": id,
+        }
+      : {};
+  const picked = (id: string) => rowSelect?.selected.has(id) && "!opacity-100 bg-primary/25";
   const pickable = (id: string) =>
     onPick
       ? {
@@ -904,7 +1077,7 @@ function SheetPreview({
   return (
     <div
       ref={scroller}
-      className={cn("scrollbar-thin w-full max-w-full min-w-0 overflow-auto rounded-lg border border-border/60", onPick ? "max-h-[62dvh]" : "max-h-60")}
+      className={cn("scrollbar-thin w-full max-w-full min-w-0 overflow-auto rounded-lg border border-border/60", full ? "max-h-[62dvh]" : "max-h-60", rowSelect && "select-none")}
       onMouseLeave={() => onHover?.(null)}
       data-testid="task-assets-preview-sheet"
     >
@@ -945,15 +1118,15 @@ function SheetPreview({
         <tbody>
           {shownRows.map(({ row, index }) =>
             row.kind !== "data" ? (
-              <tr key={row.id} data-testid="preview-band">
+              <tr key={row.id} data-testid="preview-band" {...selectable(row.id, spotted.has(row.id))} className={cn(rowSelect && spotted.has(row.id) && "cursor-pointer hover:bg-primary/10", picked(row.id))}>
                 <td className="border-t border-border/40 px-1 text-center text-[10px] text-muted-foreground">{index + 1}</td>
-                <td colSpan={sheet.columns.length} className="border-t border-border/40 bg-surface/70 px-2 py-1 font-semibold">
+                <td colSpan={sheet.columns.length} className={cn("border-t border-border/40 bg-surface/70 px-2 py-1 font-semibold", rowSelect?.selected.has(row.id) && "bg-primary/25")}>
                   {row.label || (row.kind === "section" ? "Phase" : "Channel")}
                   <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">{spotted.has(row.id) ? "becomes a band" : "band"}</span>
                 </td>
               </tr>
             ) : (
-              <tr key={row.id} className={cn(ignored.has(row.id) && "opacity-40")} title={ignored.has(row.id) ? "Left out of the assets" : undefined} data-testid={ignored.has(row.id) ? "preview-left-out" : "preview-row"}>
+              <tr key={row.id} {...selectable(row.id)} className={cn(ignored.has(row.id) && "opacity-40", rowSelect && "cursor-pointer hover:bg-primary/10", picked(row.id))} title={ignored.has(row.id) ? "Left out of the assets" : undefined} data-testid={ignored.has(row.id) ? "preview-left-out" : "preview-row"}>
                 <td className="border-t border-border/40 px-1 text-center text-[10px] text-muted-foreground">{index + 1}</td>
                 {sheet.columns.map((c) => (
                   <td
