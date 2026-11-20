@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.127.0",
+    date: "2026-11-20",
+    title: "New tracker from a task",
+    changes: ["Use a tracker sheet: New tracker for this task makes a tracker named after the task, on its board's team, with a sheet already laid out for assets (Asset, Type, Quantity, Spec, PIC, Due date, Done), then links it."],
+  },
+  {
     version: "0.126.0",
     date: "2026-11-20",
     title: "Your own form header",

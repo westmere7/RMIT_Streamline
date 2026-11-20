@@ -1,4 +1,5 @@
-import type { TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput } from "@/domain";
+import type { AssetRole, TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput } from "@/domain";
+import { NEW_ASSET_COLUMN } from "@/domain";
 import { newId } from "@/lib/ids";
 
 /**
@@ -139,6 +140,24 @@ export function emptyTemplateSheet(trackerId: string, name: string, rowCount = 1
 /** A generic blank sheet (used when a tracker is not campaign-shaped). */
 export function blankSheet(trackerId: string, name: string): TrackerSheetInput {
   const columns: TrackerColumn[] = Array.from({ length: 6 }, (_, i) => ({ id: newId(), name: `Column ${i + 1}`, type: "text", width: 160 }));
+  const rows: TrackerRow[] = Array.from({ length: 20 }, () => ({ id: newId(), kind: "data", cells: {} }));
+  return { trackerId, name, columns, rows, frozenColumns: 1 };
+}
+
+/**
+ * A sheet laid out to hold one task's assets: a column for every part a line
+ * has (name, type, quantity, spec, PIC, due date, done), each the type the
+ * mapping looks for, so it is recognised as it stands. Twenty empty rows.
+ */
+export function assetSheet(trackerId: string, name: string, assetTypes: readonly string[] = []): TrackerSheetInput {
+  const col = (role: Exclude<AssetRole, "spec">, width: number): TrackerColumn => ({
+    id: newId(),
+    name: NEW_ASSET_COLUMN[role].name,
+    type: NEW_ASSET_COLUMN[role].type,
+    width,
+    ...(NEW_ASSET_COLUMN[role].type === "list" ? { options: [...assetTypes] } : {}),
+  });
+  const columns: TrackerColumn[] = [col("name", 240), col("type", 160), col("quantity", 100), { id: newId(), name: "Spec", type: "text", width: 240 }, col("pic", 160), col("due", 130), col("done", 90)];
   const rows: TrackerRow[] = Array.from({ length: 20 }, () => ({ id: newId(), kind: "data", cells: {} }));
   return { trackerId, name, columns, rows, frozenColumns: 1 };
 }

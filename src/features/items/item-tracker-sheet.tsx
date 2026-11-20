@@ -1,8 +1,9 @@
 "use client";
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, ExternalLink, FileSpreadsheet, Link2, Loader2, Settings2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, ChevronDown, ChevronRight, ExternalLink, FileSpreadsheet, Link2, Loader2, Plus, Settings2 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -13,6 +14,7 @@ import { sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAs
 import { useServices } from "@/features/data/data-context";
 import { useAssetMutations } from "@/features/items/asset-hooks";
 import { useItemTrackerSheet, useTracker } from "@/features/trackers/hooks";
+import { assetSheet } from "@/features/trackers/tracker-template";
 import { PeopleValue, TaskAssetsDialog } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -73,7 +75,7 @@ export function UseTrackerSheetButton({ item, disabled }: { item: Item; disabled
           <FileSpreadsheet />
         </Button>
       </SimpleTooltip>
-      <PickSheetDialog open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} />
+      <PickSheetDialog item={item} open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} />
       {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} />}
     </>
   );
@@ -390,10 +392,41 @@ function SheetLineEditor({
   );
 }
 
-/** Every sheet in the workspace that holds no task's assets yet, by tracker. */
-function PickSheetDialog({ open, onOpenChange, onPick }: { open: boolean; onOpenChange: (open: boolean) => void; onPick: (sheet: TrackerSheet) => void }) {
+/** Every sheet in the workspace that holds no task's assets yet, by tracker; or a new tracker made for this task. */
+function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; open: boolean; onOpenChange: (open: boolean) => void; onPick: (sheet: TrackerSheet) => void }) {
   const services = useServices();
   const ws = useWorkspace();
+  const queryClient = useQueryClient();
+  const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
+  const [creating, setCreating] = React.useState(false);
+  // A tracker named after the task, on its board's team, with one sheet laid out for assets.
+  const createTracker = async () => {
+    setCreating(true);
+    try {
+      const { sheets } = await services.trackers.create(
+        {
+          workspaceId: ws.workspace.id,
+          teamId: ws.boardById(item.boardId)?.teamId ?? null,
+          name: item.name.trim() || "Assets",
+          layout: "blank",
+          sheets: [assetSheet("", "Assets", assetTypes.map((t) => t.name))],
+        },
+        ws.currentUser.id,
+      );
+      await queryClient.invalidateQueries({ queryKey: ["trackers"] });
+      onOpenChange(false);
+      onPick(sheets[0]!);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not make the tracker");
+    } finally {
+      setCreating(false);
+    }
+  };
+  const newButton = (
+    <Button type="button" variant="outline" size="sm" onClick={() => void createTracker()} disabled={creating} className="self-start" data-testid="pick-sheet-new-tracker">
+      {creating ? <Loader2 className="animate-spin" /> : <Plus />} New tracker for this task
+    </Button>
+  );
   const data = useQuery({
     queryKey: ["tracker-sheet-picker", ws.workspace.id],
     queryFn: async () => {
@@ -415,7 +448,10 @@ function PickSheetDialog({ open, onOpenChange, onPick }: { open: boolean; onOpen
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (data.data ?? []).length === 0 ? (
-          <p className="py-4 text-center text-[13px] text-muted-foreground">No trackers in this workspace yet.</p>
+          <div className="flex flex-col items-center gap-3 py-4">
+            <p className="text-center text-[13px] text-muted-foreground">No trackers in this workspace yet.</p>
+            <div className="flex justify-center">{newButton}</div>
+          </div>
         ) : (
           <ul className="max-h-[50dvh] space-y-3 overflow-y-auto">
             {(data.data ?? []).map(({ tracker, sheets }) => (
@@ -446,6 +482,7 @@ function PickSheetDialog({ open, onOpenChange, onPick }: { open: boolean; onOpen
             ))}
           </ul>
         )}
+        {(data.data ?? []).length > 0 && newButton}
       </DialogContent>
     </Dialog>
   );
