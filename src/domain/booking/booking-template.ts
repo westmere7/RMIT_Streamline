@@ -654,10 +654,21 @@ export interface BookingReviewStep {
 
 export interface BookingFormTemplate {
   version: 2;
+  /**
+   * The card's header: its name and the line under it. Blank keeps the page's
+   * own (the workspace's or the portal's name, and "Task booking"). Who is
+   * signed in is added by the page and is nobody's to word.
+   */
+  header?: { title?: string | null; subtitle?: string | null };
   basics: BookingBasicsStep;
   services: BookingServiceType[];
   assets: BookingAssetsStep;
   review: BookingReviewStep;
+}
+
+/** The header's title and line as a page shows them: the form's own words, else the page's. */
+export function bookingHeaderOf(template: BookingFormTemplate | null | undefined, fallbackTitle: string): { title: string; subtitle: string } {
+  return { title: template?.header?.title?.trim() || fallbackTitle, subtitle: template?.header?.subtitle?.trim() || "Task booking" };
 }
 
 /**

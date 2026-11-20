@@ -7,7 +7,7 @@ import { useAppThemeControl, usePageZoom, useVisitorScale, ViewControls } from "
 import { RmitPixel, AuthShell } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { BookingFootnote } from "@/features/booking/booking-footnote";
-import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
+import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD, bookingHeaderOf } from "@/domain";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
@@ -74,8 +74,11 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
           <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
             <RmitPixel className="size-9" />
             <div className="min-w-0 flex-1 leading-tight">
-              <p className="truncate text-[15px] font-semibold tracking-tight">{form.data.workspaceName}</p>
-              <p className="text-xs text-muted-foreground">Task booking{signedIn ? ` · signed in as ${user.firstName}` : ""}</p>
+              <p className="truncate text-[15px] font-semibold tracking-tight">{bookingHeaderOf(form.data.template, form.data.workspaceName).title}</p>
+              <p className="text-xs text-muted-foreground">
+                {bookingHeaderOf(form.data.template, form.data.workspaceName).subtitle}
+                {signedIn ? ` · signed in as ${user.firstName}` : ""}
+              </p>
             </div>
             {/* A member came from the app; the way back is on the page. */}
             {signedIn && (

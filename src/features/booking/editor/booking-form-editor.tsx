@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { bookingFormTemplateSchema, normaliseBookingTemplate } from "@/services/booking";
 import { AssetList, AssetTypePicker, Chip, ChipGroup, SPAN, ServiceCardShell, StandardField, slug } from "../booking-fields";
 import { PastBookingsList, samplePastBookings } from "../wizard/booking-wizard";
+import { RmitPixel } from "@/features/auth/components/auth-shell";
 import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
@@ -513,6 +514,36 @@ function BasicsPane({
 
   return (
     <div className="space-y-5">
+      {/* The card's header, as the booking page draws it. Who is signed in is the page's to say. */}
+      <EditorSection title="Form header" testId="editor-form-header" hoverOutline>
+        <div className="flex items-center gap-3">
+          <RmitPixel className="size-9" />
+          <div className="grid min-w-0 flex-1 gap-1">
+            <TextBox
+              value={draft.header?.title ?? ""}
+              onChange={(v) => update((t) => (t.header = { ...t.header, title: v || null }))}
+              ariaLabel="Form header title"
+              placeholder={form.workspaceName}
+              className="text-[15px] font-semibold tracking-tight"
+              testId="editor-header-title"
+            />
+            <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+              <TextBox
+                value={draft.header?.subtitle ?? ""}
+                onChange={(v) => update((t) => (t.header = { ...t.header, subtitle: v || null }))}
+                ariaLabel="Form header subtitle"
+                placeholder="Task booking"
+                className="w-56 max-w-full min-w-0 text-xs text-muted-foreground"
+                testId="editor-header-subtitle"
+              />
+              <span className="shrink-0 text-muted-foreground/60" title="Added by the page for whoever is signed in">
+                · signed in as …
+              </span>
+            </span>
+          </div>
+        </div>
+      </EditorSection>
+
       <EditorSection title="Heading of this step" testId="editor-basics-heading" hoverOutline>
         <TextBox value={draft.basics.title ?? ""} onChange={(v) => update((t) => (t.basics.title = v || null))} ariaLabel="Step one title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-basics-title" />
         <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />

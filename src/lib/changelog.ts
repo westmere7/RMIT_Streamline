@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.126.0",
+    date: "2026-11-20",
+    title: "Your own form header",
+    changes: ["Booking form editor, Essentials: the form card's header (its name and the line under it) can be reworded; who is signed in is still added by the page. Blank keeps the workspace's or portal's name and “Task booking”."],
+  },
+  {
     version: "0.125.3",
     date: "2026-11-20",
     title: "Clearer booking page settings",

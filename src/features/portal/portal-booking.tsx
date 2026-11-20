@@ -7,7 +7,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
 import { Button } from "@/components/ui/button";
 import type { BookingForm as BookingFormData, PortalStakeholderOption } from "@/domain";
-import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD } from "@/domain";
+import { DEFAULT_BOOKING_HEADLINE, DEFAULT_BOOKING_LEAD, bookingHeaderOf } from "@/domain";
 import { AuthShell, RmitPixel } from "@/features/auth/components/auth-shell";
 import { BookingWizard } from "@/features/booking/wizard/booking-wizard";
 import { BookingFootnote } from "@/features/booking/booking-footnote";
@@ -123,8 +123,11 @@ export function PortalBookingScreen({
       <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-7 py-4 sm:px-8">
         <RmitPixel className="size-9" />
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="truncate text-[15px] font-semibold tracking-tight">{portalName}</p>
-          <p className="text-xs text-muted-foreground">Task booking{account ? ` · signed in as ${account.name}` : ""}</p>
+          <p className="truncate text-[15px] font-semibold tracking-tight">{bookingHeaderOf(form.data?.template, portalName).title}</p>
+          <p className="text-xs text-muted-foreground">
+            {bookingHeaderOf(form.data?.template, portalName).subtitle}
+            {account ? ` · signed in as ${account.name}` : ""}
+          </p>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose} data-testid="portal-book-close">
           <ArrowLeft /> Back to Portal

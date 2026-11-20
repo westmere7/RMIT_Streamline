@@ -236,6 +236,12 @@ const serviceSchema = z.object({
 export const bookingFormTemplateSchema = z
   .object({
     version: z.literal(2),
+    header: z
+      .object({
+        title: z.string().trim().max(80).nullable().optional(),
+        subtitle: z.string().trim().max(80).nullable().optional(),
+      })
+      .optional(),
     basics: z.object({
       title: z.string().trim().max(160).nullable().default(null),
       hint: z.string().trim().max(400).nullable().default(null),
