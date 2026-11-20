@@ -23,6 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Tidy past forms",
     changes: [
       "Past forms: each one's menu saves it as a template or deletes it; Clean up deletes every past form but the live one. The live form's entry is never deleted.",
+      "Brief editor: pointing at the plus between two blocks opens the gap, showing where the new block will go.",
     ],
   },
   {

@@ -81,7 +81,11 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
     const next = blocks.slice();
     next.splice(index, 0, block);
     setBlocks(next);
+    setSpreadAt(null);
   };
+  // The gap whose plus is being pointed at, held open as a preview of where the new block goes.
+  const [spreadAt, setSpreadAt] = React.useState<number | null>(null);
+  const spreadFor = (gap: number) => (on: boolean) => setSpreadAt((current) => (on ? gap : current === gap ? null : current));
   const add = (kind: BookingBlockKind) => insertAt(blocks.length, newBookingBlock(kind));
   // A copy with an id of its own: the brief and the saved block part ways here.
   const copyOf = (saved: BookingSavedBlock): BookingBlock => copyBlockWithNewIds(saved.block);
@@ -117,8 +121,10 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
                 onRemove={() => removeBlock(block.id)}
                 onSave={() => setSaving(block)}
                 // The gap above every block takes an insertion; the last block takes one below as well.
-                insertAbove={<InsertLine position="top" saved={savedBlocks} onInsert={(b) => insertAt(index, b)} testId={`brief-insert-${index}`} />}
-                insertBelow={index === blocks.length - 1 ? <InsertLine position="bottom" saved={savedBlocks} onInsert={(b) => insertAt(index + 1, b)} testId={`brief-insert-${index + 1}`} /> : null}
+                insertAbove={<InsertLine position="top" saved={savedBlocks} onInsert={(b) => insertAt(index, b)} spread={spreadAt === index} onSpread={spreadFor(index)} testId={`brief-insert-${index}`} />}
+                insertBelow={index === blocks.length - 1 ? <InsertLine position="bottom" saved={savedBlocks} onInsert={(b) => insertAt(index + 1, b)} spread={spreadAt === index + 1} onSpread={spreadFor(index + 1)} testId={`brief-insert-${index + 1}`} /> : null}
+                spreadAbove={spreadAt === index}
+                spreadBelow={index === blocks.length - 1 && spreadAt === index + 1}
               />
             ))}
           </div>
@@ -162,6 +168,8 @@ function BlockEditor({
   onSave,
   insertAbove,
   insertBelow,
+  spreadAbove = false,
+  spreadBelow = false,
 }: {
   block: BookingBlock;
   number: string | null;
@@ -172,6 +180,9 @@ function BlockEditor({
   onSave: () => void;
   insertAbove?: React.ReactNode;
   insertBelow?: React.ReactNode;
+  /** The gap above (or, for the last block, below) is held open while its plus is pointed at. */
+  spreadAbove?: boolean;
+  spreadBelow?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const question = isQuestionBlock(block);
@@ -179,7 +190,17 @@ function BlockEditor({
 
   return (
     // The sortable node is the wrapper, so the insert lines in its margins move with the card.
-    <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn("relative", EDITOR_HOVER_OUTLINE, isDragging && "z-10 opacity-90")} data-editor-block>
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        transition: [transition, "margin 150ms ease"].filter(Boolean).join(", "),
+        ...(spreadAbove ? { marginTop: SPREAD_GAP } : {}),
+        ...(spreadBelow ? { marginBottom: SPREAD_GAP } : {}),
+      }}
+      className={cn("relative", EDITOR_HOVER_OUTLINE, isDragging && "z-10 opacity-90")}
+      data-editor-block
+    >
       {!isDragging && insertAbove}
       {!isDragging && insertBelow}
     <EditorSection
@@ -230,6 +251,9 @@ function BlockEditor({
   );
 }
 
+/** How far apart two blocks move while the plus between them is pointed at: room for the block to come. */
+const SPREAD_GAP = "2.5rem";
+
 /**
  * The line that appears in the gap between two blocks, with a plus on it.
  *
@@ -237,19 +261,46 @@ function BlockEditor({
  * ever says "at the end", and a brief being reworked is rarely added to at the
  * end. The menu it opens is the same seven kinds and the saved blocks.
  */
-function InsertLine({ position, saved, onInsert, testId }: { position: "top" | "bottom"; saved: BookingSavedBlock[]; onInsert: (block: BookingBlock) => void; testId?: string }) {
+function InsertLine({
+  position,
+  saved,
+  onInsert,
+  spread = false,
+  onSpread,
+  testId,
+}: {
+  position: "top" | "bottom";
+  saved: BookingSavedBlock[];
+  onInsert: (block: BookingBlock) => void;
+  /** The gap is held open: the line fills it, so the pointer stays on it as the blocks part. */
+  spread?: boolean;
+  onSpread?: (on: boolean) => void;
+  testId?: string;
+}) {
   const [open, setOpen] = React.useState(false);
   const insert = (block: BookingBlock) => {
     onInsert(block);
     setOpen(false);
   };
   return (
-    <div className={cn("group/insert absolute inset-x-0 z-[1] flex h-4 items-center", position === "top" ? "-top-3" : "-bottom-3")} data-testid={testId}>
-      <div className={cn("flex w-full items-center transition-opacity", open ? "opacity-100" : "opacity-0 group-hover/insert:opacity-100 focus-within:opacity-100")}>
+    <div
+      className={cn("group/insert absolute inset-x-0 z-[1] flex items-center", spread ? "" : cn("h-4", position === "top" ? "-top-3" : "-bottom-3"))}
+      // The whole gap (the margins between blocks collapse into this one), so the pointer stays on it as the blocks part.
+      style={spread ? (position === "top" ? { top: `-${SPREAD_GAP}`, height: SPREAD_GAP } : { bottom: `-${SPREAD_GAP}`, height: SPREAD_GAP }) : undefined}
+      onPointerLeave={() => !open && onSpread?.(false)}
+      data-testid={testId}
+    >
+      <div className={cn("flex w-full items-center transition-opacity", open || spread ? "opacity-100" : "opacity-0 group-hover/insert:opacity-100 focus-within:opacity-100")}>
         <span aria-hidden className="h-px flex-1 bg-ring/70" />
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) onSpread?.(false);
+          }}
+        >
           <PopoverTrigger asChild>
-            <button type="button" aria-label="Insert a block here" className="flex size-5 items-center justify-center rounded-full bg-ring text-background shadow-sm transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring/50" data-testid={testId ? `${testId}-button` : undefined}>
+            <button type="button" aria-label="Insert a block here" onPointerEnter={() => onSpread?.(true)} onFocus={() => onSpread?.(true)} className="flex size-5 items-center justify-center rounded-full bg-ring text-background shadow-sm transition-transform hover:scale-110 focus-visible:outline-2 focus-visible:outline-ring/50" data-testid={testId ? `${testId}-button` : undefined}>
               <Plus className="size-3" />
             </button>
           </PopoverTrigger>
