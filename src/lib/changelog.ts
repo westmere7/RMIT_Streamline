@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.120.1",
+    date: "2026-11-20",
+    title: "Clearer steps in the form editor",
+    changes: [
+      "The four steps of the booking form editor run across the full width, numbered, the open one raised.",
+      "On step two, a Brief for picker chooses the service; its list adds a service and removes any, asking first.",
+    ],
+  },
+  {
     version: "0.120.0",
     date: "2026-11-20",
     title: "Past forms",

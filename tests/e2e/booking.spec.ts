@@ -269,8 +269,8 @@ test.describe("task booking", () => {
     // the demo has none, so this service offers none.
     await page.getByTestId("editor-service-brief-web").click();
     await expect(page.getByTestId("brief-builder")).toBeVisible();
-    // Step two shows the branches as tabs, and Web is the one open.
-    await expect(page.getByTestId("editor-brief-service-web")).toHaveAttribute("aria-selected", "true");
+    // Step two opens on Web's brief: the service picker names it.
+    await expect(page.getByTestId("editor-brief-service-picker")).toContainText("Web");
     await page.getByTestId("brief-add-short").click();
     const block = page.locator('[data-testid^="editor-block-"]').first();
     await block.getByLabel("Question", { exact: true }).fill("Which page is it?");

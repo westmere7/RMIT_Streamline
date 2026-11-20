@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, CircleCheck, ClipboardList, Copy, Eye, FileCheck2, Link2, ListPlus, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2 } from "lucide-react";
+import { Boxes, Check, ChevronDown, CircleCheck, Copy, Eye, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, Shapes, SkipForward, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -90,17 +90,13 @@ export interface BookingFormEditorProps {
 }
 
 const STEP_TABS = [
-  { key: "basics", label: "1 · Essentials", icon: ClipboardList },
-  { key: "brief", label: "2 · Brief", icon: ListPlus },
-  { key: "assets", label: "3 · Assets", icon: Boxes },
-  { key: "review", label: "4 · Confirm", icon: FileCheck2 },
+  { key: "basics", label: "Essentials" },
+  { key: "brief", label: "Brief" },
+  { key: "assets", label: "Assets" },
+  { key: "review", label: "Confirm" },
 ] as const;
 
 type StepTab = (typeof STEP_TABS)[number]["key"];
-
-/** The underline tab every tab row of the editor wears, at two heights. */
-const TAB_CLASS = "relative -mb-px inline-flex items-center gap-1.5 rounded-t-lg px-3 font-medium transition-colors after:absolute after:inset-x-2 after:-bottom-px after:h-[2.5px] after:rounded-full after:bg-transparent";
-const tabTone = (active: boolean) => (active ? "text-foreground after:bg-ring" : "text-muted-foreground hover:text-foreground");
 
 export function BookingFormEditor({
   form,
@@ -336,24 +332,33 @@ export function BookingFormEditor({
       {panelContainer ? createPortal(panel, panelContainer) : panel}
 
       {/* Pinned, like the bar it stands for: a form long enough to scroll is
-          exactly when knowing which step is open matters. A segmented bar,
-          unlike the underline tabs the services wear on step two, so the two
-          rows never read as one. */}
+          exactly when knowing which step is open matters. The four steps
+          across the whole width, numbered, the open one raised with its
+          number in red: the strongest row on the page, so the service tabs
+          under it on step two read as part of the step, not a second level
+          of the same thing. */}
       <div className="sticky top-0 z-10 flex pt-1 pb-1 before:absolute before:-inset-x-10 before:-top-8 before:bottom-0 before:-z-10 before:bg-card">
-        <div role="tablist" aria-label="The steps of the form" className="inline-flex flex-wrap items-center gap-1 rounded-full bg-surface p-1 text-muted-foreground">
-          {STEP_TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              onClick={() => setTab(key)}
-              className={cn("inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring/50", tab === key ? "bg-card text-foreground shadow-sm" : "")}
-              data-testid={`editor-tab-${key}`}
-            >
-              <Icon className="size-3.5" /> {label}
-            </button>
-          ))}
+        <div role="tablist" aria-label="The steps of the form" className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border/70 bg-surface p-1 sm:grid-cols-4">
+          {STEP_TABS.map(({ key, label }, index) => {
+            const active = tab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setTab(key)}
+                className={cn(
+                  "flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-ring/50",
+                  active ? "bg-card text-foreground shadow-sm ring-1 ring-border/80" : "text-muted-foreground hover:bg-card/60 hover:text-foreground",
+                )}
+                data-testid={`editor-tab-${key}`}
+              >
+                <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full text-xs tabular", active ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{index + 1}</span>
+                <span className="truncate">{label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -381,32 +386,18 @@ export function BookingFormEditor({
               like. Adding and removing a service is offered here as well as on
               step one, because this is where the question "does Web need its
               own brief?" is actually asked. */}
-          <div role="tablist" aria-label="Which service's brief" className="flex flex-wrap items-end gap-0.5 border-b border-border/60">
-            {draft.services.map((s) => (
-              <button key={s.id} type="button" role="tab" aria-selected={s.id === service?.id} onClick={() => setSelectedService(s.id)} className={cn(TAB_CLASS, "h-8 text-[13px]", tabTone(s.id === service?.id))} data-testid={`editor-brief-service-${slug(s.name)}`}>
-                <DynamicIcon name={s.icon} className={cn("size-3.5", s.id === service?.id && colorClasses(s.color).text)} />
-                {s.name || "Untitled"}
-                <span className="text-2xs text-muted-foreground tabular">{s.blocks.filter(isQuestionBlock).length}</span>
-              </button>
-            ))}
-            <button type="button" onClick={addService} className={cn(TAB_CLASS, "h-8 text-2xs text-muted-foreground hover:text-foreground")} data-testid="editor-brief-add-service">
-              <Plus className="size-3.5" /> Add a service
-            </button>
-            {service && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="mb-0.5 ml-auto h-7 text-2xs text-muted-foreground hover:text-destructive"
-                onClick={() => setRemovingService(service.id)}
-                disabled={draft.services.length === 1}
-                title={draft.services.length === 1 ? "The form needs at least one service" : `Remove ${service.name}`}
-                data-testid={`editor-brief-remove-service-${slug(service.name)}`}
-              >
-                <Trash2 /> Remove {service.name || "this service"}
-              </Button>
-            )}
-          </div>
+          {/* Which service's brief is open: a picker rather than a row of tabs,
+              which outgrew its line once a form had a few services with real
+              names. The list adds and removes services too; removing asks first. */}
+          {service && (
+            <ServicePicker
+              services={draft.services}
+              selected={service}
+              onSelect={setSelectedService}
+              onAdd={addService}
+              onRemove={(id) => setRemovingService(id)}
+            />
+          )}
 
           {service ? (
             <BriefBuilder service={service} onPatch={(patch) => patchService(service.id, patch)} savedBlocks={savedBlocks} onSaveBlock={onSaveBlock} onDeleteSavedBlock={onDeleteSavedBlock} />
@@ -966,4 +957,99 @@ function formKey(template: BookingFormTemplate): string {
   } catch {
     return JSON.stringify(template);
   }
+}
+
+
+/** The service whose brief is open, picked from a list that can also add one or remove any (with a confirm, outside). */
+function ServicePicker({
+  services,
+  selected,
+  onSelect,
+  onAdd,
+  onRemove,
+}: {
+  services: BookingServiceType[];
+  selected: BookingServiceType;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onRemove: (id: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const questions = (s: BookingServiceType) => s.blocks.filter(isQuestionBlock).length;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="label-quiet">Brief for</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-10 w-full max-w-sm min-w-0 items-center gap-2 rounded-lg border border-border bg-card px-3 text-left text-[13px] font-medium shadow-xs transition-colors hover:border-foreground/30 focus-visible:outline-2 focus-visible:outline-ring sm:w-auto sm:min-w-72"
+            aria-label={`Brief for ${selected.name || "Untitled"}. Change service`}
+            data-testid="editor-brief-service-picker"
+          >
+            <DynamicIcon name={selected.icon} className={cn("size-4 shrink-0", colorClasses(selected.color).text)} />
+            <span className="min-w-0 flex-1 truncate">{selected.name || "Untitled"}</span>
+            <span className="shrink-0 text-2xs text-muted-foreground tabular">{questions(selected) === 1 ? "1 question" : `${questions(selected)} questions`}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-72 p-1">
+          <ul role="listbox" aria-label="Services" className="scrollbar-thin max-h-80 overflow-y-auto">
+            {services.map((s) => {
+              const active = s.id === selected.id;
+              const name = s.name || "Untitled";
+              return (
+                <li key={s.id} className={cn("flex items-center gap-1 rounded-md pr-1", active && "state-on")}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => {
+                      onSelect(s.id);
+                      setOpen(false);
+                    }}
+                    className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-[13px] hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                    data-testid={`editor-brief-service-${slug(s.name)}`}
+                  >
+                    <DynamicIcon name={s.icon} className={cn("size-3.5 shrink-0", colorClasses(s.color).text)} />
+                    <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+                    <span className="shrink-0 text-2xs text-muted-foreground tabular">{questions(s)}</span>
+                    {active && <Check className="size-3.5 shrink-0" aria-hidden />}
+                  </button>
+                  {services.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        onRemove(s.id);
+                      }}
+                      aria-label={`Remove ${name}`}
+                      title={`Remove ${name}`}
+                      className="flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-2 focus-visible:outline-ring"
+                      data-testid={`editor-brief-remove-service-${slug(s.name)}`}
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-1 border-t border-border/60 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                onAdd();
+                setOpen(false);
+              }}
+              className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+              data-testid="editor-brief-add-service"
+            >
+              <Plus className="size-3.5" /> Add a service
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
