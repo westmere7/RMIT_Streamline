@@ -62,12 +62,12 @@ export function AuthShell({
     >
       <section className="relative hidden w-[440px] shrink-0 flex-col justify-between overflow-hidden bg-navy p-10 text-white lg:flex xl:w-[520px]">
         {/* RMIT's pixel as a watermark, navy on navy, bleeding off the corner, with a red glow behind it.
-            Sized by the screen's height (never under 620px), so a tall screen gets a bigger pixel, not a smaller-looking one. */}
-        <div className="pointer-events-none absolute right-[calc(var(--pixel)*-0.21)] bottom-[calc(var(--pixel)*-0.26)] size-[calc(var(--pixel)*0.84)] rounded-full bg-primary/25 blur-3xl [--pixel:max(620px,97vh)]" />
+            Sized by the screen's height (never under 560px), so a tall screen gets a bigger pixel, not a smaller-looking one. */}
+        <div className="pointer-events-none absolute right-[calc(var(--pixel)*-0.21)] bottom-[calc(var(--pixel)*-0.26)] size-[calc(var(--pixel)*0.84)] rounded-full bg-primary/25 blur-3xl [--pixel:max(560px,82vh)]" />
         <svg
           aria-hidden
           viewBox="0 0 52.14 50.19"
-          className="pointer-events-none absolute right-[calc(var(--pixel)*-0.532)] bottom-[calc(var(--pixel)*-0.463)] h-auto w-[var(--pixel)] opacity-[0.05] [--pixel:max(620px,97vh)]"
+          className="pointer-events-none absolute right-[calc(var(--pixel)*-0.532)] bottom-[calc(var(--pixel)*-0.463)] h-auto w-[var(--pixel)] opacity-[0.05] [--pixel:max(560px,82vh)]"
         >
           <path fill="#ffffff" d={RMIT_PIXEL_PATH} />
         </svg>
