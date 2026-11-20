@@ -3,6 +3,7 @@
 import { ArrowDownAZ, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpAZ, Check, ChevronDown, Columns3, Copy, Eraser, ExternalLink, Filter, Hash, ListPlus, MoveHorizontal, Package, PanelTop, Pencil, PencilLine, Plus, Redo2, Rows3, Sigma, SlidersHorizontal, Snowflake, Trash2, Type, Undo2, WrapText } from "lucide-react";
 import { toast } from "sonner";
 import * as React from "react";
+import { flushSync } from "react-dom";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -169,7 +170,10 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
       toggleCheckbox(address);
       return;
     }
-    setEditing({ row: address.row, col: address.col, initial: target.column.type === "person" ? undefined : initial });
+    // Rendered at once, so the editor is mounted and focused before the next
+    // key: typing "5", Tab, "6" quickly otherwise lands the 6 on the grid while
+    // it still thinks nothing is being edited, and it is lost.
+    flushSync(() => setEditing({ row: address.row, col: address.col, initial: target.column.type === "person" ? undefined : initial }));
   };
 
   const toggleCheckbox = (address: CellAddress) => {
@@ -181,21 +185,26 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
 
   const commitEdit = (address: CellAddress, raw: string, move: EditMove) => {
     const target = cellOf(address);
-    setEditing(null);
-    if (target && target.row.kind === "data") {
-      const value = TrackerService.coerce(target.column, raw);
-      if (value !== (target.row.cells[target.column.id] ?? null)) commit((s) => TrackerService.applyEdits(s, [{ rowId: target.row.id, columnId: target.column.id, value }]));
-    }
-    if (move === "down") select({ row: address.row + 1, col: address.col });
-    if (move === "up") select({ row: address.row - 1, col: address.col });
-    if (move === "right") select({ row: address.row, col: address.col + 1 });
-    if (move === "left") select({ row: address.row, col: address.col - 1 });
-    requestAnimationFrame(focusGrid);
+    // Closed, saved and moved in one synchronous render, and the grid takes the
+    // keys back straight away: a key typed right after Tab or Enter starts the
+    // next cell instead of falling on the page while the editor goes.
+    flushSync(() => {
+      setEditing(null);
+      if (target && target.row.kind === "data") {
+        const value = TrackerService.coerce(target.column, raw);
+        if (value !== (target.row.cells[target.column.id] ?? null)) commit((s) => TrackerService.applyEdits(s, [{ rowId: target.row.id, columnId: target.column.id, value }]));
+      }
+      if (move === "down") select({ row: address.row + 1, col: address.col });
+      if (move === "up") select({ row: address.row - 1, col: address.col });
+      if (move === "right") select({ row: address.row, col: address.col + 1 });
+      if (move === "left") select({ row: address.row, col: address.col - 1 });
+    });
+    focusGrid();
   };
 
   const cancelEdit = () => {
-    setEditing(null);
-    requestAnimationFrame(focusGrid);
+    flushSync(() => setEditing(null));
+    focusGrid();
   };
 
   // ---- clipboard -------------------------------------------------------------

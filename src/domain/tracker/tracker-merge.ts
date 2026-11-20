@@ -71,6 +71,11 @@ function mergeColumn(b: TrackerColumn, m: TrackerColumn, t: TrackerColumn): Trac
     const value = pick(b[key], m[key], t[key]);
     if (value !== undefined) out[key] = value;
   }
+  // Options and their colours belong to dropdowns only, as updateColumn keeps it.
+  if (out.type !== "list") {
+    delete out.options;
+    delete out.optionColors;
+  }
   return out as unknown as TrackerColumn;
 }
 
@@ -80,7 +85,9 @@ function mergeRow(b: TrackerRow, m: TrackerRow, t: TrackerRow): TrackerRow {
     const value = pick(b.cells[id], m.cells[id], t.cells[id]);
     if (value !== undefined && value !== null && value !== "") cells[id] = value;
   }
-  const row: TrackerRow = { id: m.id, kind: pick(b.kind, m.kind, t.kind), cells };
+  const kind = pick(b.kind, m.kind, t.kind);
+  // A band holds a label and no cells, whichever side typed into it.
+  const row: TrackerRow = { id: m.id, kind, cells: kind === "data" ? cells : {} };
   const label = pick(b.label, m.label, t.label);
   if (label !== undefined) row.label = label;
   return row;

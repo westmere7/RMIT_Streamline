@@ -367,8 +367,8 @@ export class TrackerService {
       rows: sheet.rows.map((row) => {
         if (!ids.has(row.id)) return row;
         if (kind === "data") return { id: row.id, kind, cells: row.cells };
-        // Promote the first filled cell to the band label so nothing typed is lost.
-        const firstValue = Object.values(row.cells).find((v) => typeof v === "string" && v.trim()) as string | undefined;
+        // Promote the leftmost filled cell to the band label so nothing typed is lost.
+        const firstValue = sheet.columns.map((c) => row.cells[c.id]).find((v) => typeof v === "string" && v.trim()) as string | undefined;
         return { id: row.id, kind, label: row.label ?? firstValue ?? "", cells: {} };
       }),
     };
@@ -387,7 +387,7 @@ export class TrackerService {
   }
 
   static insertColumn(sheet: TrackerSheet, index: number, column: Partial<TrackerColumn> = {}): TrackerSheet {
-    const fresh: TrackerColumn = { id: newId(), name: column.name ?? `Column ${sheet.columns.length + 1}`, type: column.type ?? "text", width: column.width ?? 160, ...(column.options ? { options: column.options } : {}), ...(column.optionColors ? { optionColors: column.optionColors } : {}) };
+    const fresh: TrackerColumn = { id: newId(), name: column.name ?? nextColumnName(sheet.columns), type: column.type ?? "text", width: column.width ?? 160, ...(column.options ? { options: column.options } : {}), ...(column.optionColors ? { optionColors: column.optionColors } : {}) };
     const columns = [...sheet.columns];
     columns.splice(Math.max(0, Math.min(index, columns.length)), 0, fresh);
     return { ...sheet, columns };
@@ -397,9 +397,14 @@ export class TrackerService {
     const before = sheet.columns.find((c) => c.id === columnId);
     // Into or out of People, the cells change form: names become people, and
     // people become their names, so nothing typed is lost either way.
+    // Any other change of type reads each value as the new type where it can
+    // (TrackerService.retype), so a Number column holds numbers and its format
+    // shows; a value it cannot read stays as it was rather than being lost.
     const convert =
-      before && patch.type && patch.type !== before.type && (patch.type === "person" || before.type === "person")
-        ? (value: TrackerCellValue): TrackerCellValue => (patch.type === "person" ? coercePeople(typeof value === "string" ? value : String(value ?? "")) : personNames(value) || null)
+      before && patch.type && patch.type !== before.type
+        ? patch.type === "person" || before.type === "person"
+          ? (value: TrackerCellValue): TrackerCellValue => (patch.type === "person" ? coercePeople(typeof value === "string" ? value : String(value ?? "")) : personNames(value) || null)
+          : (value: TrackerCellValue): TrackerCellValue => TrackerService.retype(patch.type!, value)
         : null;
     const rows = convert
       ? sheet.rows.map((row) => {
@@ -421,6 +426,9 @@ export class TrackerService {
           delete next.options;
           delete next.optionColors;
         }
+        // A format or a footer the new type has no use for goes with the old type.
+        if (next.type !== "number") delete next.numberFormat;
+        if (next.summary && !SUMMARIES_BY_TYPE(next.type).includes(next.summary)) delete next.summary;
         return next;
       }),
     };
@@ -451,14 +459,46 @@ export class TrackerService {
     return { ...sheet, columns };
   }
 
+  /**
+   * A value carried into a column of another type. Unlike `coerce` (for what
+   * is typed) nothing is guessed: text that reads as the new type becomes it,
+   * anything else is kept as it stands, and a number never turns into a date.
+   */
+  static retype(type: TrackerColumnType, value: TrackerCellValue): TrackerCellValue {
+    if (value === null || value === undefined) return value ?? null;
+    switch (type) {
+      case "number":
+        return typeof value === "string" ? TrackerService.coerce({ type }, value) : value;
+      case "date":
+        return typeof value === "string" ? TrackerService.coerce({ type }, value) : value;
+      case "checkbox": {
+        if (typeof value === "boolean") return value;
+        const s = String(value).trim().toLowerCase();
+        if (["y", "yes", "true", "1", "✓", "x", "done"].includes(s)) return true;
+        if (["n", "no", "false", "0", ""].includes(s)) return false;
+        return value;
+      }
+      case "text":
+      case "longText":
+      case "url":
+      case "list":
+        return typeof value === "number" ? String(value) : typeof value === "boolean" ? (value ? "Y" : "N") : value;
+      default:
+        return value;
+    }
+  }
+
   /** Coerces free text (typing, pasting, importing) into the column's value type. */
   static coerce(column: Pick<TrackerColumn, "type">, raw: TrackerCellValue): TrackerCellValue {
     if (raw === null || raw === undefined) return null;
     switch (column.type) {
       case "number": {
         if (typeof raw === "number") return raw;
-        const n = Number(String(raw).replace(/[,\s]/g, ""));
-        return String(raw).trim() === "" ? null : Number.isFinite(n) ? n : String(raw);
+        if (String(raw).trim() === "") return null;
+        const digits = String(raw).replace(/[,\s]/g, "");
+        // Separators and nothing else (",", " , ") read as no number at all, not 0.
+        const n = digits === "" ? NaN : Number(digits);
+        return Number.isFinite(n) ? n : String(raw);
       }
       case "checkbox": {
         if (typeof raw === "boolean") return raw;
@@ -469,14 +509,26 @@ export class TrackerService {
         if (typeof raw === "string") {
           const s = raw.trim();
           if (!s) return null;
+          // Nothing is guessed: a date that cannot be is kept as the text typed.
           if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-          const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})$/);
+          const dmy = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
           if (dmy) {
-            const year = dmy[3]!.length === 2 ? `20${dmy[3]}` : dmy[3]!;
-            return `${year}-${dmy[2]!.padStart(2, "0")}-${dmy[1]!.padStart(2, "0")}`;
+            const year = dmy[3]!.length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+            const month = Number(dmy[2]);
+            const day = Number(dmy[1]);
+            return isRealDate(year, month, day) ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : s;
           }
+          // Digits alone are a date only as an Excel serial (what a copied date
+          // pastes as): 20000-80000 is 1954 to 2119. "12" or "2026" stays text.
+          if (/^\d+(\.\d+)?$/.test(s)) {
+            const serial = Number(s);
+            return serial >= 20000 && serial <= 80000 ? toIsoDate(excelSerialToDate(serial)) : s;
+          }
+          // Written out ("14 September 2026", "Sep 14, 2026"): only with a year,
+          // and read on the calendar day as written, wherever the reader is.
+          if (!/\b\d{4}\b/.test(s)) return s;
           const parsed = new Date(s);
-          return Number.isNaN(parsed.getTime()) ? s : toIsoDate(parsed);
+          return Number.isNaN(parsed.getTime()) ? s : localIsoDate(parsed);
         }
         if (typeof raw === "number") return toIsoDate(excelSerialToDate(raw));
         return String(raw);
@@ -497,6 +549,30 @@ export class TrackerService {
 }
 
 export const TRACKER_TYPE_ORDER: TrackerColumnType[] = ["text", "longText", "list", "date", "url", "number", "checkbox", "person"];
+
+/** A Gregorian date that exists (no 2026-02-30, no month 25). */
+function isRealDate(year: number, month: number, day: number): boolean {
+  if (year < 1000 || year > 9999 || month < 1 || month > 12 || day < 1) return false;
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** The calendar day a locally parsed date names (Date reads "Sep 14, 2026" as local midnight). */
+function localIsoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** "Column 7", or the next number no column already uses. */
+function nextColumnName(columns: readonly Pick<TrackerColumn, "name">[]): string {
+  const taken = new Set(columns.map((c) => c.name.trim().toLowerCase()));
+  for (let n = columns.length + 1; ; n++) if (!taken.has(`column ${n}`)) return `Column ${n}`;
+}
+
+/** The footers a column type offers (as the grid's summary menu does). */
+function SUMMARIES_BY_TYPE(type: TrackerColumnType): string[] {
+  if (type === "number") return ["none", "count", "empty", "sum", "average", "min", "max"];
+  if (type === "checkbox") return ["none", "checked", "percentChecked", "empty"];
+  return ["none", "count", "empty"];
+}
 
 function toIsoDate(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;

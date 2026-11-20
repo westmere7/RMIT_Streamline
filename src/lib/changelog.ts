@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.129.0",
+    date: "2026-11-20",
+    title: "Sturdier trackers",
+    changes: [
+      "Typing fast in a tracker (a value, Tab, the next value) no longer drops keys.",
+      "Changing a column's type turns its values into the new type where they read as it, so a Number column formats them; a format or footer the new type has not got is dropped.",
+      "Dates typed or pasted are read on the day written (no more a day early in Melbourne or Vietnam), impossible dates and dates without a year stay as typed, and an Excel date pasted as a number is read as a date.",
+      "A row made into a band takes its label from the leftmost filled cell; new columns never repeat a name.",
+      "Asset sheets: an impossible due date, a huge quantity or a very long band name no longer stops the task's assets updating; an email with a + finds the right person; lines are no longer rewritten on every save.",
+    ],
+  },
+  {
     version: "0.128.0",
     date: "2026-11-20",
     title: "Keep a deleted tracker's assets",

@@ -20,7 +20,7 @@ import type { StreamlineDatabase } from "../database";
 /** Deletes items (and their subitems), values and comments for the given item ids inside a transaction. */
 export async function deleteItemsCascade(db: StreamlineDatabase, itemIds: string[]): Promise<void> {
   if (itemIds.length === 0) return;
-  const tx = db.transaction(["items", "itemColumnValues", "comments", "itemLinks", "itemAssets"], "readwrite");
+  const tx = db.transaction(["items", "itemColumnValues", "comments", "itemLinks", "itemAssets", "trackerSheets"], "readwrite");
   const items = tx.objectStore("items");
   const values = tx.objectStore("itemColumnValues");
   const comments = tx.objectStore("comments");
@@ -43,6 +43,11 @@ export async function deleteItemsCascade(db: StreamlineDatabase, itemIds: string
     const linkKeys = [...(await links.index("byItemA").getAllKeys(id)), ...(await links.index("byItemB").getAllKeys(id))];
     await Promise.all(linkKeys.map((k) => links.delete(k)));
     await items.delete(id);
+  }
+  // A sheet that held a deleted task's assets lets go of it, as the database does (item_id on delete set null).
+  const sheets = tx.objectStore("trackerSheets");
+  for (const sheet of await sheets.getAll()) {
+    if (sheet.itemId && toDelete.has(sheet.itemId)) await sheets.put({ ...sheet, itemId: null });
   }
   await tx.done;
 }

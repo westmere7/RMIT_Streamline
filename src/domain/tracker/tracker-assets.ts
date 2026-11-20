@@ -1,5 +1,5 @@
 import type { EntityId } from "@/domain/common/types";
-import type { AssetLink } from "@/domain/item/item-asset";
+import { normalizeAssetLinks, type AssetLink } from "@/domain/item/item-asset";
 import { personIds, personValue, type TrackerAssetMapping, type TrackerCellValue, type TrackerColumn, type TrackerSheet } from "@/domain/tracker/tracker";
 
 /**
@@ -64,9 +64,9 @@ export function normalizeAssetMapping(raw: unknown, columns: readonly TrackerCol
   return {
     name: column(m.name),
     type: source(m.type, text),
-    quantity: source(m.quantity, (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.round(v) : null)),
+    quantity: source(m.quantity, (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && Math.round(v) <= MAX_QUANTITY ? Math.round(v) : null)),
     pic: source(m.pic, (v) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === "string" && !!id) : null)),
-    due: source(m.due, (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)),
+    due: source(m.due, (v) => (typeof v === "string" && isRealIsoDate(v) ? v : null)),
     done: { columnId: column(done.columnId), values: Array.isArray(done.values) ? done.values.filter((v): v is string => typeof v === "string") : [] },
     spec: Array.isArray(m.spec) ? m.spec.map((id) => (specBreakKind(id) ? (id as string) : column(id))).filter((id): id is string => !!id) : [],
     links: Array.isArray(m.links) ? m.links.map(column).filter((id): id is string => !!id) : [],
@@ -194,12 +194,12 @@ function readsAs(role: AssetRole, column: TrackerColumn, value: TrackerCellValue
   switch (role) {
     case "quantity": {
       const n = typeof value === "number" ? value : Number(text.replace(/[,\s]/g, ""));
-      return Number.isFinite(n) && n >= 0;
+      return Number.isFinite(n) && n >= 0 && Math.round(n) <= MAX_QUANTITY;
     }
     case "pic":
       return column.type === "person" ? personIds(value).length > 0 : resolvePeople(text, people).length > 0;
     case "due":
-      return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+      return typeof value === "string" && isRealIsoDate(value);
     case "link":
       return column.type === "url" || LOOKS_LIKE_URL.test(text);
     default:
@@ -367,7 +367,8 @@ function cellText(value: TrackerCellValue | undefined): string {
 /** Names in a text cell ("Jane, Tom & Mai") resolved to people: full name, first name or email, ignoring case. */
 export function resolvePeople(text: string, people: readonly AssetPerson[]): EntityId[] {
   const ids: EntityId[] = [];
-  for (const part of text.split(/[,;/&+\n]|\band\b/i)) {
+  // "+" separates people only with spaces round it: "tom+kim@x.test" is one address.
+  for (const part of text.split(/[,;/&\n]|\s\+\s|\band\b/i)) {
     const needle = part.trim().toLowerCase();
     if (!needle) continue;
     const match =
@@ -401,7 +402,8 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
   let band: { id: string; name: string } | null = null;
   for (const row of sheet.rows) {
     if (row.kind !== "data") {
-      band = { id: asUuid(row.id), name: row.label?.trim() || (row.kind === "section" ? "Phase" : "Channel") };
+      // item_assets.block_name holds 200 characters; longer would fail the whole sync.
+      band = { id: asUuid(row.id), name: (row.label?.trim() || (row.kind === "section" ? "Phase" : "Channel")).slice(0, 200) };
       continue;
     }
     const cell = (c: TrackerColumn | null) => (c ? row.cells[c.id] : undefined);
@@ -411,14 +413,16 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
 
     const rawQty = cell(qtyCol);
     const qtyNumber = typeof rawQty === "number" ? rawQty : typeof rawQty === "string" && rawQty.trim() !== "" ? Number(rawQty.replace(/[,\s]/g, "")) : NaN;
-    const quantity = Number.isFinite(qtyNumber) && qtyNumber >= 0 ? Math.round(qtyNumber) : mapping.quantity.value;
+    // item_assets.quantity is a SQL integer: anything beyond it reads as no quantity rather than failing the sync.
+    const quantity = Number.isFinite(qtyNumber) && qtyNumber >= 0 && Math.round(qtyNumber) <= MAX_QUANTITY ? Math.round(qtyNumber) : mapping.quantity.value;
 
     const picCell = cell(picCol);
     const fromCell = picCol ? (picCol.type === "person" ? personIds(picCell) : resolvePeople(cellText(picCell), people)) : [];
     const assigneeIds = fromCell.length ? fromCell : (mapping.pic.value ?? []);
 
     const dueCell = cell(dueCol);
-    const dueDate = typeof dueCell === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dueCell) ? dueCell : mapping.due.value;
+    // A date that cannot be (2026-02-30) would be refused by the date column and fail the whole sync.
+    const dueDate = typeof dueCell === "string" && isRealIsoDate(dueCell) ? dueCell : mapping.due.value;
 
     const doneCell = cell(doneCol);
     const done = doneCol ? (doneCol.type === "checkbox" ? doneCell === true : isDoneText(cellText(doneCell), doneCol, doneValues)) : false;
@@ -429,6 +433,8 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
       // Only a link column is taken at its word; any other column's cell has to look like an address.
       return url && (c.type === "url" || LOOKS_LIKE_URL.test(url)) ? [{ id: `col-${c.id}`, label: c.name.slice(0, 60) || "Link", url: url.slice(0, 2000), icon: "link" as const }] : [];
     });
+    // As the store keeps them (labels trimmed, at most 20), so an unchanged row compares equal and is not rewritten every save.
+    const storedLinks = normalizeAssetLinks(links);
 
     lines.push({
       rowId: row.id,
@@ -438,8 +444,8 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
       assigneeIds,
       dueDate,
       done,
-      notes: spec || null,
-      links,
+      notes: spec.trim() || null,
+      links: storedLinks,
       blockId: band?.id ?? null,
       blockName: band?.name ?? null,
       position: lines.length,
@@ -465,13 +471,25 @@ function specText(spec: readonly string[], col: (id: string) => TrackerColumn | 
     const column = col(id);
     const value = column ? valueOf(column) : "";
     if (!column || !value) continue;
-    out += `${out ? joiner : ""}${column.name}: ${value}`;
+    out += `${out ? joiner : ""}${column.name.trim()}: ${value}`;
     joiner = " · ";
   }
   return out;
 }
 
 const LOOKS_LIKE_URL = /^(https?:\/\/|www\.)\S+$/i;
+
+/** The largest quantity item_assets.quantity (a SQL integer) holds. */
+const MAX_QUANTITY = 2147483647;
+
+/** "2026-02-28" yes, "2026-02-30" or "2026-13-45" no: a date the database's date column takes. */
+export function isRealIsoDate(value: string): boolean {
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (month < 1 || month > 12 || day < 1) return false;
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
 
 /**
  * A text cell reads as done when it is one of the chosen values; a column that
