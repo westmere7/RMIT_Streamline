@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { Check, CornerDownLeft, GripVertical, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { Check, CornerDownLeft, Eye, EyeOff, GripVertical, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -411,6 +411,23 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   const [peek, setPeek] = React.useState<string | null>(null);
   // The preview's box: dropdowns open below it, never over it.
   const sheetRef = React.useRef<HTMLElement>(null);
+  // The live preview of the sheet: off unless asked for, and remembered in this browser.
+  const [showSheet, setShowSheet] = React.useState(() => {
+    try {
+      return window.localStorage.getItem(PREVIEW_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSheet = () =>
+    setShowSheet((on) => {
+      try {
+        window.localStorage.setItem(PREVIEW_KEY, on ? "0" : "1");
+      } catch {
+        // Storage refused: the choice lasts for this dialog.
+      }
+      return !on;
+    });
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
   const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending || mutations.bandRows.isPending;
@@ -540,11 +557,19 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
         <section
           ref={sheetRef}
           // Pinned to the top while the settings scroll (wide screens), so a dropdown below can light a column up in view.
-          className="min-w-0 space-y-2 bg-popover md:sticky md:-top-6 md:z-20 md:-mx-6 md:-mt-2 md:px-6 md:pt-2 md:pb-3 md:shadow-[0_10px_10px_-10px_rgba(0,0,0,0.35)]"
+          className={cn(
+            "min-w-0 space-y-2 bg-popover",
+            showSheet && "md:sticky md:-top-6 md:z-20 md:-mx-6 md:-mt-2 md:px-6 md:pt-2 md:pb-3 md:shadow-[0_10px_10px_-10px_rgba(0,0,0,0.35)]",
+          )}
           data-testid="task-assets-sheet"
         >
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
-          <SheetPreview sheet={previewSheet} mapping={effectiveMapping} peek={peek} bandIds={bandIds} />
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-muted-foreground" onClick={toggleSheet} aria-pressed={showSheet} data-testid="task-assets-sheet-toggle">
+              {showSheet ? <EyeOff /> : <Eye />} {showSheet ? "Hide the sheet" : "Show the sheet"}
+            </Button>
+          </div>
+          {showSheet && <SheetPreview sheet={previewSheet} mapping={effectiveMapping} peek={peek} bandIds={bandIds} />}
           {detected.length > 0 && (
             <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="task-assets-nonasset">
               <span className="min-w-0">
@@ -687,6 +712,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
     </>
   );
 }
+
+/** Where this browser remembers whether the Task assets dialog shows the sheet. */
+const PREVIEW_KEY = "streamline.task-assets.show-sheet";
 
 /** "2 section rows and 1 header row aren't assets." */
 function nonAssetSummary(detected: ReadonlyArray<{ kind: "header" | "section" | "total" }>): string {

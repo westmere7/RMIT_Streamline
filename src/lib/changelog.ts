@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.132.2",
+    date: "2026-11-20",
+    title: "Sheet preview on request",
+    changes: ["Task assets settings open on the column pickers alone; Show the sheet brings the live preview up, and the choice is remembered in this browser."],
+  },
+  {
     version: "0.132.1",
     date: "2026-11-20",
     title: "Sheet preview stays in view",
