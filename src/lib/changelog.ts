@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.134.1",
+    date: "2026-11-21",
+    title: "The guide catches up",
+    changes: ["Settings → Guide now covers team access, join-link approval, routing bookings by work type, booking PDFs and past forms, tracker sheets as a task's assets (Mark rows, columns that don't fit, Move into sheet), your profile and password, and who is online."],
+  },
+  {
     version: "0.134.0",
     date: "2026-11-21",
     title: "Move a task's assets into its sheet",
