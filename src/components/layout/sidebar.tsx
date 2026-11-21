@@ -377,7 +377,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
 
         <div className="mt-3">
           {!collapsed && <p className="label-quiet px-2.5 pt-2 pb-1">Teams</p>}
-          <ul className={collapsed ? "space-y-1" : "space-y-1.5"}>
+          <ul className="space-y-1">
             {teams.map((team) => (
               <TeamNode
                 key={team.id}
@@ -946,8 +946,7 @@ function TeamNode({
   }
 
   return (
-    // Each team in a box of its own, faintly filled, so where one ends and the next begins reads at a glance.
-    <li className={cn("rounded-xl bg-sidebar-accent/40 p-0.5", expanded && "pb-1.5")} data-testid="sidebar-team">
+    <li data-testid="sidebar-team">
       <RowMenu label={`Options for ${team.name}`} actions={teamActions}>
       <div className={cn("flex h-9 items-center rounded-xl pr-1 transition-colors", highlighted ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
         <button

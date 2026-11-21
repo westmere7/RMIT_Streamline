@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.137.4",
+    date: "2026-11-21",
+    title: "Team boxes taken out",
+    changes: ["The sidebar's teams are back to plain rows, without the rounded boxes."],
+  },
+  {
     version: "0.137.3",
     date: "2026-11-21",
     title: "Teams set apart in the sidebar",
