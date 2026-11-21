@@ -8,6 +8,7 @@ import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import type { NotificationDelivery, NotificationType } from "@/domain";
 import {
   DEFAULT_TYPE_DELIVERY,
@@ -103,7 +104,18 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
           </DialogDescription>
         </DialogHeader>
 
+        {/* Two tabs: how things reach you, and what you follow. */}
+        <Tabs defaultValue="delivery" className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3">
+        <UnderlineTabsList>
+          <UnderlineTabsTrigger value="delivery" data-testid="notification-tab-delivery">
+            Delivery
+          </UnderlineTabsTrigger>
+          <UnderlineTabsTrigger value="following" data-testid="notification-tab-following">
+            Following and boards
+          </UnderlineTabsTrigger>
+        </UnderlineTabsList>
         <div className="scrollbar-thin -mx-1 min-h-0 overflow-y-auto px-1">
+        <TabsContent value="delivery" className="mt-0">
         <section className="rounded-xl border border-border/70 bg-card p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -155,6 +167,9 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
           </ul>
         </section>
 
+        </TabsContent>
+
+        <TabsContent value="following" className="mt-0">
         <FollowingSection />
 
         <section className="mt-4">
@@ -167,7 +182,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
               You are not a member of any board yet.
             </p>
           ) : (
-            <ul className="scrollbar-thin max-h-64 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70 bg-card">
+            <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card">
               {myBoards.map((board) => {
                 const muted = isBoardMuted(preferences.data, board.id);
                 return (
@@ -188,7 +203,9 @@ export function NotificationSettingsDialog({ open, onOpenChange }: { open: boole
             </ul>
           )}
         </section>
+        </TabsContent>
         </div>
+        </Tabs>
 
         <DialogFooter>
           <Button onClick={() => onOpenChange(false)}>Done</Button>
@@ -218,13 +235,13 @@ function FollowingSection() {
   });
   const itemName = (id: string) => items.data?.find((i) => i.id === id)?.name ?? "A task";
   return (
-    <section className="mt-4" data-testid="following-section">
+    <section data-testid="following-section">
       <h3 className="mb-1 text-[13px] font-medium">Following</h3>
       <p className="mb-2 text-xs text-muted-foreground">Follow any board or task with its bell, even one you are not on.</p>
       {list.length === 0 ? (
         <p className="rounded-xl border border-border/70 bg-card px-3 py-4 text-[13px] text-muted-foreground">Nothing yet.</p>
       ) : (
-        <ul className="scrollbar-thin max-h-64 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border/70 bg-card">
+        <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card">
           {list.map((subscription) => {
             const board = ws.boards.find((b) => b.id === subscription.boardId);
             return (

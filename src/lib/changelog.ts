@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.138.2",
+    date: "2026-11-21",
+    title: "Notification settings in two tabs",
+    changes: ["Notification settings splits into Delivery and Following and boards, so what you follow and your boards' subscriptions have a tab of their own."],
+  },
+  {
     version: "0.138.1",
     date: "2026-11-21",
     title: "Quicker team menu",
