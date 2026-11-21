@@ -593,7 +593,9 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
     queryKey: ["tracker-sheet-picker", ws.workspace.id],
     queryFn: async () => {
       const trackers = await services.trackers.list(ws.workspace.id);
-      return Promise.all(trackers.map(async (tracker) => ({ tracker, sheets: await services.trackers.listSheets(tracker.id) })));
+      const all = await Promise.all(trackers.map(async (tracker) => ({ tracker, sheets: await services.trackers.listSheets(tracker.id) })));
+      // Only sheets this task can take: one holding another task's assets is no choice, so it is not offered.
+      return { any: all.length > 0, free: all.map(({ tracker, sheets }) => ({ tracker, sheets: sheets.filter((sheet) => !sheet.itemId) })).filter(({ sheets }) => sheets.length > 0) };
     },
     enabled: open,
     staleTime: 5_000,
@@ -615,14 +617,14 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
           <div className="flex justify-center py-6">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
-        ) : (data.data ?? []).length === 0 ? (
-          <div className="flex flex-col items-center gap-3 py-4">
-            <p className="text-center text-[13px] text-muted-foreground">No trackers in this workspace yet.</p>
+        ) : (data.data?.free ?? []).length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-4" data-testid="pick-sheet-none">
+            <p className="text-center text-[13px] text-muted-foreground">{data.data?.any ? "Every sheet already holds a task's assets." : "No trackers in this workspace yet."}</p>
             <div className="flex w-full justify-center">{newButton}</div>
           </div>
         ) : (
           <ul className="max-h-[50dvh] space-y-3 overflow-y-auto">
-            {(data.data ?? []).map(({ tracker, sheets }) => (
+            {(data.data?.free ?? []).map(({ tracker, sheets }) => (
               <li key={tracker.id}>
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <FileSpreadsheet className="size-3.5" aria-hidden /> {tracker.name}
@@ -632,17 +634,16 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
                     <li key={sheet.id}>
                       <button
                         type="button"
-                        disabled={!!sheet.itemId}
                         onClick={() => {
                           setNewName(null);
                           onOpenChange(false);
                           onPick(sheet);
                         }}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] enabled:hover:bg-accent disabled:opacity-50"
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] hover:bg-accent"
                         data-testid="pick-sheet"
                       >
                         <span className="min-w-0 flex-1 truncate">{sheet.name}</span>
-                        <span className="shrink-0 text-2xs text-muted-foreground">{sheet.itemId ? "Holds another task's assets" : `${sheet.rows.filter((r) => r.kind === "data").length} rows`}</span>
+                        <span className="shrink-0 text-2xs text-muted-foreground">{sheet.rows.filter((r) => r.kind === "data").length} rows</span>
                       </button>
                     </li>
                   ))}
@@ -651,7 +652,7 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
             ))}
           </ul>
         )}
-        {(data.data ?? []).length > 0 && newButton}
+        {(data.data?.free ?? []).length > 0 && newButton}
       </DialogContent>
     </Dialog>
   );

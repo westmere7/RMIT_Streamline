@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.135.2",
+    date: "2026-11-21",
+    title: "Only sheets you can use",
+    changes: ["Use a tracker sheet lists only the sheets a task can take. Sheets already holding another task's assets, and trackers with none left, no longer show."],
+  },
+  {
     version: "0.135.1",
     date: "2026-11-21",
     title: "Closed booking page, your heading and formatting",
