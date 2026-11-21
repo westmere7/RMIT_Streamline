@@ -26,13 +26,13 @@ export type TeamSettingsSection = "general" | "access" | "members" | "bookings";
  * is saved as it is made, as on a board; the name and description wait for
  * their Save button. A built-in team (Admin) has no Access or Bookings.
  */
-export function TeamSettingsDialog({ team: given, open, onOpenChange }: { team: Team; open: boolean; onOpenChange: (open: boolean) => void }) {
+export function TeamSettingsDialog({ team: given, open, onOpenChange, section: initialSection = "general" }: { team: Team; open: boolean; onOpenChange: (open: boolean) => void; /** The section it opens on: a menu's shortcut goes straight there. */ section?: TeamSettingsSection }) {
   const ws = useWorkspace();
   // The team as it is now, not as it was when the dialog was opened: the
   // sidebar and Settings keep the copy they opened with, and every change made
   // here would then seem not to stick.
   const team = ws.teamById(given.id) ?? given;
-  const [section, setSection] = React.useState<TeamSettingsSection>("general");
+  const [section, setSection] = React.useState<TeamSettingsSection>(initialSection);
   const sections: Array<{ id: TeamSettingsSection; label: string }> = [
     { id: "general", label: "General" },
     ...(team.system ? [] : [{ id: "access" as const, label: "Access" }]),

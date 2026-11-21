@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -40,8 +40,11 @@ import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTeamAccess, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
+import { ColorPicker } from "@/components/shared/color-picker";
+import { IconPicker } from "@/components/shared/icon-picker";
+import type { TeamSettingsSection } from "@/features/teams/components/team-settings-dialog";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
 import { useAutoCollapseSidebar } from "@/hooks/use-mobile";
@@ -57,7 +60,7 @@ interface SidebarActions {
   requestDeleteTracker: (tracker: Tracker) => void;
   newDocInTeam: (teamId: string) => void;
   requestDeleteDoc: (doc: DocSummary) => void;
-  editTeam: (team: Team) => void;
+  editTeam: (team: Team, section?: TeamSettingsSection) => void;
   archiveTeam: (team: Team) => void;
   deleteTeam: (team: Team) => void;
 }
@@ -124,7 +127,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const docMutations = useDocMutations();
   const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
   const [sharingBoard, setSharingBoard] = React.useState<Board | null>(null);
-  const [editingTeam, setEditingTeam] = React.useState<Team | null>(null);
+  const [editingTeam, setEditingTeam] = React.useState<{ team: Team; section?: TeamSettingsSection } | null>(null);
   const [archivingTeam, setArchivingTeam] = React.useState<Team | null>(null);
   const [deletingTeam, setDeletingTeam] = React.useState<Team | null>(null);
 
@@ -173,7 +176,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         setCreateDocOpen(true);
       },
       requestDeleteDoc: (doc) => setDeletingDoc(doc),
-      editTeam: (team) => setEditingTeam(team),
+      editTeam: (team, section) => setEditingTeam({ team, section }),
       archiveTeam: (team) => setArchivingTeam(team),
       deleteTeam: (team) => setDeletingTeam(team),
     }),
@@ -498,7 +501,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         }}
       />
       <CreateTeamDialog open={createTeamOpen} onOpenChange={setCreateTeamOpen} />
-      <CreateTeamDialog open={editingTeam !== null} onOpenChange={(open) => !open && setEditingTeam(null)} team={editingTeam} />
+      <CreateTeamDialog open={editingTeam !== null} onOpenChange={(open) => !open && setEditingTeam(null)} team={editingTeam?.team ?? null} section={editingTeam?.section} />
       <InviteMemberDialog open={inviteOpen} onOpenChange={setInviteOpen} />
       {settingsBoard && boardSettings && (
         <BoardSettingsDialog
@@ -901,9 +904,11 @@ function TeamNode({
   const colors = colorClasses(team.color);
   const manage = canManageTeam(ws.permissions, team.id);
   const shown = useTeamSidebarItems(team.id, trackers, docs, activeTrackerId, activeDocId);
+  const quick = useTeamQuickActions(team);
 
   const teamActions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
+    ...quick.open,
     ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
       ? [
           {
@@ -920,6 +925,7 @@ function TeamNode({
       : []),
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+    ...quick.manage,
     shown.menu,
     { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },
     ...(manage && !team.system
@@ -1040,8 +1046,10 @@ function AdminNode({
   // still tints the header's hover and active states, through --team.
   const panelStyle = { "--team": colors.hex } as React.CSSProperties;
   const shown = useTeamSidebarItems(team.id, trackers, docs, activeTrackerId, activeDocId);
+  const quick = useTeamQuickActions(team);
   const actions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
+    ...quick.open,
     ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
       ? [
           {
@@ -1058,6 +1066,7 @@ function AdminNode({
       : []),
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+    ...quick.manage,
     shown.menu,
   ];
 
@@ -1111,6 +1120,61 @@ function AdminNode({
       </ul>
     </section>
   );
+}
+
+/**
+ * A team's shortcuts, as a board's menu has them: open it in a new tab, copy
+ * its link, and for whoever manages it, straight to its members or its access,
+ * and its colour and icon changed in place. The built-in Admin team has no
+ * access settings of its own.
+ */
+function useTeamQuickActions(team: Team): { open: MenuAction[]; manage: MenuAction[] } {
+  const ws = useWorkspace();
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const sidebar = useSidebarActions();
+  const manage = canManageTeam(ws.permissions, team.id);
+  const update = useMutation({
+    mutationFn: (patch: { color?: Team["color"]; icon?: string }) => services.workspace.updateTeam(team.id, patch),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) }),
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not save the team"),
+  });
+  const url = () => `${window.location.origin}${routes.team(ws.slug, team.id)}`;
+  const open: MenuAction[] = [
+    { type: "item", label: "Open in new tab", icon: <ExternalLink />, onSelect: () => window.open(url(), "_blank", "noopener"), testId: "team-menu-new-tab" },
+    {
+      type: "item",
+      label: "Copy link",
+      icon: <Link2 />,
+      onSelect: () => {
+        navigator.clipboard.writeText(url()).then(
+          () => toast.success("Link copied"),
+          () => toast.error("Could not copy the link"),
+        );
+      },
+      testId: "team-menu-copy-link",
+    },
+  ];
+  const manageItems: MenuAction[] = [
+    { type: "item", label: "Members", icon: <UserPlus />, disabled: !manage, onSelect: () => sidebar.editTeam(team, "members"), testId: "team-menu-members" },
+    ...(team.system
+      ? []
+      : [{ type: "item", label: "Who can see and edit", icon: <Eye />, disabled: !canEditTeamAccess(ws.permissions), onSelect: () => sidebar.editTeam(team, "access"), testId: "team-menu-access" } satisfies MenuAction]),
+    {
+      type: "sub",
+      label: "Colour & icon",
+      icon: <Palette />,
+      disabled: !manage,
+      contentClassName: "w-72 space-y-3 p-3",
+      content: (
+        <>
+          <ColorPicker value={team.color} onChange={(color) => update.mutate({ color })} />
+          <IconPicker value={team.icon} onChange={(icon) => update.mutate({ icon })} />
+        </>
+      ),
+    },
+  ];
+  return { open, manage: manageItems };
 }
 
 /**

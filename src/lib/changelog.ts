@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.138.1",
+    date: "2026-11-21",
+    title: "Quicker team menu",
+    changes: ["A team's menu in the sidebar has Open in new tab, Copy link, Members, Who can see and edit, and Colour & icon, like a board's."],
+  },
+  {
     version: "0.138.0",
     date: "2026-11-21",
     title: "Delete all snapshots",

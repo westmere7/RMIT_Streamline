@@ -16,7 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { COLOR_TOKENS, type ColorToken, type Team } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
-import { TeamSettingsDialog } from "@/features/teams/components/team-settings-dialog";
+import { TeamSettingsDialog, type TeamSettingsSection } from "@/features/teams/components/team-settings-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
@@ -44,8 +44,8 @@ export interface CreateTeamDialogProps {
  * edit its boards, its people and where its bookings land are in its settings,
  * which is what this opens instead when handed a team.
  */
-export function CreateTeamDialog({ open, onOpenChange, team }: CreateTeamDialogProps) {
-  if (team) return <TeamSettingsDialog team={team} open={open} onOpenChange={onOpenChange} />;
+export function CreateTeamDialog({ open, onOpenChange, team, section }: CreateTeamDialogProps & { section?: TeamSettingsSection }) {
+  if (team) return <TeamSettingsDialog key={`${team.id}:${section ?? "general"}`} team={team} open={open} onOpenChange={onOpenChange} section={section} />;
   return <CreateTeamForm open={open} onOpenChange={onOpenChange} />;
 }
 
