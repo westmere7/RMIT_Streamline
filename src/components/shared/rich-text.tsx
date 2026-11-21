@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
+import { PersonHover } from "@/components/shared/user-avatar";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { parseRichText, splitBriefFacts, type BlockNode, type BriefFacts, type ChecklistItem, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
@@ -63,10 +64,21 @@ function Inline({ nodes, mentionHref }: { nodes: InlineNode[]; mentionHref?: (di
           case "mention": {
             const className = "rounded bg-blue-50 px-1 font-medium text-blue-700 dark:bg-navy-500/40 dark:text-navy-100";
             const to = mentionHref?.(node.name) ?? null;
-            return to ? (
-              <Link key={index} href={to} className={cn(className, "hover:underline underline-offset-2")} data-testid="mention">
+            // A person's page ends in their id: their card on hover, as anywhere else they appear.
+            const personId = to ? /\/people\/([^/?#]+)$/.exec(to)?.[1] : undefined;
+            const link = to ? (
+              <Link href={to} className={cn(className, "hover:underline underline-offset-2")} data-testid="mention">
                 @{node.name}
               </Link>
+            ) : null;
+            if (link && personId)
+              return (
+                <PersonHover key={index} user={{ id: personId, displayName: node.name }}>
+                  {link}
+                </PersonHover>
+              );
+            return link ? (
+              <React.Fragment key={index}>{link}</React.Fragment>
             ) : (
               <span key={index} className={className} data-testid="mention">
                 @{node.name}

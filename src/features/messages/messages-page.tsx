@@ -133,7 +133,7 @@ export function MessagesPage() {
                     <ArrowLeft />
                   </Link>
                 </Button>
-                <UserAvatar user={other} size="md" tooltip={false} />
+                <UserAvatar user={other} size="md" />
                 <div className="min-w-0 leading-tight">
                   <Link href={routes.person(ws.slug, other.id)} className="block truncate text-[13px] font-medium hover:underline">
                     {other.displayName}

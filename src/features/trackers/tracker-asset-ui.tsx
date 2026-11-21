@@ -9,7 +9,7 @@ import { AlertTriangle, Check, CornerDownLeft, ListChecks, GripVertical, Table2,
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { PersonName, UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -86,10 +86,10 @@ export function PeopleCellView({ value, users, faded }: { value: unknown; users:
     <span className={cn("flex min-w-0 items-center gap-1.5", faded && "opacity-55")}>
       <span className="flex shrink-0 -space-x-1.5">
         {people.slice(0, 3).map((user, i) => (
-          <UserAvatar key={ids[i]} user={user} size="xs" className="ring-2 ring-background" tooltip={false} />
+          <UserAvatar key={ids[i]} user={user} size="xs" className="ring-2 ring-background" />
         ))}
       </span>
-      <span className="truncate">{first ? first.displayName : trackerPersonName(ids[0]!)}</span>
+      {first ? <PersonName user={first} className="truncate" /> : <span className="truncate">{trackerPersonName(ids[0]!)}</span>}
       {ids.length > 1 && <span className="shrink-0 text-2xs text-muted-foreground">+{ids.length - 1}</span>}
     </span>
   );

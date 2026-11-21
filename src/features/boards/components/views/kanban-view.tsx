@@ -573,7 +573,7 @@ function LaneTitle({ lane, count, overdue, canEdit, coloured, renaming, onRenami
   const colors = lane.color ? colorClasses(lane.color) : null;
   return (
     <>
-      {lane.user ? <UserAvatar user={lane.user} size="xs" tooltip={false} /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
+      {lane.user ? <UserAvatar user={lane.user} size="xs" /> : <span className={cn("size-2 shrink-0 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
       {/* Double-click the name to rename what the lane stands for. */}
       <h3 className={cn("min-w-0 text-[13px] font-semibold tracking-tight", coloured && colors?.text)}>
         <InlineEdit
@@ -665,7 +665,7 @@ function RowHeader({ row, count, folded, onToggle }: { row: Lane; count: number;
   return (
     <button type="button" onClick={onToggle} aria-expanded={!folded} aria-label={`${folded ? "Expand" : "Collapse"} row ${row.name}`} className="sticky left-0 flex w-fit items-center gap-2 rounded-md px-1.5 py-1 text-[13px] font-semibold tracking-tight hover:bg-accent">
       <ChevronRight className={cn("size-3.5 text-muted-foreground transition-transform", !folded && "rotate-90")} />
-      {row.user ? <UserAvatar user={row.user} size="xs" tooltip={false} /> : <span className={cn("size-2 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
+      {row.user ? <UserAvatar user={row.user} size="xs" /> : <span className={cn("size-2 rounded-full", colors?.dot ?? "bg-gray-300 dark:bg-gray-600")} />}
       <span className={cn(colors?.text)}>{row.name}</span>
       <span className="text-xs font-normal text-muted-foreground tabular">{count}</span>
     </button>

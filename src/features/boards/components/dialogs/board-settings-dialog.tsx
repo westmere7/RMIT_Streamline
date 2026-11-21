@@ -7,7 +7,7 @@ import { boardAccessOf, teamAccessFor } from "@/lib/permissions/permissions";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { Archive, ArchiveRestore, Eye, EyeOff, Plus, Trash2, X } from "lucide-react";
 import * as React from "react";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { PersonName, UserAvatar } from "@/components/shared/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -198,9 +198,9 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
           const editable = canEditBoardSeat(ws.permissions, board, member.userId);
           return (
             <li key={member.id} className="flex h-11 items-center gap-2.5 px-3 text-[13px]">
-              <UserAvatar user={user} size="md" tooltip={false} />
+              <UserAvatar user={user} size="md" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{user?.displayName ?? "Unknown"}</span>
+                <PersonName user={user} className="block truncate font-medium">{user?.displayName ?? "Unknown"}</PersonName>
                 <span className="block truncate text-2xs text-muted-foreground">{user?.email}</span>
               </span>
               {isOwner ? (
@@ -231,9 +231,9 @@ function MembersSection({ board, manage }: { board: Board; manage: boolean }) {
         })}
         {viaTeam.map((user) => (
           <li key={`team-${user.id}`} className="flex h-11 items-center gap-2.5 px-3 text-[13px]" data-testid="board-member-via-team">
-            <UserAvatar user={user} size="md" tooltip={false} />
+            <UserAvatar user={user} size="md" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{user.displayName}</span>
+              <PersonName user={user} className="block truncate font-medium" />
               <span className="block truncate text-2xs text-muted-foreground">{user.email}</span>
             </span>
             <SimpleTooltip label={`Edits as a member of ${team?.name ?? "the team"}. Change it in the team's settings.`}>

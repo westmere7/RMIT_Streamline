@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { RichText } from "@/components/shared/rich-text";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { PersonName, UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -505,9 +505,11 @@ function CommentHeader({
       }
       data-testid={onHeaderClick ? "comment-header" : undefined}
     >
-      <UserAvatar user={author} size={size} tooltip={false} />
+      <UserAvatar user={author} size={size} />
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 text-[13px]">
-        <Mention href={links.person(comment.authorId)}>{author?.displayName ?? "Unknown"}</Mention>
+        <PersonName user={author}>
+          <Mention href={links.person(comment.authorId)}>{author?.displayName ?? "Unknown"}</Mention>
+        </PersonName>
         <RelativeTime iso={comment.createdAt} className="text-2xs text-muted-foreground" />
         {edited && <span className="text-2xs text-muted-foreground">(edited)</span>}
         {comment.sharedId && (
@@ -585,8 +587,8 @@ function CommentAuthorName({ comment, size = "xs" }: { comment: Comment; size?: 
   const author = ws.userById(comment.authorId);
   return (
     <span className={cn("flex min-w-0 shrink-0 items-center text-[13px] font-medium", size === "sm" ? "gap-2" : "gap-1.5")}>
-      <UserAvatar user={author} size={size} tooltip={false} />
-      {author?.displayName ?? "Unknown"}
+      <UserAvatar user={author} size={size} />
+      <PersonName user={author}>{author?.displayName ?? "Unknown"}</PersonName>
     </span>
   );
 }

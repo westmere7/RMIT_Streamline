@@ -19,19 +19,32 @@ function localTime(timezone: string, now: Date): string | null {
   }
 }
 
+/** Popups a card must not sit on: pickers, menus, selects and lists. Tooltips and other cards are not among them. */
+const POPUP_AROUND = "[data-radix-popper-content-wrapper], [role=menu], [role=listbox], [cmdk-root]";
+const POPUP_OPEN = "[data-radix-popper-content-wrapper] > [data-state=open]:not([data-hover-card]), [role=menu][data-state=open], [role=listbox][data-state=open]";
+
+/** A picker or menu is open, or the face is inside one: a card now would overlap it. */
+function popupInTheWay(trigger: Element | null): boolean {
+  if (typeof document === "undefined") return false;
+  return !!trigger?.closest(POPUP_AROUND) || !!document.querySelector(POPUP_OPEN);
+}
+
 /**
  * Someone's compact card, shown while hovering their face or name. Opens after a
- * short pause so passing over a column of avatars does not flash cards, and
- * closes on a press so it never sits over the picker that press opens.
+ * short pause so passing over a column of avatars does not flash cards, closes
+ * on a press so it never sits over the picker that press opens, and stays shut
+ * while a picker or menu is open or when the face is inside one.
  */
 export function PersonCard({ userId, children }: { userId: string; children: React.ReactElement }) {
   const ws = useWorkspace();
   const [open, setOpen] = React.useState(false);
+  // The trigger is whatever element it wraps; typed as an anchor only because Radix types it so.
+  const triggerRef = React.useRef<HTMLAnchorElement>(null);
   const user = ws.userById(userId);
   if (!user) return children;
   return (
-    <HoverCard open={open} onOpenChange={setOpen} openDelay={350} closeDelay={100}>
-      <HoverCardTrigger asChild onPointerDown={() => setOpen(false)}>
+    <HoverCard open={open} onOpenChange={(next) => setOpen(next && !popupInTheWay(triggerRef.current))} openDelay={350} closeDelay={100}>
+      <HoverCardTrigger asChild ref={triggerRef} onPointerDown={() => setOpen(false)}>
         {children}
       </HoverCardTrigger>
       {/* The card is portalled, but React still bubbles its clicks to the trigger's

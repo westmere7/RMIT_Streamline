@@ -41,6 +41,12 @@ export function PersonHover({ user, children }: { user: Pick<User, "id" | "displ
   return render ? render(user.id, children) : <SimpleTooltip label={user.displayName}>{children}</SimpleTooltip>;
 }
 
+/** A person's name as text, with their card on hover. Plain text when nobody is known. */
+export function PersonName({ user, children, className }: { user: Pick<User, "id" | "displayName"> | null | undefined; children?: React.ReactNode; className?: string }) {
+  const text = <span className={className}>{children ?? user?.displayName}</span>;
+  return user ? <PersonHover user={user}>{text}</PersonHover> : text;
+}
+
 /** The gap around the online dot: thinner on the smallest avatars, where 2px would swallow it. */
 const DOT_RING: Record<AvatarSize, string> = {
   xs: "ring-1",

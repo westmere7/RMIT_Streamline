@@ -3,7 +3,7 @@
 import { Loader2 } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { PersonName, UserAvatar } from "@/components/shared/user-avatar";
 import { buttonSettings, dateTimeSettings, formatDateTime, lastUpdatedSettings, type ButtonColumnSettings } from "@/domain";
 import { columnAlign } from "@/features/boards/board-model";
 import { useButtonPress } from "@/features/boards/button-column";
@@ -34,8 +34,8 @@ export function LastUpdatedCell({ item, column, value, width }: CellProps) {
         EMPTY
       ) : (
         <span className="flex min-w-0 items-center gap-1.5">
-          {settings.display !== "time" && user && <UserAvatar user={user} size="xs" tooltip={false} />}
-          {settings.display === "person" && <span className="truncate text-xs">{user?.displayName ?? "Someone"}</span>}
+          {settings.display !== "time" && user && <UserAvatar user={user} size="xs" />}
+          {settings.display === "person" && <PersonName user={user} className="truncate text-xs">{user?.displayName ?? "Someone"}</PersonName>}
           {settings.display !== "person" && <span className="truncate text-xs text-muted-foreground tabular">{when}</span>}
         </span>
       )}

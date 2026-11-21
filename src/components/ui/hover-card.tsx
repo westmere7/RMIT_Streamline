@@ -14,6 +14,8 @@ function HoverCardContent({ className, align = "start", sideOffset = 6, ...props
         align={align}
         sideOffset={sideOffset}
         collisionPadding={8}
+        // Told apart from pickers and menus: a person card stays shut while one of those is open, not while another card is.
+        data-hover-card=""
         className={cn(
           "z-50 w-64 rounded-xl border border-border/70 bg-popover p-3 text-popover-foreground shadow-lg outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className,

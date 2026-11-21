@@ -773,7 +773,7 @@ function MemberRow({ row, manage, invitation, selected, onSelect }: { row: Row; 
       )}
       <td className="px-3">
         <Link href={routes.person(ws.slug, user.id)} className="group flex min-w-0 items-center gap-2.5" data-testid="member-profile-link">
-          <UserAvatar user={user} size="sm" tooltip={false} className={cn(member.status !== "ACTIVE" && "opacity-50")} />
+          <UserAvatar user={user} size="sm" className={cn(member.status !== "ACTIVE" && "opacity-50")} />
           <span className="min-w-0 truncate font-semibold group-hover:underline">
             {user.displayName}
             {isSelf && <span className="ml-1 text-2xs font-normal text-muted-foreground">(you)</span>}

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.6",
+    date: "2026-11-21",
+    title: "Person cards in more places",
+    changes: ["Hovering a face or name now shows the person's card almost anywhere: update authors, @mentions, who made a task, the inbox, lanes, the dashboard, board and team members, assets and tracker sheets. It stays shut while a picker or menu is open."],
+  },
+  {
     version: "0.136.5",
     date: "2026-11-21",
     title: "Unlink asks first",

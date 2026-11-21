@@ -241,7 +241,7 @@ export function DistributionPanel({ rows, onSelect }: { rows: StackedRow[]; onSe
 export function PeoplePanel({ data, users }: { data: NamedCount[]; users: Map<string, User> }) {
   return (
     <Panel title="People" subtitle="Tasks · asset units per person" info="Tasks count everyone assigned in a people column; asset units count the people in charge of each asset line." testId="dashboard-people">
-      <RankedBars data={data} valueLabel="tasks" secondaryLabel="asset units" leading={(row) => <UserAvatar user={row.id ? users.get(row.id) : null} size="xs" tooltip={false} />} emptyMessage="Nobody is assigned in this scope." className="flex-1 justify-around" />
+      <RankedBars data={data} valueLabel="tasks" secondaryLabel="asset units" leading={(row) => <UserAvatar user={row.id ? users.get(row.id) : null} size="xs" />} emptyMessage="Nobody is assigned in this scope." className="flex-1 justify-around" />
     </Panel>
   );
 }

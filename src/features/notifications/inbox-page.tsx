@@ -186,7 +186,7 @@ export function InboxPage() {
                     >
                       <button type="button" onClick={() => open(n)} aria-label={`${n.title}${unreadItem ? ", unread" : ""}`} className="flex min-w-0 flex-1 items-start gap-3 text-left" data-testid="notification">
                         <span className="relative mt-0.5">
-                          <UserAvatar user={actor} size="md" tooltip={false} />
+                          <UserAvatar user={actor} size="md" />
                           <span className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-background text-muted-foreground ring-1 ring-border">
                             <Icon className="size-2.5" />
                           </span>

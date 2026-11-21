@@ -629,7 +629,7 @@ function AssetRowCard({
               {showPeople && (
                 <span className="flex -space-x-1">
                   {assignees.slice(0, 3).map((u) => (
-                    <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+                    <UserAvatar key={u.id} user={u} size="xs" className="size-4.5 text-[8px] ring-1" />
                   ))}
                 </span>
               )}
@@ -651,7 +651,7 @@ function AssetRowCard({
               {fields.type && <span className="truncate" title={typeLabel?.name}>{typeLabel?.name ?? ""}</span>}
               {hasPeopleColumn && (
                 <span className="flex -space-x-1">
-                  {showPeople && assignees.slice(0, 3).map((u) => <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />)}
+                  {showPeople && assignees.slice(0, 3).map((u) => <UserAvatar key={u.id} user={u} size="xs" className="size-4.5 text-[8px] ring-1" />)}
                 </span>
               )}
               {fields.due && (
@@ -697,7 +697,7 @@ function AssetRowCard({
             {showPeople && (
               <span className="flex -space-x-1">
                 {assignees.slice(0, 3).map((u) => (
-                  <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+                  <UserAvatar key={u.id} user={u} size="xs" className="size-4.5 text-[8px] ring-1" />
                 ))}
               </span>
             )}
@@ -1098,7 +1098,7 @@ function AssetBlockCard({
                 {assignees.length > 0 ? (
                   <span className="flex shrink-0 -space-x-1">
                     {assignees.slice(0, 3).map((u) => (
-                      <UserAvatar key={u.id} user={u} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+                      <UserAvatar key={u.id} user={u} size="xs" className="size-4.5 text-[8px] ring-1" />
                     ))}
                   </span>
                 ) : (

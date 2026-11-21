@@ -86,7 +86,7 @@ export function TeamMembersEditor({ team, heading }: { team: Team; heading?: (ad
       <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="team-members-list">
         {members.map(({ membership, user }) => (
           <li key={membership.id} className="group flex h-11 items-center gap-2.5 px-3 text-[13px]">
-            <UserAvatar user={user} size="md" tooltip={false} />
+            <UserAvatar user={user} size="md" />
             <span className="min-w-0 flex-1">
               {user ? (
                 <Link href={routes.person(ws.slug, user.id)} className="block truncate font-medium hover:underline max-md:flex max-md:min-h-11 max-md:items-center">

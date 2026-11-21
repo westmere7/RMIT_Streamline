@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { Badge } from "@/components/ui/badge";
-import { UserAvatar } from "@/components/shared/user-avatar";
+import { PersonName, UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -640,9 +640,14 @@ function PanelHeader({
           <AssetProgressPill assets={assets} onOpen={boardHasDeliverables(board) ? () => setRequestedItemTab({ itemId: item.id, tab: "assets" }) : undefined} />
           {creator ? (
             <p className="flex items-center gap-1.5">
-              <UserAvatar user={creator} size="xs" tooltip={false} />
+              <UserAvatar user={creator} size="xs" />
               <span>
-                <Mention href={links.person(item.createdBy)} className="font-normal">{creator.firstName}</Mention> · <RelativeTime iso={item.createdAt} />
+                <PersonName user={creator}>
+                  <Mention href={links.person(item.createdBy)} className="font-normal">
+                    {creator.firstName}
+                  </Mention>
+                </PersonName>{" "}
+                · <RelativeTime iso={item.createdAt} />
               </span>
             </p>
           ) : (

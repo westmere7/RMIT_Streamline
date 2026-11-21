@@ -373,7 +373,7 @@ function SheetLine({
       {people.length > 0 && (
         <span className="flex -space-x-1">
           {people.slice(0, 3).map((user, i) => (
-            <UserAvatar key={line.assigneeIds[i]} user={user} size="xs" tooltip={false} className="size-4.5 text-[8px] ring-1" />
+            <UserAvatar key={line.assigneeIds[i]} user={user} size="xs" className="size-4.5 text-[8px] ring-1" />
           ))}
         </span>
       )}

@@ -67,7 +67,7 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
           return (
             <SelectItem key={c.userId} value={c.userId}>
               <span className="flex items-center gap-2">
-                {user && <UserAvatar user={user} size="xs" tooltip={false} />}
+                {user && <UserAvatar user={user} size="xs" />}
                 {user?.displayName ?? "Someone who has left"}
               </span>
             </SelectItem>
@@ -265,7 +265,7 @@ function WorkTypeDetail({ row, total, format, comparisonLabel, users, hex, canOp
             const user = users.get(p.userId);
             return (
               <span key={p.userId} className="mb-1 flex items-center gap-2 text-2xs">
-                {user && <UserAvatar user={user} size="xs" tooltip={false} />}
+                {user && <UserAvatar user={user} size="xs" />}
                 <span className="min-w-0 flex-1 truncate">{user?.displayName ?? "Someone who has left"}</span>
                 <span className="shrink-0 text-muted-foreground tabular">{formatCount(p.units)} units</span>
               </span>
