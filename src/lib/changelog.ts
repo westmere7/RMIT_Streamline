@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.134.0",
+    date: "2026-11-21",
+    title: "Move a task's assets into its sheet",
+    changes: [
+      "A task with a tracker sheet and assets of its own gets Move into sheet: they become rows below the sheet's and keep their dates. It says first which columns it adds and what won't stay exactly as it is, and won't start while a column can't hold what they have.",
+      "Moving assets in while linking a sheet now keeps them the same way, and no longer drops people, extra links or notes it couldn't place.",
+    ],
+  },
+  {
     version: "0.133.1",
     date: "2026-11-20",
     title: "When a column doesn't fit",

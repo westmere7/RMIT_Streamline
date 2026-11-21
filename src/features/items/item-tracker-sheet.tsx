@@ -2,20 +2,20 @@
 
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, ExternalLink, FileSpreadsheet, Link2, Loader2, Plus, Settings2 } from "lucide-react";
+import { AlertTriangle, ArrowUpToLine, Check, ChevronDown, ChevronRight, ExternalLink, FileSpreadsheet, Link2, Loader2, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { queryKeys } from "@/lib/query/keys";
-import { sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAssetPatch, type SheetLineField, type TrackerSheet } from "@/domain";
+import { assetPeopleOf, normalizeAssetMapping, planLineMove, sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAssetPatch, type LineMovePlan, type SheetLineField, type TrackerSheet, type User } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useAssetMutations } from "@/features/items/asset-hooks";
-import { useItemTrackerSheet, useTracker } from "@/features/trackers/hooks";
+import { useItemTrackerSheet, useSheetAssetMutations, useTracker } from "@/features/trackers/hooks";
 import { assetSheet } from "@/features/trackers/tracker-template";
 import { PeopleValue, TaskAssetsDialog } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
@@ -81,6 +81,106 @@ export function UseTrackerSheetButton({ item, disabled }: { item: Item; disabled
       {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} />}
     </>
   );
+}
+
+/**
+ * Beside "Added on this task", while the task also has a sheet: moves the
+ * task's own lines into it. What happens is set out first (columns added,
+ * values the sheet fills in, what cannot travel), and a column that cannot
+ * hold what the lines have stops it with nothing written.
+ */
+export function MoveIntoSheetButton({ item, lines }: { item: Item; lines: ItemAsset[] }) {
+  const linked = useItemTrackerSheet(item.id);
+  const sheet = linked.data ?? null;
+  const [open, setOpen] = React.useState(false);
+  // A linked task's lines show here too, but are that task's to move.
+  const own = React.useMemo(() => lines.filter((l) => l.itemId === item.id && !l.trackerSheetId), [lines, item.id]);
+  if (!sheet || !sheet.assetMapping || own.length === 0) return null;
+  return (
+    <>
+      <Button type="button" size="sm" variant="ghost" className="ml-auto h-7 text-xs" onClick={() => setOpen(true)} data-testid="move-into-sheet">
+        <ArrowUpToLine /> Move into sheet
+      </Button>
+      {open && <MoveIntoSheetDialog sheet={sheet} lines={own} others={lines.length - own.length} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function MoveIntoSheetDialog({ sheet, lines, others, onClose }: { sheet: TrackerSheet; lines: ItemAsset[]; others: number; onClose: () => void }) {
+  const ws = useWorkspace();
+  const tracker = useTracker(sheet.trackerId);
+  const { moveIn } = useSheetAssetMutations();
+  const plan = React.useMemo(() => {
+    const mapping = normalizeAssetMapping(sheet.assetMapping, sheet.columns);
+    return mapping ? planLineMove(sheet, mapping, lines, assetPeopleOf(ws.users)) : null;
+  }, [sheet, lines, ws.users]);
+  const notes = plan ? movePlanNotes(plan, ws.users) : [];
+  const blocked = !plan || plan.blockers.length > 0;
+  const n = lines.length;
+  return (
+    <Dialog open onOpenChange={(o) => !o && !moveIn.isPending && onClose()}>
+      <DialogContent size="sm" data-testid="move-into-sheet-dialog">
+        <DialogHeader>
+          <DialogTitle>
+            Move {n === 1 ? "this asset" : `${n} assets`} into the sheet?
+          </DialogTitle>
+          <DialogDescription>
+            {n === 1 ? "It becomes a row" : "They become rows"} of {tracker.data?.name ?? "the tracker"} › {sheet.name}, edited there.
+          </DialogDescription>
+        </DialogHeader>
+        <ul className="space-y-1.5 text-[13px]" data-testid="move-into-sheet-plan">
+          {(plan?.blockers ?? ["Choose the column that names each asset first."]).map((text) => (
+            <li key={text} className="flex gap-2 text-destructive" data-testid="move-into-sheet-blocker">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {text}
+            </li>
+          ))}
+          {notes.map((note) => (
+            <li key={note.text} className={cn("flex gap-2", note.warn ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} data-testid={note.warn ? "move-into-sheet-warning" : "move-into-sheet-note"}>
+              {note.warn ? <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> : <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden />} {note.text}
+            </li>
+          ))}
+          {others > 0 && (
+            <li className="flex gap-2 text-muted-foreground">
+              <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {others} from a linked task {others === 1 ? "stays" : "stay"} with that task.
+            </li>
+          )}
+        </ul>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={moveIn.isPending}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={blocked || moveIn.isPending}
+            onClick={() => moveIn.mutate({ sheetId: sheet.id, trackerId: sheet.trackerId }, { onSuccess: onClose })}
+            data-testid="move-into-sheet-confirm"
+          >
+            {moveIn.isPending && <Loader2 className="animate-spin" />} Move {n}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The plan in a line each: plain notes, and amber ones for what will not stay exactly as it is. */
+function movePlanNotes(plan: LineMovePlan, users: readonly User[]): Array<{ text: string; warn: boolean }> {
+  const out: Array<{ text: string; warn: boolean }> = [];
+  out.push({ text: "Each keeps its dates and stays on this task.", warn: false });
+  if (plan.newColumns.length) out.push({ text: `Adds ${plan.newColumns.length === 1 ? "a column" : "columns"}: ${plan.newColumns.join(", ")}.`, warn: false });
+  const label = { type: "type", quantity: "quantity", pic: "PIC", due: "due date" } as const;
+  for (const fill of plan.fills) {
+    const value = Array.isArray(fill.value)
+      ? fill.value.map((id) => users.find((u) => u.id === id)?.displayName ?? "someone").join(", ")
+      : fill.part === "due"
+        ? formatShortDate(String(fill.value))
+        : String(fill.value);
+    out.push({ text: `${fill.count} with no ${label[fill.part]} will read as ${value}, as the sheet's rows do.`, warn: true });
+  }
+  if (plan.renamedLinks) out.push({ text: `${plan.renamedLinks} ${plan.renamedLinks === 1 ? "link takes" : "links take"} its column's name.`, warn: true });
+  if (plan.unnamedPeople) out.push({ text: `${plan.unnamedPeople.count} ${plan.unnamedPeople.count === 1 ? "person" : "people"} can't be written into “${plan.unnamedPeople.column}” and will be dropped.`, warn: true });
+  if (plan.blockLinks.length) out.push({ text: `Links on ${plan.blockLinks.join(", ")} won't show in the sheet.`, warn: true });
+  return out;
 }
 
 function SheetSection({ item, sheet, lines, canEdit, onSettings }: { item: Item; sheet: TrackerSheet | null; lines: ItemAsset[]; canEdit: boolean; onSettings: (() => void) | null }) {

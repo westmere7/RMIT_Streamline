@@ -29,6 +29,7 @@ export * from "./item/item-asset";
 export * from "./tracker/tracker";
 export * from "./tracker/tracker-assets";
 export * from "./tracker/tracker-merge";
+export * from "./tracker/tracker-move";
 export * from "./tracker/tracker-people";
 export * from "./tracker/tracker-values";
 export * from "./doc/doc";

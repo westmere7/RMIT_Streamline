@@ -216,7 +216,15 @@ export function useSheetAssetMutations() {
     onError: fail("Could not unlink the sheet"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
-  return { link, setMapping, unlink, addColumn, bandRows, fitColumn };
+  /** The task's own lines moved into the sheet that holds its assets. */
+  const moveIn = useMutation({
+    mutationFn: ({ sheetId }: { sheetId: string; trackerId: string }) => services.trackers.moveTaskAssetsIntoSheet(sheetId, user.id),
+    onSuccess: ({ moved, kept }) =>
+      toast.success(`${moved} ${moved === 1 ? "asset" : "assets"} moved into the sheet`, { description: kept ? `${kept} changed meanwhile and stayed on the task.` : undefined }),
+    onError: fail("Could not move the assets"),
+    onSettled: (_data, _error, { trackerId }) => settle(trackerId),
+  });
+  return { link, setMapping, unlink, addColumn, bandRows, fitColumn, moveIn };
 }
 
 /** The sheet holding a task's assets, for the task's Assets tab. */

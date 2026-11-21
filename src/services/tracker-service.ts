@@ -1,10 +1,17 @@
 import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { NEW_ASSET_COLUMN, assignAssetRole, coercePeople, excelSerialToDate, fitTypeFor, readDate, readQuantity, roleMismatch, toIsoDate, type AssetPerson, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, specColumnIds, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
+import { NEW_ASSET_COLUMN, assetPeopleOf, assignAssetRole, coercePeople, newNotesColumnName, notesColumnFor, partsToWrite, planLineMove, excelSerialToDate, fitTypeFor, readDate, readQuantity, roleMismatch, toIsoDate, type AssetPerson, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
 import { assetSheet, blankSheet, emptyTemplateSheet } from "@/features/trackers/tracker-template";
 import { newId } from "@/lib/ids";
+
+/** Rows a move placed in a sheet: which line each is for, and the bands it made for blocks. */
+interface PlacedLines {
+  mapping: TrackerAssetMapping;
+  pairs: Array<{ lineId: EntityId; rowId: EntityId }>;
+  bandIds: EntityId[];
+}
 
 export interface CreateTrackerInput {
   workspaceId: EntityId;
@@ -280,28 +287,99 @@ export class TrackerService {
     if (!isMappingUsable(clean)) throw new Error("Choose the column that names each asset.");
 
     // The task's own lines, moved in as rows below what the sheet already holds.
-    const moving = options.moveAssets ? (await this.repos.itemAssets.listByItem(item.id)).filter((a) => !a.trackerSheetId).sort((a, b) => a.position - b.position) : [];
-    let placedRows: string[] = [];
+    const moving = options.moveAssets ? await this.ownLines(item) : [];
+    let placed: PlacedLines | null = null;
     if (moving.length) {
-      const placed = await this.placeLines(sheetId, clean, moving, actorId);
+      const people = await this.people();
+      const plan = planLineMove(sheet, clean, moving, people);
+      if (plan.blockers.length) throw new Error(plan.blockers[0]);
+      placed = await this.placeLines(sheetId, clean, moving, actorId, people);
       clean = placed.mapping;
-      placedRows = placed.rowIds;
     }
 
     const saved = await this.repos.trackers.updateSheet(sheetId, { itemId, assetMapping: clean });
-    const sync = await this.syncAssets(saved, actorId);
-    let moved = 0;
-    if (moving.length) {
-      // Taken off the task only once every moved row is back as a line: a part-way failure leaves them where they were.
-      const wanted = new Set(placedRows);
-      const arrived = (await this.repos.itemAssets.listBySheet(sheetId)).filter((l) => l.itemId === item.id && wanted.has(l.trackerRowId ?? "")).length;
-      if (arrived === moving.length) {
-        await this.repos.itemAssets.deleteMany(moving.map((a) => a.id));
-        await this.assets?.recompute(item.id, item.boardId);
-        moved = moving.length;
-      }
+    if (!placed) return { sheet: saved, sync: await this.syncAssets(saved, actorId), moved: 0 };
+    const done = await this.attachPlaced(sheetId, item, moving, placed, actorId);
+    return { sheet: done.sheet, sync: done.sync, moved: done.moved };
+  }
+
+  /**
+   * Moves the task's own lines into the sheet that already holds its assets:
+   * each becomes a row below what is there, and the line itself becomes that
+   * row's line, so it keeps its id, when it was added and when it was done.
+   * Refused, with nothing written, when a column cannot hold what the lines
+   * have (see planLineMove). A line changed while it moved stays on the task,
+   * and its row is taken out again.
+   */
+  async moveTaskAssetsIntoSheet(sheetId: EntityId, actorId: EntityId): Promise<{ sheet: TrackerSheet; moved: number; kept: number }> {
+    const sheet = await this.getSheet(sheetId);
+    if (!sheet.itemId) throw new Error("This sheet holds no task's assets.");
+    const item = await this.repos.items.getById(sheet.itemId);
+    if (!item) throw new NotFoundError("Item", sheet.itemId);
+    const mapping = normalizeAssetMapping(sheet.assetMapping, sheet.columns);
+    if (!isMappingUsable(mapping)) throw new Error("Choose the column that names each asset first.");
+    const lines = await this.ownLines(item);
+    if (lines.length === 0) return { sheet, moved: 0, kept: 0 };
+    const people = await this.people();
+    const plan = planLineMove(sheet, mapping, lines, people);
+    if (plan.blockers.length) throw new Error(plan.blockers[0]);
+
+    const placed = await this.placeLines(sheetId, mapping, lines, actorId, people);
+    // New columns the lines needed join the mapping before the lines are read through it.
+    if (JSON.stringify(placed.mapping) !== JSON.stringify(mapping)) await this.repos.trackers.updateSheet(sheetId, { assetMapping: placed.mapping });
+    const done = await this.attachPlaced(sheetId, item, lines, placed, actorId);
+    return { sheet: done.sheet, moved: done.moved, kept: lines.length - done.moved };
+  }
+
+  /** The task's lines of its own (not a sheet's, not a linked task's), in their order. */
+  private async ownLines(item: Item): Promise<ItemAsset[]> {
+    return (await this.repos.itemAssets.listByItem(item.id)).filter((a) => !a.trackerSheetId && a.itemId === item.id).sort((a, b) => a.position - b.position);
+  }
+
+  /** Everyone a text PIC cell may name. */
+  private async people(): Promise<AssetPerson[]> {
+    return assetPeopleOf(await this.repos.users.list());
+  }
+
+  /**
+   * Hands the placed rows their lines: the task's own, taken as they were read,
+   * so a line edited meanwhile is not overwritten by its older copy. Any line a
+   * concurrent save already gave one of these rows is a fresh duplicate and
+   * goes first. A line not taken keeps its place on the task, and its row
+   * leaves the sheet again; then the sheet is read once more into the lines.
+   */
+  private async attachPlaced(sheetId: EntityId, item: Item, lines: readonly ItemAsset[], placed: PlacedLines, actorId: EntityId): Promise<{ sheet: TrackerSheet; sync: SheetSyncResult | null; moved: number }> {
+    const rowIds = new Set(placed.pairs.map((p) => p.rowId));
+    const claimed = (await this.repos.itemAssets.listBySheet(sheetId)).filter((l) => rowIds.has(l.trackerRowId ?? ""));
+    if (claimed.length) await this.repos.itemAssets.deleteMany(claimed.map((l) => l.id));
+    const read = new Map(lines.map((l) => [l.id, l.updatedAt]));
+    const attached = new Set(await this.repos.itemAssets.attachToSheet(sheetId, placed.pairs.map((p) => ({ id: p.lineId, rowId: p.rowId, updatedAt: read.get(p.lineId)! }))));
+    const left = placed.pairs.filter((p) => !attached.has(p.lineId)).map((p) => p.rowId);
+    if (left.length) await this.removePlacedRows(sheetId, left, placed.bandIds, actorId);
+    const sheet = await this.getSheet(sheetId);
+    const sync = await this.syncAssets(sheet, actorId);
+    await this.assets?.recompute(item.id, item.boardId);
+    return { sheet, sync, moved: attached.size };
+  }
+
+  /** Takes rows a move placed out again, with any band it made that is left with nothing under it. */
+  private async removePlacedRows(sheetId: EntityId, rowIds: readonly EntityId[], bandIds: readonly EntityId[], actorId: EntityId): Promise<void> {
+    const gone = new Set(rowIds);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const sheet = await this.getSheet(sheetId);
+      const rows = sheet.rows.filter((r) => !gone.has(r.id));
+      const empty = new Set(
+        bandIds.filter((id) => {
+          const at = rows.findIndex((r) => r.id === id);
+          if (at === -1) return false;
+          const next = rows.findIndex((r, i) => i > at && r.kind !== "data");
+          return rows.slice(at + 1, next === -1 ? rows.length : next).every((r) => Object.keys(r.cells).length === 0);
+        }),
+      );
+      const result = await this.saveSheetDraft(sheetId, { rows: rows.filter((r) => !empty.has(r.id)) }, sheet.updatedAt, actorId);
+      if (!("conflict" in result)) return;
     }
-    return { sheet: saved, sync, moved };
+    throw new Error("The sheet kept changing. Some assets may show twice; take the extra rows out of the sheet.");
   }
 
   /**
@@ -313,31 +391,40 @@ export class TrackerService {
    * would join it); a block's lines go under the band of the same name, or a new
    * band at the end. Returns the mapping (with any new columns) and the new rows.
    */
-  private async placeLines(sheetId: EntityId, mapping: TrackerAssetMapping, lines: readonly ItemAsset[], actorId: EntityId): Promise<{ mapping: TrackerAssetMapping; rowIds: EntityId[] }> {
+  private async placeLines(sheetId: EntityId, mapping: TrackerAssetMapping, lines: readonly ItemAsset[], actorId: EntityId, people: readonly AssetPerson[]): Promise<PlacedLines> {
     let m = mapping;
     const types = [...new Set(lines.map((l) => l.assetType ?? "").filter(Boolean))];
-    const needs: Array<[Exclude<AssetRole, "spec" | "name">, boolean, boolean]> = [
-      ["type", lines.some((l) => l.assetType), !m.type.columnId],
-      ["quantity", lines.some((l) => l.quantity !== null), !m.quantity.columnId],
-      ["pic", lines.some((l) => l.assigneeIds.length > 0), !m.pic.columnId],
-      ["due", lines.some((l) => !!l.dueDate), !m.due.columnId],
-      ["done", lines.some((l) => !!l.completedAt), !m.done.columnId],
-      ["link", lines.some((l) => l.links.length > 0), m.links.length === 0],
+    // A part goes in a cell only where the sheet's value for every row would not give it back.
+    const writes = partsToWrite(m, lines);
+    const needs: Array<[Exclude<AssetRole, "spec" | "name" | "link">, boolean, boolean]> = [
+      ["type", writes.type, !m.type.columnId],
+      ["quantity", writes.quantity, !m.quantity.columnId],
+      ["pic", writes.pic, !m.pic.columnId],
+      ["due", writes.due, !m.due.columnId],
+      ["done", writes.done, !m.done.columnId],
     ];
     for (const [role, used, missing] of needs) {
       if (!used || !missing) continue;
       const { column } = await this.addAssetColumn(sheetId, role, actorId, role === "type" ? types : []);
       m = assignAssetRole(m, column, role);
     }
+    // As many link columns as the longest list of links needs: the nth link goes in the nth.
+    const mostLinks = Math.max(0, ...lines.map((l) => l.links.length));
+    while (m.links.length < mostLinks) {
+      const { column } = await this.addAssetColumn(sheetId, "link", actorId);
+      m = assignAssetRole(m, column, "link");
+    }
 
     for (let attempt = 0; attempt < 4; attempt++) {
       const sheet = await this.getSheet(sheetId);
       let columns = sheet.columns;
-      // Notes need a spec column too.
-      if (lines.some((l) => l.notes?.trim()) && specColumnIds(m).length === 0) {
-        const spec: TrackerColumn = { id: newId(), name: freeColumnName(columns, "Spec"), type: "text", width: 240 };
-        columns = [...columns, spec];
-        m = { ...m, spec: [spec.id] };
+      // Notes go in a spec column meant for them, else one of their own (a Format or Platform column means something else).
+      let notesId = notesColumnFor(columns, m)?.id ?? null;
+      if (lines.some((l) => l.notes?.trim()) && !notesId) {
+        const notes: TrackerColumn = { id: newId(), name: newNotesColumnName(columns, m), type: "text", width: 240 };
+        columns = [...columns, notes];
+        m = { ...m, spec: [...m.spec, notes.id] };
+        notesId = notes.id;
       }
       // A type the dropdown does not offer yet joins its options.
       const typeColumn = columns.find((c) => c.id === m.type.columnId);
@@ -347,28 +434,34 @@ export class TrackerService {
       }
       const grid = { ...sheet, columns };
 
+      const linkColumns = m.links.map((id) => columns.find((c) => c.id === id)).filter((c): c is TrackerColumn => !!c);
+      const pairs: PlacedLines["pairs"] = [];
       const rowFor = (line: ItemAsset): TrackerRow => {
         const cells: TrackerRow["cells"] = {};
         const fields: SheetLinePatch[] = [
           { name: line.name },
-          { assetType: line.assetType },
-          { quantity: line.quantity },
-          { assigneeIds: line.assigneeIds },
-          { dueDate: line.dueDate },
+          ...(writes.type ? [{ assetType: line.assetType }] : []),
+          ...(writes.quantity ? [{ quantity: line.quantity }] : []),
+          ...(writes.pic ? [{ assigneeIds: line.assigneeIds }] : []),
+          ...(writes.due ? [{ dueDate: line.dueDate }] : []),
           { completedAt: line.completedAt },
-          { links: line.links },
         ];
         for (const patch of fields) {
           const value = Object.values(patch)[0];
           if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) continue;
-          const { cells: out, refused } = sheetLineCells(grid, m, patch);
-          if (refused) continue;
+          const { cells: out, refused } = sheetLineCells(grid, m, patch, people);
+          // planLineMove refuses these before anything is written; one here means the sheet changed under the move.
+          if (refused) throw new Error(refused);
           for (const cell of out) if (cell.value !== null && cell.value !== "") cells[cell.columnId] = cell.value;
         }
-        // Notes into the (first) spec column as they read, whatever else the spec holds.
-        const specId = specColumnIds(m)[0];
-        if (line.notes?.trim() && specId) cells[specId] = line.notes.trim();
-        return { id: newId(), kind: "data", cells };
+        line.links.forEach((link, i) => {
+          const column = linkColumns[i];
+          if (column && link.url.trim()) cells[column.id] = link.url.trim();
+        });
+        if (line.notes?.trim() && notesId) cells[notesId] = line.notes.trim();
+        const row: TrackerRow = { id: newId(), kind: "data", cells };
+        pairs.push({ lineId: line.id, rowId: row.id });
+        return row;
       };
 
       // Where rows go: after the last row with anything in it, before the first band for lines in no block.
@@ -381,7 +474,7 @@ export class TrackerService {
       };
       const firstBand = rows.findIndex((r) => r.kind !== "data");
       const loose = lines.filter((l) => !l.blockName).map(rowFor);
-      const rowIds: EntityId[] = loose.map((r) => r.id);
+      const bandIds: EntityId[] = [];
       if (loose.length) {
         const end = firstBand === -1 ? rows.length : firstBand;
         rows.splice(lastFilled(0, end) + 1, 0, ...loose);
@@ -389,19 +482,22 @@ export class TrackerService {
       const blocks = [...new Set(lines.map((l) => l.blockName).filter((b): b is string => !!b))];
       for (const block of blocks) {
         const blockRows = lines.filter((l) => l.blockName === block).map(rowFor);
-        rowIds.push(...blockRows.map((r) => r.id));
         const band = rows.findIndex((r) => r.kind !== "data" && (r.label ?? "").trim().toLowerCase() === block.trim().toLowerCase());
         if (band !== -1) {
           const next = rows.findIndex((r, i) => i > band && r.kind !== "data");
           const end = next === -1 ? rows.length : next;
           rows.splice(Math.max(band, lastFilled(band + 1, end)) + 1, 0, ...blockRows);
         } else {
-          rows.splice(lastFilled(0, rows.length) + 1, 0, { id: newId(), kind: "section", label: block, cells: {} }, ...blockRows);
+          const made: TrackerRow = { id: newId(), kind: "section", label: block, cells: {} };
+          bandIds.push(made.id);
+          rows.splice(lastFilled(0, rows.length) + 1, 0, made, ...blockRows);
         }
       }
 
-      const result = await this.saveSheetDraft(sheetId, { columns, rows }, sheet.updatedAt, actorId);
-      if (!("conflict" in result)) return { mapping: normalizeAssetMapping(m, columns) ?? m, rowIds };
+      // Written without reading the rows into lines: the task's own lines become theirs next (attachPlaced),
+      // and a sync now would give each row a second, new line.
+      const saved = await this.repos.trackers.updateSheetIfCurrent(sheetId, { columns, rows }, sheet.updatedAt);
+      if (saved) return { mapping: normalizeAssetMapping(m, columns) ?? m, pairs, bandIds };
     }
     throw new Error("The sheet kept changing. Try again in a moment.");
   }

@@ -7,7 +7,7 @@ import { groupAssetBlocks } from "@/domain";
 import { AssetComposer } from "@/features/assets/asset-composer";
 import { copyOfAssetLine, useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
 import { MyAssetsStrip, MyAssetsToggle } from "@/features/items/my-assets-filter";
-import { ItemTrackerSheet, UseTrackerSheetButton } from "@/features/items/item-tracker-sheet";
+import { ItemTrackerSheet, MoveIntoSheetButton, UseTrackerSheetButton } from "@/features/items/item-tracker-sheet";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
@@ -72,8 +72,13 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         beforeList={
           <>
             <ItemTrackerSheet item={item} lines={shownSheetLines} canEdit={canEdit} filtered={onlyMine} />
-            {/* With a sheet above, the task's own lines get a name of their own. */}
-            {shownSheetLines.length > 0 && <h4 className="mb-1 px-0.5 text-2xs font-semibold tracking-wide text-muted-foreground uppercase" data-testid="own-assets-heading">Added on this task</h4>}
+            {/* With a sheet above, the task's own lines get a name of their own, and can move into it. */}
+            {(shownSheetLines.length > 0 || (canEdit && !onlyMine)) && (
+              <div className="mb-1 flex min-h-7 items-center gap-2 px-0.5 empty:hidden">
+                {shownSheetLines.length > 0 && <h4 className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase" data-testid="own-assets-heading">Added on this task</h4>}
+                {canEdit && !onlyMine && <MoveIntoSheetButton item={item} lines={rows} />}
+              </div>
+            )}
           </>
         }
         actions={
