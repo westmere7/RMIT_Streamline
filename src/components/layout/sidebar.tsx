@@ -377,7 +377,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
 
         <div className="mt-3">
           {!collapsed && <p className="label-quiet px-2.5 pt-2 pb-1">Teams</p>}
-          <ul className="space-y-1">
+          <ul className={collapsed ? "space-y-1" : "space-y-1.5"}>
             {teams.map((team) => (
               <TeamNode
                 key={team.id}
@@ -958,8 +958,11 @@ function TeamNode({
         >
           {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
         </button>
-        <Link href={routes.team(ws.slug, team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-[13px] font-medium">
-          <DynamicIcon name={team.icon} className={cn("size-3.5 shrink-0", colors.text)} />
+        <Link href={routes.team(ws.slug, team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-[13px] font-semibold">
+          {/* The icon on a faint tile of the team's colour, as the Admin team wears it: where each team starts reads at a glance. */}
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-[7px]" style={{ background: `color-mix(in oklab, ${colors.hex} 18%, transparent)` }}>
+            <DynamicIcon name={team.icon} className={cn("size-3.5", colors.text)} />
+          </span>
           <span className="truncate">{team.name}</span>
         </Link>
         {/* Tasks across the team's boards, in the team's colour; the … takes its place on hover. */}
@@ -967,7 +970,7 @@ function TeamNode({
       </div>
       </RowMenu>
       {expanded && (
-        <ul className="mt-1 ml-[17px] space-y-1 border-l border-sidebar-border/70 pl-2.5">
+        <ul className="mt-1 ml-[30px] space-y-1">
           {boards.length === 0 && trackers.length === 0 && docs.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">Nothing here yet</li>}
           {boards.map((board) => (
             <BoardLink

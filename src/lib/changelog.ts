@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.137.5",
+    date: "2026-11-21",
+    title: "Team icons on tiles",
+    changes: ["Each team in the sidebar wears its icon on a small tile of its colour, as the Admin team does, so it is clear where one team starts."],
+  },
+  {
     version: "0.137.4",
     date: "2026-11-21",
     title: "Team boxes taken out",
