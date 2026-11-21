@@ -39,7 +39,7 @@ describe("remapping the extras onto an existing Admin team and Task Allocation b
       board: {
         id: "22222222-2222-4222-8222-222222222222",
         groups: [
-          { id: "g-incoming", name: "INCOMING", position: 0 },
+          { id: "g-incoming", name: "BOOKED BY FORM", position: 0 },
           { id: "g-closed", name: "closed ", position: 2 },
         ],
         columns: seedColumns.filter((c) => c.name !== "Reference").map((c, i) => ({ id: `c-${i}`, name: c.name.toUpperCase(), type: c.type })),
@@ -61,7 +61,7 @@ describe("remapping the extras onto an existing Admin team and Task Allocation b
 
     const moved = bundle.items.filter((i) => i.boardId === existing.board.id);
     expect(moved).toHaveLength(extras.items.filter((i) => i.boardId === seedBoard.id).length);
-    const incoming = seedGroups.find((g) => g.name === "Incoming")!;
+    const incoming = seedGroups.find((g) => g.name === "Booked by Form")!;
     const allocated = seedGroups.find((g) => g.name === "Allocated")!;
     const closed = seedGroups.find((g) => g.name === "Closed")!;
     const fromGroup = (groupId: string) => extras.items.filter((i) => i.boardId === seedBoard.id && i.groupId === groupId).map((i) => i.id);

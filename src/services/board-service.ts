@@ -14,7 +14,7 @@ import type {
   EntityId,
   Item,
 } from "@/domain";
-import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, isSystemColumnType, portalBriefMarkdown } from "@/domain";
+import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, intakeGroupOf, isSystemColumnType, portalBriefMarkdown } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
 import { backfillAssetsRecap, isAssetColumn } from "./item-asset-service";
@@ -489,6 +489,10 @@ export class BoardService {
   async deleteGroup(groupId: EntityId, actorId: EntityId): Promise<void> {
     const group = await this.findGroup(groupId);
     const board = await this.getBoard(group.boardId);
+    // Bookings arrive there (the database refuses it too, migration 0132).
+    if (board.system === "TASK_ALLOCATION" && intakeGroupOf(await this.repos.boards.listGroups(board.id))?.id === group.id) {
+      throw new Error("Bookings arrive in this group, so it cannot be deleted. Rename it instead.");
+    }
     await this.repos.boards.deleteGroup(groupId);
     await this.repos.activities.create({
       workspaceId: board.workspaceId,

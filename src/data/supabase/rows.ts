@@ -354,6 +354,8 @@ export interface BoardGroupRow {
   position: number;
   collapsed: boolean;
   created_at: string;
+  /** Added by migration 0132. */
+  role?: BoardGroup["role"];
 }
 
 export function toBoardGroup(row: BoardGroupRow): BoardGroup {
@@ -365,6 +367,7 @@ export function toBoardGroup(row: BoardGroupRow): BoardGroup {
     position: row.position,
     collapsed: row.collapsed,
     createdAt: row.created_at,
+    role: row.role ?? null,
   };
 }
 

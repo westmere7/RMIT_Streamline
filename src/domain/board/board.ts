@@ -100,6 +100,28 @@ export interface BoardGroup {
   position: number;
   collapsed: boolean;
   createdAt: string;
+  /**
+   * INTAKE: where bookings arrive on Task Allocation (migration 0132). It can be
+   * renamed, recoloured and moved, never deleted, and only the app sets it.
+   */
+  role?: BoardGroupRole | null;
+}
+
+export type BoardGroupRole = "INTAKE";
+
+/** What a booking is called when it arrives, and its group's name on a new Task Allocation board. */
+export const INTAKE_GROUP_NAME = "Booked by Form";
+
+/**
+ * The group bookings arrive in: the one marked INTAKE, else (data from before
+ * 0132, the local demo) the group called "New" or "Booked by Form", else the first.
+ */
+export function intakeGroupOf<G extends Pick<BoardGroup, "name" | "position"> & { role?: BoardGroupRole | null }>(groups: readonly G[]): G | null {
+  const marked = groups.find((g) => g.role === "INTAKE");
+  if (marked) return marked;
+  const ordered = groups.slice().sort((a, b) => a.position - b.position);
+  const named = ordered.find((g) => ["new", INTAKE_GROUP_NAME.toLowerCase()].includes(g.name.trim().toLowerCase()));
+  return named ?? ordered[0] ?? null;
 }
 
 export type BoardInput = Pick<

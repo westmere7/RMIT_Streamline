@@ -18,7 +18,7 @@ import type {
   WorkspaceMember,
   WorkspaceRole,
 } from "@/domain";
-import { MAX_WORKSPACE_DESCRIPTION, defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, roundToHalfHour, suggestTicketPrefix } from "@/domain";
+import { INTAKE_GROUP_NAME, MAX_WORKSPACE_DESCRIPTION, defaultSettingsFor, generateBookingKey, generateInvitationToken, invitationStatus, isSystemColumnType, roundToHalfHour, suggestTicketPrefix } from "@/domain";
 import type { InviteResult, Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { slugify, uniqueSlug } from "@/lib/slug";
@@ -29,7 +29,7 @@ import { backfillAssetsRecap, isAssetColumn } from "./item-asset-service";
 export const SYSTEM_TEAM = { name: "Admin", description: "Task allocation and workspace administration.", color: "navy", icon: "shield-check" } as const;
 export const SYSTEM_BOARD = { name: "Task Allocation", description: "Every task booked through the form lands here until a manager places it with a team.", color: "red", icon: "inbox" } as const;
 export const SYSTEM_BOARD_GROUPS = [
-  { name: "Incoming", color: "red" },
+  { name: INTAKE_GROUP_NAME, color: "red" },
   { name: "Allocated", color: "blue" },
   { name: "Closed", color: "gray" },
 ] as const;
@@ -541,7 +541,8 @@ export class WorkspaceService {
     });
     await this.repos.boards.setMember(board.id, ownerId, "OWNER");
     for (const [index, group] of SYSTEM_BOARD_GROUPS.entries()) {
-      await this.repos.boards.createGroup({ boardId: board.id, name: group.name, color: group.color, position: index, collapsed: false });
+      // The first is where bookings arrive: built in, so it can be renamed but not deleted.
+      await this.repos.boards.createGroup({ boardId: board.id, name: group.name, color: group.color, position: index, collapsed: false, role: index === 0 ? "INTAKE" : null });
     }
     for (const [index, column] of taskAllocationColumns(teamNames).entries()) {
       await this.repos.boards.createColumn({ boardId: board.id, name: column.name, type: column.type, settings: column.settings ?? defaultSettingsFor(column.type), position: index });

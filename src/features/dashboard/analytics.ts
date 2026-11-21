@@ -440,12 +440,16 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
 
     let request: RequestFacts | null = null;
     if (isIntake || requesterName || department) {
-      const groupName = groupsById.get(item.groupId)?.name.toLowerCase() ?? "";
-      const stage: RequestStage = /closed|done|deliver|complete/.test(groupName)
+      const itemGroup = groupsById.get(item.groupId);
+      const groupName = itemGroup?.name.toLowerCase() ?? "";
+      // Task Allocation's intake group is where bookings arrive, whatever it is called now.
+      const stage: RequestStage = (itemGroup as { role?: string | null } | undefined)?.role === "INTAKE"
+        ? "incoming"
+        : /closed|done|deliver|complete/.test(groupName)
         ? "closed"
         : /allocat|progress|triaged|assigned/.test(groupName)
           ? "allocated"
-          : /incoming|new|inbox/.test(groupName)
+          : /incoming|new|inbox|booked/.test(groupName)
             ? "incoming"
             : isDone
               ? "closed"

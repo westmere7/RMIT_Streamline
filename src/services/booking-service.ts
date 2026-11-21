@@ -21,7 +21,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, intakeGroupOf, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -418,7 +418,8 @@ export class BookingService {
 
     const [columns, groups, members] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id), this.repos.workspaces.listMembers(workspaceId)]);
     const actorId = this.actorFor(members, board, memberId);
-    const group = groups.slice().sort((a, b) => a.position - b.position)[0];
+    // Task Allocation's intake group wherever it sits; a team's own board, its first group.
+    const group = board.system === "TASK_ALLOCATION" ? intakeGroupOf(groups) : groups.slice().sort((a, b) => a.position - b.position)[0];
     if (!group) throw new BookingValidationError(`${board.name} has no group to receive bookings.`);
 
     // Who asked, as a person. A member signed in and booking as themselves is

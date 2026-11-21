@@ -171,3 +171,4 @@ migrations/0128_join_needs_approval.sql
 migrations/0129_booking_form_publications_delete.sql
 migrations/0130_booking_closed_message.sql
 migrations/0131_booking_closed_heading.sql
+migrations/0132_intake_group.sql

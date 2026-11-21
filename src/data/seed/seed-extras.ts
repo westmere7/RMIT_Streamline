@@ -60,7 +60,7 @@ export interface SeedExtrasContext {
   lookups: SeedLookups;
 }
 
-type LabelGroup = "Incoming" | "Allocated" | "Closed";
+type LabelGroup = "Booked by Form" | "Allocated" | "Closed";
 
 interface BookingSpec {
   title: string;
@@ -107,7 +107,7 @@ const BOOKINGS: BookingSpec[] = [
     due: 9,
     priority: "High",
     referenceUrl: "https://example.rmit.local/briefs/pg-info-evening",
-    group: "Incoming",
+    group: "Booked by Form",
     status: "not_started",
     bookedHoursAgo: 3,
     readBy: [],
@@ -128,7 +128,7 @@ const BOOKINGS: BookingSpec[] = [
     due: 5,
     priority: "Medium",
     referenceUrl: "https://example.rmit.local/briefs/vn-scholarships-2027",
-    group: "Incoming",
+    group: "Booked by Form",
     status: "not_started",
     bookedHoursAgo: 7,
     readBy: ["emily"],
@@ -148,7 +148,7 @@ const BOOKINGS: BookingSpec[] = [
     due: 28,
     priority: "Medium",
     referenceUrl: null,
-    group: "Incoming",
+    group: "Booked by Form",
     status: "not_started",
     bookedHoursAgo: 22,
     readBy: ["danh", "emily"],
@@ -169,7 +169,7 @@ const BOOKINGS: BookingSpec[] = [
     due: 7,
     priority: "High",
     referenceUrl: "https://example.rmit.local/briefs/careers-week",
-    group: "Incoming",
+    group: "Booked by Form",
     status: "not_started",
     bookedHoursAgo: 30,
     readBy: ["danh", "joanne", "sarah"],
@@ -190,7 +190,7 @@ const BOOKINGS: BookingSpec[] = [
     due: 12,
     priority: "Low",
     referenceUrl: null,
-    group: "Incoming",
+    group: "Booked by Form",
     status: "not_started",
     bookedHoursAgo: 46,
     readBy: ["danh", "emily", "joanne", "sarah", "admin"],
@@ -497,7 +497,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
 
   const allocationGroups = new Map<LabelGroup, BoardGroup>();
   SYSTEM_BOARD_GROUPS.forEach((g, index) => {
-    const group: BoardGroup = { id: sid("extra"), boardId: allocationBoardId, name: g.name, color: g.color, position: index, collapsed: false, createdAt: iso(systemCreated) };
+    const group: BoardGroup = { id: sid("extra"), boardId: allocationBoardId, name: g.name, color: g.color, position: index, collapsed: false, createdAt: iso(systemCreated), role: index === 0 ? "INTAKE" : null };
     allocationGroups.set(g.name, group);
     boardGroups.push(group);
   });
@@ -602,7 +602,7 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
     itemAssets.push(...bookingLines);
     pushValue(item.id, allocationRecap, recapColumnValue(recapAssets(bookingLines, day(0))), booked);
 
-    activity({ boardId: allocationBoardId, itemId: item.id, actorId: users.danh, eventType: "ITEM_CREATED", metadata: { itemName: spec.title, boardName: allocationBoard.name, groupName: "Incoming" }, createdAt: iso(booked) });
+    activity({ boardId: allocationBoardId, itemId: item.id, actorId: users.danh, eventType: "ITEM_CREATED", metadata: { itemName: spec.title, boardName: allocationBoard.name, groupName: "Booked by Form" }, createdAt: iso(booked) });
 
     const where = team ? `for ${team.name}` : "to Task Allocation";
     for (const key of admins) {

@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { BoardGroup, Item } from "@/domain";
+import { intakeGroupOf } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { TABLE_LAYOUT, leadingCellStyle, leadingWidth } from "@/features/boards/board-model";
 import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
@@ -77,6 +78,8 @@ export function GroupSection({
   const overrides = useBoardUiStore((s) => s.boards[board.id]?.collapsedGroupOverrides ?? NO_OVERRIDES);
   const toggleLocally = useBoardUiStore((s) => s.toggleGroupCollapsedLocally);
   const collapsed = canEdit ? group.collapsed : overrides.includes(group.id) !== group.collapsed;
+  // Task Allocation's intake group: bookings arrive here, so it can be renamed but not deleted.
+  const intake = board.system === "TASK_ALLOCATION" && intakeGroupOf(model.groups)?.id === group.id;
   const toggleCollapsed = () => (canEdit ? void mutations.updateGroup(group.id, { collapsed: !collapsed }) : toggleLocally(board.id, group.id));
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
@@ -186,9 +189,15 @@ export function GroupSection({
                   <Copy /> Duplicate group
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-                  <Trash2 /> Delete group
-                </DropdownMenuItem>
+                {intake ? (
+                  <DropdownMenuItem disabled data-testid="group-delete-intake">
+                    <Trash2 /> Bookings arrive here
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+                    <Trash2 /> Delete group
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -210,9 +219,15 @@ export function GroupSection({
           <Copy /> Duplicate group
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
-          <Trash2 /> Delete group
-        </ContextMenuItem>
+        {intake ? (
+          <ContextMenuItem disabled>
+            <Trash2 /> Bookings arrive here
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+            <Trash2 /> Delete group
+          </ContextMenuItem>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   );

@@ -23,7 +23,7 @@ import {
 const BOARD = BOARD_COLUMNS;
 const MEMBER = "id, board_id, user_id, role";
 const FAVOURITE = "id, board_id, user_id, created_at";
-const GROUP = "id, board_id, name, color, position, collapsed, created_at";
+const GROUP = "id, board_id, name, color, position, collapsed, created_at, role";
 const COLUMN = "id, board_id, name, type, settings, position, width, hidden, hidden_in_panel, role, removed, created_at";
 
 /**
@@ -152,6 +152,8 @@ export class SupabaseBoardRepository implements BoardRepository {
       color: input.color,
       position: input.position,
       collapsed: input.collapsed,
+      // Only ever set on a new Task Allocation board's intake group (the database allows nothing else).
+      ...(input.role ? { role: input.role } : {}),
     };
     const result = await db().from("board_groups").insert(payload).select(GROUP).single();
     return toBoardGroup(unwrap<BoardGroupRow>(result, "board_groups.createGroup"));

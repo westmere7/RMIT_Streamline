@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.139.0",
+    date: "2026-11-21",
+    title: "Booked by Form",
+    changes: ["Task Allocation has a built-in group, Booked by Form, where every booking arrives wherever the group sits. It can be renamed, recoloured and moved, but not deleted."],
+  },
+  {
     version: "0.138.3",
     date: "2026-11-21",
     title: "Shorter menus",

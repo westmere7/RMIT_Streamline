@@ -107,7 +107,7 @@ describe("the demo seed", () => {
     const board = allocationBoards[0]!;
     expect(board.teamId).toBe(adminTeams[0]!.id);
     expect(board.visibility).toBe("PRIVATE"); // its own setting since v0.118.0, not the Admin team's
-    expect(seed.boardGroups.filter((g) => g.boardId === board.id).map((g) => g.name)).toEqual(["Incoming", "Allocated", "Closed"]);
+    expect(seed.boardGroups.filter((g) => g.boardId === board.id).map((g) => g.name)).toEqual(["Booked by Form", "Allocated", "Closed"]);
     expect(seed.boardColumns.filter((c) => c.boardId === board.id).sort((a, b) => a.position - b.position).map((c) => c.name)).toEqual(taskAllocationColumns([]).map((c) => c.name));
     // Only owners and admins are on the board and in the team.
     const admins = new Set(seed.workspaceMembers.filter((m) => m.status === "ACTIVE" && (m.role === "OWNER" || m.role === "ADMIN")).map((m) => m.userId));
@@ -117,7 +117,7 @@ describe("the demo seed", () => {
     // Bookings: 5 incoming, 2 allocated (each linked to a mirror on a team board), 1 closed.
     const groupsByName = new Map(seed.boardGroups.filter((g) => g.boardId === board.id).map((g) => [g.name, g.id]));
     const requests = seed.items.filter((i) => i.boardId === board.id && i.parentItemId === null);
-    expect(requests.filter((i) => i.groupId === groupsByName.get("Incoming"))).toHaveLength(5);
+    expect(requests.filter((i) => i.groupId === groupsByName.get("Booked by Form"))).toHaveLength(5);
     expect(requests.filter((i) => i.groupId === groupsByName.get("Allocated"))).toHaveLength(2);
     expect(requests.filter((i) => i.groupId === groupsByName.get("Closed"))).toHaveLength(1);
     for (const request of requests) {
