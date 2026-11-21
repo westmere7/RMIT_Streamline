@@ -284,6 +284,26 @@ export async function deleteSnapshot(_workspaceId: string, id: string): Promise<
   if (rows.length === 0) throw new HttpError(404, "That snapshot no longer exists.");
 }
 
+/** The word typed to delete every snapshot; the Snapshots page asks for the same. */
+export const CLEAR_SNAPSHOTS_WORD = "DELETE";
+
+/**
+ * Deletes every snapshot, of every workspace (they are one list), and gives the
+ * space back: the files live in the rows, so a VACUUM FULL is what returns it
+ * to the database rather than leaving it for reuse. That locks only this table,
+ * for a moment, and is best effort: the delete has happened either way.
+ */
+export async function clearSnapshots(): Promise<{ deleted: number; freedBytes: number }> {
+  const sql = db();
+  const rows = await sql<{ size_bytes: number }[]>`delete from public.workspace_snapshots returning size_bytes`;
+  try {
+    await sql.unsafe("vacuum full public.workspace_snapshots");
+  } catch (error) {
+    console.warn("[snapshots] vacuum after clearing failed:", error instanceof Error ? error.message : error);
+  }
+  return { deleted: rows.length, freedBytes: rows.reduce((sum, r) => sum + Number(r.size_bytes), 0) };
+}
+
 export interface SnapshotDocument {
   format: string;
   version: number;

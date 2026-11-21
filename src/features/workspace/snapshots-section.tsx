@@ -75,6 +75,8 @@ export function SnapshotsSection() {
   const [name, setName] = React.useState("");
   const [restoring, setRestoring] = React.useState<SnapshotSummary | null>(null);
   const [deleting, setDeleting] = React.useState<SnapshotSummary | null>(null);
+  const [clearing, setClearing] = React.useState(false);
+  const [clearTyped, setClearTyped] = React.useState("");
   const [downloading, setDownloading] = React.useState<string | null>(null);
   const fileInput = React.useRef<HTMLInputElement>(null);
 
@@ -167,6 +169,26 @@ export function SnapshotsSection() {
       </section>
 
       <section className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs" data-testid="snapshot-list">
+        {snapshots.length > 0 && (
+          // The list's own header: how many and how much, and the one action on all of them.
+          <div className="flex items-center gap-3 border-b border-border/60 bg-surface/50 px-4 py-2">
+            <p className="flex-1 text-2xs text-muted-foreground tabular" data-testid="snapshot-total">
+              {snapshots.length} snapshot{snapshots.length === 1 ? "" : "s"} · {formatBytes(snapshots.reduce((sum, s) => sum + s.sizeBytes, 0))}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                setClearTyped("");
+                setClearing(true);
+              }}
+              data-testid="snapshot-clear"
+            >
+              <Trash2 /> Delete all
+            </Button>
+          </div>
+        )}
         {list.isLoading ? (
           <div className="h-32 animate-pulse" aria-hidden />
         ) : list.error ? (
@@ -221,6 +243,35 @@ export function SnapshotsSection() {
 
       <RestoreDialog snapshot={restoring} onClose={() => setRestoring(null)} />
       <ConfirmDialog
+        open={clearing}
+        onOpenChange={setClearing}
+        title={`Delete all ${snapshots.length} snapshots?`}
+        description="They are deleted from the server for good. Download any you want to keep first."
+        confirmLabel="Delete all"
+        destructive
+        confirmDisabled={clearTyped.trim() !== CLEAR_WORD}
+        onConfirm={async () => {
+          try {
+            const { deleted, freedBytes } = await callApi<{ deleted: number; freedBytes: number }>(
+              `/api/snapshots?workspaceId=${workspaceId}&confirm=${CLEAR_WORD}`,
+              { method: "DELETE" },
+              { auth: "required" },
+            );
+            await refresh();
+            toast.success(`${deleted} snapshot${deleted === 1 ? "" : "s"} deleted`, { description: `${formatBytes(freedBytes)} freed.` });
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Could not delete the snapshots");
+          }
+        }}
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="snapshot-clear-confirm">
+            Type <span className="font-mono font-semibold">{CLEAR_WORD}</span> to confirm
+          </Label>
+          <Input id="snapshot-clear-confirm" value={clearTyped} onChange={(e) => setClearTyped(e.target.value)} autoComplete="off" spellCheck={false} className="font-mono" data-testid="snapshot-clear-confirm" />
+        </div>
+      </ConfirmDialog>
+      <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Delete “${deleting?.name ?? ""}”?`}
@@ -241,6 +292,9 @@ export function SnapshotsSection() {
     </div>
   );
 }
+
+/** The word typed to delete every snapshot; the server checks the same (CLEAR_SNAPSHOTS_WORD). */
+const CLEAR_WORD = "DELETE";
 
 /** The word typed to confirm a restore; the server checks the same (RESTORE_CONFIRM_WORD). */
 const CONFIRM_WORD = "RESTORE";

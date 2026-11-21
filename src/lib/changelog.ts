@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.138.0",
+    date: "2026-11-21",
+    title: "Delete all snapshots",
+    changes: ["Owners can delete every snapshot at once from Settings → Snapshots, typing DELETE to confirm. They are removed from the server and the space is freed."],
+  },
+  {
     version: "0.137.7",
     date: "2026-11-21",
     title: "Softer team lines",
