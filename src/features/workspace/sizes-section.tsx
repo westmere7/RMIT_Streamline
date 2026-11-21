@@ -7,11 +7,9 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import type { SizeDefinition, SizeScale, SizeSpanUnit, TShirtSize } from "@/domain";
 import {
   DEFAULT_SIZE_SCALE,
-  MAX_SIZE_EXAMPLES,
   MAX_SIZE_SCOPE,
   SIZE_SPAN_UNITS,
   SIZE_SPAN_UNIT_LABELS,
@@ -101,14 +99,6 @@ export function SizesSection() {
 function SizeRow({ size, definition, canEdit, onChange }: { size: TShirtSize; definition: SizeDefinition; canEdit: boolean; onChange: (next: Partial<SizeDefinition>) => void }) {
   const { span } = definition;
   const hours = spanHours(span);
-  const [examples, setExamples] = React.useState(definition.examples.join("\n"));
-  const joined = definition.examples.join("\n");
-  const [seenExamples, setSeenExamples] = React.useState(joined);
-  // A reset or a discard from outside rewrites the box; typing does not fight it.
-  if (seenExamples !== joined && examples.split("\n").map((l) => l.trim()).filter(Boolean).join("\n") !== joined) {
-    setSeenExamples(joined);
-    setExamples(joined);
-  }
   const number = (raw: string): number | null => {
     const n = Number(raw);
     return raw.trim() === "" || !Number.isFinite(n) || n <= 0 ? null : n;
@@ -166,25 +156,6 @@ function SizeRow({ size, definition, canEdit, onChange }: { size: TShirtSize; de
           onChange={(e) => onChange({ scope: e.target.value })}
           className="h-8"
           data-testid={`size-scope-${size}`}
-        />
-        <Textarea
-          aria-label={`${size} examples, one per line`}
-          placeholder="Typical jobs, one per line"
-          value={examples}
-          disabled={!canEdit}
-          rows={Math.min(6, Math.max(2, examples.split("\n").length))}
-          onChange={(e) => {
-            setExamples(e.target.value);
-            const list = e.target.value
-              .split("\n")
-              .map((l) => l.trim())
-              .filter(Boolean)
-              .slice(0, MAX_SIZE_EXAMPLES);
-            setSeenExamples(list.join("\n"));
-            onChange({ examples: list });
-          }}
-          className="min-h-0 resize-y text-[13px]"
-          data-testid={`size-examples-${size}`}
         />
       </div>
     </li>

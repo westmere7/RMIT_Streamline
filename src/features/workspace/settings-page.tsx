@@ -569,14 +569,17 @@ function Allowed({ value }: { value: string }) {
 
 function PermissionsSection() {
   const rows: Array<[string, string, string, string, string]> = [
-    ["View workspace boards", "✓", "✓", "✓", "Shared only"],
+    // Members: what the board's team allows (who can see, who can edit), or a seat on the board. Guests: their seat alone.
+    ["View boards", "✓", "✓", "Per team or seat", "If added"],
+    ["Edit boards", "✓", "✓", "Per team or seat", "If editor"],
     ["Create boards and teams", "✓", "✓", "✓", "—"],
+    ["Team settings, archive a team", "✓", "✓", "Own teams", "Own teams"],
     ["Delete teams", "✓", "✓", "—", "—"],
     ["Manage members and roles", "✓", "✓", "—", "—"],
-    ["Edit any board", "✓", "✓", "If editor", "If editor"],
     ["Delete boards", "✓", "✓", "Own boards", "—"],
     ["Automations on a board", "✓", "✓", "Own boards", "—"],
-    ["Allocate requests, run the portal", "✓", "✓", "—", "—"],
+    ["Allocate requests", "✓", "✓", "If added", "—"],
+    ["Run the portal and booking", "✓", "✓", "—", "—"],
     ["Edit departments (every workspace)", "✓", "✓", "—", "—"],
     ["Danger zone (this workspace)", "✓", "✓", "—", "—"],
     ["Every workspace, without being added", "✓", "—", "—", "—"],

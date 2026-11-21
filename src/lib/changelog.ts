@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.137.2",
+    date: "2026-11-21",
+    title: "Sizes and roles, tidied",
+    changes: ["Settings → Sizes keeps just each size's span and heading.", "Settings → Roles says what members and guests can do now: boards per team or seat, their own teams, and allocating when added."],
+  },
+  {
     version: "0.137.1",
     date: "2026-11-21",
     title: "Quieter team list",
