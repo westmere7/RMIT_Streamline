@@ -17,6 +17,7 @@ import { BoardHeader } from "@/features/boards/components/board-header";
 import { BoardToolbar } from "@/features/boards/components/board-toolbar";
 import { boardBarClasses, BoardViewSwitcher } from "@/features/boards/components/board-view-switcher";
 import { ArchiveItemsDialog } from "@/features/boards/components/dialogs/archive-items-dialog";
+import { MoveToBoardDialog } from "@/features/boards/components/dialogs/move-to-board-dialog";
 import { ButtonSettingsHost } from "@/features/boards/components/dialogs/button-settings-dialog";
 import { SizeAutoAdjust } from "@/features/boards/size-fit";
 import { EditLabelsDialog } from "@/features/boards/components/pickers/edit-labels-dialog";
@@ -380,6 +381,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             <ItemPanelSlot onClose={openItem} />
             <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
+            <MoveToBoardDialog />
             <ButtonSettingsHost />
             <SizeAutoAdjust />
           </BoardContextProvider>
@@ -451,6 +453,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
           </div>
           <BoardLabelDialogs column={editLabelsColumn} onClose={() => setEditLabelsColumn(null)} snapshot={snapshot.data ?? null} mutations={mutations} />
             <ArchiveItemsDialog />
+            <MoveToBoardDialog />
             <ButtonSettingsHost />
             <SizeAutoAdjust />
         </BoardContextProvider>

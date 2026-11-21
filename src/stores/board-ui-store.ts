@@ -85,6 +85,9 @@ interface BoardUiStore {
   /** Item whose panel should open the link dialog as soon as it mounts. */
   linkDialogItemId: string | null;
   setLinkDialogItem: (itemId: string | null) => void;
+  /** The task waiting on Move to another board (one dialog per board, opened from any of its menus). */
+  moveRequestItemId: string | null;
+  setMoveRequest: (itemId: string | null) => void;
   /**
    * Items waiting on the archive confirmation.
    *
@@ -146,6 +149,8 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   setBoardLoading: (boardLoading) => set({ boardLoading }),
   linkDialogItemId: null,
   setLinkDialogItem: (linkDialogItemId) => set({ linkDialogItemId }),
+  moveRequestItemId: null,
+  setMoveRequest: (moveRequestItemId) => set({ moveRequestItemId }),
   archiveRequestIds: null,
   setArchiveRequest: (archiveRequestIds) => set({ archiveRequestIds }),
   setSearch: (boardId, search) => set((s) => update(s, boardId, { search })),

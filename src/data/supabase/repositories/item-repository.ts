@@ -263,6 +263,16 @@ export class SupabaseItemRepository implements ItemRepository {
     const subitems = await db().from("items").select("id").eq("parent_item_id", itemId);
     const moving = [itemId, ...unwrapList<{ id: string }>(subitems, "items.moveToBoard.subitems").map((row) => row.id)];
 
+    // The task row first. Its update policy checks the right to edit the board
+    // it leaves and the board it lands on, so a move that is not allowed stops
+    // here, before any value has been deleted.
+    const result = await db().from("items").update({ board_id: input.boardId, group_id: input.groupId, position: input.position }).eq("id", itemId).select(ITEM).single();
+    const movedItem = toItem(unwrap<ItemRow>(result, "items.moveToBoard"));
+    const subitemIds = moving.slice(1);
+    for (const part of chunk(subitemIds)) {
+      if (part.length) assertOk(await db().from("items").update({ board_id: input.boardId, group_id: input.groupId }).in("id", part), "items.moveToBoard.subitems");
+    }
+
     // Values keyed by a column of the board being left. Read the destination's
     // columns and delete every value whose column is not among them, rather
     // than deleting all of them: a board may legitimately share a column id
@@ -294,12 +304,7 @@ export class SupabaseItemRepository implements ItemRepository {
       assertOk(await db().from("item_column_values").update({ board_id: input.boardId }).in("item_id", part), "items.moveToBoard.values.board");
     }
 
-    const subitemIds = moving.slice(1);
-    for (const part of chunk(subitemIds)) {
-      if (part.length) assertOk(await db().from("items").update({ board_id: input.boardId, group_id: input.groupId }).in("id", part), "items.moveToBoard.subitems");
-    }
-    const result = await db().from("items").update({ board_id: input.boardId, group_id: input.groupId, position: input.position }).eq("id", itemId).select(ITEM).single();
-    return toItem(unwrap<ItemRow>(result, "items.moveToBoard"));
+    return movedItem;
   }
 
   /** Subitems, values, comments and links cascade from the item rows. */

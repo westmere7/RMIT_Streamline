@@ -8,6 +8,7 @@ import { BookingService, type BookingTransport } from "./booking-service";
 import { BugReportService, type BugReportTransport } from "./bug-report-service";
 import { CommentService } from "./comment-service";
 import { DashboardService, type PublicDashboardTransport } from "./dashboard-service";
+import { ItemMoveService } from "./item-move-service";
 import { ItemAssetService } from "./item-asset-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
@@ -45,6 +46,7 @@ export interface Services {
   items: ItemService;
   links: ItemLinkService;
   assets: ItemAssetService;
+  itemMoves: ItemMoveService;
   comments: CommentService;
   messages: MessageService;
   profiles: ProfileService;
@@ -119,6 +121,8 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     links,
     assets,
     booking,
+    /** Moving a task to another board, columns mapped and losses reported first. */
+    itemMoves: new ItemMoveService(repos, assets),
     bugReports: new BugReportService(repos, boards, items, notifications, tickets, options.bugReportTransport ?? null),
     tickets,
     comments,

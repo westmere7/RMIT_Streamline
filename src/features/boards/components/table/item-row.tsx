@@ -48,6 +48,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const selectRange = useBoardUiStore((s) => s.selectRange);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
+  const setMoveRequest = useBoardUiStore((s) => s.setMoveRequest);
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [renaming, setRenaming] = React.useState(false);
   const [nameRef, nameClipped] = useClipped<HTMLButtonElement>(item.name, renaming);
@@ -169,6 +170,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               onSelect: () => void mutations.moveItemsToGroup([item.id], g.id),
             })),
         },
+        // To another board: not off a built-in board (Task Allocation allocates instead).
+        ...(board.system ? [] : [{ type: "item", label: "Move to board…", icon: <ArrowRightLeft />, onSelect: () => setMoveRequest(item.id), testId: "item-move-board" } satisfies MenuAction]),
         ...extras.columns,
         { type: "separator" },
         { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },

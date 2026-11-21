@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.140.0",
+    date: "2026-11-21",
+    title: "Move a task to another board",
+    changes: ["A task's menu has Move to board…: pick a board you can edit and a group, see which columns come across and which values would be left behind, then move it with its subitems, updates, deliverables and links."],
+  },
+  {
     version: "0.139.4",
     date: "2026-11-21",
     title: "No empty Move to group",
