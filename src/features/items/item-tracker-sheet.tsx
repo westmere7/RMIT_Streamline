@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { queryKeys } from "@/lib/query/keys";
 import { assetPeopleOf, normalizeAssetMapping, planLineMove, sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAssetPatch, type LineMovePlan, type SheetLineField, type TrackerSheet, type User } from "@/domain";
 import { useServices } from "@/features/data/data-context";
@@ -609,6 +610,13 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
     enabled: open,
     staleTime: 5_000,
   });
+  // The task's own team's trackers by default; off, every tracker in the workspace. A task on a board with no team has nothing to narrow to.
+  const teamId = ws.boardById(item.boardId)?.teamId ?? null;
+  const teamName = teamId ? (ws.teams.find((t) => t.id === teamId)?.name ?? null) : null;
+  const [teamOnly, setTeamOnly] = React.useState(true);
+  const narrowed = !!teamId && teamOnly;
+  const free = (data.data?.free ?? []).filter(({ tracker }) => !narrowed || tracker.teamId === teamId);
+  const emptyText = narrowed && (data.data?.free ?? []).length > 0 ? `No free sheets in ${teamName ?? "this team"}'s trackers.` : data.data?.any ? "Every sheet already holds a task's assets." : "No trackers in this workspace yet.";
   return (
     <Dialog
       open={open}
@@ -622,18 +630,26 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
           <DialogTitle>Use a tracker sheet</DialogTitle>
           <DialogDescription>The sheet&rsquo;s rows become this task&rsquo;s assets. A sheet holds one task&rsquo;s assets at a time.</DialogDescription>
         </DialogHeader>
+        {teamId && (
+          <label className="flex items-center justify-between gap-3 text-[13px]" data-testid="pick-sheet-team-only">
+            <span>
+              Team trackers only{teamName && <span className="text-muted-foreground"> · {teamName}</span>}
+            </span>
+            <Switch checked={teamOnly} onCheckedChange={setTeamOnly} aria-label="Team trackers only" data-testid="pick-sheet-team-only-switch" />
+          </label>
+        )}
         {data.isLoading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
-        ) : (data.data?.free ?? []).length === 0 ? (
+        ) : free.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-4" data-testid="pick-sheet-none">
-            <p className="text-center text-[13px] text-muted-foreground">{data.data?.any ? "Every sheet already holds a task's assets." : "No trackers in this workspace yet."}</p>
+            <p className="text-center text-[13px] text-muted-foreground">{emptyText}</p>
             <div className="flex w-full justify-center">{newButton}</div>
           </div>
         ) : (
           <ul className="max-h-[50dvh] space-y-3 overflow-y-auto">
-            {(data.data?.free ?? []).map(({ tracker, sheets }) => (
+            {free.map(({ tracker, sheets }) => (
               <li key={tracker.id}>
                 <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                   <FileSpreadsheet className="size-3.5" aria-hidden /> {tracker.name}
@@ -661,7 +677,7 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
             ))}
           </ul>
         )}
-        {(data.data?.free ?? []).length > 0 && newButton}
+        {free.length > 0 && newButton}
       </DialogContent>
     </Dialog>
   );

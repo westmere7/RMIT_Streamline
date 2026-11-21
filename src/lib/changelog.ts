@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.2",
+    date: "2026-11-21",
+    title: "Team trackers first",
+    changes: ["Use a tracker sheet has a Team trackers only switch, on by default: it lists the trackers of the task's own team. Switch it off to see every tracker."],
+  },
+  {
     version: "0.136.1",
     date: "2026-11-21",
     title: "Profiles update live",
