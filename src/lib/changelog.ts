@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.139.2",
+    date: "2026-11-21",
+    title: "Booked by Form frame, whole",
+    changes: ["The frame round Booked by Form no longer loses its top edge at the top of the board."],
+  },
+  {
     version: "0.139.1",
     date: "2026-11-21",
     title: "Booked by Form, framed",

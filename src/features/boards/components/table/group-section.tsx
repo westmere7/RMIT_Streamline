@@ -239,7 +239,8 @@ export function GroupSection({
       ref={setNodeRef}
       aria-label={`Group ${group.name}`}
       // The intake group sits in a frame of its own colour, header and rows: where bookings arrive.
-      className={cn("mb-7", intake && "rounded-2xl border border-[color-mix(in_oklab,var(--intake)_35%,transparent)] px-2 pb-2", intake && INTAKE_FILL, isDragging && "opacity-50")}
+      // mt-2: as the first group it would start on the scroll area's top edge, which cuts off the frame's top.
+      className={cn("mb-7", intake && "mt-2 rounded-2xl border border-[color-mix(in_oklab,var(--intake)_35%,transparent)] px-2 pb-2", intake && INTAKE_FILL, isDragging && "opacity-50")}
       style={{ transform: CSS.Transform.toString(transform), transition, ...(intake ? ({ "--intake": colors.hex } as React.CSSProperties) : {}) }}
       data-testid={`group-${group.name}`}
       data-intake={intake || undefined}
