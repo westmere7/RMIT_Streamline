@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.4",
+    date: "2026-11-21",
+    title: "A handier person card",
+    changes: ["The card that opens over someone's face has a close button, their name opens their profile, each team opens its page, and Message starts a conversation with them."],
+  },
+  {
     version: "0.136.3",
     date: "2026-11-21",
     title: "The task's PIC and due, one click",

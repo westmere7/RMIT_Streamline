@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, Clock, Mail, Users } from "lucide-react";
+import { Building2, Clock, Mail, MessageSquare, Users, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -37,14 +37,15 @@ export function PersonCard({ userId, children }: { userId: string; children: Rea
       {/* The card is portalled, but React still bubbles its clicks to the trigger's
           parents: a cell would open its picker from a click on "View profile". */}
       <HoverCardContent className="w-72 p-0" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-        {open && <PersonCardBody user={user} />}
+        {open && <PersonCardBody user={user} onClose={() => setOpen(false)} />}
       </HoverCardContent>
     </HoverCard>
   );
 }
 
-function PersonCardBody({ user }: { user: User }) {
+function PersonCardBody({ user, onClose }: { user: User; onClose: () => void }) {
   const ws = useWorkspace();
+  const isSelf = ws.currentUser.id === user.id;
   const member = ws.members.find((m) => m.userId === user.id);
   const status = user.deactivatedAt || member?.status === "DEACTIVATED" ? "Deactivated" : member?.status === "INVITED" ? "Pending onboarding" : null;
   const teams = ws.teamMembers
@@ -56,12 +57,12 @@ function PersonCardBody({ user }: { user: User }) {
 
   return (
     <div data-testid="person-card">
-      <div className="flex items-center gap-3 p-3">
+      <div className="relative flex items-center gap-3 p-3 pr-9">
         <UserAvatar user={user} size="xl" tooltip={false} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold" data-testid="person-card-name">
+          <Link href={routes.person(ws.slug, user.id)} onClick={onClose} className="block truncate text-sm font-semibold hover:underline" data-testid="person-card-name">
             {user.displayName}
-          </p>
+          </Link>
           {user.jobTitle && <p className="truncate text-xs text-muted-foreground">{user.jobTitle}</p>}
           {status && (
             <Badge variant={status === "Deactivated" ? "outline" : "warning"} className="mt-1" data-testid="person-card-status">
@@ -69,6 +70,9 @@ function PersonCardBody({ user }: { user: User }) {
             </Badge>
           )}
         </div>
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground" data-testid="person-card-close">
+          <X className="size-3.5" />
+        </button>
       </div>
       <dl className="space-y-1.5 border-t border-border/60 px-3 py-2.5 text-xs text-muted-foreground">
         <Row icon={Mail} label="Email">
@@ -77,17 +81,33 @@ function PersonCardBody({ user }: { user: User }) {
           </a>
         </Row>
         {user.stakeholderGroup && <Row icon={Building2} label="Department">{user.stakeholderGroup}</Row>}
-        {teams.length > 0 && <Row icon={Users} label="Teams">{teams.map((t) => t.name).join(", ")}</Row>}
+        {teams.length > 0 && (
+          <Row icon={Users} label="Teams">
+            {teams.map((t, i) => (
+              <React.Fragment key={t.id}>
+                {i > 0 && ", "}
+                <Link href={routes.team(ws.slug, t.id)} onClick={onClose} className="hover:text-foreground hover:underline" data-testid="person-card-team">
+                  {t.name}
+                </Link>
+              </React.Fragment>
+            ))}
+          </Row>
+        )}
         {time && (
           <Row icon={Clock} label="Local time">
             {time} local time
           </Row>
         )}
       </dl>
-      <div className="border-t border-border/60 p-1.5">
-        <Link href={routes.person(ws.slug, user.id)} className="block rounded-md px-1.5 py-1 text-xs font-medium transition-colors hover:bg-accent/70">
+      <div className="flex items-center gap-1 border-t border-border/60 p-1.5">
+        <Link href={routes.person(ws.slug, user.id)} onClick={onClose} className="flex-1 rounded-md px-1.5 py-1 text-xs font-medium transition-colors hover:bg-accent/70" data-testid="person-card-profile">
           View profile
         </Link>
+        {!isSelf && (
+          <Link href={routes.messages(ws.slug, user.id)} onClick={onClose} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-accent/70" data-testid="person-card-message">
+            <MessageSquare className="size-3.5" aria-hidden /> Message
+          </Link>
+        )}
       </div>
     </div>
   );
