@@ -970,7 +970,8 @@ function TeamNode({
       </div>
       </RowMenu>
       {expanded && (
-        <ul className="mt-1 ml-[30px] space-y-1">
+        // A thin line in the team's colour runs down from its tile, so the open list visibly belongs to it.
+        <ul className="mt-1 ml-[39px] space-y-1 border-l pl-2" style={{ borderColor: `color-mix(in oklab, ${colors.hex} 55%, transparent)` }}>
           {boards.length === 0 && trackers.length === 0 && docs.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">Nothing here yet</li>}
           {boards.map((board) => (
             <BoardLink

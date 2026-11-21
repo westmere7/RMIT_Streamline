@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.137.6",
+    date: "2026-11-21",
+    title: "Team colour down open lists",
+    changes: ["An open team's list in the sidebar has a thin line in the team's colour, running down from its icon."],
+  },
+  {
     version: "0.137.5",
     date: "2026-11-21",
     title: "Team icons on tiles",
