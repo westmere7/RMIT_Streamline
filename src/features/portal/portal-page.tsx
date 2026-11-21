@@ -3,14 +3,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { useVisitorScale } from "@/components/shared/view-controls";
-import { Lock } from "lucide-react";
+import { ClipboardX, Lock } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BoardViewKind, PortalGate } from "@/domain";
-import { DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
+import { DEFAULT_BOOKING_CLOSED_MESSAGE, DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -154,6 +155,18 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     );
   }
 
+  // The booking link of a form that takes no requests, or of a portal that is closed: the team's
+  // message, not the form (which would only refuse on Book) and not a password prompt first.
+  if (startOnBooking && gate.data && !gate.data.bookingOpen && (gate.data.open || gate.data.refusal === "off")) {
+    return (
+      <PortalThemeScope token={token} {...themeFor(gate.data, true)}>
+        <PortalShell>
+          <BookingClosed message={gate.data.bookingClosedMessage} teamName={gate.data.creativeTeamName} portalHref={gate.data.open ? `/portal/${encodeURIComponent(token)}` : null} />
+        </PortalShell>
+      </PortalThemeScope>
+    );
+  }
+
   if (gate.isError || !gate.data?.open) {
     return (
       <PortalShell>
@@ -288,6 +301,29 @@ function themeFor(gate: PortalGate, booking: boolean) {
   return booking
     ? { surface: "booking" as const, preferred: gate.bookingTheme, allowSwitch: gate.bookingThemeSwitch }
     : { surface: "board" as const, preferred: gate.defaultTheme, allowSwitch: gate.themeSwitch };
+}
+
+/** The booking link while it takes no requests: the team's words, and the way to the portal when that is open. */
+function BookingClosed({ message, teamName, portalHref }: { message: string | null; teamName: string; portalHref: string | null }) {
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-col items-center px-4 py-20 text-center" data-testid="booking-closed">
+      <span className="mb-4 flex size-12 items-center justify-center rounded-full bg-surface-strong/70 text-muted-foreground">
+        <ClipboardX className="size-5" aria-hidden />
+      </span>
+      {teamName && <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{teamName}</p>}
+      <h1 className="mt-1 text-lg font-semibold tracking-tight">Not taking requests right now</h1>
+      <p className="mt-1.5 text-[13px] whitespace-pre-line text-muted-foreground" data-testid="booking-closed-message">
+        {message?.trim() || DEFAULT_BOOKING_CLOSED_MESSAGE}
+      </p>
+      {portalHref && (
+        <Button variant="outline" className="mt-5" asChild>
+          <Link href={portalHref} data-testid="booking-closed-portal">
+            See requests in the portal
+          </Link>
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** Everything that is not "this link opens". Deliberately one message. */

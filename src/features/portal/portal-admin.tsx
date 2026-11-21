@@ -22,8 +22,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DEFAULT_BOOKING_CLOSED_MESSAGE,
   DEFAULT_BOOKING_HEADLINE,
   DEFAULT_BOOKING_LEAD,
+  MAX_BOOKING_CLOSED_MESSAGE,
   MAX_BOOKING_HEADLINE,
   BOOKING_SCALE_MAX,
   BOOKING_SCALE_MIN,
@@ -231,6 +233,7 @@ function bookingSettingsRows(portal: StakeholderPortal): Array<{ label: string; 
     { label: "Left panel words", value: portal.bookingHeadline?.trim() || portal.bookingLead?.trim() ? "Your own" : "Built in" },
     { label: "Size", value: `${portal.bookingScale ?? 100}%${(portal.bookingScaleSwitch ?? true) ? ", visitors can change" : ""}` },
     { label: "Staff sign-in", value: portal.bookingSignIn ? "Offered" : "Not offered" },
+    { label: "When closed", value: portal.bookingClosedMessage?.trim() ? "Your own message" : "Built in" },
   ];
 }
 
@@ -540,6 +543,7 @@ function StakeholderList({ rows, counts }: { rows: DepartmentOverview[]; counts:
 type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale" | "bookingScaleSwitch">> & {
   bookingHeadline: string;
   bookingLead: string;
+  bookingClosedMessage: string;
   teamName: string;
   /** Every column on offer, in order, shown or not. */
   columnLayout: PortalColumnEntry[];
@@ -548,7 +552,7 @@ type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | 
 /** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
 const PANEL_FIELDS = {
   portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "columnLayout", "showRecap", "showItemGroups"],
-  booking: ["bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch"],
+  booking: ["bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch", "bookingClosedMessage"],
 } as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
 
 function draftOf(portal: StakeholderPortal, teamName: string, columns: readonly PortalColumnCandidate[]): Draft {
@@ -568,6 +572,7 @@ function draftOf(portal: StakeholderPortal, teamName: string, columns: readonly 
     bookingScaleSwitch: portal.bookingScaleSwitch ?? true,
     bookingHeadline: portal.bookingHeadline ?? "",
     bookingLead: portal.bookingLead ?? "",
+    bookingClosedMessage: portal.bookingClosedMessage ?? "",
     teamName,
   };
 }
@@ -865,6 +870,18 @@ function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
       <Toggle label="Offers staff sign-in" checked={draft.bookingSignIn} onChange={(value) => set("bookingSignIn", value)} testId="portal-booking-sign-in" />
       <ScaleField value={draft.bookingScale} onChange={(value) => set("bookingScale", value)} />
       <Toggle label="Visitors can change size" checked={draft.bookingScaleSwitch} onChange={(value) => set("bookingScaleSwitch", value)} testId="portal-booking-scale-switch" />
+      <Field label="When not taking requests">
+        <Textarea
+          value={draft.bookingClosedMessage}
+          onChange={(e) => set("bookingClosedMessage", e.target.value)}
+          maxLength={MAX_BOOKING_CLOSED_MESSAGE}
+          placeholder={DEFAULT_BOOKING_CLOSED_MESSAGE}
+          aria-label="Message when not taking requests"
+          rows={3}
+          className="min-h-0 resize-none"
+          data-testid="portal-booking-closed-message"
+        />
+      </Field>
     </>
   );
 }

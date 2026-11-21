@@ -186,6 +186,33 @@ describe("the stakeholder portal", () => {
     expect(nonsense.portalName).toBe("");
   });
 
+  it("tells the booking link whether it takes requests, with the team's own words when it does not", async () => {
+    const { portal } = await twoDepartments();
+    expect(await services.portals.gate(portal.token)).toMatchObject({ open: true, bookingOpen: true, bookingClosedMessage: null });
+
+    await services.portals.setPresentation(WS, { allowBooking: false });
+    expect(await services.portals.gate(portal.token)).toMatchObject({ open: true, bookingOpen: false, bookingClosedMessage: null });
+
+    // Stored trimmed; blank is the built-in words; too long is cut to the limit.
+    await services.portals.setPresentation(WS, { bookingClosedMessage: "  Back on 6 January.\nUrgent? Call ext 1234.  " });
+    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toBe("Back on 6 January.\nUrgent? Call ext 1234.");
+    await services.portals.setPresentation(WS, { bookingClosedMessage: "x".repeat(500) });
+    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toHaveLength(400);
+    await services.portals.setPresentation(WS, { bookingClosedMessage: "   " });
+    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toBeNull();
+  });
+
+  it("a closed portal's booking link still carries the message, and nothing else about the workspace", async () => {
+    const { portal } = await twoDepartments();
+    await services.portals.setPresentation(WS, { bookingClosedMessage: "Closed over the break.", bookingTheme: "dark" });
+    await services.portals.setEnabled(WS, false);
+
+    const closed = await services.portals.gate(portal.token);
+    expect(closed).toMatchObject({ open: false, refusal: "off", bookingOpen: false, bookingClosedMessage: "Closed over the break.", bookingTheme: "dark", portalName: "", creativeTeamName: "" });
+    // A token that names nothing gets no message.
+    expect(await services.portals.gate("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")).toMatchObject({ open: false, bookingClosedMessage: null });
+  });
+
   it("asks for the password on every call, not just the landing page", async () => {
     const { portal } = await twoDepartments();
     await services.portals.setPassword(WS, "let me in");

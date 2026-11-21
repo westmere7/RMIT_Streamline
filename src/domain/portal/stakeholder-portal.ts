@@ -124,6 +124,8 @@ export interface StakeholderPortal extends Timestamps {
   bookingScale: number;
   /** Whether a visitor may change the booking form's size for themselves. */
   bookingScaleSwitch: boolean;
+  /** What the booking link says while it takes no requests. Null uses the built-in words. */
+  bookingClosedMessage: string | null;
 }
 
 /** How far the booking form can be drawn smaller or larger, and in what steps. */
@@ -155,6 +157,10 @@ export const DEFAULT_BOOKING_HEADLINE = "Book a task with the creative team.";
 export const DEFAULT_BOOKING_LEAD = "Tell Vietnam marketing what you need and by when. You get a ticket straight away, and can follow the work as it moves.";
 export const MAX_BOOKING_HEADLINE = 80;
 export const MAX_BOOKING_LEAD = 240;
+
+/** What the booking link says while it takes no requests, when the team has not written its own. */
+export const DEFAULT_BOOKING_CLOSED_MESSAGE = "We're not taking new requests at the moment. If it can't wait, contact the creative team directly.";
+export const MAX_BOOKING_CLOSED_MESSAGE = 400;
 
 /**
  * The columns the portal's board can carry.
@@ -256,6 +262,7 @@ export type PortalPresentation = Partial<
     | "bookingSignIn"
     | "bookingScale"
     | "bookingScaleSwitch"
+    | "bookingClosedMessage"
   >
 >;
 
@@ -376,6 +383,13 @@ export interface PortalGate {
   bookingSignIn: boolean;
   bookingScale: number;
   bookingScaleSwitch: boolean;
+  /**
+   * Whether the booking link takes requests: the portal open and booking on.
+   * Said before any password, so a closed form never asks for one first.
+   */
+  bookingOpen: boolean;
+  /** The team's words for a closed booking link; null where the built-in ones stand. */
+  bookingClosedMessage: string | null;
   /** Rises whenever the link or password changes; a grant issued under an older one is dead. */
   credentialVersion: number;
 }

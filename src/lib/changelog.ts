@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.135.0",
+    date: "2026-11-21",
+    title: "A message when booking is closed",
+    changes: ["When the booking form isn't taking requests, or the portal is closed, the booking link now says so instead of showing a form that can't be sent. Write your own message in the booking form's settings on Portal and Booking, under When not taking requests."],
+  },
+  {
     version: "0.134.1",
     date: "2026-11-21",
     title: "The guide catches up",

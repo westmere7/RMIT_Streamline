@@ -45,6 +45,7 @@ import {
   clampBookingScale,
   isPortalView,
   MAX_BOOKING_HEADLINE,
+  MAX_BOOKING_CLOSED_MESSAGE,
   MAX_BOOKING_LEAD,
   MAX_PORTAL_DESCRIPTION,
   MAX_PUBLIC_BRIEF,
@@ -576,6 +577,7 @@ export class StakeholderPortalService {
     // Blank means "use the built-in words", which is stored as nothing.
     if (patch.bookingHeadline !== undefined) cleaned.bookingHeadline = patch.bookingHeadline?.trim().slice(0, MAX_BOOKING_HEADLINE) || null;
     if (patch.bookingLead !== undefined) cleaned.bookingLead = patch.bookingLead?.trim().slice(0, MAX_BOOKING_LEAD) || null;
+    if (patch.bookingClosedMessage !== undefined) cleaned.bookingClosedMessage = patch.bookingClosedMessage?.trim().slice(0, MAX_BOOKING_CLOSED_MESSAGE) || null;
     if (patch.bookingScale !== undefined) cleaned.bookingScale = clampBookingScale(patch.bookingScale);
     if (Object.keys(cleaned).length === 0) return portal;
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
@@ -635,6 +637,8 @@ export class StakeholderPortalService {
       bookingSignIn: true,
       bookingScale: 100,
       bookingScaleSwitch: true,
+      bookingOpen: false,
+      bookingClosedMessage: null,
       credentialVersion: 0,
     };
     const portal = isPlausiblePortalToken(token) ? await this.repos.stakeholderPortals.getPortalByToken(token) : null;
@@ -644,7 +648,9 @@ export class StakeholderPortalService {
     // typo: the difference is whether the holder asks for the new link or
     // checks whether they copied the old one properly.
     if (portal.departmentId !== null) return { ...closed, refusal: "revoked" };
-    if (!portal.enabled) return { ...closed, refusal: "off" };
+    // A closed portal closes its booking link too. That link still says so in the team's own words
+    // (and its own theme), so somebody sent it is not left with a bare "this does not open".
+    if (!portal.enabled) return { ...closed, refusal: "off", bookingTheme: portal.bookingTheme, bookingThemeSwitch: portal.bookingThemeSwitch, bookingClosedMessage: portal.bookingClosedMessage ?? null };
     const workspace = await this.repos.workspaces.getById(portal.workspaceId);
     const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
     return {
@@ -663,6 +669,8 @@ export class StakeholderPortalService {
       bookingSignIn: portal.bookingSignIn,
       bookingScale: portal.bookingScale ?? 100,
       bookingScaleSwitch: portal.bookingScaleSwitch ?? true,
+      bookingOpen: portal.allowBooking,
+      bookingClosedMessage: portal.bookingClosedMessage ?? null,
       credentialVersion: portal.credentialVersion,
     };
   }
