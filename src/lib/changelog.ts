@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.139.1",
+    date: "2026-11-21",
+    title: "Booked by Form, framed",
+    changes: ["On Task Allocation, Booked by Form sits in a frame of its own colour, with a ? beside its name that says what it is and why not every booking lands there."],
+  },
+  {
     version: "0.139.0",
     date: "2026-11-21",
     title: "Booked by Form",

@@ -3,12 +3,13 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, ChevronRight, Copy, GripVertical, MoreHorizontal, Palette, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, Copy, GripVertical, MoreHorizontal, Palette, Pencil, Trash2 } from "lucide-react";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "@/components/ui/context-menu";
 import {
   DropdownMenu,
@@ -120,7 +121,7 @@ export function GroupSection({
       <ContextMenuTrigger asChild disabled={!canEdit}>
         {/* Opaque: this is pinned to the left, so the row scrolls underneath it. */}
         <div
-          className={cn("group/group sticky left-0 z-[5] flex h-11 items-center gap-1 bg-background pr-4", collapsed ? "h-full rounded-l-xl border-r border-border/60" : "w-fit")}
+          className={cn("group/group sticky left-0 z-[5] flex h-11 items-center gap-1 pr-4", intake ? INTAKE_FILL : "bg-background", collapsed ? "h-full rounded-l-xl border-r border-border/60" : "w-fit")}
           style={collapsed ? leadingCellStyle(showTicket, layout) : { minWidth: leadingWidth(showTicket, layout) }}
         >
           <div className="flex w-9 items-center justify-center">
@@ -161,6 +162,7 @@ export function GroupSection({
               inputClassName="h-8 w-72 text-[15px] font-semibold"
             />
           </h2>
+          {intake && <IntakeHelp />}
           <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
           {canEdit && (
             <DropdownMenu>
@@ -235,10 +237,12 @@ export function GroupSection({
   return (
     <section
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
       aria-label={`Group ${group.name}`}
-      className={cn("mb-7", isDragging && "opacity-50")}
+      // The intake group sits in a frame of its own colour, header and rows: where bookings arrive.
+      className={cn("mb-7", intake && "rounded-2xl border border-[color-mix(in_oklab,var(--intake)_35%,transparent)] px-2 pb-2", intake && INTAKE_FILL, isDragging && "opacity-50")}
+      style={{ transform: CSS.Transform.toString(transform), transition, ...(intake ? ({ "--intake": colors.hex } as React.CSSProperties) : {}) }}
       data-testid={`group-${group.name}`}
+      data-intake={intake || undefined}
     >
       {/* An open group's title pins to the top of the board while its rows
           scroll past, and the column headers pin under it (top-11). The band
@@ -247,7 +251,7 @@ export function GroupSection({
       {collapsed && items.length > 0 ? (
         <GroupSummaryRow leading={header} items={items} widthOverrides={widthOverrides} />
       ) : (
-        <div className="sticky top-0 z-[8] bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))]">{header}</div>
+        <div className={cn("sticky top-0 z-[8]", intake ? cn(INTAKE_FILL, "rounded-t-2xl") : "bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))]")}>{header}</div>
       )}
 
       {!collapsed && (
@@ -294,6 +298,27 @@ export function GroupSection({
         onConfirm={() => mutations.deleteGroup(group.id).then(() => undefined)}
       />
     </section>
+  );
+}
+
+/** The intake frame's fill: opaque, so rows scrolling under the pinned header do not show through. */
+const INTAKE_FILL = "bg-[color-mix(in_oklab,var(--intake)_6%,var(--color-background))]";
+
+/** The "?" beside Task Allocation's intake group: what it is, and why not every booking is in it. */
+function IntakeHelp() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button type="button" aria-label="About this group" className="ml-0.5 flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground" data-testid="intake-help">
+          <CircleHelp className="size-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-72 space-y-1.5 text-[13px]" data-testid="intake-help-text">
+        <p className="font-medium">Bookings from the form arrive here</p>
+        <p className="text-muted-foreground">Not every booking does: a service set to go straight to a team&rsquo;s board is allocated automatically and skips this group.</p>
+        <p className="text-muted-foreground">You can rename or move it, but not delete it.</p>
+      </PopoverContent>
+    </Popover>
   );
 }
 
