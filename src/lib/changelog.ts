@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.139.4",
+    date: "2026-11-21",
+    title: "No empty Move to group",
+    changes: ["On a board with one group, a task's Move to group is greyed out instead of opening an empty list."],
+  },
+  {
     version: "0.139.3",
     date: "2026-11-21",
     title: "Simpler words for Booked by Form",

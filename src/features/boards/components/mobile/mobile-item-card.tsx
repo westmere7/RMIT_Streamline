@@ -388,6 +388,7 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
             {
               type: "sub",
               label: "Move to group",
+              disabled: !model.groups.some((g) => g.id !== group.id),
               items: model.groups.filter((g) => g.id !== group.id).map((g) => ({ type: "item" as const, label: g.name, onSelect: () => void mutations.moveItemsToGroup([item.id], g.id) })),
             },
           ] satisfies MenuAction[])),

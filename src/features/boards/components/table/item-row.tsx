@@ -158,6 +158,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
           type: "sub",
           label: "Move to group",
           icon: <CornerDownRight />,
+          // With one group there is nowhere to go: greyed out rather than an empty list.
+          disabled: !model.groups.some((g) => g.id !== group.id),
           items: model.groups
             .filter((g) => g.id !== group.id)
             .map((g) => ({
