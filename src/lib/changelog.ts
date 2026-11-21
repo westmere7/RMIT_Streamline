@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.137.1",
+    date: "2026-11-21",
+    title: "Quieter team list",
+    changes: ["A team that hides its trackers or docs no longer adds a \"more on the team page\" line to the sidebar."],
+  },
+  {
     version: "0.137.0",
     date: "2026-11-21",
     title: "Choose what a team shows in the sidebar",

@@ -986,7 +986,6 @@ function TeamNode({
             <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
           ))}
           <ArchivedFolder boards={archivedBoards} activeBoardSlug={activeBoardSlug} />
-          <HiddenOnTeamPage teamId={team.id} count={shown.hiddenCount} />
         </ul>
       )}
     </li>
@@ -1101,7 +1100,6 @@ function AdminNode({
         {shown.docs.map((doc) => (
           <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
         ))}
-        <HiddenOnTeamPage teamId={team.id} count={shown.hiddenCount} />
       </ul>
     </section>
   );
@@ -1133,20 +1131,7 @@ function useTeamSidebarItems(teamId: string, trackers: Tracker[], docs: DocSumma
     icon: <Eye />,
     items: [{ type: "item", label: "Boards", icon: <Check />, disabled: true, onSelect: () => {} }, tick("trackers", "Trackers"), tick("docs", "Docs")],
   };
-  return { trackers: shownTrackers, docs: shownDocs, hiddenCount: trackers.length - shownTrackers.length + docs.length - shownDocs.length, menu };
-}
-
-/** The way to what a team leaves out of the sidebar: its page lists everything. */
-function HiddenOnTeamPage({ teamId, count }: { teamId: string; count: number }) {
-  const ws = useWorkspace();
-  if (count === 0) return null;
-  return (
-    <li>
-      <Link href={routes.team(ws.slug, teamId)} className="block rounded-md py-1 pl-2 text-2xs text-muted-foreground hover:text-foreground" data-testid="team-hidden-more">
-        {count} more on the team page
-      </Link>
-    </li>
-  );
+  return { trackers: shownTrackers, docs: shownDocs, menu };
 }
 
 /** A team's doc, shown after its boards and trackers, wearing its own emoji if it has one. */
