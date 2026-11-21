@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Item } from "@/domain";
-import { groupAssetBlocks } from "@/domain";
+import { groupAssetBlocks, resolveColumnRoles } from "@/domain";
+import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { AssetComposer } from "@/features/assets/asset-composer";
 import { copyOfAssetLine, useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
 import { MyAssetsStrip, MyAssetsToggle } from "@/features/items/my-assets-filter";
@@ -33,6 +34,19 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   const rows = React.useMemo(() => all.filter((line) => !line.trackerSheetId), [all]);
   const sheetLines = React.useMemo(() => all.filter((line) => line.trackerSheetId), [all]);
   const [onlyMine, setOnlyMine] = React.useState(false);
+  // The task's PIC and due date, from the board's PIC and due-date columns: offered in each asset's pickers.
+  const snapshot = useBoardSnapshot(item.boardId);
+  const taskDefaults = React.useMemo(() => {
+    if (!snapshot.data) return null;
+    const roles = resolveColumnRoles(snapshot.data.columns);
+    const valueOf = (columnId: string | undefined) => (columnId ? snapshot.data!.values.find((v) => v.itemId === item.id && v.columnId === columnId)?.value : undefined);
+    const pic = valueOf(roles.pic?.id);
+    const due = valueOf(roles.dueDate?.id);
+    return {
+      assigneeIds: pic && pic.type === "PERSON" ? pic.userIds : [],
+      dueDate: due?.type === "DATE" ? due.date : due?.type === "TIMELINE" ? due.end : null,
+    };
+  }, [snapshot.data, item.id]);
   // Opened straight after a sheet is linked here, while the task has assets to offer it.
   const [moveOpen, setMoveOpen] = React.useState(false);
   const meId = ws.currentUser.id;
@@ -65,6 +79,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
     <div className="p-4" data-testid="assets-tab">
       <AssetComposer
         rows={onlyMine ? mine : rows}
+        taskDefaults={taskDefaults}
         assetTypes={assetTypes}
         users={ws.users}
         canEdit={canEdit}

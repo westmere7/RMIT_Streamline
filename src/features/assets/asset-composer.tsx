@@ -95,9 +95,17 @@ export interface AssetBlockPatch {
  * It is built for a 520px panel, so nothing relies on width: every row truncates
  * and the chips wrap.
  */
+/** The task's own PIC and due date, which an asset's pickers offer in one click. Null outside a task (the booking form). */
+export interface AssetTaskDefaults {
+  assigneeIds: string[];
+  dueDate: string | null;
+}
+const TaskDefaultsContext = React.createContext<AssetTaskDefaults | null>(null);
+
 export function AssetComposer({
   rows,
   fields,
+  taskDefaults = null,
   assetTypes = ASSET_TYPE_OPTIONS,
   users = [],
   canEdit = true,
@@ -120,6 +128,8 @@ export function AssetComposer({
 }: {
   rows: readonly AssetComposerRow[];
   fields?: AssetComposerFields;
+  /** On a task: its PIC and due date, offered at the top of each asset's In charge and Due pickers. */
+  taskDefaults?: AssetTaskDefaults | null;
   /** The workspace's asset types (Settings → Asset types). Needed only when `fields.type` is on. */
   assetTypes?: readonly TagOption[];
   /** Needed only when `fields.people` is on. */
@@ -225,6 +235,7 @@ export function AssetComposer({
     // Laid out against its own width rather than the window's: the same list sits
     // in a 300px task panel, half of the wide one, a booking form and a phone. Under 28rem a
     // row keeps its name to itself and puts its details on a second line.
+    <TaskDefaultsContext.Provider value={taskDefaults}>
     <div className="@container/assets">
       {/* ---- Add one. Above the list: it stays put however long the list gets. */}
       {/* Not a <form>: the booking page already is one, and a form inside a form
@@ -310,6 +321,18 @@ export function AssetComposer({
         )}
       </ul>
     </div>
+    </TaskDefaultsContext.Provider>
+  );
+}
+
+/** "Same as the task" at the top of a picker: one click puts the task's value in. */
+function TaskDefaultButton({ label, value, onClick, testId, children }: { label: string; value: string; onClick: () => void; testId: string; children?: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-2 border-b border-border/60 px-3 py-2 text-left text-xs hover:bg-accent" data-testid={testId}>
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      {children}
+      <span className="min-w-0 flex-1 truncate font-medium">{value}</span>
+    </button>
   );
 }
 
@@ -404,6 +427,8 @@ function AssetRowCard({
   // What the open form is holding. It starts from the row each time the row is
   // opened, so Discard is simply "close it again".
   const [draft, setDraft] = React.useState<AssetDraft>(() => draftOf(row));
+  const task = React.useContext(TaskDefaultsContext);
+  const [peopleOpen, setPeopleOpen] = React.useState(false);
   const [wasOpen, setWasOpen] = React.useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -757,7 +782,7 @@ function AssetRowCard({
             {/* Who is in charge. A row can take more than one person. */}
             {fields.people && (
               <Detail label="In charge">
-                <Popover>
+                <Popover open={peopleOpen} onOpenChange={setPeopleOpen}>
                   <PopoverTrigger asChild disabled={!canEdit}>
                     <button
                       type="button"
@@ -778,6 +803,24 @@ function AssetRowCard({
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-64 p-0">
+                    {task && task.assigneeIds.length > 0 && task.assigneeIds.join() !== draft.assigneeIds.join() && (
+                      <TaskDefaultButton
+                        label="Task's PIC"
+                        value={task.assigneeIds.map((id) => users.find((u) => u.id === id)?.displayName ?? "Former member").join(", ")}
+                        onClick={() => {
+                          edit({ assigneeIds: [...task.assigneeIds] });
+                          setPeopleOpen(false);
+                        }}
+                        testId="asset-assignee-task"
+                      >
+                        <span className="flex shrink-0 -space-x-1">
+                          {task.assigneeIds.slice(0, 3).map((id) => {
+                            const u = users.find((x) => x.id === id);
+                            return u ? <UserAvatar key={id} user={u} size="xs" tooltip={false} /> : null;
+                          })}
+                        </span>
+                      </TaskDefaultButton>
+                    )}
                     <PersonPicker users={users} value={draft.assigneeIds} onChange={(ids) => edit({ assigneeIds: ids })} />
                   </PopoverContent>
                 </Popover>
@@ -804,6 +847,17 @@ function AssetRowCard({
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start" className="w-auto p-0">
+                    {task?.dueDate && task.dueDate !== draft.dueDate && (
+                      <TaskDefaultButton
+                        label="Task's due"
+                        value={formatShortDate(task.dueDate)}
+                        onClick={() => {
+                          edit({ dueDate: task.dueDate });
+                          setDueOpen(false);
+                        }}
+                        testId="asset-due-task"
+                      />
+                    )}
                     <DatePicker value={draft.dueDate} onChange={(dueDate) => edit({ dueDate })} onDone={() => setDueOpen(false)} />
                   </PopoverContent>
                 </Popover>

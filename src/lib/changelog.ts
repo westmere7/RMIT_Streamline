@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.3",
+    date: "2026-11-21",
+    title: "The task's PIC and due, one click",
+    changes: ["In an asset's details, the In charge and Due pickers offer the task's own PIC and due date at the top."],
+  },
+  {
     version: "0.136.2",
     date: "2026-11-21",
     title: "Team trackers first",
