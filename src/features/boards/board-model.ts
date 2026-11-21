@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { BoardColumn, BoardGroup, ColumnRoleMap, ColumnType, ColumnValue, Item, ItemLink } from "@/domain";
-import { resolveColumnRoles, shownColumns } from "@/domain";
+import { intakeGroupOf, resolveColumnRoles, shownColumns } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
 import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
@@ -8,6 +8,10 @@ import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./boar
 export interface BoardModel {
   snapshot: BoardSnapshot;
   groups: BoardGroup[];
+  /** Groups a task can be added to by hand: all of them, but Booked by Form on Task Allocation (bookings only). */
+  addableGroups: BoardGroup[];
+  /** Task Allocation's Booked by Form, or null on any other board. */
+  intakeGroupId: string | null;
   /** The columns on the board, hidden ones included; special ones taken off it are not. */
   columns: BoardColumn[];
   /** Special columns taken off the board: kept, and not shown anywhere. */
@@ -73,6 +77,8 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
   const columns = shownColumns(ordered);
   const removedColumns = ordered.filter((c) => c.removed);
   const groups = [...snapshot.groups].sort((a, b) => a.position - b.position);
+  const intakeGroupId = snapshot.board.system === "TASK_ALLOCATION" ? (intakeGroupOf(groups)?.id ?? null) : null;
+  const addableGroups = intakeGroupId ? groups.filter((g) => g.id !== intakeGroupId) : groups;
   // Which column does which job, as the board said, or as it always used to be
   // guessed where it has not.
   const roles = resolveColumnRoles(columns);
@@ -126,6 +132,8 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
   return {
     snapshot,
     groups,
+    addableGroups,
+    intakeGroupId,
     // While a search or a filter is on, a group with nothing left in it is a
     // heading over an empty space — three of them turn one result into a page
     // of scrolling. Unfiltered they all stay: an empty group is somewhere to

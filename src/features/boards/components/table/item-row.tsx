@@ -1,7 +1,7 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, Plus, RefreshCw, Share2, Trash2 } from "lucide-react";
+import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, Plus, RefreshCw, Share2, Trash2, Undo2 } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -22,7 +22,9 @@ import { UpdatesBadge } from "@/features/items/updates-badge";
 import { columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
+import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
+import { canEditBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 import { EMPTY_BOARD_UI, useBoardUiStore } from "@/stores/board-ui-store";
 
@@ -49,6 +51,10 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
   const setMoveRequest = useBoardUiStore((s) => s.setMoveRequest);
+  const setReallocateRequest = useBoardUiStore((s) => s.setReallocateRequest);
+  const ws = useWorkspace();
+  const queueBoard = ws.boards.find((b) => b.system === "TASK_ALLOCATION" && !b.archivedAt);
+  const canReallocate = !!queueBoard && canEditBoard(ws.permissions, queueBoard);
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [renaming, setRenaming] = React.useState(false);
   const [nameRef, nameClipped] = useClipped<HTMLButtonElement>(item.name, renaming);
@@ -136,7 +142,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
               if (!expanded) toggleExpanded(board.id, item.id);
             }),
         },
-        { type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) },
+        // A copy is made by hand, and Booked by Form takes bookings only.
+        ...(item.groupId === model.intakeGroupId ? [] : [{ type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) } satisfies MenuAction]),
         ...(canManage ? [{ type: "item", label: "Share by link…", icon: <Share2 />, onSelect: () => setSharing(true) } satisfies MenuAction] : []),
         // Nothing in the allocation queue is linkable: it is a request
         // waiting for a team, and a link would mirror it onto that team's
@@ -172,6 +179,8 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         },
         // To another board: not off a built-in board (Task Allocation allocates instead).
         ...(board.system ? [] : [{ type: "item", label: "Move to board…", icon: <ArrowRightLeft />, onSelect: () => setMoveRequest(item.id), testId: "item-move-board" } satisfies MenuAction]),
+        // Back to Task Allocation, reset: for whoever can edit it (admins and allocators).
+        ...(!board.system && canReallocate && item.bookedVia ? [{ type: "item", label: "Re-allocate…", icon: <Undo2 />, onSelect: () => setReallocateRequest(item.id), testId: "item-reallocate" } satisfies MenuAction] : []),
         ...extras.columns,
         { type: "separator" },
         { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },

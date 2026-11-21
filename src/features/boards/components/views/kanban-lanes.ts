@@ -104,7 +104,8 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
   // only owner has not onboarded yet, or has left, still needs a lane.
   const named = people ?? users;
   const visibleItems = React.useMemo(() => [...model.itemsByGroup.values()].flat(), [model]);
-  const firstGroup = model.groups[0];
+  // Where a card added in a lane goes: never Booked by Form, which takes bookings only.
+  const firstGroup = model.addableGroups[0];
   const personColumn = model.personColumns[0] ?? null;
 
   return React.useMemo<Lane[]>(() => {
@@ -164,7 +165,7 @@ export function useKanbanLanes(laneBy: LaneBy): Lane[] {
       color: group.color,
       items: model.itemsByGroup.get(group.id) ?? [],
       apply: (item) => void mutations.moveItemsToGroup([item.id], group.id),
-      initial: { groupId: group.id, values: [] },
+      initial: group.id === model.intakeGroupId ? null : { groupId: group.id, values: [] },
       rename: (name) => void mutations.updateGroup(group.id, { name }),
     }));
   }, [laneBy, model, visibleItems, named, personColumn, firstGroup, mutations]);

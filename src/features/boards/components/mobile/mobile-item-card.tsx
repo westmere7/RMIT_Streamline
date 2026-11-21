@@ -381,7 +381,7 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
         : ([
             { type: "item", label: "Add subitem", onSelect: () => void mutations.createItem({ groupId: item.groupId, parentItemId: item.id, name: "New subitem" }) },
           ] satisfies MenuAction[])),
-      { type: "item", label: "Duplicate", onSelect: () => void mutations.duplicateItem(item.id) },
+      ...(item.groupId === model.intakeGroupId ? [] : ([{ type: "item", label: "Duplicate", onSelect: () => void mutations.duplicateItem(item.id) }] satisfies MenuAction[])),
       ...(item.parentItemId
         ? []
         : ([
@@ -396,7 +396,7 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
       { type: "item", label: "Archive", onSelect: () => setArchiveRequest([item.id]) },
       { type: "item", label: "Delete", destructive: true, onSelect: () => setConfirmDelete(true) },
     ];
-  }, [item.id, item.groupId, item.parentItemId, ticket, group.id, canEdit, model.groups, mutations, openItem, setArchiveRequest]);
+  }, [item.id, item.groupId, item.parentItemId, ticket, group.id, canEdit, model.groups, model.intakeGroupId, mutations, openItem, setArchiveRequest]);
 
   return (
     <>

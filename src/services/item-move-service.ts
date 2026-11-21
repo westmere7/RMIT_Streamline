@@ -9,6 +9,8 @@ import { UNSYNCED_COLUMN_TYPES, mapColumns, translateValue } from "./item-link-s
 export interface MoveLoss {
   itemId: EntityId;
   itemName: string;
+  /** The source column it was in. */
+  columnId: EntityId;
   columnName: string;
   reason: string;
 }
@@ -25,6 +27,8 @@ export interface MovePlan {
   subitems: number;
   /** The brief, when the target has no column for it: kept at the top of the description instead. */
   briefToDescription: string | null;
+  /** Source column id → the target column it pairs with, for re-pointing a link's hand pairings. */
+  columnMap: Record<string, string>;
 }
 
 /** Why a board cannot take the task, or null when it can. */
@@ -67,12 +71,12 @@ export function planMove(input: {
     const itemName = nameOf.get(v.itemId) ?? "A subitem";
     if (!target) {
       // The brief is kept in the description rather than lost (below).
-      if (source.id !== brief?.id) lost.push({ itemId: v.itemId, itemName, columnName: source.name, reason: "No matching column on that board" });
+      if (source.id !== brief?.id) lost.push({ itemId: v.itemId, itemName, columnId: source.id, columnName: source.name, reason: "No matching column on that board" });
       continue;
     }
     const translated = translateValue(v.value, source, target);
     if (translated.kind === "skip") {
-      lost.push({ itemId: v.itemId, itemName, columnName: source.name, reason: translated.reason });
+      lost.push({ itemId: v.itemId, itemName, columnId: source.id, columnName: source.name, reason: translated.reason });
       continue;
     }
     carried.push({ itemId: v.itemId, columnId: target.id, value: translated.value });
@@ -88,6 +92,7 @@ export function planMove(input: {
     kept: report.mapped.filter((m) => keptIds.has(m.source.id)).map((m) => ({ from: m.source.name, to: m.target.name })),
     lost,
     subitems: Math.max(0, input.items.length - 1),
+    columnMap: Object.fromEntries(report.mapped.map((m) => [m.source.id, m.target.id])),
     briefToDescription: briefText && !briefCarried && !(parent?.description ?? "").includes(briefText) ? briefText : null,
   };
 }
@@ -115,12 +120,13 @@ export class ItemMoveService {
 
   async moveToBoard(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId, options: { groupId?: EntityId } = {}): Promise<{ item: Item; board: Board; plan: MovePlan }> {
     // Worked out again here, from the boards as they are now, not as the preview saw them.
-    const { item, source, target, groups, plan, targetItems } = await this.prepare(itemId, targetBoardId);
+    const { item, source, target, groups, plan, targetItems, movingIds, sourceColumnIds } = await this.prepare(itemId, targetBoardId);
     const group = (options.groupId ? groups.find((g) => g.id === options.groupId) : undefined) ?? groups[0];
     if (!group) throw new Error(`${target.name} has no group to take the task. Add one first.`);
 
     const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
     const moved = await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
+    await this.repointLinks(movingIds, plan.columnMap, sourceColumnIds);
     const brief = plan.briefToDescription;
     if (brief) await this.repos.items.update(item.id, { description: item.description?.trim() ? `${brief}\n\n${item.description.trim()}` : brief });
     if (plan.carried.length) await this.repos.items.setValues(plan.carried);
@@ -155,8 +161,51 @@ export class ItemMoveService {
     ]);
     const subitems = sourceItems.filter((i) => i.parentItemId === item.id);
     const moving = [item, ...subitems];
+    // Linked tasks never share a board: the move is refused onto a board that holds
+    // a task linked (directly or along a chain) to this one or one of its subitems.
+    const clash = await this.linkedOnBoard(moving.map((i) => i.id), target!.id);
+    if (clash) throw new Error(`“${clash.name}” on ${target!.name} is linked to this task, and linked tasks can't share a board. Unlink them first.`);
     const values = await this.repos.items.listValuesByItems(moving.map((i) => i.id));
     const plan = planMove({ items: moving, values, sourceColumns, targetColumns });
-    return { item, source, target: target!, groups, plan, targetItems };
+    return { item, source, target: target!, groups, plan, targetItems, movingIds: moving.map((i) => i.id), sourceColumnIds: new Set(sourceColumns.map((c) => c.id)) };
+  }
+
+  /** The first task on `boardId` reachable through links from any of `itemIds`, or null. */
+  private async linkedOnBoard(itemIds: readonly EntityId[], boardId: EntityId): Promise<Item | null> {
+    const seen = new Set<EntityId>(itemIds);
+    let frontier = [...itemIds];
+    while (frontier.length) {
+      const links = await this.repos.links.listByItems(frontier);
+      const next: EntityId[] = [];
+      for (const link of links) {
+        for (const id of [link.itemAId, link.itemBId]) {
+          if (seen.has(id)) continue;
+          seen.add(id);
+          next.push(id);
+        }
+      }
+      for (const id of next) {
+        const other = await this.repos.items.getById(id);
+        if (other?.boardId === boardId) return other;
+      }
+      frontier = next;
+    }
+    return null;
+  }
+
+  /**
+   * A link's hand pairings and its list of unsynced fields name columns by id,
+   * and the moved tasks' columns are now the target board's: each id from the
+   * board left behind becomes the column it was carried to, or is dropped.
+   */
+  private async repointLinks(itemIds: readonly EntityId[], columnMap: Record<string, string>, sourceColumnIds: ReadonlySet<string>): Promise<void> {
+    // null: a column of the board left behind that nothing on the new board took.
+    const swap = (id: string): string | null => (sourceColumnIds.has(id) ? (columnMap[id] ?? null) : id);
+    for (const link of await this.repos.links.listByItems([...itemIds])) {
+      const pairs = link.pairs.map(([a, b]) => [swap(a), swap(b)] as const).filter((p): p is readonly [string, string] => p[0] !== null && p[1] !== null).map(([a, b]) => [a, b] as [string, string]);
+      const excluded = [...new Set(link.excluded.map(swap).filter((f): f is string => f !== null))];
+      const changed = JSON.stringify(pairs) !== JSON.stringify(link.pairs) || JSON.stringify(excluded) !== JSON.stringify(link.excluded);
+      if (changed) await this.repos.links.update(link.id, { pairs, excluded });
+    }
   }
 }

@@ -545,7 +545,8 @@ function NewItemButton() {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [chosenGroupId, setGroupId] = React.useState<string | null>(null);
-  const groupId = chosenGroupId && model.groups.some((g) => g.id === chosenGroupId) ? chosenGroupId : (model.groups[0]?.id ?? "");
+  // Never Booked by Form on Task Allocation: that group takes bookings only.
+  const groupId = chosenGroupId && model.addableGroups.some((g) => g.id === chosenGroupId) ? chosenGroupId : (model.addableGroups[0]?.id ?? "");
 
   const submit = async (openAfter: boolean) => {
     if (!name.trim() || !groupId) return;
@@ -559,7 +560,7 @@ function NewItemButton() {
     <Popover open={open} onOpenChange={setOpen}>
       <SimpleTooltip label="Add an item">
         <PopoverTrigger asChild>
-          <Button size="sm" disabled={model.groups.length === 0} data-testid="new-item-button">
+          <Button size="sm" disabled={model.addableGroups.length === 0} data-testid="new-item-button">
             <Plus /> New Item
           </Button>
         </PopoverTrigger>
@@ -578,7 +579,7 @@ function NewItemButton() {
               <SelectValue placeholder="Group" />
             </SelectTrigger>
             <SelectContent>
-              {model.groups.map((g) => (
+              {model.addableGroups.map((g) => (
                 <SelectItem key={g.id} value={g.id}>
                   <span className="flex items-center gap-2">
                     <span className={cn("size-2.5 rounded-full", colorClasses(g.color).dot)} /> {g.name}

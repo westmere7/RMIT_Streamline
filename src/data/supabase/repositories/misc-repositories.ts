@@ -238,6 +238,10 @@ export class SupabaseActivityRepository implements ActivityRepository {
     const result = await db().from("activities").insert(payload).select(ACTIVITY);
     return unwrapList<ActivityRow>(result, "activities.createMany").map(toActivity);
   }
+
+  async deleteMany(ids: string[]): Promise<void> {
+    for (let i = 0; i < ids.length; i += 200) assertOk(await db().from("activities").delete().in("id", ids.slice(i, i + 200)), "activities.deleteMany");
+  }
 }
 
 export class SupabaseNotificationRepository implements NotificationRepository {

@@ -362,6 +362,7 @@ export function createMemoryRepositories(
       listStatusSinceByBoard: async () => [],
       create: readOnly("recording activity"),
       createMany: readOnly("recording activity"),
+      deleteMany: readOnly("deleting activity"),
     },
     notifications: {
       listByUser: async () => [],

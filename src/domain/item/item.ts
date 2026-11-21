@@ -27,10 +27,19 @@ export interface Item extends Timestamps {
    * hand one out.
    */
   ticket?: string | null;
+  /**
+   * How the task came in, when it came through the booking form (or a
+   * department's portal): set by the booking that made it, kept wherever it is
+   * allocated or moved, never set by hand (migration 0134). Only such a task
+   * can be re-allocated. Null for anything a team made itself.
+   */
+  bookedVia?: BookedVia | null;
 }
 
+export type BookedVia = "booking" | "portal";
+
 export type ItemInput = Pick<Item, "boardId" | "groupId" | "name" | "createdBy"> &
-  Partial<Pick<Item, "parentItemId" | "description" | "ticket">>;
+  Partial<Pick<Item, "parentItemId" | "description" | "ticket" | "bookedVia">>;
 
 export type ColumnValue =
   | { type: "TEXT"; text: string }

@@ -435,6 +435,8 @@ export interface ItemRow {
   archived_at: string | null;
   cover_url?: string | null;
   ticket?: string | null;
+  /** Added by migration 0134. */
+  booked_via?: Item["bookedVia"];
   created_at: string;
   updated_at: string;
 }
@@ -452,6 +454,7 @@ export function toItem(row: ItemRow): Item {
     archivedAt: row.archived_at,
     coverUrl: row.cover_url ?? null,
     ticket: row.ticket ?? null,
+    bookedVia: row.booked_via ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

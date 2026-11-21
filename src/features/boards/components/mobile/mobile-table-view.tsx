@@ -147,7 +147,9 @@ function NewItemButton() {
   const { model, mutations } = useBoardContext();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
-  const groups = model.visibleGroups.length > 0 ? model.visibleGroups : model.groups;
+  // Never Booked by Form on Task Allocation: that group takes bookings only.
+  const visibleAddable = model.visibleGroups.filter((g) => g.id !== model.intakeGroupId);
+  const groups = visibleAddable.length > 0 ? visibleAddable : model.addableGroups;
   const [groupId, setGroupId] = React.useState<string>(groups[0]?.id ?? "");
   const chosen = groups.find((g) => g.id === groupId) ?? groups[0];
 

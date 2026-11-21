@@ -16,7 +16,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { EMPTY_ARCHIVE_LINK_IMPACT, emptyValueFor, normaliseTicket, otherEndOf } from "@/domain";
+import { EMPTY_ARCHIVE_LINK_IMPACT, INTAKE_MANUAL_MESSAGE, emptyValueFor, intakeGroupOf, normaliseTicket, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -137,6 +137,11 @@ export class ItemService {
     private readonly notifications: NotificationService,
   ) {}
 
+  /** Refuses a task made by hand in Task Allocation's intake group. */
+  private async refuseIntake(boardId: EntityId, groupId: EntityId): Promise<void> {
+    if (intakeGroupOf(await this.repos.boards.listGroups(boardId))?.id === groupId) throw new Error(INTAKE_MANUAL_MESSAGE);
+  }
+
   async loadBoardSnapshot(boardId: EntityId): Promise<BoardSnapshot> {
     const board = await this.repos.boards.getById(boardId);
     if (!board) throw new NotFoundError("Board", boardId);
@@ -161,6 +166,9 @@ export class ItemService {
     if (!name) throw new Error("Item name cannot be empty");
     const board = await this.repos.boards.getById(input.boardId);
     if (!board) throw new NotFoundError("Board", input.boardId);
+    // Task Allocation's intake group holds bookings from the form, nothing made by hand
+    // (or by an automation). A booking says so in its activity; a subitem of a booking is fine.
+    if (board.system === "TASK_ALLOCATION" && !input.parentItemId && !input.activity?.via) await this.refuseIntake(board.id, input.groupId);
     let position = input.position ?? 0;
     if (input.position === undefined || input.afterItemId) {
       const siblings = (await this.repos.items.listByBoard(input.boardId)).filter(
@@ -189,6 +197,8 @@ export class ItemService {
       ticket: normaliseTicket(input.ticket),
       createdBy: actorId,
       position,
+      // A booking (or a portal request) says so: that is what lets it be re-allocated later.
+      bookedVia: !input.parentItemId && (input.activity?.via === "booking" || input.activity?.via === "portal") ? input.activity.via : null,
     });
 
     // Default status label and any explicit initial values. Written only where
@@ -584,6 +594,8 @@ export class ItemService {
 
   async duplicateItem(itemId: EntityId, actorId: EntityId): Promise<Item> {
     const source = await this.getItem(itemId);
+    // A copy is made by hand, so it cannot land in the intake group beside its original.
+    if (!source.parentItemId && (await this.repos.boards.getById(source.boardId))?.system === "TASK_ALLOCATION") await this.refuseIntake(source.boardId, source.groupId);
     const siblings = (await this.repos.items.listByBoard(source.boardId)).filter(
       (i) => i.groupId === source.groupId && i.parentItemId === source.parentItemId,
     );

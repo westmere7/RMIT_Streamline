@@ -172,3 +172,5 @@ migrations/0129_booking_form_publications_delete.sql
 migrations/0130_booking_closed_message.sql
 migrations/0131_booking_closed_heading.sql
 migrations/0132_intake_group.sql
+migrations/0133_intake_bookings_only.sql
+migrations/0134_items_booked_via.sql

@@ -109,6 +109,9 @@ export interface BoardGroup {
 
 export type BoardGroupRole = "INTAKE";
 
+/** Why a task cannot be added to the intake group by hand (the database says the same, migration 0133). */
+export const INTAKE_MANUAL_MESSAGE = "Booked by Form takes only bookings from the form. Add the task to another group.";
+
 /** What a booking is called when it arrives, and its group's name on a new Task Allocation board. */
 export const INTAKE_GROUP_NAME = "Booked by Form";
 

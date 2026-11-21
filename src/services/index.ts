@@ -9,6 +9,7 @@ import { BugReportService, type BugReportTransport } from "./bug-report-service"
 import { CommentService } from "./comment-service";
 import { DashboardService, type PublicDashboardTransport } from "./dashboard-service";
 import { ItemMoveService } from "./item-move-service";
+import { ReallocationService, type ReallocationTransport } from "./reallocation-service";
 import { ItemAssetService } from "./item-asset-service";
 import { ItemLinkService } from "./item-link-service";
 import { ItemService } from "./item-service";
@@ -47,6 +48,7 @@ export interface Services {
   links: ItemLinkService;
   assets: ItemAssetService;
   itemMoves: ItemMoveService;
+  reallocation: ReallocationService;
   comments: CommentService;
   messages: MessageService;
   profiles: ProfileService;
@@ -64,6 +66,8 @@ export interface Services {
 export interface ServiceOptions {
   /** How bookings reach the server when the browser cannot write them itself (Supabase). */
   bookingTransport?: BookingTransport | null;
+  /** How re-allocating reaches the server, which alone may clear a task's history (Supabase). */
+  reallocationTransport?: ReallocationTransport | null;
   /** How a bug report reaches the board its reporter cannot see (Supabase). */
   bugReportTransport?: BugReportTransport | null;
   /** How a visitor without an account reads a shared board (Supabase). */
@@ -123,6 +127,8 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     booking,
     /** Moving a task to another board, columns mapped and losses reported first. */
     itemMoves: new ItemMoveService(repos, assets),
+    /** Sending a task back to Task Allocation, reset as if just booked. */
+    reallocation: new ReallocationService(repos, assets, links, notifications, options.reallocationTransport ?? null),
     bugReports: new BugReportService(repos, boards, items, notifications, tickets, options.bugReportTransport ?? null),
     tickets,
     comments,

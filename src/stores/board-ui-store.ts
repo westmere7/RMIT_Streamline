@@ -88,6 +88,9 @@ interface BoardUiStore {
   /** The task waiting on Move to another board (one dialog per board, opened from any of its menus). */
   moveRequestItemId: string | null;
   setMoveRequest: (itemId: string | null) => void;
+  /** The task waiting on Re-allocate (back to Task Allocation, reset). */
+  reallocateRequestItemId: string | null;
+  setReallocateRequest: (itemId: string | null) => void;
   /**
    * Items waiting on the archive confirmation.
    *
@@ -151,6 +154,8 @@ export const useBoardUiStore = create<BoardUiStore>()((set) => ({
   setLinkDialogItem: (linkDialogItemId) => set({ linkDialogItemId }),
   moveRequestItemId: null,
   setMoveRequest: (moveRequestItemId) => set({ moveRequestItemId }),
+  reallocateRequestItemId: null,
+  setReallocateRequest: (reallocateRequestItemId) => set({ reallocateRequestItemId }),
   archiveRequestIds: null,
   setArchiveRequest: (archiveRequestIds) => set({ archiveRequestIds }),
   setSearch: (boardId, search) => set((s) => update(s, boardId, { search })),

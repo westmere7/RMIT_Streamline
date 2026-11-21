@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.141.0",
+    date: "2026-11-21",
+    title: "Re-allocate, and Booked by Form for bookings only",
+    changes: [
+      "A booked task's menu has Re-allocate…: it goes back to Task Allocation, into a group you choose (or a new one), reset as if just booked. Its booking time, details and deliverables stay; its people, status, updates, history, subitems, links and follows go. Only tasks that came in through the booking form show it.",
+      "Booked by Form takes bookings only: tasks can't be added or copied into it by hand.",
+      "Moving a task refuses a board that holds a task linked to it, and keeps the link's column pairings pointing at the new board.",
+    ],
+  },
+  {
     version: "0.140.0",
     date: "2026-11-21",
     title: "Move a task to another board",

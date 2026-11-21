@@ -276,7 +276,7 @@ export function GroupSection({
           <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
             <GroupRows group={group} items={items} dndEnabled={dndEnabled} widthOverrides={widthOverrides} dropIndex={dropIndex} dragging={draggingItem} />
           </SortableContext>
-          {items.length === 0 && !canEdit && dropIndex === null && (
+          {items.length === 0 && !canEdit && !intake && dropIndex === null && (
             <div className="sticky left-0 flex h-10 items-center bg-background px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showTicket, layout) }}>
               This group is empty.
             </div>
@@ -284,7 +284,13 @@ export function GroupSection({
           {/* While an item is in flight this strip is the drop zone, so it needs
               a target even in a group with no rows and no add-item row. */}
           <div ref={setDropRef} className={cn(draggingItem && "min-h-10", isOver && dropIndex === null && "bg-accent-soft/40")}>
-            {canEdit && <AddItemRow group={group} emptyHint={items.length === 0 && dropIndex === null} widthOverrides={widthOverrides} />}
+            {/* Booked by Form takes bookings only: nothing is added to it by hand. */}
+            {canEdit && !intake && <AddItemRow group={group} emptyHint={items.length === 0 && dropIndex === null} widthOverrides={widthOverrides} />}
+            {intake && items.length === 0 && dropIndex === null && (
+              <div className="sticky left-0 flex h-10 items-center px-12 text-[13px] text-muted-foreground" style={{ width: leadingWidth(showTicket, layout) }} data-testid="intake-empty">
+                No new bookings.
+              </div>
+            )}
           </div>
         </div>
       )}

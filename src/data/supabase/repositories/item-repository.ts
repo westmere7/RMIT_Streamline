@@ -4,7 +4,7 @@ import { assertOk, chunk, db, unwrap, unwrapAll, unwrapList, unwrapMaybe } from 
 import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type ItemRow } from "../rows";
 
 const ITEM =
-  "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, cover_url, ticket, created_at, updated_at";
+  "id, board_id, group_id, parent_item_id, name, description, position, created_by, archived_at, cover_url, ticket, booked_via, created_at, updated_at";
 const VALUE = "id, item_id, column_id, value_json, updated_at";
 
 /**
@@ -197,6 +197,8 @@ export class SupabaseItemRepository implements ItemRepository {
       ticket: input.ticket ?? null,
       position: input.position,
       created_by: input.createdBy,
+      // Only bookings set it, and they write with the service role (0134 refuses it from a member).
+      ...(input.bookedVia ? { booked_via: input.bookedVia } : {}),
     };
     const result = await db().from("items").insert(payload).select(ITEM).single();
     return toItem(unwrap<ItemRow>(result, "items.create"));

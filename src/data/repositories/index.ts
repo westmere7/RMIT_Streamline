@@ -634,6 +634,8 @@ export interface ActivityRepository {
   listStatusSinceByBoard(boardId: EntityId): Promise<StatusSince[]>;
   create(input: ActivityInput): Promise<Activity>;
   createMany(inputs: ActivityInput[]): Promise<Activity[]>;
+  /** Re-allocating starts a task's history again. Server-side only on Supabase: no policy lets a member delete activity. */
+  deleteMany(ids: EntityId[]): Promise<void>;
 }
 
 /**

@@ -127,6 +127,7 @@ export class LocalItemRepository implements ItemRepository {
       name: input.name,
       description: input.description ?? null,
       ticket: input.ticket ?? null,
+      bookedVia: input.bookedVia ?? null,
       position: input.position,
       createdBy: input.createdBy,
       archivedAt: null,
