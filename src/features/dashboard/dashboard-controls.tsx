@@ -385,14 +385,14 @@ export function ViewTabs<T extends string>({ views, current, onChange, meta }: {
  * green: reading, live, stale (a refresh failed but the last good snapshot is
  * still on screen), and failed with nothing to show.
  */
-export function Freshness({ refreshing, failed, className }: { refreshing?: boolean; failed?: boolean; className?: string }) {
+export function Freshness({ refreshing, failed, className, testId = "dashboard-live", upToDate = "Up to date with the boards." }: { refreshing?: boolean; failed?: boolean; className?: string; testId?: string; /** What the live state's tooltip says. */ upToDate?: string }) {
   const state = failed ? "stale" : refreshing ? "reading" : "live";
   return (
     <span
       className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-2xs font-medium shadow-xs", failed ? "border-amber-500/40 bg-amber-500/10" : "border-border/70 bg-card", className)}
-      data-testid="dashboard-live"
+      data-testid={testId}
       data-state={state}
-      title={failed ? "The last refresh failed. These figures are the last good read." : refreshing ? "Reading the boards again." : "Up to date with the boards."}
+      title={failed ? "The last refresh failed. These figures are the last good read." : refreshing ? "Reading the boards again." : upToDate}
     >
       <span aria-hidden className={cn("size-2 rounded-full", failed ? "bg-amber-500" : refreshing ? "bg-amber-400" : "bg-green-500")} />
       <span className="text-foreground">{failed ? "Not updating" : refreshing ? "Reading" : "Live"}</span>

@@ -14,10 +14,11 @@ import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/co
 import type { WorkspaceRole } from "@/domain";
 import { assetCount, formatWorkHours, isProgressLabel, isStuckLabel, priorityStrength } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
+import { Freshness } from "@/features/dashboard/dashboard-controls";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { assetTypeLabel } from "@/features/items/item-assets-recap";
 import { EditProfileDialog } from "@/features/profile/edit-profile-dialog";
-import { useProfile, useProfileWork } from "@/features/profile/hooks";
+import { useProfile, useProfileRealtime, useProfileWork } from "@/features/profile/hooks";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -49,6 +50,7 @@ export function ProfilePage({ userId }: { userId: string }) {
   const me = useCurrentUser();
   const profile = useProfile(userId);
   const work = useProfileWork(userId);
+  useProfileRealtime(userId);
   const groups = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const links = useMentionLinks();
@@ -103,7 +105,12 @@ export function ProfilePage({ userId }: { userId: string }) {
   return (
     <div className="scrollbar-thin h-full overflow-y-auto">
       <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
-        <PageHeader title={isSelf ? "Your profile" : user.displayName} description={isSelf ? "How you appear to everyone in the workspace." : undefined} />
+        <PageHeader
+          title={isSelf ? "Your profile" : user.displayName}
+          description={isSelf ? "How you appear to everyone in the workspace." : undefined}
+          // Live like the dashboard: amber while it reads again, "Not updating" when a refresh failed.
+          actions={<Freshness refreshing={work.isFetching && !work.isLoading} failed={work.isError && !!work.data} testId="profile-live" upToDate="Up to date with the boards." />}
+        />
 
         <section className="mt-4 flex flex-col gap-4 rounded-xl border border-border/70 bg-card p-5 shadow-xs sm:flex-row sm:items-start">
           <UserAvatar user={user} size="xl" tooltip={false} className="size-20 text-lg" />

@@ -1,12 +1,15 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as React from "react";
 import { toast } from "sonner";
 import type { User } from "@/domain";
 import { useDataContext, useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { uploadAvatar } from "./avatar-upload";
 
 /** Who the person is: the head of their profile, which shows before their work has been read. */
@@ -30,7 +33,42 @@ export function useProfileWork(userId: string | null) {
     queryFn: () => services.profiles.loadWork(ws.workspace.id, userId!),
     enabled: !!userId,
     staleTime: 10_000,
+    // Live while it is looked at: realtime (useProfileRealtime) brings changes as they happen, and this
+    // catches anything it missed. Only this person's rows are read, so the poll is small; never in the background.
+    refetchInterval: PROFILE_REFRESH_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
+}
+
+/** The safety refresh of a profile's figures, on top of realtime. */
+const PROFILE_REFRESH_MS = 60_000;
+
+/**
+ * Keeps a profile's figures current while it is open: the tables its tasks,
+ * deliverables and head are read from, one refetch per burst of changes. RLS
+ * applies to Realtime, so the reader only hears of rows they could read anyway.
+ * In local mode the BroadcastChannel sync invalidates the same key.
+ */
+export function useProfileRealtime(userId: string | null): void {
+  const ws = useWorkspace();
+  const checks = useWorkspaceRowChecks();
+  const workspaceId = ws.workspace.id;
+  const bindings = React.useMemo<RealtimeBinding[]>(() => {
+    if (!userId) return [];
+    // Under profile(): the head and the work both.
+    const keys = [queryKeys.profile(workspaceId, userId)];
+    return [
+      { table: "items", keys, accept: checks.onBoard },
+      { table: "item_column_values", keys, accept: checks.onBoard },
+      { table: "item_assets", keys, accept: checks.onBoard },
+      { table: "board_groups", keys, accept: checks.onBoard },
+      { table: "profiles", filter: `id=eq.${userId}`, keys },
+      { table: "workspace_members", filter: `user_id=eq.${userId}`, keys },
+      { table: "team_members", filter: `user_id=eq.${userId}`, keys },
+    ];
+  }, [workspaceId, userId, checks]);
+  useRealtime(userId ? `profile:${workspaceId}:${userId}` : null, bindings, { coalesceMs: 1_500, minIntervalMs: 5_000 });
 }
 
 type ProfilePatch = Partial<

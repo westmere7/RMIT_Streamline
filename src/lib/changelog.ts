@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.1",
+    date: "2026-11-21",
+    title: "Profiles update live",
+    changes: ["A person's page keeps its figures current as work changes, with the same Live dot as the dashboard: amber while it reads again, Not updating if a refresh fails."],
+  },
+  {
     version: "0.136.0",
     date: "2026-11-21",
     title: "Choose which assets move into the sheet",

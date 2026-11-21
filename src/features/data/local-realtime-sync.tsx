@@ -24,12 +24,15 @@ export function LocalRealtimeSync() {
         // The dashboard sums up every board, so anything that moves a task, a line or a team refreshes it.
         invalidate(["dashboard"]);
       }
+      if (kinds.has("assets")) invalidate(["profile"]);
       if (kinds.has("board") || kinds.has("items") || kinds.has("links")) {
         // Linked items mirror across boards, so refresh every snapshot rather than just the named ones.
         invalidate(["board-snapshot"]);
         invalidate(["item-links"]);
         invalidate(["link-candidates"]);
         invalidate(["my-work"]);
+        // A person's figures are read from the same items.
+        invalidate(["profile"]);
         invalidate(["activity"]);
         invalidate(["notifications"]);
         // An item archived, restored or deleted in another tab is a row that has
