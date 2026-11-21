@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -45,7 +45,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn, pluralize } from "@/lib/utils";
 import { useAutoCollapseSidebar } from "@/hooks/use-mobile";
-import { SIDEBAR_MIN_WIDTH, useUiStore } from "@/stores/ui-store";
+import { SIDEBAR_MIN_WIDTH, useUiStore, type SidebarTeamKind } from "@/stores/ui-store";
 
 /** Actions rows can trigger that need dialogs owned by the sidebar itself. */
 interface SidebarActions {
@@ -900,6 +900,7 @@ function TeamNode({
   const highlighted = activeTeam || (containsActive && !expanded);
   const colors = colorClasses(team.color);
   const manage = canManageTeam(ws.permissions, team.id);
+  const shown = useTeamSidebarItems(team.id, trackers, docs, activeTrackerId, activeDocId);
 
   const teamActions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
@@ -919,6 +920,7 @@ function TeamNode({
       : []),
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+    shown.menu,
     { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },
     ...(manage && !team.system
       ? [
@@ -977,13 +979,14 @@ function TeamNode({
               nested
             />
           ))}
-          {trackers.map((tracker) => (
+          {shown.trackers.map((tracker) => (
             <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
           ))}
-          {docs.map((doc) => (
+          {shown.docs.map((doc) => (
             <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
           ))}
           <ArchivedFolder boards={archivedBoards} activeBoardSlug={activeBoardSlug} />
+          <HiddenOnTeamPage teamId={team.id} count={shown.hiddenCount} />
         </ul>
       )}
     </li>
@@ -1029,6 +1032,7 @@ function AdminNode({
   // No box around it: a wash and an edge read as "selected". The team's colour
   // still tints the header's hover and active states, through --team.
   const panelStyle = { "--team": colors.hex } as React.CSSProperties;
+  const shown = useTeamSidebarItems(team.id, trackers, docs, activeTrackerId, activeDocId);
   const actions: MenuAction[] = [
     { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
     ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
@@ -1047,6 +1051,7 @@ function AdminNode({
       : []),
     { type: "separator" },
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+    shown.menu,
   ];
 
   if (collapsed) {
@@ -1090,14 +1095,57 @@ function AdminNode({
         {boards.map((board) => (
           <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={false} />
         ))}
-        {trackers.map((tracker) => (
+        {shown.trackers.map((tracker) => (
           <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
         ))}
-        {docs.map((doc) => (
+        {shown.docs.map((doc) => (
           <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
         ))}
+        <HiddenOnTeamPage teamId={team.id} count={shown.hiddenCount} />
       </ul>
     </section>
+  );
+}
+
+/**
+ * What a team lists in the sidebar for this reader: boards always, trackers and
+ * docs unless switched off in the team's menu (kept on this device, like which
+ * teams are open). The one open now stays listed, so the reader can see where
+ * they are. The team page always lists everything.
+ */
+function useTeamSidebarItems(teamId: string, trackers: Tracker[], docs: DocSummary[], activeTrackerId: string | null | undefined, activeDocId: string | null | undefined) {
+  const hidden = useUiStore((s) => s.teamHiddenKinds[teamId]);
+  const toggle = useUiStore((s) => s.toggleTeamKind);
+  const hides = (kind: SidebarTeamKind) => hidden?.includes(kind) ?? false;
+  const shownTrackers = hides("trackers") ? trackers.filter((t) => t.id === activeTrackerId) : trackers;
+  const shownDocs = hides("docs") ? docs.filter((d) => d.id === activeDocId) : docs;
+  const tick = (kind: SidebarTeamKind, label: string): MenuAction => ({
+    type: "item",
+    label,
+    icon: hides(kind) ? <span aria-hidden className="size-4" /> : <Check />,
+    keepOpen: true,
+    onSelect: () => toggle(teamId, kind),
+    testId: `team-show-${kind}`,
+  });
+  const menu: MenuAction = {
+    type: "sub",
+    label: "Show in sidebar",
+    icon: <Eye />,
+    items: [{ type: "item", label: "Boards", icon: <Check />, disabled: true, onSelect: () => {} }, tick("trackers", "Trackers"), tick("docs", "Docs")],
+  };
+  return { trackers: shownTrackers, docs: shownDocs, hiddenCount: trackers.length - shownTrackers.length + docs.length - shownDocs.length, menu };
+}
+
+/** The way to what a team leaves out of the sidebar: its page lists everything. */
+function HiddenOnTeamPage({ teamId, count }: { teamId: string; count: number }) {
+  const ws = useWorkspace();
+  if (count === 0) return null;
+  return (
+    <li>
+      <Link href={routes.team(ws.slug, teamId)} className="block rounded-md py-1 pl-2 text-2xs text-muted-foreground hover:text-foreground" data-testid="team-hidden-more">
+        {count} more on the team page
+      </Link>
+    </li>
   );
 }
 

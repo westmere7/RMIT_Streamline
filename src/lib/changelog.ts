@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.137.0",
+    date: "2026-11-21",
+    title: "Choose what a team shows in the sidebar",
+    changes: ["Each team's menu has Show in sidebar: switch its trackers or docs off to keep the list short. Boards always show, the one you have open stays listed, and the team page still lists everything."],
+  },
+  {
     version: "0.136.6",
     date: "2026-11-21",
     title: "Person cards in more places",

@@ -25,6 +25,9 @@ export type ItemPanelSize = "default" | "wide";
 /** Where a "view as" preview is kept: this tab only. */
 const VIEW_AS_KEY = "streamline.view-as";
 
+/** What a team can leave out of its sidebar list. Boards are never left out. */
+export type SidebarTeamKind = "trackers" | "docs";
+
 interface UiState {
   sidebarCollapsed: boolean;
   trackerView: TrackerViewSettings;
@@ -34,6 +37,9 @@ interface UiState {
   setSidebarWidth: (width: number) => void;
   /** Team ids expanded in the sidebar. */
   expandedTeamIds: string[];
+  /** What a team leaves out of its sidebar list, by team id. Boards always show; the team page always shows all. */
+  teamHiddenKinds: Record<string, SidebarTeamKind[]>;
+  toggleTeamKind: (teamId: string, kind: SidebarTeamKind) => void;
   /** Whether the Favourites section is expanded. */
   favouritesExpanded: boolean;
   /** Show beside each team in the sidebar how many tasks its boards hold between them. */
@@ -106,6 +112,16 @@ export const useUiStore = create<UiState>()(
       setTrackerView: (patch) => set((s) => ({ trackerView: { ...s.trackerView, ...patch } })),
       setSidebarWidth: (width) => set({ sidebarWidth: Math.round(Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width))) }),
       expandedTeamIds: [],
+      teamHiddenKinds: {},
+      toggleTeamKind: (teamId, kind) =>
+        set((s) => {
+          const hidden = s.teamHiddenKinds[teamId] ?? [];
+          const next = hidden.includes(kind) ? hidden.filter((k) => k !== kind) : [...hidden, kind];
+          const all = { ...s.teamHiddenKinds };
+          if (next.length === 0) delete all[teamId];
+          else all[teamId] = next;
+          return { teamHiddenKinds: all };
+        }),
       favouritesExpanded: true,
       showTeamCounts: false,
       setShowTeamCounts: (showTeamCounts) => set({ showTeamCounts }),
@@ -193,6 +209,7 @@ export const useUiStore = create<UiState>()(
         sidebarWidth: s.sidebarWidth,
         trackerView: s.trackerView,
         expandedTeamIds: s.expandedTeamIds,
+        teamHiddenKinds: s.teamHiddenKinds,
         favouritesExpanded: s.favouritesExpanded,
         showTeamCounts: s.showTeamCounts,
         showBoardCounts: s.showBoardCounts,
