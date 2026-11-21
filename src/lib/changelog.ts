@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.138.3",
+    date: "2026-11-21",
+    title: "Shorter menus",
+    changes: ["Collapse and Expand are gone from the team menu and a group's menu; the arrow beside each still folds it."],
+  },
+  {
     version: "0.138.2",
     date: "2026-11-21",
     title: "Notification settings in two tabs",

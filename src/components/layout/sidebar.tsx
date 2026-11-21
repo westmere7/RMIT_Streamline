@@ -927,7 +927,6 @@ function TeamNode({
     { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
     ...quick.manage,
     shown.menu,
-    { type: "item", label: expanded ? "Collapse" : "Expand", icon: expanded ? <ChevronRight /> : <ChevronDown />, onSelect: () => toggleTeam(team.id) },
     ...(manage && !team.system
       ? [
           { type: "separator" } satisfies MenuAction,

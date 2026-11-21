@@ -182,9 +182,6 @@ export function GroupSection({
                     <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
-                <DropdownMenuItem onSelect={toggleCollapsed}>
-                  {collapsed ? <ChevronDown /> : <ChevronRight />} {collapsed ? "Expand group" : "Collapse group"}
-                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
                   <Copy /> Duplicate group
                 </DropdownMenuItem>
@@ -209,9 +206,6 @@ export function GroupSection({
             <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />
           </ContextMenuSubContent>
         </ContextMenuSub>
-        <ContextMenuItem onSelect={toggleCollapsed}>
-          {collapsed ? <ChevronDown /> : <ChevronRight />} {collapsed ? "Expand group" : "Collapse group"}
-        </ContextMenuItem>
         <ContextMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
           <Copy /> Duplicate group
         </ContextMenuItem>
