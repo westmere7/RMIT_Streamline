@@ -121,7 +121,7 @@ export function GroupSection({
       <ContextMenuTrigger asChild disabled={!canEdit}>
         {/* Opaque: this is pinned to the left, so the row scrolls underneath it. */}
         <div
-          className={cn("group/group sticky left-0 z-[5] flex h-11 items-center gap-1 pr-4", intake ? INTAKE_FILL : "bg-background", collapsed ? "h-full rounded-l-xl border-r border-border/60" : "w-fit")}
+          className={cn("group/group sticky left-0 z-[5] flex h-11 items-center gap-1 pr-4", intake ? cn(INTAKE_FILL, "rounded-tl-xl") : "bg-background", collapsed ? "h-full rounded-l-xl border-r border-border/60" : "w-fit")}
           style={collapsed ? leadingCellStyle(showTicket, layout) : { minWidth: leadingWidth(showTicket, layout) }}
         >
           <div className="flex w-9 items-center justify-center">
@@ -252,7 +252,7 @@ export function GroupSection({
       {collapsed && items.length > 0 ? (
         <GroupSummaryRow leading={header} items={items} widthOverrides={widthOverrides} />
       ) : (
-        <div className={cn("sticky top-0 z-[8]", intake ? cn(INTAKE_FILL, "rounded-t-2xl") : "bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))]")}>{header}</div>
+        <div className={cn("sticky top-0 z-[8]", intake ? cn(INTAKE_FILL, "rounded-t-xl") : "bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))]")}>{header}</div>
       )}
 
       {!collapsed && (
@@ -315,9 +315,9 @@ function IntakeHelp() {
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-72 space-y-1.5 text-[13px]" data-testid="intake-help-text">
-        <p className="font-medium">Bookings from the form arrive here</p>
-        <p className="text-muted-foreground">Not every booking does: a service set to go straight to a team&rsquo;s board is allocated automatically and skips this group.</p>
-        <p className="text-muted-foreground">You can rename or move it, but not delete it.</p>
+        <p className="font-medium">New bookings land here.</p>
+        <p className="text-muted-foreground">Some skip it and go straight to a team&rsquo;s board, if their service is set to.</p>
+        <p className="text-muted-foreground">You can rename it, but not delete it.</p>
       </PopoverContent>
     </Popover>
   );
