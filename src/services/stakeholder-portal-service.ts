@@ -45,6 +45,7 @@ import {
   clampBookingScale,
   isPortalView,
   MAX_BOOKING_HEADLINE,
+  MAX_BOOKING_CLOSED_HEADING,
   MAX_BOOKING_CLOSED_MESSAGE,
   MAX_BOOKING_LEAD,
   MAX_PORTAL_DESCRIPTION,
@@ -577,7 +578,13 @@ export class StakeholderPortalService {
     // Blank means "use the built-in words", which is stored as nothing.
     if (patch.bookingHeadline !== undefined) cleaned.bookingHeadline = patch.bookingHeadline?.trim().slice(0, MAX_BOOKING_HEADLINE) || null;
     if (patch.bookingLead !== undefined) cleaned.bookingLead = patch.bookingLead?.trim().slice(0, MAX_BOOKING_LEAD) || null;
-    if (patch.bookingClosedMessage !== undefined) cleaned.bookingClosedMessage = patch.bookingClosedMessage?.trim().slice(0, MAX_BOOKING_CLOSED_MESSAGE) || null;
+    if (patch.bookingClosedHeading !== undefined) cleaned.bookingClosedHeading = patch.bookingClosedHeading?.trim().slice(0, MAX_BOOKING_CLOSED_HEADING) || null;
+    // Markup, so too long is refused rather than cut: a cut could end inside a link or a colour.
+    if (patch.bookingClosedMessage !== undefined) {
+      const message = patch.bookingClosedMessage?.trim() ?? "";
+      if (message.length > MAX_BOOKING_CLOSED_MESSAGE) throw new Error(`The message can be at most ${MAX_BOOKING_CLOSED_MESSAGE} characters, formatting included.`);
+      cleaned.bookingClosedMessage = message || null;
+    }
     if (patch.bookingScale !== undefined) cleaned.bookingScale = clampBookingScale(patch.bookingScale);
     if (Object.keys(cleaned).length === 0) return portal;
     return this.repos.stakeholderPortals.updatePortal(portal.id, cleaned);
@@ -638,6 +645,7 @@ export class StakeholderPortalService {
       bookingScale: 100,
       bookingScaleSwitch: true,
       bookingOpen: false,
+      bookingClosedHeading: null,
       bookingClosedMessage: null,
       credentialVersion: 0,
     };
@@ -650,7 +658,7 @@ export class StakeholderPortalService {
     if (portal.departmentId !== null) return { ...closed, refusal: "revoked" };
     // A closed portal closes its booking link too. That link still says so in the team's own words
     // (and its own theme), so somebody sent it is not left with a bare "this does not open".
-    if (!portal.enabled) return { ...closed, refusal: "off", bookingTheme: portal.bookingTheme, bookingThemeSwitch: portal.bookingThemeSwitch, bookingClosedMessage: portal.bookingClosedMessage ?? null };
+    if (!portal.enabled) return { ...closed, refusal: "off", bookingTheme: portal.bookingTheme, bookingThemeSwitch: portal.bookingThemeSwitch, bookingClosedHeading: portal.bookingClosedHeading ?? null, bookingClosedMessage: portal.bookingClosedMessage ?? null };
     const workspace = await this.repos.workspaces.getById(portal.workspaceId);
     const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
     return {
@@ -670,6 +678,7 @@ export class StakeholderPortalService {
       bookingScale: portal.bookingScale ?? 100,
       bookingScaleSwitch: portal.bookingScaleSwitch ?? true,
       bookingOpen: portal.allowBooking,
+      bookingClosedHeading: portal.bookingClosedHeading ?? null,
       bookingClosedMessage: portal.bookingClosedMessage ?? null,
       credentialVersion: portal.credentialVersion,
     };

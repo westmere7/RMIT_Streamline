@@ -17,7 +17,7 @@ import { assertOk, db, unwrap, unwrapList, unwrapMaybe } from "../client";
 
 const DEPARTMENT = "id, workspace_id, name, color, position, status, created_at, updated_at";
 const PORTAL =
-  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, column_layout, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, booking_scale, booking_scale_switch, booking_closed_message, created_at, updated_at";
+  "id, workspace_id, department_id, enabled, token, password_hash, credential_version, default_theme, description, hidden_columns, column_layout, default_view, allow_booking, show_recap, show_item_groups, default_range, theme_switch, booking_theme, booking_theme_switch, booking_headline, booking_lead, booking_sign_in, booking_scale, booking_scale_switch, booking_closed_heading, booking_closed_message, created_at, updated_at";
 const REQUEST = "id, workspace_id, department_id, item_id, source, public_brief, booked_at, created_at, updated_at";
 const SUBMISSION = "id, portal_id, submission_key, request_hash, item_id, receipt, created_at";
 
@@ -57,6 +57,7 @@ interface PortalRow {
   booking_sign_in: boolean | null;
   booking_scale: number | null;
   booking_scale_switch: boolean | null;
+  booking_closed_heading: string | null;
   booking_closed_message: string | null;
   created_at: string;
   updated_at: string;
@@ -126,6 +127,7 @@ function toPortal(row: PortalRow): StakeholderPortal {
     bookingSignIn: row.booking_sign_in ?? true,
     bookingScale: row.booking_scale ?? 100,
     bookingScaleSwitch: row.booking_scale_switch ?? true,
+    bookingClosedHeading: row.booking_closed_heading ?? null,
     bookingClosedMessage: row.booking_closed_message ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -267,6 +269,7 @@ export class SupabaseStakeholderPortalRepository implements StakeholderPortalRep
     if (patch.bookingSignIn !== undefined) payload.booking_sign_in = patch.bookingSignIn;
     if (patch.bookingScale !== undefined) payload.booking_scale = patch.bookingScale;
     if (patch.bookingScaleSwitch !== undefined) payload.booking_scale_switch = patch.bookingScaleSwitch;
+    if (patch.bookingClosedHeading !== undefined) payload.booking_closed_heading = patch.bookingClosedHeading;
     if (patch.bookingClosedMessage !== undefined) payload.booking_closed_message = patch.bookingClosedMessage;
     const result = await db().from("department_portals").update(payload).eq("id", id).select(PORTAL).single();
     return toPortal(unwrap<PortalRow>(result, "department_portals.update"));

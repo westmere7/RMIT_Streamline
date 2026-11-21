@@ -24,6 +24,7 @@ const LINK_DEFAULTS = {
   bookingSignIn: true,
   bookingScale: 100,
   bookingScaleSwitch: true,
+  bookingClosedHeading: null,
   bookingClosedMessage: null,
 } satisfies Partial<StakeholderPortal>;
 

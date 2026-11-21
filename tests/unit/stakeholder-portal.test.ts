@@ -193,22 +193,25 @@ describe("the stakeholder portal", () => {
     await services.portals.setPresentation(WS, { allowBooking: false });
     expect(await services.portals.gate(portal.token)).toMatchObject({ open: true, bookingOpen: false, bookingClosedMessage: null });
 
-    // Stored trimmed; blank is the built-in words; too long is cut to the limit.
-    await services.portals.setPresentation(WS, { bookingClosedMessage: "  Back on 6 January.\nUrgent? Call ext 1234.  " });
-    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toBe("Back on 6 January.\nUrgent? Call ext 1234.");
-    await services.portals.setPresentation(WS, { bookingClosedMessage: "x".repeat(500) });
-    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toHaveLength(400);
-    await services.portals.setPresentation(WS, { bookingClosedMessage: "   " });
-    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toBeNull();
+    // Stored trimmed, as the rich text markup it was written in; blank is the built-in words.
+    await services.portals.setPresentation(WS, { bookingClosedHeading: "  Closed for the break  ", bookingClosedMessage: "  **Back on 6 January.**\n- Urgent? Call ext 1234.  " });
+    expect(await services.portals.gate(portal.token)).toMatchObject({ bookingClosedHeading: "Closed for the break", bookingClosedMessage: "**Back on 6 January.**\n- Urgent? Call ext 1234." });
+    // A heading is cut to its limit; markup too long is refused whole, since a cut could end inside a link.
+    await services.portals.setPresentation(WS, { bookingClosedHeading: "h".repeat(120) });
+    expect((await services.portals.gate(portal.token)).bookingClosedHeading).toHaveLength(80);
+    await expect(services.portals.setPresentation(WS, { bookingClosedMessage: "x".repeat(2001) })).rejects.toThrow(/at most 2000 characters/);
+    expect((await services.portals.gate(portal.token)).bookingClosedMessage).toBe("**Back on 6 January.**\n- Urgent? Call ext 1234.");
+    await services.portals.setPresentation(WS, { bookingClosedHeading: " ", bookingClosedMessage: "   " });
+    expect(await services.portals.gate(portal.token)).toMatchObject({ bookingClosedHeading: null, bookingClosedMessage: null });
   });
 
   it("a closed portal's booking link still carries the message, and nothing else about the workspace", async () => {
     const { portal } = await twoDepartments();
-    await services.portals.setPresentation(WS, { bookingClosedMessage: "Closed over the break.", bookingTheme: "dark" });
+    await services.portals.setPresentation(WS, { bookingClosedHeading: "See you in January", bookingClosedMessage: "Closed over the break.", bookingTheme: "dark" });
     await services.portals.setEnabled(WS, false);
 
     const closed = await services.portals.gate(portal.token);
-    expect(closed).toMatchObject({ open: false, refusal: "off", bookingOpen: false, bookingClosedMessage: "Closed over the break.", bookingTheme: "dark", portalName: "", creativeTeamName: "" });
+    expect(closed).toMatchObject({ open: false, refusal: "off", bookingOpen: false, bookingClosedHeading: "See you in January", bookingClosedMessage: "Closed over the break.", bookingTheme: "dark", portalName: "", creativeTeamName: "" });
     // A token that names nothing gets no message.
     expect(await services.portals.gate("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")).toMatchObject({ open: false, bookingClosedMessage: null });
   });

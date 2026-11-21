@@ -7,10 +7,12 @@ import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifi
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, FileText, Globe, GripVertical, Loader2, Lock, Pencil, RefreshCw, Settings2, Users } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { RichText } from "@/components/shared/rich-text";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +24,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DEFAULT_BOOKING_CLOSED_HEADING,
   DEFAULT_BOOKING_CLOSED_MESSAGE,
+  MAX_BOOKING_CLOSED_HEADING,
   DEFAULT_BOOKING_HEADLINE,
   DEFAULT_BOOKING_LEAD,
   MAX_BOOKING_CLOSED_MESSAGE,
@@ -233,7 +237,7 @@ function bookingSettingsRows(portal: StakeholderPortal): Array<{ label: string; 
     { label: "Left panel words", value: portal.bookingHeadline?.trim() || portal.bookingLead?.trim() ? "Your own" : "Built in" },
     { label: "Size", value: `${portal.bookingScale ?? 100}%${(portal.bookingScaleSwitch ?? true) ? ", visitors can change" : ""}` },
     { label: "Staff sign-in", value: portal.bookingSignIn ? "Offered" : "Not offered" },
-    { label: "When closed", value: portal.bookingClosedMessage?.trim() ? "Your own message" : "Built in" },
+    { label: "When closed", value: portal.bookingClosedHeading?.trim() || portal.bookingClosedMessage?.trim() ? "Your own message" : "Built in" },
   ];
 }
 
@@ -543,6 +547,7 @@ function StakeholderList({ rows, counts }: { rows: DepartmentOverview[]; counts:
 type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | "defaultTheme" | "themeSwitch" | "showRecap" | "showItemGroups" | "allowBooking" | "bookingTheme" | "bookingThemeSwitch" | "bookingSignIn" | "bookingScale" | "bookingScaleSwitch">> & {
   bookingHeadline: string;
   bookingLead: string;
+  bookingClosedHeading: string;
   bookingClosedMessage: string;
   teamName: string;
   /** Every column on offer, in order, shown or not. */
@@ -552,7 +557,7 @@ type Draft = Required<Pick<PortalPresentation, "defaultView" | "defaultRange" | 
 /** Which fields each panel owns. Anything else in the draft is left exactly as it was. */
 const PANEL_FIELDS = {
   portal: ["teamName", "defaultView", "defaultRange", "defaultTheme", "themeSwitch", "columnLayout", "showRecap", "showItemGroups"],
-  booking: ["bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch", "bookingClosedMessage"],
+  booking: ["bookingTheme", "bookingThemeSwitch", "bookingHeadline", "bookingLead", "bookingSignIn", "bookingScale", "bookingScaleSwitch", "bookingClosedHeading", "bookingClosedMessage"],
 } as const satisfies Record<string, ReadonlyArray<keyof Draft>>;
 
 function draftOf(portal: StakeholderPortal, teamName: string, columns: readonly PortalColumnCandidate[]): Draft {
@@ -572,6 +577,7 @@ function draftOf(portal: StakeholderPortal, teamName: string, columns: readonly 
     bookingScaleSwitch: portal.bookingScaleSwitch ?? true,
     bookingHeadline: portal.bookingHeadline ?? "",
     bookingLead: portal.bookingLead ?? "",
+    bookingClosedHeading: portal.bookingClosedHeading ?? "",
     bookingClosedMessage: portal.bookingClosedMessage ?? "",
     teamName,
   };
@@ -870,19 +876,89 @@ function BookingFields({ draft, set }: { draft: Draft; set: SetField }) {
       <Toggle label="Offers staff sign-in" checked={draft.bookingSignIn} onChange={(value) => set("bookingSignIn", value)} testId="portal-booking-sign-in" />
       <ScaleField value={draft.bookingScale} onChange={(value) => set("bookingScale", value)} />
       <Toggle label="Visitors can change size" checked={draft.bookingScaleSwitch} onChange={(value) => set("bookingScaleSwitch", value)} testId="portal-booking-scale-switch" />
-      <Field label="When not taking requests">
-        <Textarea
-          value={draft.bookingClosedMessage}
-          onChange={(e) => set("bookingClosedMessage", e.target.value)}
-          maxLength={MAX_BOOKING_CLOSED_MESSAGE}
-          placeholder={DEFAULT_BOOKING_CLOSED_MESSAGE}
-          aria-label="Message when not taking requests"
-          rows={3}
-          className="min-h-0 resize-none"
-          data-testid="portal-booking-closed-message"
-        />
-      </Field>
+      <ClosedMessageField
+        heading={draft.bookingClosedHeading}
+        message={draft.bookingClosedMessage}
+        onChange={(heading, message) => {
+          set("bookingClosedHeading", heading);
+          set("bookingClosedMessage", message);
+        }}
+      />
     </>
+  );
+}
+
+/** The editor is a WYSIWYG bundle; loaded when the pop-up first opens, not with the page. */
+const RichTextEditor = dynamic(() => import("@/components/shared/rich-text-editor").then((m) => m.RichTextEditor), {
+  ssr: false,
+  loading: () => <div className="h-40 animate-pulse rounded-lg border border-border/60 bg-surface/40" />,
+});
+const NO_PEOPLE: readonly never[] = [];
+
+/** What the booking link shows while closed: a short look at it here, edited in a pop-up. */
+function ClosedMessageField({ heading, message, onChange }: { heading: string; message: string; onChange: (heading: string, message: string) => void }) {
+  const [editing, setEditing] = React.useState(false);
+  const own = !!(heading.trim() || message.trim());
+  return (
+    <Field label="When not taking requests">
+      <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2.5" data-testid="portal-booking-closed-summary">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-medium">{heading.trim() || DEFAULT_BOOKING_CLOSED_HEADING}</p>
+          <div className="mt-0.5 line-clamp-2 text-2xs text-muted-foreground">
+            <RichText body={message.trim() || DEFAULT_BOOKING_CLOSED_MESSAGE} className="text-2xs" />
+          </div>
+          {!own && <p className="mt-1 text-2xs text-muted-foreground/70">Built in</p>}
+        </div>
+        <Button type="button" variant="outline" size="sm" className="h-7 shrink-0" onClick={() => setEditing(true)} data-testid="portal-booking-closed-edit">
+          <Pencil /> Edit
+        </Button>
+      </div>
+      {editing && <ClosedMessageDialog heading={heading} message={message} onDone={(h, m) => { onChange(h, m); setEditing(false); }} onCancel={() => setEditing(false)} />}
+    </Field>
+  );
+}
+
+/** The heading and the formatted message, written over the settings. Done hands them back to the settings, which Save keeps. */
+function ClosedMessageDialog({ heading, message, onDone, onCancel }: { heading: string; message: string; onDone: (heading: string, message: string) => void; onCancel: () => void }) {
+  const [h, setH] = React.useState(heading);
+  const [m, setM] = React.useState(message);
+  const length = m.trim().length;
+  const tooLong = length > MAX_BOOKING_CLOSED_MESSAGE;
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent size="lg" data-testid="portal-booking-closed-dialog">
+        <DialogHeader>
+          <DialogTitle>When not taking requests</DialogTitle>
+          <DialogDescription>Shown on the booking link while it is off, in place of the form.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4">
+          <Field label="Heading">
+            <Input value={h} onChange={(e) => setH(e.target.value)} maxLength={MAX_BOOKING_CLOSED_HEADING} placeholder={DEFAULT_BOOKING_CLOSED_HEADING} aria-label="Heading when not taking requests" className="h-9" data-testid="portal-booking-closed-heading" />
+          </Field>
+          <Field label="Message">
+            <RichTextEditor value={m} onChange={setM} people={NO_PEOPLE} placeholder={DEFAULT_BOOKING_CLOSED_MESSAGE} rows={6} ariaLabel="Message when not taking requests" testId="portal-booking-closed-message" />
+            {length > MAX_BOOKING_CLOSED_MESSAGE * 0.8 && (
+              <p className={cn("mt-1 text-right text-2xs tabular", tooLong ? "text-destructive" : "text-muted-foreground")} data-testid="portal-booking-closed-count">
+                {length} / {MAX_BOOKING_CLOSED_MESSAGE}
+              </p>
+            )}
+          </Field>
+        </div>
+        <DialogFooter className="items-center gap-2 sm:justify-between">
+          <Button type="button" variant="ghost" size="sm" disabled={!h && !m} onClick={() => { setH(""); setM(""); }} data-testid="portal-booking-closed-reset">
+            Use the built-in words
+          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+              Cancel
+            </Button>
+            <Button type="button" size="sm" disabled={tooLong} onClick={() => onDone(h, m)} data-testid="portal-booking-closed-done">
+              Done
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

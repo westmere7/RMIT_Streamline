@@ -124,7 +124,9 @@ export interface StakeholderPortal extends Timestamps {
   bookingScale: number;
   /** Whether a visitor may change the booking form's size for themselves. */
   bookingScaleSwitch: boolean;
-  /** What the booking link says while it takes no requests. Null uses the built-in words. */
+  /** The heading the booking link shows while it takes no requests. Null uses the built-in one. */
+  bookingClosedHeading: string | null;
+  /** What the booking link says under it, in the rich text markup (see src/lib/rich-text.ts). Null uses the built-in words. */
   bookingClosedMessage: string | null;
 }
 
@@ -159,8 +161,11 @@ export const MAX_BOOKING_HEADLINE = 80;
 export const MAX_BOOKING_LEAD = 240;
 
 /** What the booking link says while it takes no requests, when the team has not written its own. */
+export const DEFAULT_BOOKING_CLOSED_HEADING = "Not taking requests right now";
 export const DEFAULT_BOOKING_CLOSED_MESSAGE = "We're not taking new requests at the moment. If it can't wait, contact the creative team directly.";
-export const MAX_BOOKING_CLOSED_MESSAGE = 400;
+export const MAX_BOOKING_CLOSED_HEADING = 80;
+/** In characters of the stored markup, formatting included. */
+export const MAX_BOOKING_CLOSED_MESSAGE = 2000;
 
 /**
  * The columns the portal's board can carry.
@@ -262,6 +267,7 @@ export type PortalPresentation = Partial<
     | "bookingSignIn"
     | "bookingScale"
     | "bookingScaleSwitch"
+    | "bookingClosedHeading"
     | "bookingClosedMessage"
   >
 >;
@@ -388,7 +394,8 @@ export interface PortalGate {
    * Said before any password, so a closed form never asks for one first.
    */
   bookingOpen: boolean;
-  /** The team's words for a closed booking link; null where the built-in ones stand. */
+  /** The team's words for a closed booking link (heading, and rich text under it); null where the built-in ones stand. */
+  bookingClosedHeading: string | null;
   bookingClosedMessage: string | null;
   /** Rises whenever the link or password changes; a grant issued under an older one is dead. */
   credentialVersion: number;

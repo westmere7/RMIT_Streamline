@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BoardViewKind, PortalGate } from "@/domain";
-import { DEFAULT_BOOKING_CLOSED_MESSAGE, DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
+import { DEFAULT_BOOKING_CLOSED_HEADING, DEFAULT_BOOKING_CLOSED_MESSAGE, DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -19,6 +19,7 @@ import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBookingScreen } from "@/features/portal/portal-booking";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalHeader, PortalRangePicker, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
+import { RichText } from "@/components/shared/rich-text";
 import { cn } from "@/lib/utils";
 import { PortalAccessError } from "@/services/stakeholder-portal-service";
 
@@ -161,7 +162,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     return (
       <PortalThemeScope token={token} {...themeFor(gate.data, true)}>
         <PortalShell>
-          <BookingClosed message={gate.data.bookingClosedMessage} teamName={gate.data.creativeTeamName} portalHref={gate.data.open ? `/portal/${encodeURIComponent(token)}` : null} />
+          <BookingClosed heading={gate.data.bookingClosedHeading} message={gate.data.bookingClosedMessage} teamName={gate.data.creativeTeamName} portalHref={gate.data.open ? `/portal/${encodeURIComponent(token)}` : null} />
         </PortalShell>
       </PortalThemeScope>
     );
@@ -303,26 +304,31 @@ function themeFor(gate: PortalGate, booking: boolean) {
     : { surface: "board" as const, preferred: gate.defaultTheme, allowSwitch: gate.themeSwitch };
 }
 
-/** The booking link while it takes no requests: the team's words, and the way to the portal when that is open. */
-function BookingClosed({ message, teamName, portalHref }: { message: string | null; teamName: string; portalHref: string | null }) {
+/**
+ * The booking link while it takes no requests: a page of its own, no side panel, with the team's
+ * heading and formatted message (or the built-in words), and the way to the portal when that is open.
+ */
+export function BookingClosed({ heading, message, teamName, portalHref }: { heading: string | null; message: string | null; teamName: string; portalHref: string | null }) {
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col items-center px-4 py-20 text-center" data-testid="booking-closed">
-      <span className="mb-4 flex size-12 items-center justify-center rounded-full bg-surface-strong/70 text-muted-foreground">
-        <ClipboardX className="size-5" aria-hidden />
-      </span>
-      {teamName && <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{teamName}</p>}
-      <h1 className="mt-1 text-lg font-semibold tracking-tight">Not taking requests right now</h1>
-      <p className="mt-1.5 text-[13px] whitespace-pre-line text-muted-foreground" data-testid="booking-closed-message">
-        {message?.trim() || DEFAULT_BOOKING_CLOSED_MESSAGE}
-      </p>
-      {portalHref && (
-        <Button variant="outline" className="mt-5" asChild>
-          <Link href={portalHref} data-testid="booking-closed-portal">
-            See requests in the portal
-          </Link>
-        </Button>
-      )}
-    </div>
+    <main className="flex min-h-dvh w-full items-center justify-center px-5 py-16" data-testid="booking-closed">
+      <div className="w-full max-w-xl">
+        <span className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-surface-strong/70 text-muted-foreground">
+          <ClipboardX className="size-6" aria-hidden />
+        </span>
+        {teamName && <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">{teamName}</p>}
+        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-balance sm:text-3xl" data-testid="booking-closed-heading">
+          {heading?.trim() || DEFAULT_BOOKING_CLOSED_HEADING}
+        </h1>
+        <RichText body={message?.trim() || DEFAULT_BOOKING_CLOSED_MESSAGE} className="mt-4 text-[15px] leading-relaxed text-foreground/80" />
+        {portalHref && (
+          <Button variant="outline" className="mt-8" asChild>
+            <Link href={portalHref} data-testid="booking-closed-portal">
+              See requests in the portal
+            </Link>
+          </Button>
+        )}
+      </div>
+    </main>
   );
 }
 

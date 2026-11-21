@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.135.1",
+    date: "2026-11-21",
+    title: "Closed booking page, your heading and formatting",
+    changes: ["The page a closed booking link shows is now a full page with your own heading, and the message takes formatting: bold, lists, links, colour. Edit both in a pop-up from the booking form's settings."],
+  },
+  {
     version: "0.135.0",
     date: "2026-11-21",
     title: "A message when booking is closed",

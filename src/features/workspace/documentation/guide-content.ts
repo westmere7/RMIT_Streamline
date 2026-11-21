@@ -512,7 +512,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
       { title: "Set up the portal", steps: [
         "Keep the department list current in Settings → Departments, and set each task's Department.",
         "Open Portal and Booking. The Portal and Booking form cards sit side by side, each with its switch, its settings listed, and Open and copy buttons. Switch the portal on; switching it off closes the booking form too. The booking form's own switch decides whether it takes requests.",
-        "Change a link's settings with the gear beside its switch: for the portal, the team name, what it opens on, the default span, the theme, the columns, and what it shows; for the booking form, its theme, the left panel heading and text, the staff sign-in offer, its size, and what the booking link says while it takes no requests. Replacing the link, at the foot, changes both addresses at once.",
+        "Change a link's settings with the gear beside its switch: for the portal, the team name, what it opens on, the default span, the theme, the columns, and what it shows; for the booking form, its theme, the left panel heading and text, the staff sign-in offer, its size, and the heading and formatted message the booking link shows, as a page of its own, while it takes no requests (Edit opens them in a pop-up). Replacing the link, at the foot, changes both addresses at once.",
         "Save each dialog; Discard throws its changes away.",
         "Open both links to check what visitors see, then share them.",
       ] },
