@@ -211,8 +211,8 @@ export function useSheetAssetMutations() {
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });
   const unlink = useMutation({
-    mutationFn: ({ sheetId }: { sheetId: string; trackerId: string }) => services.trackers.unlinkSheet(sheetId, user.id),
-    onSuccess: () => toast.success("Unlinked. The task no longer counts this sheet's rows."),
+    mutationFn: ({ sheetId, keepAssets }: { sheetId: string; trackerId: string; keepAssets?: boolean }) => services.trackers.unlinkSheet(sheetId, user.id, { keepAssets }),
+    onSuccess: (_sheet, { keepAssets }) => toast.success(keepAssets ? "Unlinked. The assets stay on the task as its own." : "Unlinked. The task no longer counts this sheet's rows."),
     onError: fail("Could not unlink the sheet"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });

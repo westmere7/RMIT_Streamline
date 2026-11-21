@@ -1043,6 +1043,25 @@ describe("a linked sheet, through real saves", () => {
     expect(added.position).toBeGreaterThan(kept[2]!.position);
   });
 
+  it("unlinking with keepAssets keeps the lines as the task's own, same ids; the sheet keeps its rows", async () => {
+    await link();
+    const before = await sheetLines();
+    const rows = (await current()).rows.length;
+    const unlinked = await services.trackers.unlinkSheet(sheet.id, JUN, { keepAssets: true });
+    expect(unlinked.itemId).toBeNull();
+    expect(unlinked.rows).toHaveLength(rows);
+    const kept = await services.assets.list(item.id);
+    expect(kept.map((l) => [l.id, l.name, l.trackerSheetId, l.trackerRowId, !!l.completedAt])).toEqual(before.map((l) => [l.id, l.name, null, null, !!l.completedAt]));
+    expect((await values()).recap).toMatchObject({ lines: before.length });
+  });
+
+  it("unlinking without keepAssets takes the lines off", async () => {
+    await link();
+    await services.trackers.unlinkSheet(sheet.id, JUN);
+    expect(await services.assets.list(item.id)).toEqual([]);
+    expect((await values()).recap).toMatchObject({ lines: 0 });
+  });
+
   it("deleting the tracker without keepAssets takes the lines off and puts the recap right", async () => {
     await link();
     await services.trackers.delete(sheet.trackerId, JUN, { keepAssets: false });

@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Check, CornerDownLeft, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -49,6 +50,7 @@ import { Switch } from "@/components/ui/switch";
 import { TrackerService } from "@/services/tracker-service";
 import { useServices } from "@/features/data/data-context";
 import { useSheetAssetMutations } from "@/features/trackers/hooks";
+import { KeepAssetsSwitch } from "./delete-tracker-dialog";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canEditBoard } from "@/lib/permissions/permissions";
@@ -408,6 +410,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
   // From a task, the assets are chosen after linking (afterLink), so no all-or-nothing switch here.
   const movable = sheet.itemId || afterLink ? 0 : (ownLines.data ?? 0);
   const [moveAssets, setMoveAssets] = React.useState(true);
+  // Unlink asks first; keeping the sheet's assets on the task is the default.
+  const [unlinkOpen, setUnlinkOpen] = React.useState(false);
+  const [keepOnUnlink, setKeepOnUnlink] = React.useState(true);
   // A sheet nobody has started is given the asset columns rather than mapped.
   const fresh = !sheet.itemId && isFreshSheet(sheet);
   const [query, setQuery] = React.useState("");
@@ -505,6 +510,20 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
 
   return (
     <>
+      <ConfirmDialog
+        open={unlinkOpen}
+        onOpenChange={setUnlinkOpen}
+        title={`Unlink “${sheet.name}”?`}
+        description="The sheet keeps its rows."
+        confirmLabel="Unlink"
+        onConfirm={async () => {
+          await mutations.unlink.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, keepAssets: keepOnUnlink });
+          setUnlinkOpen(false);
+          onClose();
+        }}
+      >
+        {task && <KeepAssetsSwitch taskNames={[task.name]} keep={keepOnUnlink} onKeep={setKeepOnUnlink} />}
+      </ConfirmDialog>
       <DialogHeader>
         <DialogTitle>Task assets</DialogTitle>
         <DialogDescription>Each row of “{sheet.name}” becomes one of the task&rsquo;s assets, counted on its board, in My Work and on the dashboard.</DialogDescription>
@@ -525,9 +544,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
                 variant="ghost"
                 className="text-muted-foreground hover:text-destructive"
                 disabled={pending}
-                onClick={async () => {
-                  await mutations.unlink.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId });
-                  onClose();
+                onClick={() => {
+                  setKeepOnUnlink(true);
+                  setUnlinkOpen(true);
                 }}
                 data-testid="task-assets-unlink"
               >

@@ -110,12 +110,7 @@ export class TrackerService {
    * matters here); otherwise they are taken off, as unlinking does.
    */
   private async releaseSheet(sheetId: EntityId, actorId: EntityId, keepAssets: boolean): Promise<void> {
-    if (!keepAssets) {
-      await this.unlinkSheet(sheetId, actorId);
-      return;
-    }
-    await this.repos.itemAssets.detachFromSheet(sheetId);
-    await this.repos.trackers.updateSheet(sheetId, { itemId: null });
+    await this.unlinkSheet(sheetId, actorId, { keepAssets });
   }
 
   /**
@@ -611,11 +606,16 @@ export class TrackerService {
     return { sheet: retyped ? TrackerService.updateColumn(next, columnId, { type: retyped }) : next, cleared, retyped };
   }
 
-  /** Lets the sheet go of its task: the task's lines from it are taken off. The rows stay in the sheet. */
-  async unlinkSheet(sheetId: EntityId, actorId: EntityId): Promise<TrackerSheet> {
+  /**
+   * Lets the sheet go of its task. The rows stay in the sheet. Kept, the task's
+   * lines from it are detached and stay as the task's own (same ids, dates and
+   * done marks); otherwise they are taken off the task.
+   */
+  async unlinkSheet(sheetId: EntityId, actorId: EntityId, options: { keepAssets?: boolean } = {}): Promise<TrackerSheet> {
     const sheet = await this.getSheet(sheetId);
     if (!sheet.itemId) return sheet;
-    await this.assets?.syncFromSheet({ ...sheet, itemId: sheet.itemId, assetMapping: null }, actorId);
+    if (options.keepAssets) await this.repos.itemAssets.detachFromSheet(sheetId);
+    else await this.assets?.syncFromSheet({ ...sheet, itemId: sheet.itemId, assetMapping: null }, actorId);
     return this.repos.trackers.updateSheet(sheetId, { itemId: null });
   }
 

@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.5",
+    date: "2026-11-21",
+    title: "Unlink asks first",
+    changes: ["Unlinking a sheet from its task now asks first, and keeps the sheet's assets on the task as its own unless you switch that off."],
+  },
+  {
     version: "0.136.4",
     date: "2026-11-21",
     title: "A handier person card",
