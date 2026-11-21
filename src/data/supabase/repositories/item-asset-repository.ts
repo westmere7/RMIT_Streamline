@@ -131,13 +131,15 @@ export class SupabaseItemAssetRepository implements ItemAssetRepository {
     assertOk(await db().from("item_assets").update({ tracker_sheet_id: null, tracker_row_id: null }).eq("tracker_sheet_id", sheetId), "item_assets.detachFromSheet");
   }
 
-  async attachToSheet(sheetId: string, pairs: ReadonlyArray<{ id: string; rowId: string; updatedAt: string }>): Promise<string[]> {
+  async attachToSheet(sheetId: string, pairs: ReadonlyArray<{ id: string; rowId: string; updatedAt: string; itemId?: string; boardId?: string }>): Promise<string[]> {
     const attached: string[] = [];
     // One line a write, each only while it is in no sheet and as it was read; a few at a time.
     for (const part of chunk([...pairs], 8)) {
       const results = await Promise.all(
         part.map(async (pair) => {
-          const result = await db().from("item_assets").update({ tracker_sheet_id: sheetId, tracker_row_id: pair.rowId }).eq("id", pair.id).is("tracker_sheet_id", null).eq("updated_at", pair.updatedAt).select("id");
+          // A new item_id brings its board with it (the item_assets_set_board trigger); RLS needs edit rights on both tasks.
+          const payload = { tracker_sheet_id: sheetId, tracker_row_id: pair.rowId, ...(pair.itemId ? { item_id: pair.itemId } : {}) };
+          const result = await db().from("item_assets").update(payload).eq("id", pair.id).is("tracker_sheet_id", null).eq("updated_at", pair.updatedAt).select("id");
           // A row another save gave a line meanwhile breaks the unique pair: that line is simply not taken.
           return result.error ? [] : (result.data ?? []).map((r: { id: string }) => r.id);
         }),

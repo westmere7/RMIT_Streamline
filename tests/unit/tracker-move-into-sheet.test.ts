@@ -233,6 +233,42 @@ describe("moving a task's own assets into its linked sheet", () => {
     expect(before.every((b) => lines.some((l) => l.id === b.id && l.trackerSheetId === sheet.id))).toBe(true);
   });
 
+  it("moves only the assets ticked; the rest stay the task's own", async () => {
+    const [a, b, c] = await own([{ name: "Poster" }, { name: "Flyer" }, { name: "Banner" }]);
+    const sheet = await linked();
+    const { moved, kept } = await services.trackers.moveTaskAssetsIntoSheet(sheet.id, actor, { lineIds: [a!.id, c!.id] });
+    expect([moved, kept]).toEqual([2, 0]);
+    const lines = await linesOf();
+    expect(lines.find((l) => l.id === a!.id)?.trackerSheetId).toBe(sheet.id);
+    expect(lines.find((l) => l.id === c!.id)?.trackerSheetId).toBe(sheet.id);
+    expect(lines.find((l) => l.id === b!.id)?.trackerSheetId ?? null).toBeNull();
+    // An id that is not one of the task's assets is ignored.
+    expect(await services.trackers.moveTaskAssetsIntoSheet(sheet.id, actor, { lineIds: ["not-a-line"] })).toMatchObject({ moved: 0 });
+  });
+
+  it("a linked task's asset can move too: it becomes this task's, keeps its id and dates, and still shows on both", async () => {
+    const boards = await repos.boards.listByWorkspace(SEED_WORKSPACE_ID);
+    const otherBoard = boards.find((b) => !b.system && b.id !== item.boardId)!;
+    const other = (await repos.items.listByBoard(otherBoard.id)).find((i) => !i.parentItemId)!;
+    const existing = await repos.itemAssets.listByItem(other.id);
+    if (existing.length) await repos.itemAssets.deleteMany(existing.map((x) => x.id));
+    await services.links.link(item.id, other.id, actor);
+    const [theirs] = await repos.itemAssets.createMany([{ itemId: other.id, boardId: other.boardId, name: "Their poster", assetType: "Print", position: 0, createdBy: actor, completedAt: "2026-10-01T00:00:00.000Z" }]);
+    const [mine] = await own([{ name: "My flyer" }]);
+    const sheet = await linked();
+
+    const { moved } = await services.trackers.moveTaskAssetsIntoSheet(sheet.id, actor);
+    expect(moved).toBe(2);
+    const line = await repos.itemAssets.getById(theirs!.id);
+    expect(line).toMatchObject({ itemId: item.id, boardId: item.boardId, trackerSheetId: sheet.id, completedAt: "2026-10-01T00:00:00.000Z", createdAt: theirs!.createdAt });
+    expect((await repos.itemAssets.getById(mine!.id))?.trackerSheetId).toBe(sheet.id);
+    // Shared across the link, so the other task still shows it.
+    expect((await services.assets.list(other.id)).some((l) => l.id === theirs!.id)).toBe(true);
+    // And the sheet's sync keeps it: it is this task's now.
+    await services.trackers.saveSheet(sheet.id, { name: "Kit renamed" }, actor);
+    expect((await repos.itemAssets.getById(theirs!.id))?.trackerSheetId).toBe(sheet.id);
+  });
+
   it("only the task's own lines move: a sheet's lines and nothing else are touched, and a sheet holding no task refuses", async () => {
     const { sheets } = await services.trackers.create({ workspaceId: SEED_WORKSPACE_ID, teamId: null, name: "Loose", layout: "blank", sheets: [{ name: "S", frozenColumns: 1, columns, rows }] }, actor);
     await expect(services.trackers.moveTaskAssetsIntoSheet(sheets[0]!.id, actor)).rejects.toThrow("This sheet holds no task's assets.");

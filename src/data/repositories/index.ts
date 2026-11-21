@@ -474,11 +474,13 @@ export interface ItemAssetRepository {
   /** Lets a sheet's lines go of it: they stay on their task as lines of its own. */
   detachFromSheet(sheetId: EntityId): Promise<void>;
   /**
-   * Makes lines of a task's own the lines of sheet rows, keeping their ids and
-   * dates. A line is taken only while it is in no sheet and unchanged since it
-   * was read (`updatedAt`); the ids taken come back, the rest are left alone.
+   * Makes lines the lines of sheet rows, keeping their ids and dates. A line is
+   * taken only while it is in no sheet and unchanged since it was read
+   * (`updatedAt`); the ids taken come back, the rest are left alone. With
+   * `itemId`, the line also moves to that task (a linked task's line joining
+   * this task's sheet), its board following the task's.
    */
-  attachToSheet(sheetId: EntityId, pairs: ReadonlyArray<{ id: EntityId; rowId: string; updatedAt: string }>): Promise<EntityId[]>;
+  attachToSheet(sheetId: EntityId, pairs: ReadonlyArray<{ id: EntityId; rowId: string; updatedAt: string; itemId?: EntityId; boardId?: EntityId }>): Promise<EntityId[]>;
   /** Several lines in one write, as a sheet is linked or grows. */
   createMany(inputs: ItemAssetInput[]): Promise<ItemAsset[]>;
   deleteMany(ids: EntityId[]): Promise<void>;

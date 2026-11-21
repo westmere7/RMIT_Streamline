@@ -33,6 +33,8 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   const rows = React.useMemo(() => all.filter((line) => !line.trackerSheetId), [all]);
   const sheetLines = React.useMemo(() => all.filter((line) => line.trackerSheetId), [all]);
   const [onlyMine, setOnlyMine] = React.useState(false);
+  // Opened straight after a sheet is linked here, while the task has assets to offer it.
+  const [moveOpen, setMoveOpen] = React.useState(false);
   const meId = ws.currentUser.id;
   const mine = React.useMemo(() => rows.filter((row) => row.assigneeIds.includes(meId)), [rows, meId]);
   // The To-do count and strip cover the sheet's lines too: they are the task's.
@@ -76,7 +78,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
             {(shownSheetLines.length > 0 || (canEdit && !onlyMine)) && (
               <div className="mb-1 flex min-h-7 items-center gap-2 px-0.5 empty:hidden">
                 {shownSheetLines.length > 0 && <h4 className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase" data-testid="own-assets-heading">Added on this task</h4>}
-                {canEdit && !onlyMine && <MoveIntoSheetButton item={item} lines={rows} />}
+                {canEdit && !onlyMine && <MoveIntoSheetButton item={item} lines={rows} open={moveOpen} onOpenChange={setMoveOpen} />}
               </div>
             )}
           </>
@@ -90,7 +92,7 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
           ) : canEdit && sheetLines.length === 0 ? (
             <>
               {/* Beside Block: keep the assets in a tracker sheet instead. Only while there is none. */}
-              <UseTrackerSheetButton item={item} />
+              <UseTrackerSheetButton item={item} onLinked={() => rows.length > 0 && setMoveOpen(true)} />
               {toggle}
             </>
           ) : (

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.136.0",
+    date: "2026-11-21",
+    title: "Choose which assets move into the sheet",
+    changes: [
+      "Move into sheet lists every asset the task shows, its linked task's included, each with a tick box. Untick what should stay. A linked task's asset becomes this task's and still shows on both.",
+      "Linking a sheet from a task's Assets tab, or making a new tracker there, opens that list straight away. A new tracker made from a task is always linked to it.",
+    ],
+  },
+  {
     version: "0.135.2",
     date: "2026-11-21",
     title: "Only sheets you can use",

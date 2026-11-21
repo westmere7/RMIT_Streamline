@@ -357,6 +357,7 @@ export function TaskAssetsDialog({
   onOpenChange,
   presetItem,
   initialMapping,
+  afterLink,
 }: {
   sheet: TrackerSheet;
   open: boolean;
@@ -364,17 +365,22 @@ export function TaskAssetsDialog({
   presetItem?: Item | null;
   /** Opens on this mapping instead of the saved one (a part picked from a column's menu). */
   initialMapping?: TrackerAssetMapping | null;
+  /**
+   * Opened from a task: the sheet is linked without moving anything, and this
+   * runs after, for the task to offer its assets one by one (Move into sheet).
+   */
+  afterLink?: () => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg" className="max-h-[90dvh] overflow-y-auto" data-testid="task-assets-dialog">
-        {open && <TaskAssetsForm sheet={sheet} presetItem={presetItem ?? null} initialMapping={initialMapping ?? null} onClose={() => onOpenChange(false)} />}
+        {open && <TaskAssetsForm sheet={sheet} presetItem={presetItem ?? null} initialMapping={initialMapping ?? null} afterLink={afterLink} onClose={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet: TrackerSheet; presetItem: Item | null; initialMapping: TrackerAssetMapping | null; onClose: () => void }) {
+function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose }: { sheet: TrackerSheet; presetItem: Item | null; initialMapping: TrackerAssetMapping | null; afterLink?: () => void; onClose: () => void }) {
   const ws = useWorkspace();
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const linked = useLinkedTask(sheet);
@@ -396,10 +402,11 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
   const ownLines = useQuery({
     queryKey: ["item-own-asset-lines", chosen?.id ?? ""],
     queryFn: async () => (await services.assets.list(chosen!.id)).filter((a) => a.itemId === chosen!.id && !a.trackerSheetId).length,
-    enabled: !!chosen && !sheet.itemId,
+    enabled: !!chosen && !sheet.itemId && !afterLink,
     staleTime: 5_000,
   });
-  const movable = sheet.itemId ? 0 : (ownLines.data ?? 0);
+  // From a task, the assets are chosen after linking (afterLink), so no all-or-nothing switch here.
+  const movable = sheet.itemId || afterLink ? 0 : (ownLines.data ?? 0);
   const [moveAssets, setMoveAssets] = React.useState(true);
   // A sheet nobody has started is given the asset columns rather than mapped.
   const fresh = !sheet.itemId && isFreshSheet(sheet);
@@ -481,6 +488,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, onClose }: { sheet:
     else if (chosen)
       await mutations.link.mutateAsync({ sheetId: sheet.id, trackerId: sheet.trackerId, itemId: chosen.id, mapping: saving, moveAssets: movable > 0 && moveAssets, setUpColumns: fresh, assetTypes: assetTypes.map((t) => t.name) });
     onClose();
+    if (!sheet.itemId && chosen) afterLink?.();
   };
 
   const listCol = mapping.done.columnId ? columns.find((c) => c.id === mapping.done.columnId) : null;

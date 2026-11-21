@@ -311,14 +311,17 @@ export class TrackerService {
    * have (see planLineMove). A line changed while it moved stays on the task,
    * and its row is taken out again.
    */
-  async moveTaskAssetsIntoSheet(sheetId: EntityId, actorId: EntityId): Promise<{ sheet: TrackerSheet; moved: number; kept: number }> {
+  async moveTaskAssetsIntoSheet(sheetId: EntityId, actorId: EntityId, options: { lineIds?: readonly EntityId[] } = {}): Promise<{ sheet: TrackerSheet; moved: number; kept: number }> {
     const sheet = await this.getSheet(sheetId);
     if (!sheet.itemId) throw new Error("This sheet holds no task's assets.");
     const item = await this.repos.items.getById(sheet.itemId);
     if (!item) throw new NotFoundError("Item", sheet.itemId);
     const mapping = normalizeAssetMapping(sheet.assetMapping, sheet.columns);
     if (!isMappingUsable(mapping)) throw new Error("Choose the column that names each asset first.");
-    const lines = await this.ownLines(item);
+    // Every line the task shows that no sheet holds: its own, and a linked task's (which then becomes this task's).
+    const movable = await this.movableLines(item);
+    const chosen = options.lineIds ? new Set(options.lineIds) : null;
+    const lines = chosen ? movable.filter((l) => chosen.has(l.id)) : movable;
     if (lines.length === 0) return { sheet, moved: 0, kept: 0 };
     const people = await this.people();
     const plan = planLineMove(sheet, mapping, lines, people);
@@ -329,6 +332,14 @@ export class TrackerService {
     if (JSON.stringify(placed.mapping) !== JSON.stringify(mapping)) await this.repos.trackers.updateSheet(sheetId, { assetMapping: placed.mapping });
     const done = await this.attachPlaced(sheetId, item, lines, placed, actorId);
     return { sheet: done.sheet, moved: done.moved, kept: lines.length - done.moved };
+  }
+
+  /** Every line the task shows that no sheet holds: its own first, then a linked task's, each in its order. */
+  private async movableLines(item: Item): Promise<ItemAsset[]> {
+    if (!this.assets) return this.ownLines(item);
+    const shown = (await this.assets.list(item.id)).filter((a) => !a.trackerSheetId);
+    const own = shown.filter((a) => a.itemId === item.id).sort((a, b) => a.position - b.position);
+    return [...own, ...shown.filter((a) => a.itemId !== item.id)];
   }
 
   /** The task's lines of its own (not a sheet's, not a linked task's), in their order. */
@@ -353,7 +364,14 @@ export class TrackerService {
     const claimed = (await this.repos.itemAssets.listBySheet(sheetId)).filter((l) => rowIds.has(l.trackerRowId ?? ""));
     if (claimed.length) await this.repos.itemAssets.deleteMany(claimed.map((l) => l.id));
     const read = new Map(lines.map((l) => [l.id, l.updatedAt]));
-    const attached = new Set(await this.repos.itemAssets.attachToSheet(sheetId, placed.pairs.map((p) => ({ id: p.lineId, rowId: p.rowId, updatedAt: read.get(p.lineId)! }))));
+    // A linked task's line joins this task: the sheet's lines are all its task's.
+    const owner = new Map(lines.map((l) => [l.id, l.itemId]));
+    const attached = new Set(
+      await this.repos.itemAssets.attachToSheet(
+        sheetId,
+        placed.pairs.map((p) => ({ id: p.lineId, rowId: p.rowId, updatedAt: read.get(p.lineId)!, ...(owner.get(p.lineId) !== item.id ? { itemId: item.id, boardId: item.boardId } : {}) })),
+      ),
+    );
     const left = placed.pairs.filter((p) => !attached.has(p.lineId)).map((p) => p.rowId);
     if (left.length) await this.removePlacedRows(sheetId, left, placed.bandIds, actorId);
     const sheet = await this.getSheet(sheetId);

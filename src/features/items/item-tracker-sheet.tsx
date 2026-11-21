@@ -8,15 +8,14 @@ import Link from "next/link";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { queryKeys } from "@/lib/query/keys";
 import { assetPeopleOf, normalizeAssetMapping, planLineMove, sheetLineColumns, specColumnIds, type Item, type ItemAsset, type ItemAssetPatch, type LineMovePlan, type SheetLineField, type TrackerSheet, type User } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useAssetMutations } from "@/features/items/asset-hooks";
 import { useItemTrackerSheet, useSheetAssetMutations, useTracker } from "@/features/trackers/hooks";
-import { assetSheet } from "@/features/trackers/tracker-template";
 import { PeopleValue, TaskAssetsDialog } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -57,7 +56,7 @@ export function ItemTrackerSheet({ item, lines, canEdit, filtered = false }: { i
  * on the Assets tab, picking the sheet and opening its asset settings. Nothing
  * once the task has one.
  */
-export function UseTrackerSheetButton({ item, disabled }: { item: Item; disabled?: boolean }) {
+export function UseTrackerSheetButton({ item, disabled, onLinked }: { item: Item; disabled?: boolean; /** After a sheet is linked: the tab offers the task's assets to move. */ onLinked?: () => void }) {
   const linked = useItemTrackerSheet(item.id);
   const [picking, setPicking] = React.useState(false);
   const [settings, setSettings] = React.useState<TrackerSheet | null>(null);
@@ -77,82 +76,126 @@ export function UseTrackerSheetButton({ item, disabled }: { item: Item; disabled
           <FileSpreadsheet />
         </Button>
       </SimpleTooltip>
-      <PickSheetDialog item={item} open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} />
-      {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} />}
+      <PickSheetDialog item={item} open={picking} onOpenChange={setPicking} onPick={(s) => setSettings(s)} onLinked={onLinked} />
+      {settings && <TaskAssetsDialog sheet={settings} presetItem={item} open onOpenChange={(open) => !open && setSettings(null)} afterLink={onLinked} />}
     </>
   );
 }
 
 /**
- * Beside "Added on this task", while the task also has a sheet: moves the
- * task's own lines into it. What happens is set out first (columns added,
- * values the sheet fills in, what cannot travel), and a column that cannot
- * hold what the lines have stops it with nothing written.
+ * Beside "Added on this task", while the task has a sheet: moves the assets it
+ * shows into it, chosen one by one: its own, and a linked task's (which then
+ * become this task's, still shown on both). What happens is set out first
+ * (columns added, values the sheet fills in, what cannot travel), and a column
+ * that cannot hold what the chosen assets have stops it with nothing written.
+ * `open` lets the Assets tab open it straight after a sheet is linked.
  */
-export function MoveIntoSheetButton({ item, lines }: { item: Item; lines: ItemAsset[] }) {
+export function MoveIntoSheetButton({ item, lines, open: openProp, onOpenChange }: { item: Item; lines: ItemAsset[]; open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const linked = useItemTrackerSheet(item.id);
   const sheet = linked.data ?? null;
-  const [open, setOpen] = React.useState(false);
-  // A linked task's lines show here too, but are that task's to move.
-  const own = React.useMemo(() => lines.filter((l) => l.itemId === item.id && !l.trackerSheetId), [lines, item.id]);
-  if (!sheet || !sheet.assetMapping || own.length === 0) return null;
+  const [openState, setOpenState] = React.useState(false);
+  const open = openProp ?? openState;
+  const setOpen = (next: boolean) => (onOpenChange ? onOpenChange(next) : setOpenState(next));
+  const movable = React.useMemo(() => lines.filter((l) => !l.trackerSheetId), [lines]);
+  if (!sheet || !sheet.assetMapping || movable.length === 0) return null;
   return (
     <>
       <Button type="button" size="sm" variant="ghost" className="ml-auto h-7 text-xs" onClick={() => setOpen(true)} data-testid="move-into-sheet">
         <ArrowUpToLine /> Move into sheet
       </Button>
-      {open && <MoveIntoSheetDialog sheet={sheet} lines={own} others={lines.length - own.length} onClose={() => setOpen(false)} />}
+      {open && <MoveIntoSheetDialog item={item} sheet={sheet} lines={movable} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function MoveIntoSheetDialog({ sheet, lines, others, onClose }: { sheet: TrackerSheet; lines: ItemAsset[]; others: number; onClose: () => void }) {
+function MoveIntoSheetDialog({ item, sheet, lines, onClose }: { item: Item; sheet: TrackerSheet; lines: ItemAsset[]; onClose: () => void }) {
   const ws = useWorkspace();
+  const services = useServices();
   const tracker = useTracker(sheet.trackerId);
   const { moveIn } = useSheetAssetMutations();
+  const [picked, setPicked] = React.useState<ReadonlySet<string>>(() => new Set(lines.map((l) => l.id)));
+  const chosen = React.useMemo(() => lines.filter((l) => picked.has(l.id)), [lines, picked]);
+  // Where each linked task's line comes from: its board (linked tasks share a name, so the board is what tells them apart).
+  const otherIds = React.useMemo(() => [...new Set(lines.map((l) => l.itemId).filter((id) => id !== item.id))], [lines, item.id]);
+  const others = useQuery({
+    queryKey: ["move-into-sheet-from", ...otherIds],
+    queryFn: async () => new Map((await Promise.all(otherIds.map((id) => services.items.getItem(id).catch(() => null)))).filter((x): x is Item => !!x).map((x) => [x.id, ws.boardById(x.boardId)?.name ?? x.name])),
+    enabled: otherIds.length > 0,
+    staleTime: 30_000,
+  });
   const plan = React.useMemo(() => {
     const mapping = normalizeAssetMapping(sheet.assetMapping, sheet.columns);
-    return mapping ? planLineMove(sheet, mapping, lines, assetPeopleOf(ws.users)) : null;
-  }, [sheet, lines, ws.users]);
-  const notes = plan ? movePlanNotes(plan, ws.users) : [];
+    return mapping ? planLineMove(sheet, mapping, chosen, assetPeopleOf(ws.users)) : null;
+  }, [sheet, chosen, ws.users]);
+  const notes = plan && chosen.length ? movePlanNotes(plan, ws.users) : [];
+  const fromLinked = chosen.filter((l) => l.itemId !== item.id).length;
   const blocked = !plan || plan.blockers.length > 0;
-  const n = lines.length;
+  const n = chosen.length;
+  const all = picked.size === lines.length;
+  const toggle = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   return (
     <Dialog open onOpenChange={(o) => !o && !moveIn.isPending && onClose()}>
-      <DialogContent size="sm" data-testid="move-into-sheet-dialog">
+      <DialogContent size="md" data-testid="move-into-sheet-dialog">
         <DialogHeader>
-          <DialogTitle>
-            Move {n === 1 ? "this asset" : `${n} assets`} into the sheet?
-          </DialogTitle>
+          <DialogTitle>Move assets into the sheet</DialogTitle>
           <DialogDescription>
-            {n === 1 ? "It becomes a row" : "They become rows"} of {tracker.data?.name ?? "the tracker"} › {sheet.name}, edited there.
+            The ones you tick become rows of {tracker.data?.name ?? "the tracker"} › {sheet.name}, edited there.
           </DialogDescription>
         </DialogHeader>
+        <div className="grid gap-1.5">
+          <label className="flex items-center gap-2 px-1 text-2xs font-medium text-muted-foreground">
+            <Checkbox checked={all ? true : picked.size ? "indeterminate" : false} onCheckedChange={() => setPicked(all ? new Set() : new Set(lines.map((l) => l.id)))} aria-label="Tick every asset" data-testid="move-into-sheet-all" />
+            {picked.size} of {lines.length} ticked
+          </label>
+          <ul className="scrollbar-thin max-h-[40dvh] space-y-0.5 overflow-y-auto rounded-lg border border-border/60 p-1" data-testid="move-into-sheet-lines">
+            {lines.map((line) => (
+              <li key={line.id}>
+                <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[13px] hover:bg-accent" data-testid="move-into-sheet-line">
+                  <Checkbox checked={picked.has(line.id)} onCheckedChange={() => toggle(line.id)} aria-label={line.name} />
+                  <span className={cn("min-w-0 flex-1 truncate", line.completedAt && "text-muted-foreground line-through")}>{line.name}</span>
+                  {line.itemId !== item.id && (
+                    <span className="max-w-[45%] shrink-0 truncate rounded bg-surface-strong/70 px-1.5 py-px text-2xs text-muted-foreground" title="From the linked task on this board: it becomes this task's, and still shows on both">
+                      From {others.data?.get(line.itemId) ?? "the linked task"}
+                    </span>
+                  )}
+                  {line.assetType && <span className="shrink-0 text-2xs text-muted-foreground">{line.assetType}</span>}
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
         <ul className="space-y-1.5 text-[13px]" data-testid="move-into-sheet-plan">
-          {(plan?.blockers ?? ["Choose the column that names each asset first."]).map((text) => (
-            <li key={text} className="flex gap-2 text-destructive" data-testid="move-into-sheet-blocker">
-              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {text}
-            </li>
-          ))}
+          {n > 0 &&
+            (plan?.blockers ?? ["Choose the column that names each asset first."]).map((text) => (
+              <li key={text} className="flex gap-2 text-destructive" data-testid="move-into-sheet-blocker">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {text}
+              </li>
+            ))}
           {notes.map((note) => (
             <li key={note.text} className={cn("flex gap-2", note.warn ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")} data-testid={note.warn ? "move-into-sheet-warning" : "move-into-sheet-note"}>
               {note.warn ? <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> : <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden />} {note.text}
             </li>
           ))}
-          {others > 0 && (
-            <li className="flex gap-2 text-muted-foreground">
-              <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {others} from a linked task {others === 1 ? "stays" : "stay"} with that task.
+          {fromLinked > 0 && (
+            <li className="flex gap-2 text-muted-foreground" data-testid="move-into-sheet-linked-note">
+              <Check className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {fromLinked === 1 ? "The one from a linked task becomes" : `${fromLinked} from a linked task become`} this task&rsquo;s, still shown on both.
             </li>
           )}
         </ul>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={moveIn.isPending}>
-            Cancel
+            {n === 0 ? "Close" : "Cancel"}
           </Button>
           <Button
             type="button"
-            disabled={blocked || moveIn.isPending}
-            onClick={() => moveIn.mutate({ sheetId: sheet.id, trackerId: sheet.trackerId }, { onSuccess: onClose })}
+            disabled={n === 0 || blocked || moveIn.isPending}
+            onClick={() => moveIn.mutate({ sheetId: sheet.id, trackerId: sheet.trackerId, lineIds: chosen.map((l) => l.id) }, { onSuccess: onClose })}
             data-testid="move-into-sheet-confirm"
           >
             {moveIn.isPending && <Loader2 className="animate-spin" />} Move {n}
@@ -166,7 +209,7 @@ function MoveIntoSheetDialog({ sheet, lines, others, onClose }: { sheet: Tracker
 /** The plan in a line each: plain notes, and amber ones for what will not stay exactly as it is. */
 function movePlanNotes(plan: LineMovePlan, users: readonly User[]): Array<{ text: string; warn: boolean }> {
   const out: Array<{ text: string; warn: boolean }> = [];
-  out.push({ text: "Each keeps its dates and stays on this task.", warn: false });
+  out.push({ text: "Each keeps its dates.", warn: false });
   if (plan.newColumns.length) out.push({ text: `Adds ${plan.newColumns.length === 1 ? "a column" : "columns"}: ${plan.newColumns.join(", ")}.`, warn: false });
   const label = { type: "type", quantity: "quantity", pic: "PIC", due: "due date" } as const;
   for (const fill of plan.fills) {
@@ -495,21 +538,12 @@ function SheetLineEditor({
 }
 
 /** Every sheet in the workspace that holds no task's assets yet, by tracker; or a new tracker made for this task. */
-function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; open: boolean; onOpenChange: (open: boolean) => void; onPick: (sheet: TrackerSheet) => void }) {
+function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item: Item; open: boolean; onOpenChange: (open: boolean) => void; onPick: (sheet: TrackerSheet) => void; onLinked?: () => void }) {
   const services = useServices();
   const ws = useWorkspace();
   const queryClient = useQueryClient();
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const [creating, setCreating] = React.useState(false);
-  // The task's own lines (not ones another sheet gives it), offered to the new tracker.
-  const ownLines = useQuery({
-    queryKey: ["item-own-asset-lines", item.id],
-    queryFn: async () => (await services.assets.list(item.id)).filter((a) => a.itemId === item.id && !a.trackerSheetId).length,
-    enabled: open,
-    staleTime: 5_000,
-  });
-  const movable = ownLines.data ?? 0;
-  const [moveAssets, setMoveAssets] = React.useState(true);
   // The new tracker's name: the task's to start with, the person's to change. Null while the box is closed.
   const [newName, setNewName] = React.useState<string | null>(null);
   // A tracker on the task's board's team, with one sheet laid out for assets.
@@ -518,37 +552,21 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
     if (!name) return;
     setCreating(true);
     try {
-      if (movable > 0 && moveAssets) {
-        // Made, filled with the task's lines and linked in one go: nothing left to set up.
-        const { moved } = await services.trackers.createForItem(
-          { workspaceId: ws.workspace.id, teamId: ws.boardById(item.boardId)?.teamId ?? null, itemId: item.id, name, assetTypes: assetTypes.map((t) => t.name), moveAssets: true },
-          ws.currentUser.id,
-        );
-        await Promise.all([
-          queryClient.invalidateQueries({ queryKey: ["trackers"] }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.itemAssets(item.id) }),
-          queryClient.invalidateQueries({ queryKey: ["item-tracker-sheet", item.id] }),
-          queryClient.invalidateQueries({ queryKey: ["item-own-asset-lines", item.id] }),
-        ]);
-        toast.success(moved === 1 ? `Moved 1 asset into “${name}”` : `Moved ${moved} assets into “${name}”`);
-        setNewName(null);
-        onOpenChange(false);
-        return;
-      }
-      const { sheets } = await services.trackers.create(
-        {
-          workspaceId: ws.workspace.id,
-          teamId: ws.boardById(item.boardId)?.teamId ?? null,
-          name,
-          layout: "blank",
-          sheets: [assetSheet("", "Assets", assetTypes.map((t) => t.name))],
-        },
+      // Made and linked in one go, so a new tracker is never left holding no task. The task's
+      // assets are then offered one by one (onLinked opens Move into sheet).
+      await services.trackers.createForItem(
+        { workspaceId: ws.workspace.id, teamId: ws.boardById(item.boardId)?.teamId ?? null, itemId: item.id, name, assetTypes: assetTypes.map((t) => t.name), moveAssets: false },
         ws.currentUser.id,
       );
-      await queryClient.invalidateQueries({ queryKey: ["trackers"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["trackers"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.itemAssets(item.id) }),
+        queryClient.invalidateQueries({ queryKey: ["item-tracker-sheet", item.id] }),
+      ]);
+      toast.success(`“${name}” now holds this task's assets`);
       setNewName(null);
       onOpenChange(false);
-      onPick(sheets[0]!);
+      onLinked?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not make the tracker");
     } finally {
@@ -578,15 +596,6 @@ function PickSheetDialog({ item, open, onOpenChange, onPick }: { item: Item; ope
             {creating ? <Loader2 className="animate-spin" /> : <Plus />} Create
           </Button>
         </div>
-        {movable > 0 && (
-          <label className="flex w-full items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="pick-sheet-move-assets">
-            <span className="min-w-0">
-              Move this task&rsquo;s {movable === 1 ? "asset" : `${movable} assets`} into it
-              <span className="block text-2xs text-muted-foreground">{moveAssets ? "They become rows of the sheet, and are edited there." : "They stay on the task, beside the sheet's."}</span>
-            </span>
-            <Switch checked={moveAssets} onCheckedChange={setMoveAssets} aria-label="Move this task's assets into the new tracker" data-testid="pick-sheet-move-assets-switch" />
-          </label>
-        )}
       </form>
     );
   const data = useQuery({

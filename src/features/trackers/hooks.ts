@@ -218,9 +218,9 @@ export function useSheetAssetMutations() {
   });
   /** The task's own lines moved into the sheet that holds its assets. */
   const moveIn = useMutation({
-    mutationFn: ({ sheetId }: { sheetId: string; trackerId: string }) => services.trackers.moveTaskAssetsIntoSheet(sheetId, user.id),
+    mutationFn: ({ sheetId, lineIds }: { sheetId: string; trackerId: string; lineIds?: string[] }) => services.trackers.moveTaskAssetsIntoSheet(sheetId, user.id, { lineIds }),
     onSuccess: ({ moved, kept }) =>
-      toast.success(`${moved} ${moved === 1 ? "asset" : "assets"} moved into the sheet`, { description: kept ? `${kept} changed meanwhile and stayed on the task.` : undefined }),
+      toast.success(`${moved} ${moved === 1 ? "asset" : "assets"} moved into the sheet`, { description: kept ? `${kept} stayed where ${kept === 1 ? "it was" : "they were"}: changed meanwhile, or on a task you can't edit.` : undefined }),
     onError: fail("Could not move the assets"),
     onSettled: (_data, _error, { trackerId }) => settle(trackerId),
   });

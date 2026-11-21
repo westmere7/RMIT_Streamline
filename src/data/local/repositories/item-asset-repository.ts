@@ -110,7 +110,7 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
     await tx.done;
   }
 
-  async attachToSheet(sheetId: string, pairs: ReadonlyArray<{ id: string; rowId: string; updatedAt: string }>): Promise<string[]> {
+  async attachToSheet(sheetId: string, pairs: ReadonlyArray<{ id: string; rowId: string; updatedAt: string; itemId?: string; boardId?: string }>): Promise<string[]> {
     const db = await this.conn.getDb();
     const tx = db.transaction("itemAssets", "readwrite");
     const all = await tx.store.getAll();
@@ -120,7 +120,7 @@ export class LocalItemAssetRepository implements ItemAssetRepository {
       const asset = all.find((a) => a.id === pair.id);
       if (!asset || asset.trackerSheetId || asset.updatedAt !== pair.updatedAt || taken.has(pair.rowId)) continue;
       taken.add(pair.rowId);
-      await tx.store.put({ ...asset, trackerSheetId: sheetId, trackerRowId: pair.rowId, updatedAt: nowIso() });
+      await tx.store.put({ ...asset, ...(pair.itemId ? { itemId: pair.itemId, boardId: pair.boardId ?? asset.boardId } : {}), trackerSheetId: sheetId, trackerRowId: pair.rowId, updatedAt: nowIso() });
       attached.push(pair.id);
     }
     await tx.done;
