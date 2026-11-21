@@ -226,6 +226,8 @@ export class ItemService {
       eventType: "ITEM_CREATED",
       metadata: { itemName: item.name, boardName: board.name, groupName: group?.name, ...input.activity },
     });
+    // A booking that went straight to a team's board was allocated as it arrived.
+    if (item.bookedVia && board.system !== "TASK_ALLOCATION") return this.repos.items.update(item.id, { allocatedAt: item.createdAt });
     return item;
   }
 

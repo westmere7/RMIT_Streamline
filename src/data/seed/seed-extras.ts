@@ -636,8 +636,9 @@ export function buildSeedExtras(ctx: SeedExtrasContext): SeedBundle {
         name: spec.title,
         description: item.description,
         position: 40 + nextPosition(`mirror:${targetGroup.id}`),
-        // The team's copy of a booking came in through the form too.
+        // The team's copy of a booking came in through the form too, and reached the team when allocated.
         bookedVia: "booking",
+        allocatedAt: iso(allocatedAt),
         createdBy: users.danh,
         archivedAt: null,
         createdAt: iso(allocatedAt),

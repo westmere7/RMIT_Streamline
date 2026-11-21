@@ -768,7 +768,9 @@ export class BookingService {
     }
 
     const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
-    const moved = await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
+    await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
+    // When it reached the team (allocating again after a re-allocation sets it again).
+    const moved = await this.repos.items.update(item.id, { allocatedAt: new Date().toISOString() });
     if (carried.length) await this.repos.items.setValues(carried);
     // The recap column counts an item's deliverables per board, and they have
     // just changed board, so the figure is worked out again where they landed.

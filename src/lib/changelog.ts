@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.141.1",
+    date: "2026-11-21",
+    title: "Allocation time recorded",
+    changes: ["A booked task now records when it reached a team: as it arrives when the form sends it straight to a team's board, or when it is allocated off Task Allocation. Not shown yet."],
+  },
+  {
     version: "0.141.0",
     date: "2026-11-21",
     title: "Re-allocate, and Booked by Form for bookings only",

@@ -112,7 +112,9 @@ export class ReallocationService {
     const queueItems = await this.repos.items.listByBoard(queue.id);
     const position = queueItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
     if (subitems.length) await this.repos.items.deleteMany(subitems.map((s) => s.id));
-    const moved = await this.repos.items.moveToBoard(item.id, { boardId: queue.id, groupId: group.id, position });
+    await this.repos.items.moveToBoard(item.id, { boardId: queue.id, groupId: group.id, position });
+    // Back in the queue, so not allocated any more; allocating it again sets it again.
+    const moved = await this.repos.items.update(item.id, { allocatedAt: null });
 
     // Values: what Task Allocation has a column for comes back, except the team's
     // people and status; the status starts again at the column's default.

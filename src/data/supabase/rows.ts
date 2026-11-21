@@ -437,6 +437,8 @@ export interface ItemRow {
   ticket?: string | null;
   /** Added by migration 0134. */
   booked_via?: Item["bookedVia"];
+  /** Added by migration 0135. */
+  allocated_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -455,6 +457,7 @@ export function toItem(row: ItemRow): Item {
     coverUrl: row.cover_url ?? null,
     ticket: row.ticket ?? null,
     bookedVia: row.booked_via ?? null,
+    allocatedAt: row.allocated_at ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -471,6 +474,8 @@ export function fromItemPatch(patch: Partial<Omit<Item, "id" | "boardId" | "crea
     archived_at: patch.archivedAt,
     cover_url: patch.coverUrl,
     ticket: patch.ticket,
+    // Written only by the server (allocating, booking, re-allocating): 0135 refuses it from a member.
+    allocated_at: patch.allocatedAt,
     updated_at: patch.updatedAt,
   });
 }

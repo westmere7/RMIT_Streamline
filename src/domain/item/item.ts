@@ -34,6 +34,15 @@ export interface Item extends Timestamps {
    * can be re-allocated. Null for anything a team made itself.
    */
   bookedVia?: BookedVia | null;
+  /**
+   * When the booked task reached a team: the moment the booking went straight
+   * to a team's board, or the moment it was allocated off Task Allocation.
+   * Kept when it moves between team boards, cleared when it is re-allocated
+   * (and set again when it is next allocated). Null for a task still on Task
+   * Allocation and for anything a team made itself. Written by the server
+   * alone (migration 0135). Not shown yet.
+   */
+  allocatedAt?: string | null;
 }
 
 export type BookedVia = "booking" | "portal";

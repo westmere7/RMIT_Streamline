@@ -128,6 +128,8 @@ export class LocalItemRepository implements ItemRepository {
       description: input.description ?? null,
       ticket: input.ticket ?? null,
       bookedVia: input.bookedVia ?? null,
+      // Only allocating sets it, as an update afterwards.
+      allocatedAt: null,
       position: input.position,
       createdBy: input.createdBy,
       archivedAt: null,
