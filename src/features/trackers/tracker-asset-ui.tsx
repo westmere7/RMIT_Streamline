@@ -615,7 +615,20 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
           <span aria-hidden className="max-sm:hidden" />
           <span className="text-2xs text-muted-foreground">Sheet column</span>
           <span className="text-2xs text-muted-foreground">If the cell is empty</span>
-          <FieldRow label="Asset name" column={<ColumnSelect columns={columns} value={mapping.name} onChange={choose("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("name")} />}>
+          <FieldRow
+            label="Asset name"
+            column={<ColumnSelect columns={columns} value={mapping.name} onChange={choose("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("name")} />}
+            fallback={
+              <Input
+                value={mapping.nameValue ?? ""}
+                onChange={(e) => set({ nameValue: e.target.value.slice(0, 500) || null })}
+                placeholder="Custom name, or skip the row"
+                aria-label={mapping.name ? "Name when a cell is empty" : "Name for every row"}
+                className="h-8 w-full min-w-0 max-md:h-10"
+                data-testid="map-name-value"
+              />
+            }
+          >
             {warn(mapping.name, "name")}
           </FieldRow>
           <FieldRow
@@ -671,7 +684,12 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
           >
             {warn(mapping.due.columnId, "due")}
           </FieldRow>
-          <FieldRow label="Done" column={<ColumnSelect columns={columns} value={mapping.done.columnId} onChange={choose("done")} onCreate={newColumn("done")} none="Nothing counts as done" testId="map-done" onPickOnSheet={onSheet("done")} />}>
+          <FieldRow
+            label="Done"
+            column={<ColumnSelect columns={columns} value={mapping.done.columnId} onChange={choose("done")} onCreate={newColumn("done")} none="Nothing counts as done" testId="map-done" onPickOnSheet={onSheet("done")} />}
+            // Fixed: an empty cell is a line not done yet.
+            fallback={<span className="flex h-8 w-full min-w-0 items-center rounded-md border border-dashed border-border px-2 text-[13px] text-muted-foreground max-md:h-10">Not done</span>}
+          >
             {warn(mapping.done.columnId, "done")}
             {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && <p className="text-2xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</p>}
             {listCol?.type === "list" && (

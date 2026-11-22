@@ -62,8 +62,10 @@ export function normalizeAssetMapping(raw: unknown, columns: readonly TrackerCol
   };
   const text = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   const done = (m.done && typeof m.done === "object" ? m.done : {}) as { columnId?: unknown; values?: unknown };
+  const nameValue = text(m.nameValue);
   return {
     name: column(m.name),
+    ...(nameValue ? { nameValue: nameValue.slice(0, 500) } : {}),
     type: source(m.type, text),
     quantity: source(m.quantity, (v) => (typeof v === "number" && Number.isFinite(v) && v >= 0 && Math.round(v) <= MAX_QUANTITY ? Math.round(v) : null)),
     pic: source(m.pic, (v) => (Array.isArray(v) ? v.filter((id): id is string => typeof id === "string" && !!id) : null)),
@@ -540,7 +542,9 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
     }
     const cell = (c: TrackerColumn | null) => (c ? row.cells[c.id] : undefined);
     const type = cellText(cell(typeCol)) || mapping.type.value || null;
-    const name = cellText(cell(nameCol)) || (cellText(cell(typeCol)) ? type : null);
+    // A row with anything in it takes the custom name when its own is empty; a blank row stays a blank row.
+    const filled = () => Object.values(row.cells).some((v) => v === true || !!cellText(v));
+    const name = cellText(cell(nameCol)) || (cellText(cell(typeCol)) ? type : null) || (mapping.nameValue && filled() ? mapping.nameValue : null);
     if (!name) continue;
 
     // item_assets.quantity is a SQL integer: anything beyond it reads as no quantity rather than failing the sync.
@@ -668,7 +672,7 @@ export function asUuid(id: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16)}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-/** True when the mapping can make lines at all: it needs a column to name them, or one to type them. */
+/** True when the mapping can make lines at all: it needs a column to name them, one to type them, or a name for every row. */
 export function isMappingUsable(mapping: TrackerAssetMapping | null | undefined): mapping is TrackerAssetMapping {
-  return !!mapping && (!!mapping.name || !!mapping.type.columnId);
+  return !!mapping && (!!mapping.name || !!mapping.type.columnId || !!mapping.nameValue?.trim());
 }

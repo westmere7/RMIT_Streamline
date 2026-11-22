@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.6",
+    date: "2026-11-22",
+    title: "A name for rows without one",
+    changes: [
+      "In Task assets, Asset name takes a custom name for rows whose name cell is empty; leave it blank and those rows stay out, as before. Blank rows never become assets.",
+      "Done shows that an empty cell means not done.",
+    ],
+  },
+  {
     version: "0.152.5",
     date: "2026-11-22",
     title: "Task assets, easier to read",

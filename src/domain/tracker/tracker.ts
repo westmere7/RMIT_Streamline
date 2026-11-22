@@ -116,6 +116,12 @@ export interface TrackerAssetSource<T> {
 export interface TrackerAssetMapping {
   /** The column naming each asset. A row with neither a name nor a type is not an asset. */
   name: EntityId | null;
+  /**
+   * The name a row gets when its name cell is empty (or every row, with no name
+   * column), for rows that hold anything at all: a blank row is never an asset.
+   * Absent or null: a row with no name is left out, as before.
+   */
+  nameValue?: string | null;
   type: TrackerAssetSource<string>;
   quantity: TrackerAssetSource<number>;
   /** People column ids, or a text column of names; the value is user ids. */

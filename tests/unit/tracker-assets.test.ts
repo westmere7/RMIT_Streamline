@@ -83,6 +83,17 @@ describe("a sheet as assets", () => {
     expect(sheetAssetLines({ columns: COLUMNS, rows: [data("r", { "c-asset": "X" })] }, emptyAssetMapping())).toEqual([]);
   });
 
+  it("names a row with an empty name cell by the custom name, but never a blank row", () => {
+    const mapping = { ...emptyAssetMapping(), name: "c-asset", nameValue: "FB post" };
+    const lines = sheetAssetLines({ columns: COLUMNS, rows: [data("a", { "c-asset": "Own name" }), data("b", { "c-format": "1080x1080" }), data("c", {})] }, mapping);
+    expect(lines.map((l) => l.name)).toEqual(["Own name", "FB post"]);
+    // Left empty, a row without a name stays out, as before.
+    expect(sheetAssetLines({ columns: COLUMNS, rows: [data("b", { "c-format": "1080x1080" })] }, { ...mapping, nameValue: null })).toEqual([]);
+    // Kept through a save, and dropped when blank.
+    expect(normalizeAssetMapping({ ...mapping, nameValue: "  FB post " }, COLUMNS)?.nameValue).toBe("FB post");
+    expect(normalizeAssetMapping({ ...mapping, nameValue: "   " }, COLUMNS)?.nameValue).toBeUndefined();
+  });
+
   it("gives a column one part from its menu, taking it over from the column that had it", () => {
     const start = suggestAssetMapping({ columns: COLUMNS });
     // Format becomes the name: Asset loses it, Format leaves Spec.
