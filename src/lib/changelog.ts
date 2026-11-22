@@ -28,6 +28,11 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Follows, history and tracker sheets tied to a private task or board stay private.",
       "A board's owner, who made a task, and which board a group or column is on can no longer be rewritten.",
       "Subitems stay under a task on their own board, linked tasks stay on separate boards, and follows and baselines move with a task to its new board.",
+      "Updates keep the time they were posted, and one person's update can't be passed off as another's.",
+      "Person columns and deliverables only take people from the workspace.",
+      "Online dots show people in workspaces you share, nobody else.",
+      "Ticket numbers are checked against every board, private ones too, and viewers no longer use up a number.",
+      "Booking forms and the portal no longer show a staff member's name for a typed email.",
     ],
   },
   {
