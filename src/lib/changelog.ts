@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.146.1",
+    date: "2026-11-22",
+    title: "The preview says which form",
+    changes: [
+      "The booking form preview's strip names what it shows: the published form, or the form open in the editor (by its template's name, and whether it has your changes).",
+    ],
+  },
+  {
     version: "0.146.0",
     date: "2026-11-22",
     title: "Browse on a phone has the sidebar's menus",

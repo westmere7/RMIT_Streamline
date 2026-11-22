@@ -24,7 +24,20 @@ import { BookingWizard } from "../wizard/booking-wizard";
  * (`remember` is null), so trying the form out cannot overwrite the draft a
  * stakeholder left half-written in this browser.
  */
-export function PreviewDialog({ open, onOpenChange, form, template }: { open: boolean; onOpenChange: (open: boolean) => void; form: BookingFormData; template: BookingFormTemplate }) {
+export function PreviewDialog({
+  open,
+  onOpenChange,
+  form,
+  template,
+  label,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  form: BookingFormData;
+  template: BookingFormTemplate;
+  /** Which form this is, for the strip: the published one, or the one open in the editor. */
+  label: string;
+}) {
   // The dialog's content is unmounted while it is shut, so every look starts on
   // step one with a blank form. Nothing here has to reset anything.
   // The draft's rules may name boards the published form does not: the editor is in the app, so it knows them all.
@@ -71,8 +84,9 @@ export function PreviewDialog({ open, onOpenChange, form, template }: { open: bo
           <DialogTitle>The form, as they will meet it</DialogTitle>
           <DialogDescription>Every step is open and nothing is required: this is for reading the form, not answering it. Nothing is sent and nothing is saved.</DialogDescription>
         </DialogHeader>
-        <p className="flex shrink-0 items-center justify-center gap-1.5 rounded-t-2xl bg-green-600/15 py-1.5 text-2xs font-medium text-green-700 dark:text-green-400" data-testid="booking-preview-badge">
-          <Eye className="size-3" aria-hidden /> Preview only — nothing is sent or saved
+        <p className="flex shrink-0 items-center justify-center gap-1.5 rounded-t-2xl bg-green-600/15 px-10 py-1.5 text-2xs font-medium text-green-700 dark:text-green-400" data-testid="booking-preview-badge">
+          <Eye className="size-3 shrink-0" aria-hidden />
+          <span className="truncate">Previewing {label} · nothing is sent or saved</span>
         </p>
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-card px-5 py-4">
           <BookingWizard form={preview} onSubmit={pretend} remember={null} preview />

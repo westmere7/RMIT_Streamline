@@ -430,7 +430,19 @@ export function BookingFormEditor({
       {tab === "assets" && <AssetsPane form={form} draft={draft} update={update} />}
       {tab === "review" && <ReviewPane draft={draft} update={update} ticketPrefix={form.ticketPrefix} />}
 
-      <PreviewDialog open={previewing !== null} onOpenChange={(open) => !open && setPreviewing(null)} form={form} template={previewing === "live" ? live : draft} />
+      <PreviewDialog
+        open={previewing !== null}
+        onOpenChange={(open) => !open && setPreviewing(null)}
+        form={form}
+        template={previewing === "live" ? live : draft}
+        label={
+          previewing === "live"
+            ? `the published form${published.name ? ` “${published.name}”` : ""}`
+            : template
+              ? `“${template.name}”${templateChanged ? " with your changes" : ""}, open in the editor`
+              : "the form open in the editor"
+        }
+      />
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => !open && setRemovingService(null)}
