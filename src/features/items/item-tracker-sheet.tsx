@@ -495,7 +495,7 @@ function SheetLineEditor({
         )}
       {editable.quantity && field("Quantity", <Input type="number" min={0} value={quantity} onChange={(e) => setQuantity(e.target.value)} className="h-8 w-28" data-testid="sheet-line-quantity" />)}
       {editable.assigneeIds &&
-        field("PIC", <PeopleValue users={ws.activeUsers} value={assigneeIds} onChange={setAssigneeIds} placeholder="PIC" label="PIC" testId="sheet-line-pic" />)}
+        field("PIC", <PeopleValue users={ws.activeUsers} value={assigneeIds} onChange={setAssigneeIds} placeholder="Nobody" label="PIC" testId="sheet-line-pic" />)}
       {editable.dueDate && field("Due date", <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-8 w-44" data-testid="sheet-line-due" />)}
       {!editable.name && field("Name", <span className="text-[13px]">{line.name}</span>)}
       {!editable.assetType && line.assetType && field("Type", <span className="text-[13px]">{line.assetType}</span>)}

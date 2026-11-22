@@ -432,25 +432,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
   const effectiveMapping = React.useMemo<TrackerAssetMapping>(() => ({ ...mapping, ignoreRows: plan.ignoreRows }), [mapping, plan.ignoreRows]);
   const lines = React.useMemo(() => (isMappingUsable(effectiveMapping) ? sheetAssetLines(previewSheet, effectiveMapping) : []), [previewSheet, effectiveMapping]);
   // Choosing columns on the sheet itself, in a pop-up of their own: off unless asked for, remembered in this browser.
-  const [pickOnSheet, setPickOnSheet] = React.useState(() => {
-    try {
-      return window.localStorage.getItem(PREVIEW_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const togglePickOnSheet = () =>
-    setPickOnSheet((on) => {
-      try {
-        window.localStorage.setItem(PREVIEW_KEY, on ? "0" : "1");
-      } catch {
-        // Storage refused: the choice lasts for this dialog.
-      }
-      return !on;
-    });
   // The part whose column is being chosen on the sheet, when the pop-up is open.
   const [picking, setPicking] = React.useState<PickRequest | null>(null);
-  const onSheet = (role: SinglePart) => (pickOnSheet ? () => setPicking(pickerFor(role)) : undefined);
+  const onSheet = (role: SinglePart) => () => setPicking(pickerFor(role));
   const units = lines.reduce((sum, l) => sum + (l.quantity ?? 1), 0);
   const people = new Set(lines.flatMap((l) => l.assigneeIds)).size;
   const pending = mutations.link.isPending || mutations.setMapping.isPending || mutations.unlink.isPending || mutations.addColumn.isPending || mutations.bandRows.isPending;
@@ -500,11 +484,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
   const warn = (columnId: string | null, role: AssetRole) => {
     const mismatch = columnId ? roleMismatch(shown, columnId, role, trackerPeople()) : null;
     return mismatch ? (
-      <MapRow label="">
-        <span className="text-xs text-amber-700 dark:text-amber-400" data-testid={`map-warning-${role}`}>
-          {mismatchText(mismatch)}
-        </span>
-      </MapRow>
+      <p className="text-xs text-amber-700 dark:text-amber-400" data-testid={`map-warning-${role}`}>
+        {mismatchText(mismatch)}
+      </p>
     ) : null;
   };
 
@@ -607,13 +589,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
       ) : (
         <>
         <section className="min-w-0 space-y-2" data-testid="task-assets-sheet">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              Pick columns on the sheet
-              <Switch size="sm" checked={pickOnSheet} onCheckedChange={togglePickOnSheet} aria-label="Pick columns on the sheet" data-testid="task-assets-sheet-toggle" />
-            </label>
-          </div>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
           {detected.length > 0 && (
             <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="task-assets-nonasset">
               <span className="min-w-0">
@@ -633,72 +609,74 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
           </div>
         </section>
         <RowMarkDialog open={marking} sheet={shown} mapping={mapping} savedIgnore={savedIgnore ?? []} detected={spottedRows} marks={marks} onApply={setMarks} onClose={() => setMarking(false)} />
-        <section className="space-y-2.5">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase">Columns</h3>
-          <MapRow label="Asset name">
-            <ColumnSelect columns={columns} value={mapping.name} onChange={choose("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("name")} />
-          </MapRow>
-          {warn(mapping.name, "name")}
-          <MapRow label="Type">
-            <ColumnSelect columns={columns} value={mapping.type.columnId} onChange={choose("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("type")} />
-            <select
-              value={mapping.type.value ?? ""}
-              onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
-              className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-[13px]"
-              aria-label="Type for every row"
-              data-testid="map-type-value"
-            >
-              <option value="">{mapping.type.columnId ? "Empty cells: none" : "Every row: none"}</option>
-              {assetTypes.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {mapping.type.columnId ? "Empty cells: " : "Every row: "}
-                  {t.name}
-                </option>
-              ))}
-            </select>
-          </MapRow>
-          {warn(mapping.type.columnId, "type")}
-          <MapRow label="Quantity">
-            <ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={choose("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("quantity")} />
-            <Input
-              type="number"
-              min={0}
-              value={mapping.quantity.value ?? ""}
-              onChange={(e) => set({ quantity: { ...mapping.quantity, value: e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))) } })}
-              placeholder={mapping.quantity.columnId ? "Empty cells" : "Every row"}
-              aria-label="Quantity for every row"
-              className="h-8 min-w-0 flex-1"
-            />
-          </MapRow>
-          {warn(mapping.quantity.columnId, "quantity")}
-          <MapRow label="PIC">
-            <ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={choose("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" onPickOnSheet={onSheet("pic")} />
-            <PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder={mapping.pic.columnId ? "Empty cells" : "Every row"} />
-          </MapRow>
-          {warn(mapping.pic.columnId, "pic")}
-          <MapRow label="Due date">
-            <ColumnSelect columns={columns} value={mapping.due.columnId} onChange={choose("due")} onCreate={newColumn("due")} none="No column" testId="map-due" onPickOnSheet={onSheet("due")} />
-            <Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label="Due date for every row" className="h-8 min-w-0 flex-1" />
-          </MapRow>
-          {warn(mapping.due.columnId, "due")}
-          <MapRow label="Done">
-            <ColumnSelect
-              columns={columns}
-              value={mapping.done.columnId}
-              onChange={choose("done")}
-              onCreate={newColumn("done")}
-              none="Nothing counts as done"
-              testId="map-done" onPickOnSheet={onSheet("done")}
-            />
-          </MapRow>
-          {warn(mapping.done.columnId, "done")}
-          {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && (
-            <MapRow label="">
-              <span className="text-xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</span>
-            </MapRow>
-          )}
-          {listCol?.type === "list" && (
-            <MapRow label="">
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase">Where each part comes from</h3>
+          <FieldRow label="Asset name" column={<ColumnSelect columns={columns} value={mapping.name} onChange={choose("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("name")} />}>
+            {warn(mapping.name, "name")}
+          </FieldRow>
+          <FieldRow
+            label="Type"
+            column={<ColumnSelect columns={columns} value={mapping.type.columnId} onChange={choose("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("type")} />}
+            fallbackFor={mapping.type.columnId}
+            fallback={
+              <select
+                value={mapping.type.value ?? ""}
+                onChange={(e) => set({ type: { ...mapping.type, value: e.target.value || null } })}
+                className="h-8 w-full min-w-0 rounded-md border bg-background px-2 text-[13px] max-md:h-10"
+                aria-label={mapping.type.columnId ? "Type when a cell is empty" : "Type for every row"}
+                data-testid="map-type-value"
+              >
+                <option value="">None</option>
+                {assetTypes.map((t) => (
+                  <option key={t.name} value={t.name}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            }
+          >
+            {warn(mapping.type.columnId, "type")}
+          </FieldRow>
+          <FieldRow
+            label="Quantity"
+            column={<ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={choose("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("quantity")} />}
+            fallbackFor={mapping.quantity.columnId}
+            fallback={
+              <Input
+                type="number"
+                min={0}
+                value={mapping.quantity.value ?? ""}
+                onChange={(e) => set({ quantity: { ...mapping.quantity, value: e.target.value === "" ? null : Math.max(0, Math.round(Number(e.target.value))) } })}
+                placeholder="1"
+                aria-label={mapping.quantity.columnId ? "Quantity when a cell is empty" : "Quantity for every row"}
+                className="h-8 w-full min-w-0 max-md:h-10"
+              />
+            }
+          >
+            {warn(mapping.quantity.columnId, "quantity")}
+          </FieldRow>
+          <FieldRow
+            label="PIC"
+            column={<ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={choose("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" onPickOnSheet={onSheet("pic")} />}
+            fallbackFor={mapping.pic.columnId}
+            fallback={<PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder="Nobody" />}
+          >
+            {warn(mapping.pic.columnId, "pic")}
+          </FieldRow>
+          <FieldRow
+            label="Due date"
+            column={<ColumnSelect columns={columns} value={mapping.due.columnId} onChange={choose("due")} onCreate={newColumn("due")} none="No column" testId="map-due" onPickOnSheet={onSheet("due")} />}
+            fallbackFor={mapping.due.columnId}
+            fallback={<Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label={mapping.due.columnId ? "Due date when a cell is empty" : "Due date for every row"} className="h-8 w-full min-w-0 max-md:h-10" />}
+          >
+            {warn(mapping.due.columnId, "due")}
+          </FieldRow>
+          <FieldRow label="Done" column={<ColumnSelect columns={columns} value={mapping.done.columnId} onChange={choose("done")} onCreate={newColumn("done")} none="Nothing counts as done" testId="map-done" onPickOnSheet={onSheet("done")} />}>
+            {warn(mapping.done.columnId, "done")}
+            {listCol && listCol.type !== "list" && listCol.type !== "checkbox" && <p className="text-2xs text-muted-foreground">Done, Delivered, Approved and the like count as done.</p>}
+            {listCol?.type === "list" && (
+              <div className="space-y-1">
+              <p className="text-2xs text-muted-foreground">These count as done</p>
               <div className="flex flex-wrap gap-1.5" aria-label="Choices that count as done">
                 {(listCol.options ?? []).map((option) => {
                   const on = mapping.done.values.includes(option);
@@ -716,14 +694,15 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
                   );
                 })}
               </div>
-            </MapRow>
-          )}
-          <MapRow label="Spec">
+              </div>
+            )}
+          </FieldRow>
+          <FieldRow label="Spec" hint="Shown under each asset's name, in this order. Tap a column to add it, tap again to take it out.">
             <SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
-          </MapRow>
-          <MapRow label="Links">
+          </FieldRow>
+          <FieldRow label="Links" hint="Columns holding links to files or drafts.">
             <ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
-          </MapRow>
+          </FieldRow>
         </section>
         <p className="rounded-lg bg-surface px-3 py-2 text-[13px]" data-testid="task-assets-preview">
           {isMappingUsable(mapping) ? (
@@ -1148,8 +1127,6 @@ function RowMarkBody({
   );
 }
 
-/** Where this browser remembers whether the Task assets dialog shows the sheet. */
-const PREVIEW_KEY = "streamline.task-assets.show-sheet";
 
 /** "2 section rows and 1 header row aren't assets." */
 function nonAssetSummary(detected: ReadonlyArray<{ kind: "header" | "section" | "total" }>): string {
@@ -1339,11 +1316,48 @@ export function mismatchText({ unreadable, filled, expected, wrongType }: RoleMi
   return parts.join(" ");
 }
 
-function MapRow({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * One part of an asset and where it comes from. With a `column`, the sheet
+ * column it is read from, labelled as such; with a `fallback`, what an empty
+ * cell gets, or, with no column chosen, what every row gets, labelled to say
+ * which. Anything else (a warning, the choices that count as done, the chips
+ * for Spec and Links) goes under it.
+ */
+function FieldRow({
+  label,
+  hint,
+  column,
+  fallback,
+  fallbackFor,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  column?: React.ReactNode;
+  fallback?: React.ReactNode;
+  /** The column the fallback stands in for: set, it fills empty cells; null, it fills every row. */
+  fallbackFor?: string | null;
+  children?: React.ReactNode;
+}) {
   return (
-    <div className="grid grid-cols-[6.5rem_1fr] items-center gap-2 max-sm:grid-cols-1">
-      <span className="text-[13px] font-medium">{label}</span>
-      <div className="flex min-w-0 items-center gap-2">{children}</div>
+    <div className="space-y-1.5 rounded-xl border border-border/60 bg-surface/30 p-3" data-testid={`map-field-${label.toLowerCase().replace(/\s+/g, "-")}`}>
+      <p className="text-[13px] font-medium">{label}</p>
+      {hint && <p className="-mt-1 text-2xs text-muted-foreground">{hint}</p>}
+      {column && (
+        <div className={cn("grid gap-2", fallback ? "grid-cols-2" : "grid-cols-1")}>
+          <div className="grid min-w-0 gap-1">
+            <span className="text-2xs text-muted-foreground">Sheet column</span>
+            <div className="flex min-w-0">{column}</div>
+          </div>
+          {fallback && (
+            <div className="grid min-w-0 gap-1">
+              <span className="text-2xs text-muted-foreground">{fallbackFor ? "When a cell is empty" : "For every row"}</span>
+              <div className="flex min-w-0">{fallback}</div>
+            </div>
+          )}
+        </div>
+      )}
+      {children}
     </div>
   );
 }
@@ -1359,6 +1373,7 @@ function ColumnBadge({ index }: { index: number }) {
 
 const NO_COLUMN = "__none";
 const NEW_COLUMN = "__new";
+const PICK_ON_SHEET = "__pick";
 
 /** Any column of the sheet, each with its letter; and, with `onCreate`, a new one made for the part. */
 function ColumnSelect({
@@ -1376,36 +1391,15 @@ function ColumnSelect({
   onCreate?: () => Promise<void>;
   none: string;
   testId?: string;
-  /** Chosen on the sheet in a pop-up instead of from the list. */
+  /** Offered as "Pick on the sheet…": the column chosen by clicking it on a preview of the sheet. */
   onPickOnSheet?: () => void;
 }) {
-  if (onPickOnSheet) {
-    const index = columns.findIndex((c) => c.id === value);
-    return (
-      <button
-        type="button"
-        onClick={onPickOnSheet}
-        className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md border border-input bg-background px-2 text-left text-[13px] max-md:h-10"
-        aria-label={`${none}: choose on the sheet`}
-        data-testid={testId}
-      >
-        {index >= 0 ? (
-          <>
-            <ColumnBadge index={index} />
-            <span className="min-w-0 flex-1 truncate">{columns[index]!.name}</span>
-          </>
-        ) : (
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">{none}</span>
-        )}
-        <Table2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-      </button>
-    );
-  }
   return (
     <Select
       value={value ?? NO_COLUMN}
       onValueChange={(next) => {
         if (next === NEW_COLUMN) void onCreate?.().catch(() => undefined);
+        else if (next === PICK_ON_SHEET) onPickOnSheet?.();
         else onChange(next === NO_COLUMN ? null : next);
       }}
     >
@@ -1413,6 +1407,17 @@ function ColumnSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
+        {onPickOnSheet && (
+          <>
+            <SelectItem value={PICK_ON_SHEET} className="font-medium" data-testid={testId ? `${testId}-pick` : undefined}>
+              <span className="flex items-center gap-2">
+                <Table2 className="size-3.5 shrink-0" aria-hidden />
+                Pick on the sheet…
+              </span>
+            </SelectItem>
+            <SelectSeparator />
+          </>
+        )}
         <SelectItem value={NO_COLUMN} className="text-muted-foreground">
           {none}
         </SelectItem>
@@ -1583,7 +1588,7 @@ export function PeopleValue({
   return (
     <div className="relative min-w-0 flex-1">
       <button type="button" onClick={() => setOpen(true)} className="flex h-8 w-full items-center gap-1.5 rounded-md border bg-background px-2 text-left text-[13px]" aria-label={label} data-testid={testId}>
-        {value.length ? <PeopleCellView value={value.join(",")} users={users} /> : <span className="text-muted-foreground">{placeholder}: nobody</span>}
+        {value.length ? <PeopleCellView value={value.join(",")} users={users} /> : <span className="text-muted-foreground">{placeholder}</span>}
       </button>
       {open && (
         <PeopleEditor

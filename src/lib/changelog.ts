@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.4",
+    date: "2026-11-22",
+    title: "Task assets, easier to read",
+    changes: [
+      "In a sheet's Task assets settings, each part is a card: the sheet column it comes from, and what an empty cell, or every row, gets instead, each labelled.",
+      "Pick on the sheet… is a choice in every column list, so there is no switch to find first.",
+    ],
+  },
+  {
     version: "0.152.3",
     date: "2026-11-22",
     title: "A steadier plus between blocks",
