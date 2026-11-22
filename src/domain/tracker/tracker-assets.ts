@@ -78,15 +78,20 @@ export function normalizeAssetMapping(raw: unknown, columns: readonly TrackerCol
 }
 
 /**
- * A spec line can be broken up between its columns: a divider ("Duration: 30s
- * | Ratio: 9:16") or a new line. Each sits in `spec` beside the column ids as
- * "sep:<id>" or "br:<id>", so it can be dragged into place like a column.
+ * A spec line can be joined differently between two columns: a divider
+ * ("Duration: 30s  |  Ratio: 9:16"), a new line, or a plain space. Each sits in
+ * `spec` beside the column ids as "sep:<id>", "br:<id>" or "sp:<id>", so it can
+ * be dragged into place like a column. With none, columns are joined by " · ".
  */
-export type SpecBreakKind = "sep" | "br";
+export type SpecBreakKind = "sep" | "br" | "sp";
 
 export function specBreakKind(id: unknown): SpecBreakKind | null {
-  return typeof id === "string" ? (id.startsWith("sep:") ? "sep" : id.startsWith("br:") ? "br" : null) : null;
+  if (typeof id !== "string") return null;
+  return id.startsWith("sep:") ? "sep" : id.startsWith("br:") ? "br" : id.startsWith("sp:") ? "sp" : null;
 }
+
+/** What each break puts between two columns' text. The divider has two spaces either side. */
+export const SPEC_JOINERS: Record<SpecBreakKind, string> = { sep: "  |  ", br: "\n", sp: " " };
 
 export function newSpecBreak(kind: SpecBreakKind): string {
   return `${kind}:${Math.random().toString(36).slice(2, 10)}`;
@@ -589,8 +594,8 @@ export function sheetAssetLines(sheet: Pick<TrackerSheet, "columns" | "rows">, m
 
 /**
  * "Name: value" for each spec column with a value, joined by " · ", or by a
- * divider or a new line where one was put. A break with nothing after it, or
- * before it, is left out.
+ * divider, a new line or a space where one was put. A break with nothing after
+ * it, or before it, is left out.
  */
 function specText(spec: readonly string[], col: (id: string) => TrackerColumn | null, valueOf: (column: TrackerColumn) => string): string {
   let out = "";
@@ -598,7 +603,7 @@ function specText(spec: readonly string[], col: (id: string) => TrackerColumn | 
   for (const id of spec) {
     const kind = specBreakKind(id);
     if (kind) {
-      if (out) joiner = kind === "br" ? "\n" : " | ";
+      if (out) joiner = SPEC_JOINERS[kind];
       continue;
     }
     const column = col(id);

@@ -9,6 +9,7 @@ import { AssetComposer } from "@/features/assets/asset-composer";
 import { copyOfAssetLine, useAssetMutations, useItemAssets } from "@/features/items/asset-hooks";
 import { MyAssetsStrip, MyAssetsToggle } from "@/features/items/my-assets-filter";
 import { ItemTrackerSheet, MoveIntoSheetButton, UseTrackerSheetButton } from "@/features/items/item-tracker-sheet";
+import { useItemTrackerSheet } from "@/features/trackers/hooks";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
@@ -34,6 +35,10 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
   const rows = React.useMemo(() => all.filter((line) => !line.trackerSheetId), [all]);
   const sheetLines = React.useMemo(() => all.filter((line) => line.trackerSheetId), [all]);
   const [onlyMine, setOnlyMine] = React.useState(false);
+  // The linked sheet, read by the sheet section below: its lines wait for it, so the tab does too.
+  const linkedSheet = useItemTrackerSheet(item.id);
+  // The first paint is the skeleton; the list, which can be long, is drawn in a pass React may break up.
+  const drawn = React.useDeferredValue(true, false);
   // The task's PIC and due date, from the board's PIC and due-date columns: offered in each asset's pickers.
   const snapshot = useBoardSnapshot(item.boardId);
   const taskDefaults = React.useMemo(() => {
@@ -63,12 +68,8 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
     return map;
   }, [rows]);
 
-  if (assets.isLoading) {
-    return (
-      <div className="space-y-2 p-4" data-testid="assets-loading">
-        {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-11" />)}
-      </div>
-    );
+  if (assets.isLoading || (sheetLines.length > 0 && linkedSheet.isLoading) || !drawn) {
+    return <AssetsSkeleton sheetRows={Math.min(sheetLines.length, 6)} rows={assets.data ? Math.min(Math.max(rows.length, 1), 6) : 3} />;
   }
 
   // Nothing on this task is theirs: no toggle. Kept while it is on, so taking
@@ -127,6 +128,35 @@ export function ItemAssetsTab({ item, canEdit }: { item: Item; canEdit: boolean 
         onDuplicate={(row) => mutations.add.mutate(copyOfAssetLine(row))}
         onRemove={(id) => mutations.remove.mutate(id)}
       />
+    </div>
+  );
+}
+
+/**
+ * The Assets tab while it loads: a sheet section's frame when the task keeps
+ * lines in a sheet, the toolbar, then the task's own lines, about as many as
+ * there will be, so the tab does not jump when they arrive.
+ */
+function AssetsSkeleton({ sheetRows, rows }: { sheetRows: number; rows: number }) {
+  return (
+    <div className="space-y-3 p-4" data-testid="assets-loading" aria-busy="true" aria-label="Loading assets">
+      {sheetRows > 0 && (
+        <div className="space-y-1.5 rounded-lg border border-emerald-600/30 bg-emerald-600/[0.03] p-2 dark:border-emerald-400/25 dark:bg-emerald-400/[0.04]" data-testid="assets-loading-sheet">
+          <Skeleton className="h-6 w-2/5" />
+          {Array.from({ length: sheetRows }).map((_, i) => (
+            <Skeleton key={i} className="h-9" />
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 w-20" />
+      </div>
+      <div className="space-y-2">
+        {Array.from({ length: rows }).map((_, i) => (
+          <Skeleton key={i} className="h-11" />
+        ))}
+      </div>
     </div>
   );
 }

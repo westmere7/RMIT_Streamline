@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.7",
+    date: "2026-11-22",
+    title: "Spec breaks where you want them",
+    changes: [
+      "In Task assets, point between two Spec columns to add a space, a line break or a divider there. The divider has two spaces either side.",
+      "A task's Assets tab shows a skeleton while it loads, sheet lines included, instead of a blank tab.",
+    ],
+  },
+  {
     version: "0.152.6",
     date: "2026-11-22",
     title: "A name for rows without one",

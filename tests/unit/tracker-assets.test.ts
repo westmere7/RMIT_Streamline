@@ -124,7 +124,8 @@ describe("a sheet as assets", () => {
     const row = data("a", { n: "Teaser", d: "30s", r: "9:16", f: "MP4" });
     const lines = (spec: string[]) => sheetAssetLines({ columns, rows: [row] }, { ...emptyAssetMapping(), name: "n", spec }, [])[0]!.notes;
     expect(lines(["r", "d"])).toBe("Ratio: 9:16 · Duration: 30s");
-    expect(lines(["d", "sep:1", "r", "br:2", "f"])).toBe("Duration: 30s | Ratio: 9:16\nFormat: MP4");
+    expect(lines(["d", "sep:1", "r", "br:2", "f"])).toBe("Duration: 30s  |  Ratio: 9:16\nFormat: MP4");
+    expect(lines(["d", "sp:1", "r"])).toBe("Duration: 30s Ratio: 9:16");
     // A break at either end, or before an empty cell's column, has nothing to split.
     expect(lines(["br:0", "d", "sep:1"])).toBe("Duration: 30s");
     expect(normalizeAssetMapping({ name: "n", spec: ["d", "sep:x", "gone", "br:y"] }, columns)!.spec).toEqual(["d", "sep:x", "br:y"]);

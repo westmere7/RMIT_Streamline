@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, CornerDownLeft, Info, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { AlertTriangle, Check, CornerDownLeft, Info, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Space, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -29,6 +29,7 @@ import {
   newSpecBreak,
   personIds,
   specBreakKind,
+  type SpecBreakKind,
   roleMismatch,
   trackerPeople,
   personValue,
@@ -1471,7 +1472,9 @@ function ColumnChips({ columns, hidden, value, onChange }: { columns: TrackerCol
 /**
  * Spec columns: the chosen ones first, in the order the spec line reads
  * ("Duration: 30s · Aspect ratio: 9:16"), dragged to reorder and clicked to
- * take out; the rest after them, clicked to add at the end.
+ * take out; the rest after them, clicked to add at the end. Between two chosen
+ * columns, pointing at the gap offers a space, a line break or a divider in
+ * place of the " · " they are joined by.
  */
 function SpecChips({ columns, hidden, value, onChange }: { columns: TrackerColumn[]; hidden: ReadonlySet<string>; value: string[]; onChange: (ids: string[]) => void }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
@@ -1487,25 +1490,19 @@ function SpecChips({ columns, hidden, value, onChange }: { columns: TrackerColum
     <div className="flex flex-wrap items-center gap-1.5" data-testid="map-spec">
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onDragEnd}>
         <SortableContext items={chosen} strategy={rectSortingStrategy}>
-          {chosen.map((id) => (
-            <SortableSpecChip key={id} id={id} index={indexOf.get(id) ?? null} name={columns[indexOf.get(id) ?? -1]?.name ?? ""} onRemove={() => onChange(chosen.filter((x) => x !== id))} />
-          ))}
+          {chosen.map((id, i) => {
+            // A gap between two columns with nothing between them yet: the place to put a break.
+            const next = chosen[i + 1];
+            const gap = next && !specBreakKind(id) && !specBreakKind(next);
+            return (
+              <React.Fragment key={id}>
+                <SortableSpecChip id={id} index={indexOf.get(id) ?? null} name={columns[indexOf.get(id) ?? -1]?.name ?? ""} onRemove={() => onChange(chosen.filter((x) => x !== id))} />
+                {gap && <SpecGap testId={`map-spec-gap-${i}`} onInsert={(kind) => onChange([...chosen.slice(0, i + 1), newSpecBreak(kind), ...chosen.slice(i + 1)])} />}
+              </React.Fragment>
+            );
+          })}
         </SortableContext>
       </DndContext>
-      {chosen.length > 0 && (
-        <>
-          <SimpleTooltip label="Add a divider">
-            <Button type="button" size="icon-xs" variant="ghost" className="rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground" aria-label="Add a divider" onClick={() => onChange([...chosen, newSpecBreak("sep")])} data-testid="map-spec-add-sep">
-              <SeparatorVertical />
-            </Button>
-          </SimpleTooltip>
-          <SimpleTooltip label="Add a line break">
-            <Button type="button" size="icon-xs" variant="ghost" className="rounded-full border border-dashed border-muted-foreground/50 text-muted-foreground" aria-label="Add a line break" onClick={() => onChange([...chosen, newSpecBreak("br")])} data-testid="map-spec-add-br">
-              <CornerDownLeft />
-            </Button>
-          </SimpleTooltip>
-        </>
-      )}
       {chosen.length > 0 && rest.length > 0 && <span aria-hidden className="mx-0.5 h-4 w-px bg-border" />}
       {rest.map(({ c, index }) => (
         <button
@@ -1523,11 +1520,41 @@ function SpecChips({ columns, hidden, value, onChange }: { columns: TrackerColum
   );
 }
 
+const SPEC_BREAKS: Array<{ kind: SpecBreakKind; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+  { kind: "sp", label: "Space", icon: Space },
+  { kind: "br", label: "Line break", icon: CornerDownLeft },
+  { kind: "sep", label: "Divider", icon: SeparatorVertical },
+];
+
+/**
+ * The gap between two spec columns. Pointed at, it shows a small bar above it
+ * with a space, a line break and a divider; nothing moves aside for it.
+ */
+function SpecGap({ onInsert, testId }: { onInsert: (kind: SpecBreakKind) => void; testId?: string }) {
+  return (
+    <span className="group/gap relative -mx-1 flex h-6 w-3 shrink-0 items-center justify-center" data-testid={testId}>
+      <span aria-hidden className="h-4 w-px rounded-full bg-transparent transition-colors group-hover/gap:bg-ring group-focus-within/gap:bg-ring" />
+      {/* Above the gap, inside it for the pointer: moving up onto the bar keeps it open. */}
+      <span className="absolute bottom-full left-1/2 z-20 hidden -translate-x-1/2 pb-1 group-focus-within/gap:flex group-hover/gap:flex">
+        <span className="flex items-center gap-0.5 rounded-full border border-border bg-popover p-0.5 shadow-md">
+          {SPEC_BREAKS.map(({ kind, label, icon: Icon }) => (
+            <SimpleTooltip key={kind} label={`Add a ${label.toLowerCase()} here`}>
+              <button type="button" onClick={() => onInsert(kind)} aria-label={`Add a ${label.toLowerCase()} here`} className="flex size-6 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground" data-testid={testId ? `${testId}-${kind}` : undefined}>
+                <Icon className="size-3.5" />
+              </button>
+            </SimpleTooltip>
+          ))}
+        </span>
+      </span>
+    </span>
+  );
+}
+
 function SortableSpecChip({ id, index, name, onRemove }: { id: string; index: number | null; name: string; onRemove: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const kind = specBreakKind(id);
   if (kind) {
-    const label = kind === "sep" ? "Divider" : "Line break";
+    const label = kind === "sep" ? "Divider" : kind === "sp" ? "Space" : "Line break";
     return (
       <button
         ref={setNodeRef}
@@ -1541,7 +1568,7 @@ function SortableSpecChip({ id, index, name, onRemove }: { id: string; index: nu
         className={cn("inline-flex h-[22px] cursor-grab touch-none items-center rounded-full border border-primary bg-primary/10 px-2 text-foreground active:cursor-grabbing", isDragging && "z-10 shadow-md")}
         data-testid={`map-spec-${kind}`}
       >
-        {kind === "sep" ? <SeparatorVertical className="size-3.5" /> : <CornerDownLeft className="size-3.5" />}
+        {kind === "sep" ? <SeparatorVertical className="size-3.5" /> : kind === "sp" ? <Space className="size-3.5" /> : <CornerDownLeft className="size-3.5" />}
       </button>
     );
   }
