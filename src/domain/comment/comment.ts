@@ -44,18 +44,29 @@ export function pinStateOf(comment: Pick<Comment, "pin">): CommentPinState {
   return !comment.pin ? "none" : comment.pin.overview ? "overview" : "pinned";
 }
 
-/** The task's overview pin, if one of these updates is it. */
-export function overviewPinOf<T extends Pick<Comment, "pin" | "parentId">>(comments: readonly T[]): T | null {
-  return comments.find((c) => !c.parentId && c.pin?.overview) ?? null;
+/** The task's overview pin, if one of these updates or replies is it. */
+export function overviewPinOf<T extends Pick<Comment, "pin">>(comments: readonly T[]): T | null {
+  return comments.find((c) => c.pin?.overview) ?? null;
+}
+
+/**
+ * The pin a conversation is ordered by: its update's own, or the strongest of
+ * its replies' (a reply pinned to the overview outranks a plain pin), so a
+ * pinned reply lifts its conversation to the top.
+ */
+export function threadPinOf(update: Pick<Comment, "pin">, replies: readonly Pick<Comment, "pin">[] = []): CommentPin | null {
+  const pins = [update.pin, ...replies.map((r) => r.pin)].filter((p): p is CommentPin => !!p);
+  return pins.find((p) => p.overview) ?? pins.sort((a, b) => b.pinnedAt.localeCompare(a.pinnedAt))[0] ?? null;
 }
 
 /**
  * The updates of a task in the order the Updates tab shows them: pinned ones
  * first (the overview pin, then the latest pinned), then the rest newest first.
+ * `pinOf` says which pin a conversation counts by (see threadPinOf).
  */
-export function orderUpdates<T extends Pick<Comment, "pin" | "createdAt">>(updates: readonly T[]): T[] {
-  const rank = (c: T) => (c.pin?.overview ? 0 : c.pin ? 1 : 2);
-  return [...updates].sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? b.pin!.pinnedAt.localeCompare(a.pin!.pinnedAt) : 0) || b.createdAt.localeCompare(a.createdAt));
+export function orderUpdates<T extends Pick<Comment, "pin" | "createdAt">>(updates: readonly T[], pinOf: (update: T) => CommentPin | null | undefined = (u) => u.pin): T[] {
+  const rank = (c: T) => (pinOf(c)?.overview ? 0 : pinOf(c) ? 1 : 2);
+  return [...updates].sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? pinOf(b)!.pinnedAt.localeCompare(pinOf(a)!.pinnedAt) : 0) || b.createdAt.localeCompare(a.createdAt));
 }
 
 /** One ticked box of a checklist in an update. No entry means not ticked. */

@@ -45,12 +45,11 @@ export class CommentService {
   }
 
   /**
-   * Pins an update to the top of its task's updates, or to the task's overview
-   * too (one per task: the one there before stays pinned below), or unpins it.
-   * Replies are never pinned: a pin is a whole update, read on its own.
+   * Pins an update or a reply to the top of its task's updates, or to the
+   * task's overview too (one per task: the one there before stays pinned
+   * below), or unpins it.
    */
-  async setPin(comment: Pick<Comment, "id" | "itemId" | "parentId">, actorId: EntityId, state: CommentPinState): Promise<void> {
-    if (comment.parentId) throw new RefusedError("A reply can't be pinned. Pin the update it answers.");
+  async setPin(comment: Pick<Comment, "id" | "itemId">, actorId: EntityId, state: CommentPinState): Promise<void> {
     await this.repos.comments.setPin(comment, actorId, state);
   }
 

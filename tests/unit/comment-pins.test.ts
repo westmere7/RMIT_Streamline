@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS } from "@/data/seed/seed-data";
-import { orderUpdates, overviewPinOf, RefusedError, type Comment } from "@/domain";
+import { orderUpdates, overviewPinOf, threadPinOf, type Comment } from "@/domain";
 import { createServices } from "@/services";
 
 /** Pinned updates, and the one pinned to a task's overview (v0.151.0). */
@@ -39,11 +39,17 @@ describe("pinned updates", () => {
     expect(after.updatedAt).toBe(after.createdAt);
   });
 
-  it("never pins a reply", async () => {
-    const { services, item, users, post } = await setup();
-    const update = await post("Question");
-    const reply = await services.comments.replyToComment(item.id, update.id, "Answer", SEED_USER_IDS.danh, users);
-    await expect(services.comments.setPin(reply, SEED_USER_IDS.danh, "overview")).rejects.toBeInstanceOf(RefusedError);
+  it("pins a reply like an update, and the reply lifts its conversation to the top", async () => {
+    const { services, item, users, post, list } = await setup();
+    const question = await post("Question");
+    await post("Newer update");
+    const reply = await services.comments.replyToComment(item.id, question.id, "Answer", SEED_USER_IDS.danh, users);
+    await services.comments.setPin(reply, SEED_USER_IDS.danh, "overview");
+    const all = await list();
+    expect(overviewPinOf(all)?.id).toBe(reply.id);
+    const top = all.filter((c) => !c.parentId);
+    const replies = (id: string) => all.filter((c) => c.parentId === id);
+    expect(orderUpdates(top, (u) => threadPinOf(u, replies(u.id)))[0]!.id).toBe(question.id);
   });
 
   it("orders the overview pin, then pinned ones latest first, then the rest newest first", () => {

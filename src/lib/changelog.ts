@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.151.2",
+    date: "2026-11-22",
+    title: "Pin a reply",
+    changes: [
+      "Replies can be pinned, and pinned to the overview, like updates. A pinned reply stays in its conversation and brings it to the top.",
+    ],
+  },
+  {
     version: "0.151.1",
     date: "2026-11-22",
     title: "Checklists belong to their author",

@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COMMENT_REACTIONS, groupReactions, orderUpdates, overviewPinOf, pinStateOf, type Comment, type CommentPinState } from "@/domain";
+import { COMMENT_REACTIONS, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Comment, type CommentPinState } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
@@ -63,7 +63,8 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
     const top = all.filter((c) => !c.parentId);
     const byParent = new Map<string, Comment[]>();
     for (const c of all) if (c.parentId) byParent.set(c.parentId, [...(byParent.get(c.parentId) ?? []), c]);
-    return { updates: orderUpdates(top), repliesTo: byParent };
+    // A pinned reply lifts its conversation to the top, and stays in it.
+    return { updates: orderUpdates(top, (u) => threadPinOf(u, byParent.get(u.id))), repliesTo: byParent };
   }, [comments.data]);
   // Conversations folded to one line. Per visit, not stored: a panel reopened later starts open.
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set());
@@ -520,7 +521,7 @@ function CommentHeader({
         </PersonName>
         <RelativeTime iso={comment.createdAt} className="text-2xs text-muted-foreground" />
         {edited && <span className="text-2xs text-muted-foreground">(edited)</span>}
-        {comment.pin && !comment.parentId && (
+        {comment.pin && (
           <span className="flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-2xs font-medium text-accent-soft-foreground" data-testid="comment-pinned-badge">
             <Pin className="size-3" /> {comment.pin.overview ? "Pinned to overview" : "Pinned"}
           </span>
@@ -534,7 +535,7 @@ function CommentHeader({
         )}
       </div>
       <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100 pointer-coarse:opacity-100">
-        {!comment.parentId && <PinMenu comment={comment} />}
+        <PinMenu comment={comment} />
         {canEditComment(ws.permissions, comment) && (
           <Button variant="ghost" size="icon-xs" aria-label={`Edit ${noun}`} onClick={onEdit}>
             <Pencil />
@@ -549,7 +550,7 @@ function CommentHeader({
   );
 }
 
-/** Pin, Pin to overview, and the way back from each. Updates only, for whoever can work on the task. */
+/** Pin, Pin to overview, and the way back from each, on an update or a reply, for whoever can work on the task. */
 function PinMenu({ comment }: { comment: Comment }) {
   const onPin = React.useContext(PinControl);
   if (!onPin) return null;
@@ -557,7 +558,7 @@ function PinMenu({ comment }: { comment: Comment }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label="Pin update" data-testid="comment-pin-menu">
+        <Button variant="ghost" size="icon-xs" aria-label={comment.parentId ? "Pin reply" : "Pin update"} data-testid="comment-pin-menu">
           <Pin />
         </Button>
       </DropdownMenuTrigger>
@@ -589,8 +590,8 @@ function PinMenu({ comment }: { comment: Comment }) {
 const PINNED_CLAMP_PX = 132;
 
 /**
- * The update pinned to the task's overview, above the description: that one
- * update on its own, without its replies or reactions, and clamped when long.
+ * The update or reply pinned to the task's overview, above the description:
+ * that one on its own, without replies or reactions, and clamped when long.
  */
 export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: string; canEdit: boolean; onOpenUpdates?: () => void }) {
   const ws = useWorkspace();
