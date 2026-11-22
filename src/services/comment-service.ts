@@ -45,11 +45,6 @@ export class CommentService {
   }
 
   /**
-   * Ticks or unticks one checklist box. An update posted to linked tasks is one
-   * list, so the copies follow — where the actor may work on them; a copy on a
-   * board they cannot edit keeps its own ticks rather than failing this one.
-   */
-  /**
    * Pins an update to the top of its task's updates, or to the task's overview
    * too (one per task: the one there before stays pinned below), or unpins it.
    * Replies are never pinned: a pin is a whole update, read on its own.
@@ -59,7 +54,14 @@ export class CommentService {
     await this.repos.comments.setPin(comment, actorId, state);
   }
 
-  async setCheck(comment: Pick<Comment, "id" | "itemId" | "sharedId">, key: string, actorId: EntityId, on: boolean): Promise<void> {
+  /**
+   * Ticks or unticks one checklist box. The list is its author's: nobody else
+   * ticks it (policies/0038). An update posted to linked tasks is one list, so
+   * the copies follow — where the author may work on them; a copy on a board
+   * they cannot edit keeps its own ticks rather than failing this one.
+   */
+  async setCheck(comment: Pick<Comment, "id" | "itemId" | "sharedId" | "authorId">, key: string, actorId: EntityId, on: boolean): Promise<void> {
+    if (comment.authorId !== actorId) throw new RefusedError("Only the person who wrote this update can tick it off.");
     await this.repos.comments.setCheck(comment, key, actorId, on);
     if (!comment.sharedId) return;
     const copies = (await this.repos.comments.listBySharedId(comment.sharedId)).filter((copy) => copy.id !== comment.id);

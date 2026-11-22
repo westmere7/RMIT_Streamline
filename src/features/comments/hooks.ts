@@ -126,7 +126,7 @@ export function useCommentMutations(itemId: string) {
 
   // Like a reaction: shown at once, settled quietly, on every copy the service reaches.
   const check = useMutation({
-    mutationFn: ({ comment, key: box, on }: { comment: Pick<Comment, "id" | "itemId" | "sharedId">; key: string; on: boolean }) => services.comments.setCheck(comment, box, user.id, on),
+    mutationFn: ({ comment, key: box, on }: { comment: Pick<Comment, "id" | "itemId" | "sharedId" | "authorId">; key: string; on: boolean }) => services.comments.setCheck(comment, box, user.id, on),
     onMutate: async ({ comment, key: box, on }) => {
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<Comment[]>(key);

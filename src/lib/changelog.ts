@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.151.1",
+    date: "2026-11-22",
+    title: "Checklists belong to their author",
+    changes: [
+      "Only the person who wrote an update can tick its checklist; everyone else sees the ticks.",
+      "An update pinned to the overview shows its checklist and progress, and its author can tick it there.",
+    ],
+  },
+  {
     version: "0.151.0",
     date: "2026-11-22",
     title: "Pinned updates",

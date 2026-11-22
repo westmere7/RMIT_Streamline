@@ -195,3 +195,4 @@ policies/0037_presence_per_workspace.sql
 migrations/0148_teams_managed_by_admins.sql
 migrations/0149_workspace_keys_hidden.sql
 migrations/0150_comment_pins.sql
+policies/0038_checklist_ticks_by_author.sql

@@ -48,9 +48,11 @@ describe("checklist ticks", () => {
     const users = await services.repos.users.list();
     const comment = await services.comments.addComment(item!.id, "- [ ] Proof\n- [ ] Print", SEED_USER_IDS.danh, users);
     const other = Object.values(SEED_USER_IDS).find((id) => id !== SEED_USER_IDS.danh)!;
-    await services.comments.setCheck(comment, "proof", other, true);
+    // The list is its author's: nobody else ticks it.
+    await expect(services.comments.setCheck(comment, "proof", other, true)).rejects.toThrow("Only the person who wrote this update");
+    await services.comments.setCheck(comment, "proof", SEED_USER_IDS.danh, true);
     let stored = (await services.comments.listByItem(item!.id)).find((c) => c.id === comment.id)!;
-    expect(stored.checks).toMatchObject([{ key: "proof", userId: other }]);
+    expect(stored.checks).toMatchObject([{ key: "proof", userId: SEED_USER_IDS.danh }]);
     // Ticking is not editing: the text and its edited time stay as they were.
     expect(stored.body).toBe(comment.body);
     expect(stored.updatedAt).toBe(comment.updatedAt);

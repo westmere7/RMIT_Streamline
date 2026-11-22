@@ -596,8 +596,10 @@ export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: strin
   const ws = useWorkspace();
   const links = useMentionLinks();
   const comments = useComments(itemId);
-  const { pin } = useCommentMutations(itemId);
+  const { pin, check } = useCommentMutations(itemId);
   const pinned = overviewPinOf(comments.data ?? []);
+  const onCheck = React.useCallback<CheckHandler>((comment, key, on) => check.mutate({ comment, key, on }), [check]);
+  const checklist = useChecklist(pinned, canEdit ? onCheck : undefined);
   const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = React.useState(false);
@@ -624,6 +626,7 @@ export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: strin
         </span>
         <RelativeTime iso={pinned.createdAt} className="shrink-0 text-2xs text-muted-foreground" />
         <span className="flex-1" />
+        <ChecklistTally comment={pinned} />
         {onOpenUpdates && (
           <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-2xs text-muted-foreground" onClick={onOpenUpdates} data-testid="panel-pinned-open">
             View in updates
@@ -639,7 +642,7 @@ export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: strin
       </div>
       <div className="relative mt-1.5">
         <div ref={bodyRef} className={cn("overflow-hidden pl-[22px] text-[13px]", clamped && "[mask-image:linear-gradient(to_bottom,black_60%,transparent)]")} style={clamped ? { maxHeight: PINNED_CLAMP_PX } : undefined}>
-          <RichText body={pinned.body} mentionNames={names} className="leading-relaxed" mentionHref={links.personNamed} />
+          <RichText body={pinned.body} mentionNames={names} className="leading-relaxed" mentionHref={links.personNamed} checklist={checklist} />
         </div>
         {overflows && (
           <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 ml-[22px] text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-testid="panel-pinned-more">
@@ -649,6 +652,24 @@ export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: strin
       </div>
     </section>
   );
+}
+
+/**
+ * What a checklist in an update shows and does: who ticked each box, and a
+ * toggle for the update's author alone, where they may work on the task. The
+ * same on the update and on its pinned copy on the overview.
+ */
+function useChecklist(comment: Comment | null, toggle: CheckHandler | undefined) {
+  const ws = useWorkspace();
+  return React.useMemo(() => {
+    if (!comment) return undefined;
+    const who = (id: string | null) => (id === ws.currentUser.id ? "you" : ((id && ws.userById(id)?.displayName) ?? "someone"));
+    const mine = comment.authorId === ws.currentUser.id;
+    return {
+      ticked: new Map((comment.checks ?? []).map((c) => [c.key, `Ticked by ${who(c.userId)}, ${formatRelative(c.checkedAt)}`])),
+      onToggle: toggle && mine ? (key: string, on: boolean) => toggle(comment, key, on) : undefined,
+    };
+  }, [comment, toggle, ws]);
 }
 
 /** How long the "Delete?" badge waits for its second click before standing down. */
@@ -733,13 +754,7 @@ function CommentBody({
     if (draft.trim()) onSave(draft.trim());
     onEditingChange(false);
   };
-  const checklist = React.useMemo(() => {
-    const who = (id: string | null) => (id === ws.currentUser.id ? "you" : ((id && ws.userById(id)?.displayName) ?? "someone"));
-    return {
-      ticked: new Map((comment.checks ?? []).map((c) => [c.key, `Ticked by ${who(c.userId)}, ${formatRelative(c.checkedAt)}`])),
-      onToggle: toggle ? (key: string, on: boolean) => toggle(comment, key, on) : undefined,
-    };
-  }, [comment, toggle, ws]);
+  const checklist = useChecklist(comment, toggle);
   if (!editing) return <RichText body={comment.body} mentionNames={names} className={cn("leading-relaxed", className)} mentionHref={links.personNamed} checklist={checklist} />;
   return (
     <form
