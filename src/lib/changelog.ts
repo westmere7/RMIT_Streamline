@@ -18,11 +18,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.150.2",
+    version: "0.150.3",
     date: "2026-11-22",
     title: "The tech stack in About",
     changes: [
-      "About lists what Streamline is built with: open Tech stack at the bottom.",
+      "About lists what Streamline is built with: open Tech stack at the bottom. It and Donate are no longer red.",
     ],
   },
   {

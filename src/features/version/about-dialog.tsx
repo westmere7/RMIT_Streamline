@@ -101,7 +101,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <div className="min-w-0">
               <dt className="text-[10px] font-semibold tracking-wide text-muted-foreground/80 uppercase">Tech stack</dt>
               <dd>
-                <button type="button" onClick={() => setStackOpen(true)} className="group inline-flex max-w-full items-center gap-0.5 text-2xs font-medium text-primary hover:underline" data-testid="about-tech-stack">
+                <button type="button" onClick={() => setStackOpen(true)} className="group inline-flex max-w-full items-center gap-0.5 text-2xs font-medium text-foreground/90 hover:underline" data-testid="about-tech-stack">
                   <span className="truncate">Next.js · React · Supabase</span>
                   <ChevronRight className="size-3 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden />
                 </button>
@@ -115,7 +115,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
           <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-2.5 text-2xs text-muted-foreground">
             <p>Built by RMIT marketing team</p>
             {/* Every donation is gratefully received. */}
-            <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-primary hover:underline" data-testid="about-donate">
+            <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-foreground/80 hover:text-foreground hover:underline" data-testid="about-donate">
               <Heart className="size-3" aria-hidden /> Donate
             </a>
           </div>
