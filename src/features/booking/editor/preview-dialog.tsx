@@ -1,8 +1,8 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { Eye, X } from "lucide-react";
 import * as React from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingReceipt, BookingRequest } from "@/domain";
 import { bookingDestination, formatTicket, serviceById } from "@/domain";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -75,7 +75,8 @@ export function PreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="xl" className="flex max-h-[90vh] flex-col p-0" overlayClassName="booking-ground backdrop-blur-sm" data-testid="booking-preview">
+      {/* Square, under a striped green header like a site's barrier tape: plainly not the real thing. */}
+      <DialogContent size="xl" hideClose className="flex max-h-[90vh] flex-col gap-0 rounded-none p-0" overlayClassName="booking-ground backdrop-blur-sm" data-testid="booking-preview">
         {/* A strip rather than a heading: the point of this dialog is to look
             like the form, and a title block of its own is the first thing that
             would stop it doing that. The title and description are still here
@@ -84,10 +85,16 @@ export function PreviewDialog({
           <DialogTitle>The form, as they will meet it</DialogTitle>
           <DialogDescription>Every step is open and nothing is required: this is for reading the form, not answering it. Nothing is sent and nothing is saved.</DialogDescription>
         </DialogHeader>
-        <p className="flex shrink-0 items-center justify-center gap-1.5 rounded-t-2xl bg-green-600/15 px-10 py-1.5 text-2xs font-medium text-green-700 dark:text-green-400" data-testid="booking-preview-badge">
-          <Eye className="size-3 shrink-0" aria-hidden />
-          <span className="truncate">Previewing {label} · nothing is sent or saved</span>
-        </p>
+        <div className="relative flex h-11 shrink-0 items-center justify-center px-12" style={{ backgroundColor: "#15803d", backgroundImage: "repeating-linear-gradient(-45deg, #15803d 0 14px, #166534 14px 28px)" }}>
+          <p className="flex min-w-0 items-center gap-1.5 bg-[#15803d] px-3 py-1 text-xs font-semibold text-white shadow-sm" data-testid="booking-preview-badge">
+            <Eye className="size-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Previewing {label} · nothing is sent or saved</span>
+          </p>
+          <DialogClose className="absolute top-1/2 right-2 flex size-8 -translate-y-1/2 items-center justify-center text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-white" data-testid="booking-preview-close">
+            <X className="size-4" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
+        </div>
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto bg-card px-5 py-4">
           <BookingWizard form={preview} onSubmit={pretend} remember={null} preview />
         </div>
