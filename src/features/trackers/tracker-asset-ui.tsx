@@ -374,6 +374,8 @@ export function TaskAssetsDialog({
    */
   afterLink?: () => void;
 }) {
+  // Opened from a task as well as from the tracker: People cells need the members' names either way.
+  useTrackerPeopleDirectory();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="lg" className="max-h-[90dvh] overflow-y-auto" data-testid="task-assets-dialog">
@@ -1093,17 +1095,23 @@ function RowMarkBody({
             <span className="font-medium">
               {selected.size} {selected.size === 1 ? "row" : "rows"}:
             </span>
-            <Button type="button" size="sm" variant="outline" onClick={() => mark("asset")} data-testid="row-mark-asset">
-              Asset
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => mark("skip")} data-testid="row-mark-skip">
-              Leave out
-            </Button>
-            <span title={bandable ? undefined : "Only a row with one value can become a band"}>
-              <Button type="button" size="sm" variant="outline" disabled={!bandable} onClick={() => mark("band")} data-testid="row-mark-band">
-                Band
+            <SimpleTooltip label="Counts as one of the task's assets.">
+              <Button type="button" size="sm" variant="outline" onClick={() => mark("asset")} data-testid="row-mark-asset">
+                Asset
               </Button>
-            </span>
+            </SimpleTooltip>
+            <SimpleTooltip label="Stays in the sheet but isn't an asset, like a header, a total or a note.">
+              <Button type="button" size="sm" variant="outline" onClick={() => mark("skip")} data-testid="row-mark-skip">
+                Leave out
+              </Button>
+            </SimpleTooltip>
+            <SimpleTooltip label={bandable ? "Becomes a heading that groups the rows under it into a block." : "Only a row with one value can become a band: its text names the block."}>
+              <span>
+                <Button type="button" size="sm" variant="outline" disabled={!bandable} onClick={() => mark("band")} data-testid="row-mark-band">
+                  Band
+                </Button>
+              </span>
+            </SimpleTooltip>
             <Button type="button" size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
               Clear
             </Button>
