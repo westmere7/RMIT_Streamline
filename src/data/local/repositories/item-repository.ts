@@ -76,6 +76,16 @@ export class LocalItemRepository implements ItemRepository {
     return (await this.onBoards(boardIds)).filter((i) => i.ticket === ticket);
   }
 
+  /** Everything is readable here, so listByTicket has already seen every holder. */
+  async ticketTaken(): Promise<boolean> {
+    return false;
+  }
+
+  /** No row security locally: the UI's permissions are the gate. */
+  async canEdit(): Promise<boolean> {
+    return true;
+  }
+
   async listTicketed(boardIds: string[]): Promise<Item[]> {
     return (await this.onBoards(boardIds)).filter((i) => !!i.ticket);
   }

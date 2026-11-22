@@ -144,6 +144,22 @@ export class SupabaseItemRepository implements ItemRepository {
     return rows.map(toItem);
   }
 
+  /** public.ticket_taken (0147). A database without it yet answers "free", as before it existed. */
+  async ticketTaken(workspaceId: string, ticket: string, itemId: string): Promise<boolean> {
+    const result = await db().rpc("ticket_taken", { p_workspace: workspaceId, p_ticket: ticket, p_item: itemId });
+    if (result.error?.code === "PGRST202") return false;
+    if (result.error) throw new Error(`items.ticketTaken: ${result.error.message}`);
+    return result.data === true;
+  }
+
+  /** public.can_edit_task (0147). A database without it yet leaves the write to decide, as before. */
+  async canEdit(itemId: string): Promise<boolean> {
+    const result = await db().rpc("can_edit_task", { p_item: itemId });
+    if (result.error?.code === "PGRST202") return true;
+    if (result.error) throw new Error(`items.canEdit: ${result.error.message}`);
+    return result.data === true;
+  }
+
   async listTicketed(boardIds: string[]): Promise<Item[]> {
     if (boardIds.length === 0) return [];
     const rows = await unwrapAll<ItemRow>(

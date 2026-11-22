@@ -146,6 +146,8 @@ export function createMemoryRepositories(
       countLive: async (boardId) => items(boardId).filter((i) => i.archivedAt === null && i.parentItemId === null).length,
       listByIds: async (ids) => payload().items.filter((i) => ids.includes(i.id)),
       listByTicket: async (boardIds, ticket) => payload().items.filter((i) => boardIds.includes(i.boardId) && i.ticket === ticket),
+      ticketTaken: async () => false,
+      canEdit: async () => true,
       listTicketed: async (boardIds) => payload().items.filter((i) => boardIds.includes(i.boardId) && !!i.ticket),
       countTicketed: async (boardIds) => payload().items.filter((i) => boardIds.includes(i.boardId) && !!i.ticket).length,
       rewriteTicketPrefix: readOnly("changing the ticket prefix"),

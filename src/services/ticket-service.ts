@@ -92,6 +92,8 @@ export class TicketService {
   async assign(workspaceId: EntityId, itemId: EntityId, actorId: EntityId): Promise<Item> {
     const item = await this.item(itemId);
     if (item.ticket) return item;
+    // Asked before the counter moves: a number taken for a write that is then refused is a number gone.
+    if (!(await this.repos.items.canEdit(itemId))) throw new TicketError("You can't edit this task.");
     // A task on the App development board is a bug, and takes the next bug ticket.
     const onBugBoard = (await this.repos.boards.getById(item.boardId))?.system === "APP_DEVELOPMENT";
     return this.write(itemId, onBugBoard ? await this.issueBug(workspaceId) : await this.issue(workspaceId), actorId);
@@ -118,6 +120,8 @@ export class TicketService {
 
     const held = await this.heldBy(workspaceId, itemId, ticket);
     if (held) throw new TicketError(`${ticket} is already ${held.name}.`, held);
+    // A holder on a board this person cannot read is invisible to heldBy; the database still knows.
+    if (await this.repos.items.ticketTaken(workspaceId, ticket, itemId)) throw new TicketError(`${ticket} is already taken.`);
     return this.write(itemId, ticket, actorId);
   }
 

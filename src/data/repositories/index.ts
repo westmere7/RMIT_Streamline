@@ -283,6 +283,15 @@ export interface ItemRepository {
   listByIds(ids: EntityId[]): Promise<Item[]>;
   /** Whoever already holds this ticket, across the boards given. For the uniqueness check. */
   listByTicket(boardIds: EntityId[], ticket: string): Promise<Item[]>;
+  /**
+   * Whether a task in the workspace other than `itemId` (and those linked to it
+   * across a link carrying the ticket) holds this ticket, boards the caller
+   * cannot read included. Yes or no only. The local store reads everything, so
+   * `listByTicket` has already answered there.
+   */
+  ticketTaken(workspaceId: EntityId, ticket: string, itemId: EntityId): Promise<boolean>;
+  /** Whether the caller may edit this task's board, as the database decides it. */
+  canEdit(itemId: EntityId): Promise<boolean>;
   /** Every task on these boards that holds a ticket. For rewriting a workspace's prefix. */
   listTicketed(boardIds: EntityId[]): Promise<Item[]>;
   /** How many of them there are, counted where the rows live: the sentence before a prefix change does not need the rows themselves. */
