@@ -1225,11 +1225,12 @@ describe("the reference a booking carries", () => {
     expect(receipt.itemId).toBe(itemId);
     expect(receipt.ticket).toMatch(/^CP_\d{3,}$/);
 
-    // The same id a second time is already taken, so that booking gets its own —
-    // and its own ticket, because a ticket belongs to one booking.
+    // The same id a second time is the same submission sent again (the form
+    // takes a new id for the next booking): it is answered with the first
+    // receipt, and no second task or ticket is made.
     const second = await services.booking.submit({ workspaceSlug: "rmit", key, request: request({ itemId }) });
-    expect(second.itemId).not.toBe(itemId);
-    expect(second.ticket).not.toBe(receipt.ticket);
+    expect(second.itemId).toBe(itemId);
+    expect(second.ticket).toBe(receipt.ticket);
   });
 });
 

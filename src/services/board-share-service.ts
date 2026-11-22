@@ -1,4 +1,4 @@
-import type { Activity, Board, Comment, EntityId, ISODate, Item, ItemAsset, ItemColumnValue, User } from "@/domain";
+import type { Activity, Board, BoardColumn, Comment, EntityId, ISODate, Item, ItemAsset, ItemColumnValue, User } from "@/domain";
 import {
   type BoardShare,
   type BoardShareGate,
@@ -243,6 +243,8 @@ async function admitSharedBoard(repos: Repositories, token: string, password: st
   checkShareAccess(share, viewer, board?.workspaceId);
   await checkSharePassword(share, password);
   if (!board) throw new NotFoundError("Board", share.boardId);
+  // An archived board is out of use, and so is its link.
+  if (board.archivedAt) throw new ShareAccessError("off", shareAccessMessage("off"));
   return { share, board };
 }
 
@@ -267,6 +269,9 @@ async function readSharedBoard(repos: Repositories, share: BoardShare, board: Bo
   // right to see, so only links that stay inside this board travel.
   const onBoard = new Set(itemIds);
   const links = allLinks.filter((l) => onBoard.has(l.itemAId) && onBoard.has(l.itemBId));
+  // The deliverables of archived tasks stay behind with their tasks.
+  const shownAssets = assets.filter((asset) => onBoard.has(asset.itemId));
+  const shownActivities = publicActivities(activities, onBoard, columns);
 
   return {
     board,
@@ -275,10 +280,10 @@ async function readSharedBoard(repos: Repositories, share: BoardShare, board: Bo
     items,
     values,
     links,
-    assets,
+    assets: shownAssets,
     comments,
-    activities,
-    users: peopleOnBoard(users, { board, items, values, assets, comments, activities }),
+    activities: shownActivities,
+    users: peopleOnBoard(users, { board, items, values, assets: shownAssets, comments, activities: shownActivities }),
     workspaceName: workspace?.name ?? "",
     expiresAt: share.expiresAt,
   };
@@ -310,6 +315,34 @@ function peopleOnBoard(
   }
   for (const activity of board.activities) named.add(activity.actorId);
   return users.filter((u) => named.has(u.id)).map(toPublicUser);
+}
+
+/**
+ * The history a link may show: about the tasks it serves, on columns it shows,
+ * and naming nothing beyond the board. Archived and deleted tasks, links (which
+ * name a task elsewhere), arrivals from or departures to another board, seat
+ * changes and changes to a column taken off the board stay behind.
+ */
+export function publicActivities(activities: readonly Activity[], servedItemIds: ReadonlySet<EntityId>, columns: readonly Pick<BoardColumn, "name">[]): Activity[] {
+  const columnNames = new Set(columns.map((c) => c.name));
+  return activities.filter((entry) => {
+    if (entry.itemId && !servedItemIds.has(entry.itemId)) return false;
+    switch (entry.eventType) {
+      case "ITEM_LINKED":
+      case "ITEM_UNLINKED":
+      case "MEMBER_ADDED":
+      case "MEMBER_REMOVED":
+      case "ITEM_DELETED":
+        return false;
+      case "ITEM_MOVED":
+        // A move between groups names groups of this board; any other names a board.
+        return !!entry.metadata.toGroupName;
+      case "ITEM_COLUMN_VALUE_UPDATED":
+        return !entry.metadata.columnName || columnNames.has(entry.metadata.columnName);
+      default:
+        return true;
+    }
+  });
 }
 
 /** Finds the share a token names, if it is still serving. */

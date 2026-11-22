@@ -1,4 +1,5 @@
 export * from "./common/types";
+export * from "./common/errors";
 export * from "./user/user";
 export * from "./workspace/workspace";
 export * from "./workspace/asset-rate";

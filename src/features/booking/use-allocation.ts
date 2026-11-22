@@ -68,7 +68,8 @@ export function useAllocation() {
       // One request at a time: the service moves an item and rewrites its
       // group, and a failure halfway through should leave the ones that
       // worked where they were sent rather than rolling the lot back.
-      const results = await Promise.all(itemIds.map((id) => services.booking.allocate(id, boardId, user.id)));
+      const results = [];
+      for (const id of itemIds) results.push(await services.booking.allocate(id, boardId, user.id));
       return { target: results[0]!.board, count: results.length };
     },
     onSuccess: async ({ target, count }) => {

@@ -140,3 +140,27 @@ describe("who a link opens for", () => {
     expect(later.access).toBe("PUBLIC");
   });
 });
+
+describe("what a link leaves behind (audit, 22 Nov 2026)", () => {
+  it("serves no archived task's deliverables or history, and no link or other board by name", async () => {
+    const { repos, services } = freshServices();
+    const items = (await repos.items.listByBoard(BOARD)).filter((i) => i.parentItemId === null);
+    const [kept, archived] = items as [(typeof items)[number], (typeof items)[number]];
+    await repos.itemAssets.create({ itemId: archived.id, boardId: BOARD, name: "Secret deliverable", quantity: 1, createdBy: ADMIN });
+    await services.items.archiveItems(BOARD, [archived.id], ADMIN);
+    await repos.activities.create({ workspaceId: (await repos.boards.getById(BOARD))!.workspaceId, boardId: BOARD, itemId: kept.id, actorId: ADMIN, eventType: "ITEM_LINKED", metadata: { linkedItemName: "Private plan", linkedBoardName: "Hidden board" } });
+    const share = await services.shares.save(BOARD, ADMIN, { access: "PUBLIC", enabled: true });
+
+    const payload = await loadSharedBoard(repos, share.token, null, null);
+    expect(payload.assets.some((a) => a.name === "Secret deliverable")).toBe(false);
+    expect(payload.activities.some((a) => a.itemId === archived.id)).toBe(false);
+    expect(payload.activities.some((a) => a.eventType === "ITEM_LINKED")).toBe(false);
+  });
+
+  it("stops serving a board's link once the board is archived", async () => {
+    const { repos, services } = freshServices();
+    const share = await services.shares.save(BOARD, ADMIN, { access: "PUBLIC", enabled: true });
+    await repos.boards.update(BOARD, { archivedAt: new Date().toISOString() });
+    await expect(loadSharedBoard(repos, share.token, null, null)).rejects.toMatchObject({ reason: "off" });
+  });
+});

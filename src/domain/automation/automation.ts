@@ -416,11 +416,11 @@ export interface AutomationEventPayload {
 }
 
 /**
- * What a rule may still do for a task that has left its board: tell people, say
- * something on the task, make a task on its own board, call a webhook. Anything
- * else would write this board's columns or groups into a task on another board.
+ * What a rule may still do for a task that has left its board: tell people, make
+ * a task on its own board, call a webhook. Anything else writes into a task on
+ * another board, which its rule author may not be able to open: a comment too.
  */
-export const DEPARTED_TASK_ACTIONS: readonly AutomationAction["kind"][] = ["notify", "add_comment", "create_item", "send_webhook"];
+export const DEPARTED_TASK_ACTIONS: readonly AutomationAction["kind"][] = ["notify", "create_item", "send_webhook"];
 
 /**
  * The phrases a keyword trigger is listening for, from what was typed:

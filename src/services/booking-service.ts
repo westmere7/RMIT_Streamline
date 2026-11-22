@@ -22,7 +22,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { BOOKING_ASSET_TYPES, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, intakeGroupOf, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
+import { BOOKING_ASSET_TYPES, RefusedError, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, intakeGroupOf, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -227,7 +227,8 @@ export class BookingService {
     const ids = [...new Set(named.filter((v) => v.value.type === "REQUESTER").map((v) => v.itemId))];
     if (ids.length === 0) return [];
     const items = (await this.repos.items.listByIds(ids))
-      .filter((item) => item.archivedAt === null && item.parentItemId === null)
+      // Bookings only: a hand-made task with a Requester column was never booked.
+      .filter((item) => item.archivedAt === null && item.parentItemId === null && !!item.bookedVia)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, limit);
     const onBoards = [...new Set(items.map((item) => item.boardId))];
@@ -428,6 +429,11 @@ export class BookingService {
     const group = board.system === "TASK_ALLOCATION" ? intakeGroupOf(groups) : await this.landingGroup(board, groups, chosenGroupId);
     if (!group) throw new BookingValidationError(`${board.name} has no group to receive bookings.`);
 
+    // A retry of a booking that already landed (the answer was lost on the way
+    // back) is answered with that booking's receipt, not booked a second time.
+    const landed = await this.alreadyBooked(workspaceId, request.itemId, teams);
+    if (landed) return { ...landed, assetCount: request.assets.length };
+
     // Who asked, as a person. A member signed in and booking as themselves is
     // themselves; booking for someone else, or with no account, the email on the
     // form says who, found or added. A booking is never refused over this: if
@@ -498,6 +504,28 @@ export class BookingService {
       ticket: item.ticket ?? ticket,
       submittedAt: item.createdAt,
       assetCount: request.assets.length,
+    };
+  }
+
+  /**
+   * The receipt of a booking made under this id in the last hour, if there is
+   * one in this workspace: the same submission sent again.
+   */
+  private async alreadyBooked(workspaceId: EntityId, itemId: EntityId | null | undefined, teams: ReadonlyArray<{ id: EntityId; name: string }>): Promise<Omit<BookingReceipt, "assetCount"> | null> {
+    if (!itemId) return null;
+    const item = await this.repos.items.getById(itemId);
+    if (!item?.bookedVia || Date.now() - Date.parse(item.createdAt) > 60 * 60 * 1000) return null;
+    const board = await this.repos.boards.getById(item.boardId);
+    if (!board || board.workspaceId !== workspaceId) return null;
+    return {
+      itemId: item.id,
+      itemName: item.name,
+      boardId: board.id,
+      boardName: board.name,
+      boardSlug: board.slug,
+      teamName: board.system ? null : (teams.find((t) => t.id === board.teamId)?.name ?? board.name),
+      ticket: item.ticket ?? "",
+      submittedAt: item.createdAt,
     };
   }
 
@@ -732,8 +760,10 @@ export class BookingService {
     if (!item) throw new NotFoundError("Item", itemId);
     const [source, target] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(targetBoardId)]);
     if (!source || !target) throw new NotFoundError("Board", targetBoardId);
-    if (source.system !== "TASK_ALLOCATION") throw new Error("Only requests on the Task Allocation board can be allocated.");
-    if (target.system || target.archivedAt || target.workspaceId !== source.workspaceId) throw new Error("Pick an active team board in this workspace.");
+    if (source.system !== "TASK_ALLOCATION") throw new RefusedError("Only requests on the Task Allocation board can be allocated.");
+    if (item.parentItemId) throw new RefusedError("A subitem goes with its task. Allocate the task instead.");
+    if (item.archivedAt) throw new RefusedError("Restore the request before allocating it.");
+    if (target.system || target.archivedAt || target.workspaceId !== source.workspaceId) throw new RefusedError("Pick an active team board in this workspace.");
 
     const [groups, sourceColumns, targetColumns, sourceValues, targetItems] = await Promise.all([
       this.repos.boards.listGroups(target.id).then((gs) => gs.slice().sort((a, b) => a.position - b.position)),
@@ -743,7 +773,7 @@ export class BookingService {
       this.repos.items.listByBoard(target.id),
     ]);
     const group = groups[0];
-    if (!group) throw new Error(`${target.name} has no group to receive the task.`);
+    if (!group) throw new RefusedError(`${target.name} has no group to receive the task.`);
 
     // Worked out before the move, while the values still have their columns.
     // Anything the team's board has no column for is left behind.
@@ -816,10 +846,17 @@ export class BookingService {
       const chosen = groups.find((g) => g.id === chosenGroupId);
       if (chosen) return chosen;
     } else if (ordered[0]) return ordered[0];
-    const existing = groups.find((g) => g.name.trim().toLowerCase() === ALLOCATED_GROUP_NAME.toLowerCase());
+    const isAllocated = (g: BoardGroup) => g.name.trim().toLowerCase() === ALLOCATED_GROUP_NAME.toLowerCase();
+    const existing = groups.find(isAllocated);
     if (existing) return existing;
     const top = ordered[0] ? ordered[0].position - 1 : 0;
-    return this.repos.boards.createGroup({ boardId: board.id, name: ALLOCATED_GROUP_NAME, color: "green", position: top, collapsed: false });
+    const made = await this.repos.boards.createGroup({ boardId: board.id, name: ALLOCATED_GROUP_NAME, color: "green", position: top, collapsed: false });
+    // Two bookings at once may each have made one: the first made is kept, and
+    // the other, still empty, is taken away again.
+    const all = (await this.repos.boards.listGroups(board.id)).filter(isAllocated).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    const first = all[0] ?? made;
+    if (first.id !== made.id) await this.repos.boards.deleteGroup(made.id).catch(() => undefined);
+    return first;
   }
 
   /** Who a booking is recorded as: the member who booked it if they belong here, else the workspace owner, else the board's owner. */

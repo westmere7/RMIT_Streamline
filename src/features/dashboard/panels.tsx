@@ -270,7 +270,7 @@ export function BoardsPanel({ rows, onOpen }: { rows: BoardRow[]; onOpen?: (boar
                   <DynamicIcon name={b.icon} className="size-3.5" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-medium text-foreground">{b.name}</span>
+                  <span className={cn("block truncate font-medium", b.name ? "text-foreground" : "text-muted-foreground")}>{b.name || "Private board"}</span>
                   <span className="block truncate text-2xs text-muted-foreground">{b.team.name}</span>
                 </span>
                 <span className="w-10 text-right tabular">{formatCount(b.tasks)}</span>
@@ -309,9 +309,9 @@ export function DeliveredPanel({ entries, onOpen }: { entries: DeliveredEntry[];
                 <Row type={onOpen ? "button" : undefined} onClick={onOpen ? () => onOpen(task.id, task.boardId) : undefined} className={cn("flex w-full items-center gap-2.5 px-1 py-1.5 text-left", onOpen && "rounded-md hover:bg-accent/70")}>
                   <span className="size-2 shrink-0 rounded-full" style={{ background: teamHex(task.team) }} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium text-foreground">{task.name}</span>
+                    <span className={cn("block truncate font-medium", task.name ? "text-foreground" : "text-muted-foreground")}>{task.name || "Private task"}</span>
                     <span className="block truncate text-2xs text-muted-foreground">
-                      {task.team.name} · {task.boardName}
+                      {task.team.name} · {task.boardName || "Private board"}
                       {task.assetUnits > 0 ? ` · ${formatCount(task.assetUnits)} ${task.assetUnits === 1 ? "unit" : "units"}` : ""}
                     </span>
                   </span>

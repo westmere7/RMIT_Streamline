@@ -76,6 +76,24 @@ describe("DashboardService", () => {
     expect(payload.snapshot.values.some((v) => v.value.type === "LONG_TEXT")).toBe(false);
     await expect(services.dashboard.loadPublic("not-a-real-token-0000", null)).rejects.toMatchObject({ reason: "unknown" });
   });
+
+  it("counts a private board's work but names none of it", async () => {
+    const { repos, services } = freshServices();
+    const open = (await repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).find((b) => !b.system && !b.archivedAt && b.visibility === "WORKSPACE")!;
+    await repos.boards.update(open.id, { visibility: "PRIVATE" });
+    const hidden = (await repos.items.listByBoard(open.id)).length;
+    expect(hidden).toBeGreaterThan(0);
+    const share = await services.dashboard.saveShare(SEED_WORKSPACE_ID, ADMIN, { enabled: true });
+    const payload = await services.dashboard.loadPublic(share.token, null);
+    const board = payload.snapshot.boards.find((b) => b.id === open.id)!;
+    expect(board.name).toBe("");
+    const items = payload.snapshot.items.filter((i) => i.boardId === open.id);
+    expect(items).toHaveLength(hidden);
+    expect(items.every((i) => i.name === "" && i.ticket === null)).toBe(true);
+    expect(payload.snapshot.assets.filter((a) => a.boardId === open.id).every((a) => a.name === "")).toBe(true);
+    // A board every member can open is still read by name.
+    expect(payload.snapshot.boards.some((b) => b.id !== open.id && b.name !== "")).toBe(true);
+  });
 });
 
 describe("a dashboard link that already holds the current revision", () => {

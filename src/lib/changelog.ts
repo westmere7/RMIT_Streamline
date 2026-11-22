@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.3",
+    date: "2026-11-22",
+    title: "Links, bookings and allocating, tightened",
+    changes: [
+      "The public dashboard counts private and team-only boards' work without naming their boards, tasks or deliverables.",
+      "Share links leave out archived tasks' deliverables, links to other tasks, moves from other boards and changes to columns taken off the board, and stop working when their board, or a subitem's task, is archived.",
+      "A booking sent twice (the answer lost on the way back) is booked once, with one ticket. Past bookings list only booked tasks.",
+      "Allocating refuses subitems and archived requests, and several at once are allocated one after another. Refusals say why instead of \"Something went wrong\".",
+      "Two bookings at once no longer make two Allocated groups; re-allocating into a name that is already a group uses that group.",
+      "A rule on the board a task left no longer comments on it.",
+    ],
+  },
+  {
     version: "0.149.2",
     date: "2026-11-22",
     title: "Ticket prefixes stay in their workspace",

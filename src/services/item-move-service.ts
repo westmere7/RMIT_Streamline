@@ -1,5 +1,5 @@
 import type { Board, BoardColumn, BoardGroup, ColumnValue, EntityId, Item, ItemColumnValue } from "@/domain";
-import { isEmptyValue } from "@/domain";
+import { isEmptyValue, RefusedError } from "@/domain";
 import { NotFoundError, type Repositories } from "@/data/repositories";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { ItemAssetService } from "./item-asset-service";
@@ -122,7 +122,7 @@ export class ItemMoveService {
     // Worked out again here, from the boards as they are now, not as the preview saw them.
     const { item, source, target, groups, plan, targetItems, movingIds, sourceColumnIds } = await this.prepare(itemId, targetBoardId);
     const group = (options.groupId ? groups.find((g) => g.id === options.groupId) : undefined) ?? groups[0];
-    if (!group) throw new Error(`${target.name} has no group to take the task. Add one first.`);
+    if (!group) throw new RefusedError(`${target.name} has no group to take the task. Add one first.`);
 
     const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
     const moved = await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
@@ -146,12 +146,12 @@ export class ItemMoveService {
   private async prepare(itemId: EntityId, targetBoardId: EntityId) {
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
-    if (item.parentItemId) throw new Error("A subitem moves with its task. Move the task instead.");
+    if (item.parentItemId) throw new RefusedError("A subitem moves with its task. Move the task instead.");
     const [source, target] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(targetBoardId)]);
     if (!source) throw new NotFoundError("Board", item.boardId);
-    if (source.system) throw new Error("Tasks on a built-in board are allocated, not moved.");
+    if (source.system) throw new RefusedError("Tasks on a built-in board are allocated, not moved.");
     const problem = moveTargetProblem(source, target);
-    if (problem) throw new Error(problem);
+    if (problem) throw new RefusedError(problem);
     const [sourceColumns, targetColumns, groups, sourceItems, targetItems] = await Promise.all([
       this.repos.boards.listColumns(source.id),
       this.repos.boards.listColumns(target!.id),
@@ -164,7 +164,7 @@ export class ItemMoveService {
     // Linked tasks never share a board: the move is refused onto a board that holds
     // a task linked (directly or along a chain) to this one or one of its subitems.
     const clash = await this.linkedOnBoard(moving.map((i) => i.id), target!.id);
-    if (clash) throw new Error(`“${clash.name}” on ${target!.name} is linked to this task, and linked tasks can't share a board. Unlink them first.`);
+    if (clash) throw new RefusedError(`“${clash.name}” on ${target!.name} is linked to this task, and linked tasks can't share a board. Unlink them first.`);
     const values = await this.repos.items.listValuesByItems(moving.map((i) => i.id));
     const plan = planMove({ items: moving, values, sourceColumns, targetColumns });
     return { item, source, target: target!, groups, plan, targetItems, movingIds: moving.map((i) => i.id), sourceColumnIds: new Set(sourceColumns.map((c) => c.id)) };

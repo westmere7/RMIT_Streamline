@@ -7,6 +7,7 @@ import { todayISO } from "@/lib/dates/dates";
 import {
   checkShareAccess,
   checkSharePassword,
+  publicActivities,
   shareAccessMessage,
   ShareAccessError,
   shareGate,
@@ -147,6 +148,9 @@ async function admitSharedItem(repos: Repositories, token: string, password: str
 
   if (!item || item.archivedAt !== null) throw new ShareAccessError("unknown", shareAccessMessage("unknown"));
   if (!board) throw new NotFoundError("Board", item.boardId);
+  // A subitem goes where its task goes: archived with it, and out of use on an archived board.
+  const parent = item.parentItemId ? await repos.items.getById(item.parentItemId) : null;
+  if (board.archivedAt || (item.parentItemId && (!parent || parent.archivedAt !== null))) throw new ShareAccessError("off", shareAccessMessage("off"));
   return { share, item, board };
 }
 
@@ -181,7 +185,8 @@ async function readSharedItem(repos: Repositories, share: ItemShare, item: Item,
     named.add(comment.authorId);
     for (const id of comment.mentionUserIds) named.add(id);
   }
-  for (const entry of activities) named.add(entry.actorId);
+  const shownActivities = publicActivities(activities, itemIds, columns).slice(0, ITEM_ACTIVITY_LIMIT);
+  for (const entry of shownActivities) named.add(entry.actorId);
 
   return {
     itemId: item.id,
@@ -194,7 +199,7 @@ async function readSharedItem(repos: Repositories, share: ItemShare, item: Item,
     links: [],
     assets: shownAssets,
     comments,
-    activities: activities.slice(0, ITEM_ACTIVITY_LIMIT),
+    activities: shownActivities,
     users: users.filter((u) => named.has(u.id)).map(toPublicUser),
     workspaceName: workspace?.name ?? "",
     expiresAt: share.expiresAt,

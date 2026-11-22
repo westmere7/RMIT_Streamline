@@ -1,4 +1,6 @@
 import { ZodError } from "zod";
+import { NotFoundError } from "@/data/repositories";
+import { RefusedError } from "@/domain";
 
 /** An error that already knows which HTTP status it should become. */
 export class HttpError extends Error {
@@ -18,7 +20,7 @@ export interface ErrorBody {
 
 /**
  * Wraps a route handler so thrown errors become `{ error }` JSON with a sensible
- * status: HttpError keeps its own, invalid input is 400, anything else is 500
+ * status: HttpError keeps its own, invalid input is 400, a refusal 409, a missing row 404, anything else is 500
  * and logged (the message is kept generic so nothing internal leaks).
  */
 export function handleRoute<Args extends unknown[]>(handler: (...args: Args) => Promise<Response>): (...args: Args) => Promise<Response> {
@@ -27,6 +29,9 @@ export function handleRoute<Args extends unknown[]>(handler: (...args: Args) => 
       return await handler(...args);
     } catch (error) {
       if (error instanceof HttpError) return json({ error: error.message }, error.status);
+      // A service saying no is the person's answer, not a fault.
+      if (error instanceof RefusedError) return json({ error: error.message }, 409);
+      if (error instanceof NotFoundError) return json({ error: "That no longer exists. Reload and try again." }, 404);
       if (error instanceof ZodError) {
         const first = error.issues[0];
         return json({ error: first ? `${first.path.join(".") || "input"}: ${first.message}` : "Invalid input" }, 400);

@@ -220,11 +220,11 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                     >
                       <td className="py-2 pr-2 pl-5 font-mono text-2xs text-muted-foreground">{task.ticket ?? "—"}</td>
                       <td className="max-w-0 py-2 pr-3">
-                        <p className="truncate font-medium" title={task.name}>
-                          {task.name}
+                        <p className={cn("truncate font-medium", !task.name && "text-muted-foreground")} title={task.name}>
+                          {task.name || "Private task"}
                         </p>
                         <p className="truncate text-2xs text-muted-foreground">
-                          {task.boardName}
+                          {task.boardName || "Private board"}
                           {task.team.name ? ` · ${task.team.name}` : ""}
                         </p>
                       </td>

@@ -1,5 +1,5 @@
 import type { Board, BoardColumn, BoardGroup, ColumnValue, EntityId, Item } from "@/domain";
-import { intakeGroupOf } from "@/domain";
+import { intakeGroupOf, RefusedError } from "@/domain";
 import { NotFoundError, type Repositories } from "@/data/repositories";
 import type { ItemAssetService } from "./item-asset-service";
 import type { ItemLinkService } from "./item-link-service";
@@ -97,12 +97,13 @@ export class ReallocationService {
 
     // Where it lands: a group of Task Allocation's other than Booked by Form, or a new one.
     let group = options.groupId ? groups.find((g) => g.id === options.groupId) : undefined;
-    if (options.groupId && !group) throw new Error("Pick a group on Task Allocation other than Booked by Form.");
+    if (options.groupId && !group) throw new RefusedError("Pick a group on Task Allocation other than Booked by Form.");
     if (!group) {
       const name = options.newGroupName?.trim().slice(0, MAX_GROUP_NAME);
-      if (!name) throw new Error("Pick a group, or name a new one.");
+      if (!name) throw new RefusedError("Pick a group, or name a new one.");
       const all = await this.repos.boards.listGroups(queue.id);
-      group = await this.repos.boards.createGroup({ boardId: queue.id, name, color: "gray", position: all.length ? Math.max(...all.map((g) => g.position)) + 1 : 0, collapsed: false, role: null });
+      // A name that is already a group there is that group, not a second one.
+      group = all.find((g) => g.role !== "INTAKE" && g.name.trim().toLowerCase() === name.toLowerCase()) ?? await this.repos.boards.createGroup({ boardId: queue.id, name, color: "gray", position: all.length ? Math.max(...all.map((g) => g.position)) + 1 : 0, collapsed: false, role: null });
     }
 
     // Links first, while both ends are where the partner's log expects them: the
@@ -153,14 +154,15 @@ export class ReallocationService {
   private async prepare(itemId: EntityId) {
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
-    if (item.parentItemId) throw new Error("A subitem goes with its task. Re-allocate the task instead.");
+    if (item.parentItemId) throw new RefusedError("A subitem goes with its task. Re-allocate the task instead.");
+    if (item.archivedAt) throw new RefusedError("Restore the task before re-allocating it.");
     // Only what came in through the form goes back: a team's own task was never Task Allocation's.
-    if (!item.bookedVia) throw new Error("Only tasks that came in through the booking form can be re-allocated.");
+    if (!item.bookedVia) throw new RefusedError("Only tasks that came in through the booking form can be re-allocated.");
     const board = await this.repos.boards.getById(item.boardId);
     if (!board) throw new NotFoundError("Board", item.boardId);
-    if (board.system) throw new Error("This task is not on a team's board.");
+    if (board.system) throw new RefusedError("This task is not on a team's board.");
     const queue = (await this.repos.boards.listByWorkspace(board.workspaceId)).find((b) => b.system === "TASK_ALLOCATION" && !b.archivedAt);
-    if (!queue) throw new Error("This workspace has no Task Allocation board.");
+    if (!queue) throw new RefusedError("This workspace has no Task Allocation board.");
     const [allGroups, sourceColumns, queueColumns, sourceItems] = await Promise.all([
       this.repos.boards.listGroups(queue.id),
       this.repos.boards.listColumns(board.id),

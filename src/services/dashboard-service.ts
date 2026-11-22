@@ -4,7 +4,7 @@ import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { hashPassword, newSalt, verifyPassword } from "@/lib/auth/password-hash";
 import { todayISO } from "@/lib/dates/dates";
-import { canViewBoard, type PermissionContext } from "@/lib/permissions/permissions";
+import { buildPermissionContext, canViewBoard, type PermissionContext } from "@/lib/permissions/permissions";
 import { ShareAccessError } from "./board-share-service";
 
 /** What the Share dialog sends back. An absent field is left as it is. */
@@ -252,7 +252,18 @@ export async function loadSharedDashboard(repos: Repositories, token: string, pa
   if (revision !== null && revision === check?.known) return { unchanged: true, revision, expiresAt: share.expiresAt };
   const boards = await repos.boards.listByWorkspace(share.workspaceId);
   const snapshot = await loadDashboardSnapshot(repos, share.workspaceId, boards);
-  return { snapshot: publicDashboardSnapshot(snapshot), expiresAt: share.expiresAt, revision };
+  return { snapshot: publicDashboardSnapshot(viewerDashboardSnapshot(snapshot, boardsOpenToEveryone(snapshot))), expiresAt: share.expiresAt, revision };
+}
+
+/**
+ * The boards any member of the workspace can open, with no team and no seat.
+ * A visitor on the public link reads those by name; private boards, boards a
+ * team keeps to itself and Task Allocation are counted without naming a thing.
+ */
+function boardsOpenToEveryone(snapshot: DashboardSnapshot): Set<EntityId> {
+  const anyMember = buildPermissionContext({ userId: "public", workspaceMembers: [], teamMembers: [], boardMembers: [], teams: snapshot.teams });
+  const ctx = { ...anyMember, workspaceRole: "MEMBER" as const };
+  return new Set(snapshot.boards.filter((board) => !board.system && canViewBoard(ctx, board)).map((board) => board.id));
 }
 
 /** The dashboard link is public-only, so "signin" never reaches here. */

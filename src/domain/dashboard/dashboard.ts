@@ -261,7 +261,8 @@ export function publicDashboardSnapshot(snapshot: DashboardSnapshot): DashboardS
       avatarUrl: user.avatarUrl,
       jobTitle: null,
       department: null,
-      timezone: user.timezone,
+      // Where somebody lives is not on the page either.
+      timezone: "UTC",
       deactivatedAt: user.deactivatedAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
