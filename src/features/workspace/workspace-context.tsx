@@ -64,8 +64,18 @@ export function WorkspaceProvider({ workspace, children }: WorkspaceProviderProp
   // The shell's own live wiring: members, teams, boards, names, badges. Called
   // here so it covers every page inside the workspace rather than one of them.
   useWorkspaceRealtime(workspace.id, currentUser.id);
-  // Who else is online: the dot on everyone's avatar. The person signed in, not whoever they are viewing as.
-  usePresence(currentUser.id);
+  // Who else is online: the dot on everyone's avatar. The person signed in, not whoever they are viewing as,
+  // present in every workspace they are active in (each its own channel), so a colleague sees them online
+  // wherever the two of them share a workspace. The list is the workspace menu's, cached under the same key.
+  const myWorkspacesQuery = useQuery({
+    queryKey: ["user-workspaces", currentUser.id],
+    queryFn: () => services.workspace.listWorkspacesForUser(currentUser.id),
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+  });
+  const myWorkspaces = myWorkspacesQuery.data;
+  const presenceWorkspaceIds = useMemo(() => (myWorkspacesQuery.isPending ? null : [workspace.id, ...(myWorkspaces ?? []).map((w) => w.id)]), [myWorkspacesQuery.isPending, myWorkspaces, workspace.id]);
+  usePresence(currentUser.id, presenceWorkspaceIds);
 
   const contextQuery = useQuery({
     queryKey: queryKeys.workspaceContext(workspace.id),

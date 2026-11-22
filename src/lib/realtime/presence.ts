@@ -15,18 +15,24 @@ import { getSupabaseClient } from "@/lib/supabase/client";
  * so nothing here may track more than who the person is (no board, no typing,
  * no cursor), and nothing may re-track on a timer.
  *
- * One channel for the whole app rather than one per workspace: people are
- * shared across workspaces, and someone at work in another one is still online.
- * It is a private channel; who may join is a policy on realtime.messages
- * (policies/0027), active members only.
+ * One channel per workspace the person is active in, joined all at once: people
+ * are shared across workspaces, and someone at work in another one they share
+ * with you is still online. Each is a private channel; who may join it is a
+ * policy on realtime.messages (policies/0037): the workspace's active members
+ * only, so nobody hears about people in a workspace they are not in.
+ *
+ * What a tab says about itself is the presence key it chose, and Realtime does
+ * not tie that key to the signed-in account: a member could claim to be another
+ * member of the same workspace. That can only light up someone's dot, in a
+ * workspace both are in, so the dot is a courtesy, never evidence.
  *
  * A tab out of sight for a minute leaves, and comes back when it is looked at.
  * Locally (the demo) the tabs of this browser tell each other over a
  * BroadcastChannel instead.
  */
 
-/** The private channel's topic, matched by the realtime.messages policy. */
-export const PRESENCE_TOPIC = "presence:app";
+/** A workspace's private presence channel, matched by the realtime.messages policy (policies/0037). */
+export const presenceTopic = (workspaceId: string) => `presence:${workspaceId}`;
 /** How long a hidden tab still counts as here: a glance at another window is not leaving. */
 export const AWAY_AFTER_MS = 60_000;
 
@@ -85,41 +91,54 @@ function watchHere(onChange: (here: boolean) => void): () => void {
   };
 }
 
-/** Takes part in presence as `userId` while mounted. Mounted once, by WorkspaceProvider. */
-export function usePresence(userId: string | null): void {
+/**
+ * Takes part in presence as `userId`, in each of `workspaceIds`, while mounted.
+ * Mounted once, by WorkspaceProvider. Null workspaces: not known yet, so wait
+ * rather than join one now and the rest a moment later.
+ */
+export function usePresence(userId: string | null, workspaceIds: readonly string[] | null): void {
   const { providerKind } = useDataContext();
+  const joined = workspaceIds ? [...new Set(workspaceIds)].sort().join(",") : null;
   useEffect(() => {
-    if (!userId) return;
-    const stop = providerKind === "supabase" ? joinSupabase(userId) : joinLocal(userId);
+    if (!userId || joined === null) return;
+    const stop = providerKind === "supabase" ? joinSupabase(userId, joined ? joined.split(",") : []) : joinLocal(userId);
     return () => {
       stop();
       setOnline([]);
     };
-  }, [userId, providerKind]);
+  }, [userId, providerKind, joined]);
 }
 
-function joinSupabase(userId: string): () => void {
+function joinSupabase(userId: string, workspaceIds: readonly string[]): () => void {
   const supabase = getSupabaseClient();
-  // Keyed by person, so two tabs of one account are one entry with two metas.
-  const channel = supabase.channel(PRESENCE_TOPIC, { config: { private: true, presence: { key: userId } } });
-  let subscribed = false;
+  // Who each channel says is here; online is everyone any of them says.
+  const heard = new Map<string, readonly string[]>();
+  const publish = () => setOnline([...heard.values()].flat());
   let here = true;
-  const sync = () => setOnline(Object.keys(channel.presenceState()));
-  channel.on("presence", { event: "sync" }, sync);
-  channel.subscribe((status) => {
-    subscribed = status === "SUBSCRIBED";
-    // After a drop the server has forgotten this tab, so it says so again.
-    if (subscribed && here) void channel.track({});
-    if (!subscribed) setOnline([]);
+  const joined = workspaceIds.map((workspaceId) => {
+    const topic = presenceTopic(workspaceId);
+    // Keyed by person, so two tabs of one account are one entry with two metas.
+    const channel = supabase.channel(topic, { config: { private: true, presence: { key: userId } } });
+    const entry = { channel, subscribed: false };
+    channel.on("presence", { event: "sync" }, () => {
+      heard.set(topic, Object.keys(channel.presenceState()));
+      publish();
+    });
+    channel.subscribe((status) => {
+      entry.subscribed = status === "SUBSCRIBED";
+      // After a drop the server has forgotten this tab, so it says so again.
+      if (entry.subscribed && here) void channel.track({});
+      if (!entry.subscribed && heard.delete(topic)) publish();
+    });
+    return entry;
   });
   const unwatch = watchHere((next) => {
     here = next;
-    if (!subscribed) return;
-    void (here ? channel.track({}) : channel.untrack());
+    for (const { channel, subscribed } of joined) if (subscribed) void (here ? channel.track({}) : channel.untrack());
   });
   return () => {
     unwatch();
-    void supabase.removeChannel(channel);
+    for (const { channel } of joined) void supabase.removeChannel(channel);
   };
 }
 

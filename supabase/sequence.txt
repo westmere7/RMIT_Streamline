@@ -191,3 +191,4 @@ migrations/0144_task_rows_follow_moves.sql
 migrations/0145_comment_time_and_shared_updates.sql
 migrations/0146_people_cells_name_workspace_people.sql
 migrations/0147_ticket_checks.sql
+policies/0037_presence_per_workspace.sql
