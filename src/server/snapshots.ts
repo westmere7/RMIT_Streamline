@@ -117,7 +117,7 @@ export async function requireSnapshotOwner(request: Request): Promise<Caller> {
   return { userId: data.user.id, email: data.user.email ?? null, name: owner.display_name ?? data.user.email ?? "An Owner" };
 }
 
-/** The signed-in caller, who must be an active owner or admin of the workspace. */
+/** The signed-in caller, who must be an active Owner of the workspace: wiping every board is the Owner's alone. */
 export async function requireSnapshotAdmin(request: Request, workspaceId: string): Promise<Caller> {
   const header = request.headers.get("authorization") ?? "";
   const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
@@ -129,8 +129,8 @@ export async function requireSnapshotAdmin(request: Request, workspaceId: string
     select m.role, m.status, p.display_name
     from public.workspace_members m left join public.profiles p on p.id = m.user_id
     where m.workspace_id = ${workspaceId} and m.user_id = ${data.user.id}`;
-  if (!membership || membership.status !== "ACTIVE" || (membership.role !== "OWNER" && membership.role !== "ADMIN")) {
-    throw new HttpError(403, "Only workspace admins can manage snapshots.");
+  if (!membership || membership.status !== "ACTIVE" || membership.role !== "OWNER") {
+    throw new HttpError(403, "Only the workspace's Owner can do this.");
   }
   return { userId: data.user.id, email: data.user.email ?? null, name: membership.display_name ?? data.user.email ?? "An admin" };
 }

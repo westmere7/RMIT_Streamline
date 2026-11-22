@@ -313,6 +313,10 @@ export async function regenerateInvitation(workspaceId: string, userId: string):
 export async function reinitiateMember(workspaceId: string, userId: string, callerId: string): Promise<WorkspaceInvitation> {
   const admin = getSupabaseAdminClient();
   if (userId === callerId) throw new HttpError(409, "You cannot re-onboard yourself.");
+  // The fresh link sets the person's password, so whoever holds it can sign in
+  // as them: the workspace's Owner's call, not every admin's.
+  const caller = await memberOf(admin, workspaceId, callerId);
+  if (!caller || caller.role !== "OWNER") throw new HttpError(403, "Only the workspace's Owner can send someone through onboarding again.");
   const member = await memberOf(admin, workspaceId, userId);
   if (!member) throw new HttpError(404, "That person is not a member of this workspace.");
   if (member.status === "INVITED") throw new HttpError(409, "This person has not finished onboarding yet; renew their existing link instead.");

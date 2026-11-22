@@ -1206,7 +1206,7 @@ function MemberActions({ row: { member, user, teams, workspaces }, invitation, c
         </k.Item>
       ) : (
         <>
-          <k.Item disabled={isSelf || ownerRow} onSelect={() => setConfirmReinitiate(true)} data-testid="reinitiate-member">
+          <k.Item disabled={isSelf || ownerRow || !isOwner(ws.permissions)} onSelect={() => setConfirmReinitiate(true)} data-testid="reinitiate-member">
             Reinitiate onboarding
           </k.Item>
           {member.status === "DEACTIVATED" ? (

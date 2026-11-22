@@ -61,7 +61,7 @@ import { useAppUpdatedNoticeSetting } from "@/features/version/app-updated-card"
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
-import { canCreateTeam, canDeleteTeam, canManageTeam, canManageWorkspace, canManageWorkspaces, canUseSnapshots } from "@/lib/permissions/permissions";
+import { canCreateTeam, canDeleteTeam, canManageTeam, canManageWorkspace, canManageWorkspaces, canUseSnapshots, isOwner } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { useThemePreference, type ThemePreference } from "@/lib/theme";
@@ -149,7 +149,8 @@ export function SettingsPage() {
   // Snapshots hold every workspace, so they are the Owners'; the danger zone
   // clears this workspace alone, and is its admins'. Both need the server.
   const snapshotsOn = providerKind === "supabase" && canUseSnapshots(ws.permissions);
-  const dangerOn = providerKind === "supabase" && canManageWorkspace(ws.permissions);
+  // Wiping every board is the Owner's alone, as the route says.
+  const dangerOn = providerKind === "supabase" && isOwner(ws.permissions);
   const visible = (s: Section) => (s === "snapshots" ? snapshotsOn : s === "danger" ? dangerOn : s === "workspaces" ? canManageWorkspaces(ws.permissions) : true);
   if (!visible(section)) section = "general";
   const meta = SECTION_META[section];

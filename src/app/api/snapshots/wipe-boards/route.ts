@@ -4,7 +4,7 @@ import { requireSnapshotAdmin, wipeBoardData, wipeBoardsSchema } from "@/server/
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Settings → Danger zone: wipes every board and its data. Admins and owners only, and only with their password. */
+/** Settings → Danger zone: wipes every board and its data. The Owner only, and only with their password. */
 export const POST = handleRoute(async (request: Request) => {
   const { workspaceId, password, resetTickets } = wipeBoardsSchema.parse(await readJson(request));
   const caller = await requireSnapshotAdmin(request, workspaceId);

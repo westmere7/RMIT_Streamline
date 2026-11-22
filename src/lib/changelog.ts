@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.150.4",
+    date: "2026-11-22",
+    title: "Owner-only safeguards",
+    changes: [
+      "Only the workspace's Owner can send someone through onboarding again (which resets their password) or wipe every board.",
+    ],
+  },
+  {
     version: "0.150.3",
     date: "2026-11-22",
     title: "The tech stack in About",
