@@ -29,26 +29,26 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg" className="overflow-hidden p-0" data-testid="about-dialog">
+      <DialogContent size="lg" className="overflow-hidden p-0 sm:max-w-[760px]" data-testid="about-dialog">
         {/* The brand, on the navy the sign-in screen uses. */}
-        <div className="relative overflow-hidden rounded-t-2xl bg-navy px-6 pt-7 pb-6 text-white">
+        <div className="relative overflow-hidden rounded-t-2xl bg-navy px-6 pt-10 pb-8 text-white sm:px-10 sm:pt-14 sm:pb-10">
           <div aria-hidden className="pointer-events-none absolute -right-16 -bottom-24 size-64 rounded-full bg-primary/30 blur-3xl" />
           <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] bg-[size:36px_36px] [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)]" />
           <DialogTitle asChild>
-            <div className="relative flex items-end gap-2.5">
-              <BrandLogo tone="onNavy" className="h-14" />
-              <span className="mb-1 rounded-full bg-white/15 px-2 py-0.5 text-xs text-white/80 tabular" data-testid="about-version">
+            <div className="relative flex items-end gap-3">
+              <BrandLogo tone="onNavy" className="h-14 sm:h-20" />
+              <span className="mb-1.5 rounded-full bg-white/15 px-2 py-0.5 text-xs text-white/80 tabular" data-testid="about-version">
                 v{CURRENT_VERSION.version}
               </span>
               <span className="sr-only">About Streamline</span>
             </div>
           </DialogTitle>
-          <DialogDescription className="relative mt-4 max-w-md text-[13px] leading-relaxed text-white/70">
+          <DialogDescription className="relative mt-6 max-w-lg text-[13px] leading-relaxed text-white/70">
             Work management for the RMIT Vietnam marketing team: campaigns, creative requests, publications and the reporting on them.
           </DialogDescription>
         </div>
 
-        <div className="space-y-5 px-6 pt-5 pb-6">
+        <div className="space-y-5 px-6 pt-6 pb-6 sm:px-10">
           <ul className="grid gap-3.5 text-[13px]" data-testid="about-features">
             <Feature icon={ChartColumnBig} title="Workspace dashboard">
               Delivery, workload and effort from every board in one place, shareable by link.
@@ -93,7 +93,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         </div>
 
         {/* The small print: which build this is and where it runs. */}
-        <footer className="rounded-b-2xl border-t border-border/70 bg-surface/60 px-6 py-3.5" data-testid="about-facts">
+        <footer className="rounded-b-2xl border-t border-border/70 bg-surface/60 px-6 py-3.5 sm:px-10" data-testid="about-facts">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
             <Fact label="Workspace" value={ws.workspace.name} />
             <Fact label="Data" value={providerKind === "supabase" ? "Server · shared" : "This browser only"} />
