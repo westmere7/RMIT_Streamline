@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.1",
+    date: "2026-11-22",
+    title: "Tighter database functions",
+    changes: [
+      "Ticket numbering, the ticket prefix rewrite, the booking count and the automation clean-up can no longer be called without signing in; the clean-up is the server's alone, and a counter moves by at most 1000 at a time.",
+    ],
+  },
+  {
     version: "0.149.0",
     date: "2026-11-22",
     title: "Automations and tasks that change boards",
