@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, MoveRight, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, MoreHorizontal, MoveRight, Pencil, Plus } from "lucide-react";
+import { MenuSheet } from "@/components/layout/menu-sheet";
 import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -8,9 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { MobileItemCard } from "@/features/boards/components/mobile/mobile-item-card";
+import { MobileItemCard, NameSheet } from "@/features/boards/components/mobile/mobile-item-card";
 import { useMobileViewPref } from "@/features/boards/components/mobile/mobile-view-prefs";
-import { useKanbanLanes, useLaneOptions, type LaneBy } from "@/features/boards/components/views/kanban-lanes";
+import { NONE, useKanbanLanes, useLaneOptions, useLaneReorder, type LaneBy } from "@/features/boards/components/views/kanban-lanes";
 import { ViewEmpty } from "@/features/boards/components/views/view-shell";
 import { colorClasses } from "@/lib/colors";
 import { isOverdue } from "@/lib/dates/dates";
@@ -38,6 +39,10 @@ export function MobileKanbanView() {
   const [chosen, setChosen] = useMobileViewPref<LaneBy | null>(`kanban-laneby:${model.snapshot.board.id}`, null);
   const laneBy: LaneBy = options.some((o) => o.value === chosen) ? chosen! : (options[0]?.value ?? "group");
   const lanes = useKanbanLanes(laneBy);
+  // As on a desktop, where a lane's header is dragged: the lanes whose order is the board's.
+  const reorder = useLaneReorder(laneBy);
+  const [laneMenu, setLaneMenu] = React.useState(false);
+  const [renamingLane, setRenamingLane] = React.useState(false);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState("");
@@ -62,6 +67,28 @@ export function MobileKanbanView() {
 
   const colors = lane.color ? colorClasses(lane.color) : null;
   const overdue = lane.items.filter((i) => !model.isDone(i.id) && isOverdue(model.dueDateOf(i.id))).length;
+
+  const ordered = lanes.filter((l) => l.id !== NONE).map((l) => l.id);
+  const at = ordered.indexOf(lane.id);
+  const moveLane = (by: -1 | 1) => {
+    if (!reorder || at < 0) return;
+    const next = [...ordered];
+    next.splice(at, 1);
+    next.splice(at + by, 0, lane.id);
+    // The lane on show goes with its move, rather than the tab left in its place.
+    setActiveId(lane.id);
+    reorder(next);
+  };
+  const laneActions: MenuAction[] = [
+    ...(lane.rename ? [{ type: "item", label: "Rename lane", icon: <Pencil />, onSelect: () => setRenamingLane(true), testId: "mobile-lane-rename" } satisfies MenuAction] : []),
+    ...(reorder && at >= 0
+      ? ([
+          { type: "item", label: "Move left", icon: <ArrowLeft />, disabled: at === 0, onSelect: () => moveLane(-1), testId: "mobile-lane-left" },
+          { type: "item", label: "Move right", icon: <ArrowRight />, disabled: at === ordered.length - 1, onSelect: () => moveLane(1), testId: "mobile-lane-right" },
+        ] satisfies MenuAction[])
+      : []),
+  ];
+  const laneMenuShown = canEdit && laneActions.length > 0;
 
   const submit = () => {
     const name = draft.trim();
@@ -147,6 +174,11 @@ export function MobileKanbanView() {
             >
               <ChevronRight className="size-5" />
             </button>
+            {laneMenuShown && (
+              <button type="button" onClick={() => setLaneMenu(true)} aria-label={`Options for ${lane.name}`} className="-ml-1 flex size-11 items-center justify-center rounded-lg active:bg-accent/70" data-testid="mobile-lane-menu">
+                <MoreHorizontal className="size-5" />
+              </button>
+            )}
           </div>
           <ul className="flex flex-col gap-1.5" data-testid="mobile-lane-list">
             {lane.items.map((item) => (
@@ -191,6 +223,8 @@ export function MobileKanbanView() {
 
       {/* Adds to the lane on screen, without scrolling to its foot: the same
           button the card list has, so the two views agree on where "new" is. */}
+      {laneMenuShown && <MenuSheet open={laneMenu} onOpenChange={setLaneMenu} title={lane.name} actions={laneActions} />}
+      {lane.rename && <NameSheet open={renamingLane} onOpenChange={setRenamingLane} title="Rename lane" initial={lane.name} placeholder="Lane name" onSave={(name) => lane.rename?.(name)} />}
       {canEdit && lane.initial && !adding && (
         <Button
           onClick={() => setAdding(true)}

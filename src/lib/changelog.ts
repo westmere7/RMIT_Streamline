@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.145.1",
+    date: "2026-11-22",
+    title: "Kanban lanes on a phone; the measure column stands out",
+    changes: [
+      "On a phone, a Kanban lane has a menu: rename it, or move it left or right (the desktop drags its header). The lane on show stays selected as it moves.",
+      "In the dashboard's task lists, the Hours or Units column comes straight after the task, outlined from top to bottom, with its figures centred.",
+    ],
+  },
+  {
     version: "0.145.0",
     date: "2026-11-22",
     title: "Hours and units in the dashboard's lists",

@@ -34,6 +34,20 @@ const STATES = [
 ] as const;
 type StateKey = (typeof STATES)[number]["key"];
 
+/**
+ * The measure's column: tinted and outlined from header to last row. The outline
+ * is drawn inside each cell (an inset shadow) rather than as cell borders, which
+ * a collapsed table would merge with the row lines and shift by a pixel or two.
+ */
+const AMOUNT_CELL = "w-24 bg-accent-soft/40 px-3 text-center tabular";
+const OUTLINE = "var(--ring)";
+const amountOutline = (edge: "top" | "middle" | "bottom" | "both"): React.CSSProperties => {
+  const sides = [`inset 2px 0 0 ${OUTLINE}`, `inset -2px 0 0 ${OUTLINE}`];
+  if (edge === "top" || edge === "both") sides.push(`inset 0 2px 0 ${OUTLINE}`);
+  if (edge === "bottom" || edge === "both") sides.push(`inset 0 -2px 0 ${OUTLINE}`);
+  return { boxShadow: sides.join(", ") };
+};
+
 /** The colour a status's meaning wears, whatever each board calls it. */
 const STATUS_DOT: Record<string, string> = { done: "bg-emerald-500", progress: "bg-orange-500", stuck: "bg-red-500", other: "bg-sky-500", none: "bg-muted-foreground/40" };
 
@@ -176,16 +190,21 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                 <tr className="border-b border-border/60">
                   <th className="w-24 py-2 pr-2 pl-5 text-left font-medium">Ticket</th>
                   <th className="py-2 pr-3 text-left font-medium">Task</th>
-                  <th className="w-36 py-2 pr-3 text-left font-medium">Status</th>
+                  {/* The figure's own measure, right after the task and outlined down its length. */}
+                  {amount && (
+                    <th className={cn(AMOUNT_CELL, "py-2 text-foreground")} style={amountOutline("top")} data-testid="dashboard-task-list-amount-head">
+                      {amountLabel}
+                    </th>
+                  )}
+                  <th className={cn("w-36 py-2 pr-3 text-left font-medium", amount && "pl-4")}>Status</th>
                   <th className="w-24 py-2 pr-3 text-left font-medium">PIC</th>
                   <th className="w-32 py-2 pr-3 text-left font-medium">Department</th>
-                  {amount && <th className="w-20 py-2 pr-4 text-right font-medium">{amountLabel}</th>}
                   <th className="w-24 py-2 pr-3 text-left font-medium">Due</th>
                   <th className="w-24 py-2 pr-5 text-left font-medium">Finished</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((task) => {
+                {rows.map((task, index) => {
                   const owners = task.owners.map((id) => users.get(id)).filter((u): u is User => !!u);
                   const finished = task.flow.finishedAt?.slice(0, 10) ?? task.completedAt;
                   const late = !task.isDone && task.dueDate !== null && task.dueDate < new Date().toISOString().slice(0, 10);
@@ -209,7 +228,12 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                           {task.team.name ? ` · ${task.team.name}` : ""}
                         </p>
                       </td>
-                      <td className="py-2 pr-3">
+                      {amount && (
+                        <td className={cn(AMOUNT_CELL, "py-2 font-semibold")} style={amountOutline(index === rows.length - 1 ? "bottom" : "middle")} data-testid="dashboard-task-list-amount">
+                          {formatAmount(amountOf(task))}
+                        </td>
+                      )}
+                      <td className={cn("py-2 pr-3", amount && "pl-4")}>
                         <span className="inline-flex max-w-full items-center gap-1.5">
                           <span aria-hidden className={cn("size-2 shrink-0 rounded-full", STATUS_DOT[task.status] ?? STATUS_DOT.other)} />
                           <span className="truncate">{task.statusLabel ?? "No status"}</span>
@@ -217,11 +241,6 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                       </td>
                       <td className="py-2 pr-3">{owners.length ? <AvatarStack users={owners} size="xs" max={3} /> : <span className="text-muted-foreground">—</span>}</td>
                       <td className="truncate py-2 pr-3 text-muted-foreground">{task.department?.name ?? "—"}</td>
-                      {amount && (
-                        <td className="py-2 pr-4 text-right font-medium tabular" data-testid="dashboard-task-list-amount">
-                          {formatAmount(amountOf(task))}
-                        </td>
-                      )}
                       <td className={cn("py-2 pr-3 tabular", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{task.dueDate ? formatShortDate(task.dueDate) : "—"}</td>
                       <td className="py-2 pr-5 text-muted-foreground tabular">{task.isDone && finished ? formatShortDate(finished) : "—"}</td>
                     </tr>
