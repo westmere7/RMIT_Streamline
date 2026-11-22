@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.145.2",
+    date: "2026-11-22",
+    title: "Edit work types opens them",
+    changes: [
+      "Edit work types, at the foot of an asset type's work type picker, now opens the Work types tab and closes the picker; it pointed at nothing before.",
+    ],
+  },
+  {
     version: "0.145.1",
     date: "2026-11-22",
     title: "Kanban lanes on a phone; the measure column stands out",

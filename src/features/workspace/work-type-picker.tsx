@@ -19,6 +19,7 @@ export function WorkTypePicker({ workTypes, value, onChange, disabled, typeName 
   const chosen = workTypes.filter((w) => value.includes(w.id));
   const toggle = (id: string) => onChange?.(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
   const slug = useWorkspace().slug;
+  const [open, setOpen] = React.useState(false);
   if (workTypes.length === 0) {
     return (
       <Link href={routes.settings(slug, "work-types")} replace scroll={false} className="text-2xs text-muted-foreground/70 hover:text-foreground">
@@ -27,7 +28,7 @@ export function WorkTypePicker({ workTypes, value, onChange, disabled, typeName 
     );
   }
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild disabled={disabled}>
         <button
           type="button"
@@ -59,9 +60,17 @@ export function WorkTypePicker({ workTypes, value, onChange, disabled, typeName 
             </button>
           );
         })}
-        <a href="#work-types" className="mt-1 block border-t border-border/60 px-2 pt-1.5 pb-1 text-2xs text-muted-foreground hover:text-foreground">
+        {/* The Work types tab of the same Settings section, by its route: there is no anchor to jump to. */}
+        <Link
+          href={routes.settings(slug, "work-types")}
+          replace
+          scroll={false}
+          onClick={() => setOpen(false)}
+          className="mt-1 block border-t border-border/60 px-2 pt-1.5 pb-1 text-2xs text-muted-foreground hover:text-foreground"
+          data-testid="work-type-picker-edit"
+        >
           Edit work types
-        </a>
+        </Link>
       </PopoverContent>
     </Popover>
   );
