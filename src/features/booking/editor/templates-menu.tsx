@@ -16,7 +16,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 
 export interface TemplatesMenuProps {
   templates: BookingTemplate[];
-  /** The form as it stands in the editor: what "Save as template" keeps. */
+  /** The form as it stands in the editor: what "Save as a new form" keeps. */
   current: BookingFormTemplate;
   /** Puts a saved form into the editor. Nothing is live until it is published. */
   onLoad: (template: BookingTemplate) => void;

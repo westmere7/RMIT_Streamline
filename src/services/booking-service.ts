@@ -754,8 +754,8 @@ export class BookingService {
    */
   async saveTemplate(workspaceId: EntityId, input: { name: string; description?: string | null; template: BookingFormTemplate }, actorId: EntityId): Promise<BookingTemplate> {
     const name = input.name.trim();
-    if (!name) throw new Error("Give the template a name.");
-    if (name.length > MAX_BOOKING_TEMPLATE_NAME) throw new Error("Keep the template name under " + MAX_BOOKING_TEMPLATE_NAME + " characters.");
+    if (!name) throw new Error("Give the saved form a name.");
+    if (name.length > MAX_BOOKING_TEMPLATE_NAME) throw new Error("Keep the name under " + MAX_BOOKING_TEMPLATE_NAME + " characters.");
     const description = input.description?.trim().slice(0, MAX_BOOKING_TEMPLATE_DESCRIPTION) || null;
     const template = normaliseBookingTemplate(input.template);
     const existing = (await this.repos.bookingTemplates.listByWorkspace(workspaceId)).find((t) => t.name.toLowerCase() === name.toLowerCase());

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.2",
+    date: "2026-11-22",
+    title: "Saved forms, everywhere",
+    changes: [
+      "Past forms offers Add to saved forms, and no booking screen says template any more.",
+    ],
+  },
+  {
     version: "0.152.1",
     date: "2026-11-22",
     title: "The next scheduled form, at a glance",

@@ -255,7 +255,7 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
       toast.success(`Saved as “${templateName.trim()}”`);
       setSaving(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save the template");
+      toast.error(error instanceof Error ? error.message : "Could not save the form");
     } finally {
       setBusy(false);
     }
@@ -350,7 +350,7 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
                           }}
                           data-testid="booking-past-form-save-template"
                         >
-                          <LayoutTemplate /> Save as template
+                          <LayoutTemplate /> Add to saved forms
                         </DropdownMenuItem>
                         {!live && (
                           <>
@@ -406,8 +406,8 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
       <Dialog open={!!saving} onOpenChange={(next) => !busy && !next && setSaving(null)}>
         <DialogContent size="sm" data-testid="booking-past-form-template-dialog">
           <DialogHeader>
-            <DialogTitle>Save as template</DialogTitle>
-            <DialogDescription>A template with the same name is replaced.</DialogDescription>
+            <DialogTitle>Add to saved forms</DialogTitle>
+            <DialogDescription>A saved form with the same name is replaced.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -425,7 +425,7 @@ function PastFormsDialog({ onOpenChange, onRepublished }: { onOpenChange: (open:
                 Cancel
               </Button>
               <Button type="submit" disabled={busy || !templateName.trim()} data-testid="booking-past-form-template-save">
-                {busy ? <LoaderCircle className="animate-spin" /> : <LayoutTemplate />} Save template
+                {busy ? <LoaderCircle className="animate-spin" /> : <LayoutTemplate />} Save
               </Button>
             </DialogFooter>
           </form>
