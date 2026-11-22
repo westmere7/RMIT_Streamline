@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, CircleHelp, Copy, GripVertical, MoreHorizont
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { useGroupDeleteDescription } from "@/features/boards/components/group-menu-actions";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -87,6 +88,7 @@ export function GroupSection({
   const [renaming, setRenaming] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const items = model.itemsByGroup.get(group.id) ?? NO_ITEMS;
+  const deleteDescription = useGroupDeleteDescription(group, items.length, confirmDelete);
   // A fresh array here would give SortableContext a new value on every render of
   // this group, and dnd-kit would re-render every row through its context — the
   // memo on ItemRow cannot stop that. Keyed on the item list, which only changes
@@ -300,7 +302,7 @@ export function GroupSection({
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete “${group.name}”?`}
-        description={items.length > 0 ? `This permanently deletes the group and its ${pluralize(items.length, "item")}.` : "This permanently deletes the group."}
+        description={deleteDescription}
         confirmLabel="Delete group"
         destructive
         onConfirm={() => mutations.deleteGroup(group.id).then(() => undefined)}

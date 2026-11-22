@@ -13,7 +13,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { MobileItemCard, NameSheet } from "@/features/boards/components/mobile/mobile-item-card";
-import { useGroupMenuActions } from "@/features/boards/components/group-menu-actions";
+import { useGroupDeleteDescription, useGroupMenuActions } from "@/features/boards/components/group-menu-actions";
 import { TableLayoutProvider } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { cn, pluralize } from "@/lib/utils";
@@ -265,6 +265,7 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
   const toggle = () => (canEdit ? void mutations.updateGroup(group.id, { collapsed: !collapsed }) : toggleLocally(board.id, group.id));
 
   const items = model.itemsByGroup.get(group.id) ?? [];
+  const deleteDescription = useGroupDeleteDescription(group, items.length, confirmDelete);
   const colors = colorClasses(group.color);
   const selectedHere = items.filter((i) => ui.selectedItemIds.includes(i.id)).length;
   const allSelected = items.length > 0 && selectedHere === items.length;
@@ -314,7 +315,7 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
         title={`Delete “${group.name}”?`}
-        description={items.length > 0 ? `This permanently deletes the group and its ${pluralize(items.length, "item")}.` : "This permanently deletes the group."}
+        description={deleteDescription}
         confirmLabel="Delete group"
         destructive
         onConfirm={() => mutations.deleteGroup(group.id).then(() => undefined)}

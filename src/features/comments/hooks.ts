@@ -61,7 +61,7 @@ export function useCommentMutations(itemId: string) {
   });
 
   const edit = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: string }) => services.comments.editComment(id, body, ws.users),
+    mutationFn: ({ id, body }: { id: string; body: string }) => services.comments.editComment(id, body, ws.users, { itemId, actorId: user.id }),
     onMutate: async ({ id, body }) => {
       const previous = queryClient.getQueryData<Comment[]>(key);
       queryClient.setQueryData<Comment[]>(key, (old) => old?.map((c) => (c.id === id ? { ...c, body, updatedAt: nowIso() } : c)));

@@ -11,8 +11,18 @@ import { NotificationService } from "./notification-service";
 /** Finds `@Full Name` mentions for known users. */
 export function extractMentions(body: string, users: readonly User[]): EntityId[] {
   const ids: EntityId[] = [];
-  for (const user of users) {
-    if (body.includes(`@${user.displayName}`) && !ids.includes(user.id)) ids.push(user.id);
+  // Longest names first, each "@" claimed once, and a name must end where a
+  // word does: "@Ann" is not a mention of Ann inside "@Anna Lee", nor is "@Ann
+  // Lee" also a mention of Ann.
+  const claimed = new Set<number>();
+  const byLength = users.filter((u) => u.displayName.trim()).slice().sort((a, b) => b.displayName.length - a.displayName.length);
+  for (const user of byLength) {
+    const needle = `@${user.displayName}`;
+    for (let at = body.indexOf(needle); at !== -1; at = body.indexOf(needle, at + 1)) {
+      if (claimed.has(at) || /[\p{L}\p{N}]/u.test(body.charAt(at + needle.length))) continue;
+      claimed.add(at);
+      if (!ids.includes(user.id)) ids.push(user.id);
+    }
   }
   return ids;
 }
@@ -134,16 +144,37 @@ export class CommentService {
    * one thing said once, so changing it on one task and leaving a stale copy on
    * the other would be worse than not offering the edit at all.
    */
-  async editComment(commentId: EntityId, body: string, users: readonly User[]): Promise<Comment> {
+  async editComment(commentId: EntityId, body: string, users: readonly User[], context?: { itemId: EntityId; actorId: EntityId }): Promise<Comment> {
     const trimmed = body.trim();
     if (!trimmed) throw new Error("Comment cannot be empty");
-    const patch = { body: trimmed, mentionUserIds: extractMentions(trimmed, users) };
+    // With the task known, an "@Name" reaches only people in its workspace, and
+    // anyone newly mentioned hears about it as they would on a new update.
+    const item = context ? await this.repos.items.getById(context.itemId) : null;
+    const board = item ? await this.repos.boards.getById(item.boardId) : null;
+    const before = item ? (await this.repos.comments.listByItem(item.id)).find((c) => c.id === commentId) : undefined;
+    const reachable = board ? await this.mentionable(board.workspaceId, users) : users;
+    const patch = { body: trimmed, mentionUserIds: extractMentions(trimmed, reachable) };
     const updated = await this.repos.comments.update(commentId, patch);
-    if (!updated.sharedId) return updated;
-
-    const copies = await this.repos.comments.listBySharedId(updated.sharedId);
-    await Promise.all(copies.filter((copy) => copy.id !== updated.id).map((copy) => this.repos.comments.update(copy.id, patch)));
+    if (updated.sharedId) {
+      const copies = await this.repos.comments.listBySharedId(updated.sharedId);
+      await Promise.all(copies.filter((copy) => copy.id !== updated.id).map((copy) => this.repos.comments.update(copy.id, patch)));
+    }
+    if (item && context && before) {
+      const added = patch.mentionUserIds.filter((id) => id !== context.actorId && !before.mentionUserIds.includes(id));
+      const actorName = users.find((u) => u.id === context.actorId)?.firstName ?? "Someone";
+      if (added.length) {
+        await this.notifications.deliver(
+          added.map((userId) => ({ userId, type: "MENTION" as const, title: `${actorName} mentioned you in ${item.name}`, body: truncate(richTextToPlain(trimmed), 140), entityType: "ITEM" as const, entityId: item.id, boardId: item.boardId, actorId: context.actorId })),
+        );
+      }
+    }
     return updated;
+  }
+
+  /** The people an "@Name" on this workspace's tasks can reach: those active in it. */
+  private async mentionable(workspaceId: EntityId, users: readonly User[]): Promise<User[]> {
+    const here = new Set((await this.repos.workspaces.listMembers(workspaceId)).filter((m) => m.status === "ACTIVE").map((m) => m.userId));
+    return users.filter((u) => here.has(u.id));
   }
 
   /**
@@ -162,7 +193,8 @@ export class CommentService {
     const item = await this.repos.items.getById(root.itemId);
     if (!item) throw new NotFoundError("Item", root.itemId);
     const board = await this.repos.boards.getById(item.boardId);
-    const mentionUserIds = extractMentions(trimmed, users);
+    // As on a new update: only people active in this workspace can be mentioned.
+    const mentionUserIds = extractMentions(trimmed, board ? await this.mentionable(board.workspaceId, users) : []);
     const reply = await this.repos.comments.create({ itemId: root.itemId, authorId: actorId, body: trimmed, mentionUserIds, parentId: root.id });
     await this.repos.activities.create({
       workspaceId: board?.workspaceId ?? "",

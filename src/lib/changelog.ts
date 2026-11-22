@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.5",
+    date: "2026-11-22",
+    title: "Mentions and deleting groups",
+    changes: [
+      "An @name matches a whole name only: @Ann no longer mentions Ann inside @Anna Lee.",
+      "Replies and edits mention only people in the task's workspace, and someone newly mentioned in an edit is told.",
+      "Deleting a group says how many archived tasks go with it.",
+    ],
+  },
+  {
     version: "0.149.4",
     date: "2026-11-22",
     title: "Safer moves and bookings",
