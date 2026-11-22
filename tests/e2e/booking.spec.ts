@@ -89,7 +89,7 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("sidebar-admin")).toHaveCount(0);
     await expect(page.getByTestId("sidebar-book-task")).toBeVisible();
     await page.goto(TASK_ALLOCATION_URL);
-    await expect(page.getByText(/board not found|this board is private/i)).toBeVisible();
+    await expect(page.getByText(/board not found|this board is private|don't have access to this board/i)).toBeVisible();
   });
 
   test("a stakeholder walks the four steps and the request lands on Task Allocation", async ({ page }) => {
@@ -325,10 +325,10 @@ test.describe("task booking", () => {
     await page.getByTestId("template-save-submit").click();
     await expect(page.getByTestId("template-save-dialog")).toHaveCount(0);
 
-    // Change the form, then load the template back over it.
+    // Change the form, then reload the saved form over it (saving linked the editor to it).
     await page.getByTestId("editor-basics-title").fill("Your request");
-    await page.getByTestId("template-quick-select").click();
-    await page.getByRole("option", { name: "Built-in copy" }).click();
+    await expect(page.getByTestId("template-quick-select")).toContainText("Built-in copy");
+    await page.getByTestId("template-reload").click();
     await expect(page.getByTestId("editor-basics-title")).toHaveValue("About you and your request");
 
     // And delete it again.

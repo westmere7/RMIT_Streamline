@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.1",
+    date: "2026-11-22",
+    title: "The next scheduled form, at a glance",
+    changes: [
+      "Under the published form, Next scheduled shows the next scheduled form: its name, its days and how many days until it starts.",
+    ],
+  },
+  {
     version: "0.152.0",
     date: "2026-11-22",
     title: "Saved forms you can publish or schedule",

@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, Info, ChevronDown, CircleCheck, Copy, Eye, FileDown, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, SquareKanban, Trash2, Undo2, X } from "lucide-react";
+import { Boxes, CalendarClock, Check, Info, ChevronDown, CircleCheck, Copy, Eye, FileDown, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, SquareKanban, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { Board, BookingBlock, BookingForm as BookingFormData, BookingFormSchedule, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
-import { activeSchedule, scheduleToday } from "@/domain";
+import { activeSchedule, scheduleToday, upcomingSchedules } from "@/domain";
 import { format, parseISO } from "date-fns";
 import {
   BOOKING_STANDARD_KEY_LABELS,
@@ -355,6 +355,10 @@ export function BookingFormEditor({
   };
   // The scheduled form live today, if any: the default form waits behind it.
   const running = activeSchedule(schedules ?? [], scheduleToday());
+  // The one after it, shown under the published form: just its name and days.
+  const nextUp = upcomingSchedules(schedules ?? [], scheduleToday()).find((s) => s.id !== running?.id) ?? null;
+  // Whole days until it starts, Vietnam days.
+  const daysToNext = nextUp ? Math.round((Date.parse(nextUp.startsOn) - Date.parse(scheduleToday())) / 86_400_000) : 0;
   const [savedFormsOpen, setSavedFormsOpen] = React.useState(false);
 
   // The controls: beside the form when the page offers a place for them, above it otherwise.
@@ -362,6 +366,23 @@ export function BookingFormEditor({
     <div className="space-y-3">
       <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
         <PublishedFormCard info={{ ...published, template: live }} scheduled={running ? { name: running.name, endsOn: running.endsOn } : null} onOpen={() => setPreviewing("live")} />
+        {nextUp && (
+          <div className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5" data-testid="booking-next-scheduled">
+            <p className="flex items-center justify-between gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Next scheduled
+              <span className="rounded-full bg-accent-soft px-1.5 py-0.5 font-medium tracking-normal normal-case text-accent-soft-foreground tabular" data-testid="booking-next-countdown">
+                {daysToNext === 1 ? "in 1 day" : `in ${daysToNext} days`}
+              </span>
+            </p>
+            <p className="mt-0.5 truncate text-[13px] font-medium" title={nextUp.name}>
+              {nextUp.name}
+            </p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted-foreground">
+              <CalendarClock className="size-3 shrink-0" aria-hidden />
+              {nextUp.startsOn === nextUp.endsOn ? format(parseISO(nextUp.startsOn), "d MMM") : `${format(parseISO(nextUp.startsOn), "d MMM")} – ${format(parseISO(nextUp.endsOn), "d MMM")}`}
+            </p>
+          </div>
+        )}
         {problem && (
           <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
             {problem}
