@@ -18,11 +18,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.152.12",
+    version: "0.152.13",
     date: "2026-11-22",
-    title: "Team colours on team items",
+    title: "Sidebar icons as before",
     changes: [
-      "In the sidebar, the boards, trackers and docs under a team, and under Admin, wear the team's colour on their icons.",
+      "The boards, trackers and docs under a team keep their usual icons; the team-colour test is undone.",
     ],
   },
   {
