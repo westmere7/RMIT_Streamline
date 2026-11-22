@@ -5,6 +5,7 @@ import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { Board, BookingRequest } from "@/domain";
 import { RefusedError, serviceById } from "@/domain";
 import { createServices } from "@/services";
+import { bookingRequestSchema } from "@/services/booking";
 
 /**
  * From the full audit of 22 Nov 2026: a booking sent twice is booked once, and
@@ -68,5 +69,10 @@ describe("booking and allocating, audit fixes", { timeout: 20_000 }, () => {
     await expect(services.booking.allocate(sub.id, target.id, owner)).rejects.toBeInstanceOf(RefusedError);
     await services.repos.items.update(item.id, { archivedAt: new Date().toISOString() });
     await expect(services.booking.allocate(item.id, target.id, owner)).rejects.toThrow("Restore the request before allocating it.");
+  });
+
+  it("refuses a due date that is not a day on the calendar", () => {
+    expect(bookingRequestSchema.safeParse(request({ dueDate: "2026-02-31" })).success).toBe(false);
+    expect(bookingRequestSchema.safeParse(request({ dueDate: "2028-02-29" })).success).toBe(true);
   });
 });

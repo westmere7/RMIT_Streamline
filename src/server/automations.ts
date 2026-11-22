@@ -101,8 +101,13 @@ export async function authoriseTick(request: Request): Promise<TickCaller> {
   const header = request.headers.get("authorization") ?? "";
   const jwt = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
   if (jwt) {
-    const { data, error } = await getSupabaseAdminClient().auth.getUser(jwt);
-    if (!error && data.user) return { kind: "member", userId: data.user.id };
+    const admin = getSupabaseAdminClient();
+    const { data, error } = await admin.auth.getUser(jwt);
+    if (!error && data.user) {
+      // An account is not enough: the nudge is for someone working in a workspace.
+      const seat = await admin.from("workspace_members").select("user_id").eq("user_id", data.user.id).eq("status", "ACTIVE").limit(1);
+      if (!seat.error && (seat.data?.length ?? 0) > 0) return { kind: "member", userId: data.user.id };
+    }
   }
   throw refused;
 }

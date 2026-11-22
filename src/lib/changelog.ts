@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.4",
+    date: "2026-11-22",
+    title: "Safer moves and bookings",
+    changes: [
+      "Moving a task to another board writes its values before its links, so a link that can't be updated no longer leaves the task without its values.",
+      "A booking's due date must be a real day, and a booking that fails on its deliverables leaves no half-made task behind.",
+      "Links typed as booking answers open as https and can't be anything else.",
+      "Only someone working in a workspace can nudge the automations, not any account.",
+    ],
+  },
+  {
     version: "0.149.3",
     date: "2026-11-22",
     title: "Links, bookings and allocating, tightened",

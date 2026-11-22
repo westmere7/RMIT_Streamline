@@ -126,10 +126,15 @@ export class ItemMoveService {
 
     const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
     const moved = await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
-    await this.repointLinks(movingIds, plan.columnMap, sourceColumnIds);
+    // The task's own values first: the move has cleared the old board's, and a
+    // task must never be left on its new board with none of them.
+    if (plan.carried.length) await this.repos.items.setValues(plan.carried);
     const brief = plan.briefToDescription;
     if (brief) await this.repos.items.update(item.id, { description: item.description?.trim() ? `${brief}\n\n${item.description.trim()}` : brief });
-    if (plan.carried.length) await this.repos.items.setValues(plan.carried);
+    // Then the links' column pairs. One the mover may not rewrite (its other
+    // end is on a board they can't edit) keeps its old pairs, which name
+    // columns the task no longer has and so mirror nothing; the move stands.
+    await this.repointLinks(movingIds, plan.columnMap, sourceColumnIds).catch((error) => console.warn("Could not re-point a moved task's links", error));
     // Deliverables are counted per board: worked out again where they landed.
     await this.assets.recompute(item.id, target.id);
     await this.repos.activities.create({

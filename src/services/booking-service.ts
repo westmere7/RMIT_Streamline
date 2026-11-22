@@ -483,10 +483,17 @@ export class BookingService {
     // doubled what a board counted. A deliverable is not a task.
     // Each row's own type first; failing that, the one type the whole request named.
     const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
-    await this.assets.addMany(
-      request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType: asset.assetType?.trim() || assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
-      actorId,
-    );
+    try {
+      await this.assets.addMany(
+        request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType: asset.assetType?.trim() || assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null })),
+        actorId,
+      );
+    } catch (error) {
+      // A booking without its deliverables is half a booking: taken away again,
+      // so the stakeholder's retry makes one whole task rather than a second half.
+      await this.repos.items.deleteMany([item.id]).catch(() => undefined);
+      throw error;
+    }
 
     // The brief on the task itself, so a Brief column on whichever board it ends up on can show it.
     if (request.brief.trim()) await this.repos.items.setBookingBrief(item.id, request.brief);

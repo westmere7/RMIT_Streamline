@@ -60,6 +60,13 @@ import { MAX_INDENT, richTextToPlain } from "@/lib/rich-text";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Whether "YYYY-MM-DD" names a day on the calendar (and one a date column can hold). */
+function isRealDay(value: string): boolean {
+  const [y, m, d] = value.split("-").map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return y >= 1900 && y <= 9999 && date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
 /** Trims, lowercases and rejects anything that is not an email or a URL, respectively. */
 const email = z.email("Enter a valid email address").trim().toLowerCase().max(200);
 const url = z
@@ -68,10 +75,21 @@ const url = z
   .max(2000)
   .refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), "Links need to start with http:// or https://");
 
+/**
+ * A link typed as an answer. "example.com/brief" is taken as https; a link of
+ * any other kind ("javascript:", "data:") is refused, since the team clicks it.
+ */
+const answerUrl = z
+  .string()
+  .trim()
+  .max(2000)
+  .transform((v) => (v === "" || /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`))
+  .refine((v) => v === "" || /^https?:\/\/\S+$/i.test(v), "Links need to start with http:// or https://");
+
 const bookingAnswerSchema: z.ZodType<BookingAnswer> = z.union([
   z.object({ kind: z.literal("text"), text: z.string().max(10000) }),
   z.object({ kind: z.literal("choice"), values: z.array(z.string().trim().min(1).max(120)).max(40) }),
-  z.object({ kind: z.literal("link"), url: z.string().max(2000), label: z.string().max(120) }),
+  z.object({ kind: z.literal("link"), url: answerUrl, label: z.string().max(120) }),
   z.object({ kind: z.literal("ack"), agreed: z.boolean() }),
 ]) as z.ZodType<BookingAnswer>;
 
@@ -100,7 +118,8 @@ export const bookingRequestSchema = z.object({
   serviceTypeId: z.string().trim().max(80).nullable().default(null),
   subServices: z.array(z.string().trim().min(1).max(120)).max(30).default([]),
   teamId: z.uuid().nullable().default(null),
-  dueDate: z.string().regex(ISO_DATE, "Pick a date").nullable().default(null),
+  // A day that exists: "2026-02-31" passes the pattern and fails the database halfway through a booking.
+  dueDate: z.string().regex(ISO_DATE, "Pick a date").refine(isRealDay, "Pick a date").nullable().default(null),
   priority: z.string().trim().max(60).nullable().default(null),
   referenceUrl: url.nullable().default(null),
   answers: z.record(z.string(), bookingAnswerSchema).default({}),
