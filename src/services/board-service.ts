@@ -14,7 +14,8 @@ import type {
   EntityId,
   Item,
 } from "@/domain";
-import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, intakeGroupOf, isSystemColumnType, pinIntakeFirst, portalBriefMarkdown } from "@/domain";
+import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, intakeGroupOf, isSystemColumnType, pinIntakeFirst } from "@/domain";
+import { briefSourceText } from "@/domain/booking/brief-source";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
 import { backfillAssetsRecap, isAssetColumn } from "./item-asset-service";
@@ -549,7 +550,7 @@ export class BoardService {
     for (const item of items) {
       const brief = briefs.get(item.id);
       if (!brief) continue;
-      values.push({ itemId: item.id, columnId: column.id, value: { type: "RICH_TEXT", text: portalBriefMarkdown(brief) } });
+      values.push({ itemId: item.id, columnId: column.id, value: { type: "RICH_TEXT", text: briefSourceText(brief) } });
       const flat = richTextToPlain(brief).trim();
       const description = item.description?.trim() ?? "";
       if (flat && description.startsWith(flat)) patches.push({ id: item.id, patch: { description: description.slice(flat.length).trim() || null } });

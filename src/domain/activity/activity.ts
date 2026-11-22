@@ -53,6 +53,10 @@ export interface ActivityMetadata {
   toGroupName?: string;
   columnName?: string;
   columnType?: string;
+  /** The column's id, so a renamed column still finds its own entries (since v0.154). */
+  columnId?: string;
+  /** A Brief put back to the brief as booked. */
+  reverted?: boolean;
   /** Display strings for before/after values. */
   from?: string | null;
   to?: string | null;

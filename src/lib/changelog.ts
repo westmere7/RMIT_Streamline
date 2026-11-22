@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.154.0",
+    date: "2026-11-22",
+    title: "The brief as booked, kept",
+    changes: [
+      "A booked task's Brief says when it no longer matches the booking: Edited, by whom and when.",
+      "Revert puts the brief as booked back; the task's activity says who did.",
+      "New bookings' briefs say who booked them, for which department, and when (Vietnam time). The portal leaves the name out."
+    ],
+  },
+  {
     version: "0.153.2",
     date: "2026-11-22",
     title: "Developer notes brought up to date",

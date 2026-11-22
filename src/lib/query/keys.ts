@@ -66,6 +66,8 @@ export const queryKeys = {
   /** Which items the person has caught up on. */
   itemReads: (userId: string) => ["item-reads", userId] as const,
   itemActivity: (itemId: string) => ["activity", "item", itemId] as const,
+  /** The brief as the booking wrote it (items.booking_brief); written once, so read rarely. */
+  bookingBrief: (itemId: string) => ["booking-brief", itemId] as const,
   boardActivity: (boardId: string) => ["activity", "board", boardId] as const,
   workspaceActivity: (workspaceId: string) => ["activity", "workspace", workspaceId] as const,
   /** The workspace's shared option lists (asset types, stakeholder groups). */

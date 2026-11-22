@@ -90,6 +90,8 @@ export interface SetValueContext {
   board: Board;
   /** Users, used to render names in activity/notifications. */
   users: readonly User[];
+  /** The write puts a Brief back to the brief as booked; the log says so. */
+  reverted?: boolean;
 }
 
 export interface MoveItemInput {
@@ -290,7 +292,7 @@ export class ItemService {
       itemId,
       actorId,
       eventType: "ITEM_COLUMN_VALUE_UPDATED",
-      metadata: { itemName: ctx.item.name, columnName: ctx.column.name, columnType: ctx.column.type, from, to },
+      metadata: { itemName: ctx.item.name, columnName: ctx.column.name, columnType: ctx.column.type, columnId: ctx.column.id, from, to, ...(ctx.reverted ? { reverted: true } : {}) },
     };
 
     const notifications: NotificationInput[] = [];

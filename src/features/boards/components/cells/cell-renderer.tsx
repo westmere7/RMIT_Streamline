@@ -21,6 +21,7 @@ import { BRIEF_TEXT_WIDTH, columnAlign, columnAlignAt } from "@/features/boards/
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 import { useBoardAssets, useItemAssetProgress } from "@/features/items/asset-hooks";
+import { useBriefSource } from "@/features/items/brief-source";
 import { RichTextDocBody, richTextSummary } from "@/features/items/rich-text-field";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -897,6 +898,8 @@ export function LongTextCell({ item, column, value, onChange, readOnly, width }:
  */
 export function RichTextCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const v = valueOf("RICH_TEXT", value);
+  const { mutations } = useBoardContext();
+  const source = useBriefSource(item, column, v.text);
   const summary = React.useMemo(() => richTextSummary(v.text), [v.text]);
   const compact = column.type === "BRIEF" && (width ?? column.width) < BRIEF_TEXT_WIDTH;
   return (
@@ -925,6 +928,8 @@ export function RichTextCell({ item, column, value, onChange, readOnly, width }:
           body={v.text}
           canEdit={!readOnly}
           onSave={(text) => onChange({ type: "RICH_TEXT", text })}
+          source={source}
+          onRevert={source ? () => void mutations.setValue(item, column, { type: "RICH_TEXT", text: source.sourceText }, { reverted: true }) : undefined}
           onDone={close}
           testId="rich-text-popup"
         />

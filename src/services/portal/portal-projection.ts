@@ -16,6 +16,7 @@ import type {
   User,
 } from "@/domain";
 import { columnLabels, priorityStrength, statusLabelRole, ticketMatch, userInitials } from "@/domain";
+import { briefForVisitors } from "@/domain/booking/brief-source";
 import { avatarColorFor } from "@/lib/colors";
 import { isOverdue } from "@/lib/dates/dates";
 
@@ -84,7 +85,8 @@ export function projectBrief(item: Item, ctx: ProjectionContext): string | null 
   const column = board ? firstOfType(board.columns, "BRIEF") : null;
   const value = column ? board?.values.get(item.id)?.get(column.id) : undefined;
   const text = value?.type === "RICH_TEXT" ? value.text.trim() : "";
-  return text || null;
+  // Never the line naming who booked it: the portal names no requester.
+  return briefForVisitors(text || null);
 }
 
 /** The status a row is in, as a name, a colour and a meaning. */

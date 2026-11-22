@@ -411,7 +411,7 @@ export class BookingService {
 
     // The brief is composed here, from the template and the answers, whatever
     // the caller sent as one. What the team reads is what the form asked for.
-    request.brief = composeBrief(request, template);
+    request.brief = composeBrief(request, template, { at: new Date() });
 
     // Where it goes: the service's own rules when it has them switched on, else
     // the team's nominated board. A board a rule names that has gone (archived,

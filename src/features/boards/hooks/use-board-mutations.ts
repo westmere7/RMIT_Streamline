@@ -150,11 +150,11 @@ export function useBoardMutations(boardId: string) {
    * in the same cell, and a toast after every edit was noise.
    */
   const setValue = useCallback(
-    (item: Item, column: BoardColumn, value: ColumnValue) => {
+    (item: Item, column: BoardColumn, value: ColumnValue, options?: { reverted?: boolean }) => {
       if (completesTask(item, column, value)) celebrate();
       return run(
         (s) => upsertValue(s, item.id, column.id, value),
-        () => services.items.setValue(item.id, column.id, value, { column, item, board: ws.boardById(boardId)!, users: ws.users }, user.id),
+        () => services.items.setValue(item.id, column.id, value, { column, item, board: ws.boardById(boardId)!, users: ws.users, reverted: options?.reverted }, user.id),
         "Could not save the change",
       );
     },

@@ -152,7 +152,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       if (isDocumentColumn(m.columnType)) {
         return (
           <>
-            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.from ? "edited" : "wrote"} <Mention>{m.columnName}</Mention>
+            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.reverted ? "put back the booked" : m.from ? "edited" : "wrote"} <Mention>{m.columnName}</Mention>
             {item}
             {synced}
           </>
@@ -307,7 +307,7 @@ export function describeActivityText(activity: Activity, users: readonly User[])
         const added = (m.addedUserIds ?? []).map((id) => users.find((u) => u.id === id)?.firstName ?? "someone");
         return added.length ? `${actor} assigned ${added.join(", ")}` : `${actor} updated ${m.columnName}`;
       }
-      if (isDocumentColumn(m.columnType)) return `${actor} ${m.from ? "edited" : "wrote"} ${m.columnName}`;
+      if (isDocumentColumn(m.columnType)) return `${actor} ${m.reverted ? "put back the booked" : m.from ? "edited" : "wrote"} ${m.columnName}`;
       return `${actor} changed ${m.columnName}${m.from ? ` from ${formatValue(m.columnType, m.from)}` : ""} to ${formatValue(m.columnType, m.to)}`;
     case "ITEM_MOVED": {
       const to = moveEnds(m).to;

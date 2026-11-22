@@ -672,7 +672,17 @@ describe("booking a task", () => {
     expect(valueOf("Service")).toEqual({ type: "TAGS", tags: ["Design"] });
     // The brief is the Brief column's, formatted — and the description is left
     // empty rather than holding the same page a second time.
-    expect(valueOf("Brief")).toEqual({ type: "RICH_TEXT", text: composeBrief(request(), fixtureBookingFormTemplate()) });
+    // It also says, as words, who booked it and when (Vietnam time); the rest is the form's brief.
+    const briefValue = valueOf("Brief");
+    const briefBody = briefValue?.type === "RICH_TEXT" ? briefValue.text : "";
+    expect(briefBody).toContain("**Booked by:** Priya Nair");
+    expect(briefBody).toMatch(/\*\*Booked:\*\* .+ \(Vietnam time\)/);
+    const withoutBooking = briefBody
+      .split("\n")
+      .filter((line) => !/^\*\*Booked( by)?:\*\*/.test(line))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n");
+    expect(withoutBooking).toBe(composeBrief(request(), fixtureBookingFormTemplate()));
     expect(item.description).toBeNull();
     expect(valueOf("Status")).toEqual({ type: "STATUS", labelId: "not_started" });
     expect(valueOf("Priority")).toEqual({ type: "PRIORITY", labelId: "high" });

@@ -61,6 +61,7 @@ import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { PANEL_WIDTHS, PanelSizeProvider, usePanelSize, useResizablePanel } from "@/features/items/panel-size";
+import { BriefEditedNote, useBriefSource } from "@/features/items/brief-source";
 import { BriefRowValue, RichTextDocument } from "@/features/items/rich-text-field";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -1391,6 +1392,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
   const value = model.getValue(item.id, column.id);
   const brief = column.type === "RICH_TEXT" || column.type === "BRIEF";
   const body = value?.type === "RICH_TEXT" ? value.text : "";
+  const source = useBriefSource(item, column, body);
 
   // The handle takes 24px off the left, so the label gives that back out of its
   // own padding rather than out of its words: "Requested team" fits either way.
@@ -1437,6 +1439,8 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             open={open}
             onToggle={() => setOpen((v) => !v)}
             onSave={(text) => void mutations.setValue(item, column, { type: "RICH_TEXT", text })}
+            source={source}
+            onRevert={source ? () => void mutations.setValue(item, column, { type: "RICH_TEXT", text: source.sourceText }, { reverted: true }) : undefined}
           />
         ) : (
           <CellStretchProvider mode={fill ? "fill" : "none"}>
@@ -1460,6 +1464,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
       </div>
       {brief && open && (
         <div className="scrollbar-thin max-h-96 overflow-y-auto border-t border-border/60 px-3 py-2.5" data-testid="rich-text-field-body">
+          {source && <BriefEditedNote source={source} className="mb-2 text-2xs text-muted-foreground" />}
           <RichTextDocument body={body} />
         </div>
       )}

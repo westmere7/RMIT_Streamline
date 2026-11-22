@@ -60,7 +60,7 @@ import type { Repositories } from "@/data/repositories";
 import { hashPortalPassword, verifyPortalPassword } from "@/lib/auth/portal-password";
 import { todayISO } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
-import { composeBrief, resolveBookingTemplate } from "./booking";
+import { briefForVisitors, composeBrief, resolveBookingTemplate } from "./booking";
 import { BookingValidationError, bookingFormForSubmission } from "./booking-service";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import { projectPortalExtras } from "./portal/portal-extra-columns";
@@ -481,7 +481,7 @@ export class StakeholderPortalService {
       if (!item) continue;
       tasks.push({
         task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null),
-        brief: projectBrief(item, ctx.projection) ?? entry.publicBrief,
+        brief: briefForVisitors(projectBrief(item, ctx.projection) ?? entry.publicBrief),
         deliverables: (ctx.projection.assetsByItem.get(entry.itemId) ?? []).map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
         subitems: (ctx.projection.subitemsByParent.get(entry.itemId) ?? []).map((subitem) => projectSubitem(subitem, ctx.projection)),
       });
@@ -797,7 +797,7 @@ export class StakeholderPortalService {
     const projected = all
       .map((entry) => {
         const item = ctx.itemsById.get(entry.itemId);
-        return item ? { entry, task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null), brief: projectBrief(item, ctx.projection) ?? entry.publicBrief } : null;
+        return item ? { entry, task: projectTask(item, ctx.projection, entry.department ? { id: entry.department.id, name: entry.department.name, color: entry.department.color } : null), brief: briefForVisitors(projectBrief(item, ctx.projection) ?? entry.publicBrief) } : null;
       })
       .filter((row): row is { entry: PortalScopeEntry; task: PortalTask; brief: string | null } => !!row);
 
@@ -866,7 +866,7 @@ export class StakeholderPortalService {
       // Plain words, as this field has always been: the board's Brief column flattened, else the booking's copy.
       brief: (() => {
         const fromBoard = projectBrief(item, ctx.projection);
-        return fromBoard ? richTextToPlain(fromBoard).trim() || null : entry.publicBrief;
+        return fromBoard ? richTextToPlain(fromBoard).trim() || null : briefForVisitors(entry.publicBrief);
       })(),
       fullDeliverables: assets.map((asset) => projectDeliverable(asset, ctx.projection.usersById)),
       fullSubitems: subitems.map((sub) => projectSubitem(sub, ctx.projection)),

@@ -1,12 +1,13 @@
 "use client";
 
-import { ChevronRight, Copy, Download, Maximize2, Pencil, X } from "lucide-react";
+import { ChevronRight, Copy, Download, Maximize2, Pencil, RotateCcw, X } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { RichText } from "@/components/shared/rich-text";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SimpleTooltip } from "@/components/ui/tooltip";
+import { BriefEditedNote, type BriefSource } from "@/features/items/brief-source";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { richTextToPlain } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,10 @@ interface DocProps {
   onSave: (body: string) => void;
   /** What the downloaded file is called and headed with, usually the task and the column. Falls back to the title. */
   fileName?: string;
+  /** A booked task's Brief: the brief as booked, whether this copy differs, and who changed it. */
+  source?: BriefSource | null;
+  /** Puts the brief as booked back. Offered to editors while the copy differs. */
+  onRevert?: () => void;
 }
 
 /**
@@ -90,13 +95,15 @@ interface DocProps {
  * Shared by the popup a board cell opens and the one the panel opens, so a
  * brief is the same thing to look at whichever one you arrived through.
  */
-export function RichTextDocBody({ title, body, canEdit, onSave, fileName, onDone, onClose, startEditing, testId }: DocProps & { onDone?: () => void; onClose?: () => void; startEditing?: boolean; testId?: string }) {
+export function RichTextDocBody({ title, body, canEdit, onSave, fileName, source, onRevert, onDone, onClose, startEditing, testId }: DocProps & { onDone?: () => void; onClose?: () => void; startEditing?: boolean; testId?: string }) {
   const ws = useWorkspace();
   // A dialog opened by the pencil is already writing: the alternative is a
   // window that opens on the reading view with an Edit button to press next,
   // which is two clicks for the thing the pencil already asked for.
   const [editing, setEditing] = React.useState(!!startEditing && canEdit);
   const [draft, setDraft] = React.useState(body);
+  const [reverting, setReverting] = React.useState(false);
+  const canRevert = canEdit && !!onRevert && !!source?.edited;
   const start = () => {
     setDraft(body);
     setEditing(true);
@@ -119,6 +126,11 @@ export function RichTextDocBody({ title, body, canEdit, onSave, fileName, onDone
                 <Download className="size-3.5" />
               </DocButton>
             )}
+            {canRevert && (
+              <DocButton label="Revert to the original brief" onClick={() => setReverting(true)} testId="brief-revert">
+                <RotateCcw className="size-3.5" />
+              </DocButton>
+            )}
             {canEdit && (
               <DocButton label="Edit" onClick={start} testId="rich-text-edit">
                 <Pencil className="size-3.5" />
@@ -132,6 +144,27 @@ export function RichTextDocBody({ title, body, canEdit, onSave, fileName, onDone
           </DocButton>
         )}
       </div>
+      {!editing && reverting && canRevert ? (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3.5 py-2 text-xs" data-testid="brief-revert-confirm">
+          <span className="min-w-0 flex-1">Put back the brief as booked?</span>
+          <button type="button" onClick={() => setReverting(false)} className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setReverting(false);
+              onRevert?.();
+            }}
+            className="h-7 rounded-md bg-foreground px-2.5 text-xs font-medium text-background"
+            data-testid="brief-revert-confirm-button"
+          >
+            Revert
+          </button>
+        </div>
+      ) : (
+        !editing && source && <BriefEditedNote source={source} />
+      )}
       {editing ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
           <RichTextEditor
@@ -213,7 +246,7 @@ export function RichTextDocDialog({ open, onOpenChange, startEditing, ...doc }: 
  * the subitems — is what somebody scrolling the panel is usually after, and a
  * brief opened by default pushes all of it below the fold.
  */
-export function BriefRowValue({ title, body, canEdit, onSave, fileName, open, onToggle }: DocProps & { open: boolean; onToggle: () => void }) {
+export function BriefRowValue({ title, body, canEdit, onSave, fileName, source, onRevert, open, onToggle }: DocProps & { open: boolean; onToggle: () => void }) {
   /** Shut, opened to read, or opened to write. */
   const [popup, setPopup] = React.useState<null | "read" | "edit">(null);
   const summary = richTextSummary(body);
@@ -229,6 +262,11 @@ export function BriefRowValue({ title, body, canEdit, onSave, fileName, open, on
       >
         <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} aria-hidden />
         <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">{summary || <span className="text-muted-foreground/70">Empty</span>}</span>
+        {source?.edited && (
+          <span className="shrink-0 rounded px-1 text-2xs text-amber-600 dark:text-amber-400" data-testid="brief-edited-chip">
+            Edited
+          </span>
+        )}
       </button>
       {/* No copy here: the row is a summary, and copying a document you cannot
           see the whole of is a thing you do from the popup. */}
@@ -240,7 +278,7 @@ export function BriefRowValue({ title, body, canEdit, onSave, fileName, open, on
       <DocButton label={`Open ${title.toLowerCase()}`} onClick={() => setPopup("read")} testId="rich-text-field-popup">
         <Maximize2 className="size-3.5" />
       </DocButton>
-      <RichTextDocDialog open={popup !== null} startEditing={popup === "edit"} onOpenChange={(next) => setPopup(next ? "read" : null)} title={title} body={body} canEdit={canEdit} onSave={onSave} fileName={fileName} />
+      <RichTextDocDialog open={popup !== null} startEditing={popup === "edit"} onOpenChange={(next) => setPopup(next ? "read" : null)} title={title} body={body} canEdit={canEdit} onSave={onSave} fileName={fileName} source={source} onRevert={onRevert} />
     </div>
   );
 }

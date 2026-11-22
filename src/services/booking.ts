@@ -39,6 +39,7 @@ import {
   serviceById,
   visibleBlocks,
 } from "@/domain";
+import { BOOKED_BY_LABEL, briefForVisitors } from "@/domain/booking/brief-source";
 import { MAX_INDENT, richTextToPlain } from "@/lib/rich-text";
 
 /**
@@ -543,6 +544,19 @@ export function validateBookingAgainstTemplate(request: BookingRequest, template
 
 // ---- the brief ----------------------------------------------------------------
 
+/** When the brief was booked; the requester and department come from the request. */
+export interface BriefBooking {
+  at: Date;
+}
+
+export { BOOKED_BY_LABEL, briefForVisitors };
+
+/** "Nov 22, 2026, 2:20 PM (Vietnam time)": the team's clock, whoever booked. */
+export function formatBookedAt(at: Date): string {
+  const text = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Ho_Chi_Minh", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }).format(at);
+  return `${text} (Vietnam time)`;
+}
+
 /** Anything in an answer that the markup would otherwise read as formatting. */
 function plain(text: string): string {
   return text.replace(/([*_#[\]])/g, "\\$1");
@@ -576,11 +590,18 @@ function pad(depth: number): string {
  * Everything a requester typed is escaped on the way in, so nobody can type
  * markup into a brief and have it come out as markup.
  */
-export function composeBrief(request: BookingRequest, template: BookingFormTemplate): string {
+export function composeBrief(request: BookingRequest, template: BookingFormTemplate, booked?: BriefBooking): string {
   const service = serviceById(template, request.serviceTypeId);
   const lines: string[] = [];
-  // The two facts a producer looks at first, on their own lines above the rule.
+  // The facts a producer looks at first, on their own lines above the rule.
   if (service) lines.push(`**Service:** ${plain(service.name)}`);
+  if (booked) {
+    // Who asked and when, as words: the brief is the record of the request,
+    // and it reads the same wherever it is copied, printed or exported.
+    const who = [request.requesterName.trim(), request.department?.trim() ?? ""].filter(Boolean).map(plain).join(" · ");
+    if (who) lines.push("", `${BOOKED_BY_LABEL} ${who}`);
+    lines.push("", `**Booked:** ${formatBookedAt(booked.at)}`);
+  }
   if (request.subServices.length) lines.push("", `**Work types:** ${request.subServices.map(plain).join(", ")}`);
   if (lines.length) lines.push("", "---");
 
