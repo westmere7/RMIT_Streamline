@@ -994,23 +994,26 @@ function TeamNode({
   return (
     <li data-testid="sidebar-team">
       <RowMenu label={`Options for ${team.name}`} actions={teamActions}>
-      <div className={cn("flex h-9 items-center rounded-xl pr-1 transition-colors", highlighted ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
-        <button
-          type="button"
-          onClick={() => toggleTeam(team.id)}
-          aria-expanded={expanded}
-          aria-label={`${expanded ? "Collapse" : "Expand"} ${team.name}`}
-          className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-        </button>
-        <Link href={routes.team(ws.slug, team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 text-[13px] font-semibold">
+      {/* The tile sits under the menu's icons; the chevron follows the name, clear of the "…" on the right. */}
+      <div className={cn("flex h-9 items-center rounded-xl pr-1 pl-2.5 transition-colors", highlighted ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/70")}>
+        <Link href={routes.team(ws.slug, team.id)} className="flex min-w-0 items-center gap-2.5 text-[13px] font-semibold">
           {/* The icon on a faint tile of the team's colour, as the Admin team wears it: where each team starts reads at a glance. */}
           <span className="flex size-6 shrink-0 items-center justify-center rounded-[7px]" style={{ background: `color-mix(in oklab, ${colors.hex} 18%, transparent)` }}>
             <DynamicIcon name={team.icon} className={cn("size-3.5", colors.text)} />
           </span>
           <span className="truncate">{team.name}</span>
         </Link>
+        <button
+          type="button"
+          onClick={() => toggleTeam(team.id)}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${team.name}`}
+          className="ml-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+          data-testid="sidebar-team-toggle"
+        >
+          {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+        </button>
+        <span className="flex-1" />
         {/* Tasks across the team's boards, in the team's colour; the … takes its place on hover. */}
         {showCounts && <TeamItemCount boardIds={boards.map((b) => b.id)} color={team.color} className="transition-opacity group-hover/menu:opacity-0" />}
       </div>
@@ -1018,7 +1021,7 @@ function TeamNode({
       {expanded && (
         // A thin solid line in the team's colour runs down from its tile, so the open list visibly belongs to it.
         // A real 1px border: a border snaps to the screen's pixels, a drawn 1px box can smear across two.
-        <ul className="mt-1 ml-[39px] space-y-1 border-l pl-2" style={{ borderColor: `color-mix(in oklab, ${colors.hex} 55%, transparent)` }}>
+        <ul className="mt-1 ml-[21px] space-y-1 border-l pl-2" style={{ borderColor: `color-mix(in oklab, ${colors.hex} 55%, transparent)` }}>
           {boards.length === 0 && trackers.length === 0 && docs.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">Nothing here yet</li>}
           {boards.map((board) => (
             <BoardLink
@@ -1133,7 +1136,7 @@ function AdminNode({
           href={routes.team(ws.slug, team.id)}
           aria-current={activeTeam ? "page" : undefined}
           className={cn(
-            "flex h-9 items-center gap-2.5 rounded-lg px-1.5 pr-8 text-[13px] font-semibold transition-colors",
+            "flex h-9 items-center gap-2.5 rounded-lg pr-8 pl-2.5 text-[13px] font-semibold transition-colors",
             activeTeam ? "bg-[color-mix(in_oklab,var(--team)_16%,transparent)]" : "hover:bg-[color-mix(in_oklab,var(--team)_14%,transparent)]",
           )}
         >

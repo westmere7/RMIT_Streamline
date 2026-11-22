@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.153.1",
+    date: "2026-11-22",
+    title: "Teams line up with the menu",
+    changes: [
+      "In the sidebar, team icons line up with the menu's; the open and close arrow follows the team's name."
+    ],
+  },
+  {
     version: "0.153.0",
     date: "2026-11-22",
     title: "Make a task to link to",
