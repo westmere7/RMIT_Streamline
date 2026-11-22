@@ -57,3 +57,21 @@ export function serverRequesterDirectory(): RequesterDirectory {
     },
   };
 }
+
+/**
+ * The name to fill in on a booking form for an email, or null.
+ *
+ * Someone who booked before (a pending member the form added) is filled in for
+ * anyone holding the link. A joined member of staff only for a signed-in
+ * member: a public form must not tell a visitor whose email belongs to the
+ * team, nor their name.
+ */
+export async function formNameFor(workspaceId: string, email: string, signedInMember: boolean): Promise<string | null> {
+  const admin = getSupabaseAdminClient();
+  const found = await serverRequesterDirectory().find(workspaceId, email);
+  if (!found) return null;
+  if (signedInMember) return found.name;
+  const seat = await admin.from("workspace_members").select("status").eq("workspace_id", workspaceId).eq("user_id", found.userId).maybeSingle();
+  if (seat.error) throw new HttpError(500, `workspace_members.status: ${seat.error.message}`);
+  return (seat.data as { status: string } | null)?.status === "ACTIVE" ? null : found.name;
+}

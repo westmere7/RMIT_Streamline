@@ -8,7 +8,7 @@ import { createServices, type Services } from "@/services";
 import { BookingValidationError } from "@/services/booking-service";
 import { bookingRequestSchema } from "@/services/booking";
 import { HttpError } from "./http";
-import { serverRequesterDirectory } from "./requesters";
+import { formNameFor, serverRequesterDirectory } from "./requesters";
 
 /**
  * Task booking for the Supabase provider.
@@ -36,10 +36,10 @@ export const requesterLookupSchema = z.object({
 
 /** The name the workspace has for an email, for the form to fill in. Same access as booking. */
 export async function lookupRequester(request: Request, slug: string, key: string | null, email: string): Promise<{ name: string | null }> {
-  const { workspaceId } = await authorise(request, slug, key);
+  const { workspaceId, memberId } = await authorise(request, slug, key);
   const clean = email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return { name: null };
-  return { name: (await serverRequesterDirectory().find(workspaceId, clean))?.name ?? null };
+  return { name: await formNameFor(workspaceId, clean, memberId !== null) };
 }
 
 /**

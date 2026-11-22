@@ -1,6 +1,6 @@
 import { handleRoute, json, readJson } from "@/server/http";
 import { admitPortal, portalRequesterSchema, portalServices } from "@/server/portal";
-import { serverRequesterDirectory } from "@/server/requesters";
+import { formNameFor } from "@/server/requesters";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +13,6 @@ export const POST = handleRoute(async (request: Request, { params }: Context) =>
   const resolved = await admitPortal(portalServices(), decodeURIComponent(token), body, "booking");
   const email = body.email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ name: null });
-  return json({ name: (await serverRequesterDirectory().find(resolved.workspaceId, email))?.name ?? null });
+  // A stakeholder who booked before is filled in; a member of staff is not named to a portal visitor.
+  return json({ name: await formNameFor(resolved.workspaceId, email, false) });
 });
