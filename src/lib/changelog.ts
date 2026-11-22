@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.145.0",
+    date: "2026-11-22",
+    title: "Hours and units in the dashboard's lists",
+    changes: [
+      "Opening the tasks behind a dashboard figure in hours or asset units now shows what each task added to it, in a column of its own, totalled beside the task count and sorted biggest first (Due date and the other sorts are still there).",
+      "It follows the figure: Effort and Asset units, a month, a team, a department, an asset type, a work type and a person's workload. Figures in tasks keep the plain list, where the list is the count.",
+    ],
+  },
+  {
     version: "0.144.0",
     date: "2026-11-22",
     title: "Portal and booking switch separately",

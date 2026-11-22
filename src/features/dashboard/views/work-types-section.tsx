@@ -4,12 +4,12 @@ import { ArrowDownRight, ArrowUpRight, Minus, Sparkles } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatHours, MIN_RADAR_WORK_TYPES, normaliseWorkTypes } from "@/domain";
+import { formatHours, MIN_RADAR_WORK_TYPES, normaliseWorkTypes, workTypesOf } from "@/domain";
 import { formatCount, niceScale, usePrefersReducedMotion } from "@/features/dashboard/charts/chart-utils";
 import { useRevealed, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty } from "@/features/dashboard/charts/ranked-bars";
 import type { DashboardFacts } from "@/features/dashboard/analytics";
-import { useDrill } from "@/features/dashboard/drill/drill";
+import { amountOfLines, useDrill } from "@/features/dashboard/drill/drill";
 import { Panel } from "@/features/dashboard/panels";
 import { workTypeContributors, workTypeProfile, type WorkTypeRow } from "@/features/dashboard/work-types";
 import { colorClasses } from "@/lib/colors";
@@ -53,6 +53,12 @@ export function WorkTypeProfilePanel({ facts, report, rates, measure, workTypes:
       title: row.workType.name,
       subtitle: `${report.period.label} · ${row.topTypes.map((t) => t.type).slice(0, 3).join(", ") || "no deliverables"}${person ? ` · ${facts.users.get(person)?.displayName ?? ""}` : ""}`,
       tasks: facts.tasks.filter((t) => row.taskIds.has(t.id)),
+      // The lines this work type added up, for the person on show if one is.
+      amount: amountOfLines(
+        current.filter((a) => (person === null || a.assignees.includes(person)) && workTypesOf(workTypes, a.type).some((w) => w.id === row.workType.id)),
+        measure,
+        rates,
+      ),
     });
 
   const subjectPicker = contributors.length > 0 && (

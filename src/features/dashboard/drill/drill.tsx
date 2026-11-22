@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { effortHours, type AssetRates } from "@/domain";
 import type { DashboardFacts, TaskFact } from "@/features/dashboard/analytics";
-import { addDays, departmentKeyOf, volumeIn, type MeasureKind, type ReportingBasis, type ResolvedPeriod } from "@/features/dashboard/metrics";
+import { addDays, departmentKeyOf, volumeIn, type MeasureKind, type ReportingBasis, type ResolvedPeriod, type TaskValue } from "@/features/dashboard/metrics";
 
 /**
  * The tasks behind a figure.
@@ -20,6 +21,37 @@ export interface DrillRequest {
   /** What the set is, in a few words: "Done in 2026 · Editorial". */
   subtitle?: string;
   tasks: readonly TaskFact[];
+  /**
+   * What each task added to the figure, when the figure is in hours or units:
+   * the list shows it as a column, totals it and sorts by it. Absent for a
+   * figure in tasks, where the list itself is the count.
+   */
+  amount?: DrillAmount;
+}
+
+export interface DrillAmount {
+  unit: "hours" | "units";
+  byTask: ReadonlyMap<string, number>;
+}
+
+/**
+ * The amount from the deliverable lines a figure added up (a month's, a type's,
+ * the period's), so the column totals to the figure. Nothing in tasks.
+ */
+export function amountOfLines(lines: ReadonlyArray<{ taskId: string; type: string; units: number }>, measure: MeasureKind, rates: AssetRates): DrillAmount | undefined {
+  if (measure === "tasks") return undefined;
+  const byTask = new Map<string, number>();
+  for (const line of lines) {
+    const value = measure === "effort" ? effortHours([{ type: line.type, units: line.units }], rates) : line.units;
+    byTask.set(line.taskId, (byTask.get(line.taskId) ?? 0) + value);
+  }
+  return { unit: measure === "effort" ? "hours" : "units", byTask };
+}
+
+/** The amount from a figure that sums whole tasks (by team, by department, workload). Nothing in tasks. */
+export function amountOfTasks(tasks: readonly TaskFact[], measure: MeasureKind, valueOf: TaskValue): DrillAmount | undefined {
+  if (measure === "tasks") return undefined;
+  return { unit: measure === "effort" ? "hours" : "units", byTask: new Map(tasks.map((t) => [t.id, valueOf(t)])) };
 }
 
 const DrillContext = React.createContext<((request: DrillRequest) => void) | null>(null);
@@ -56,9 +88,17 @@ const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "Ju
  * tasks placed in that month; in units or hours, the tasks whose deliverables
  * fell in it — which is what the bar added up.
  */
-export function monthTasks(facts: DashboardFacts, period: ResolvedPeriod, basis: ReportingBasis, teamIds: string[] | null, measure: MeasureKind, month: number, series: "current" | "comparison" | "outlook"): { label: string; tasks: TaskFact[] } {
+export function monthTasks(
+  facts: DashboardFacts,
+  period: ResolvedPeriod,
+  basis: ReportingBasis,
+  teamIds: string[] | null,
+  measure: MeasureKind,
+  month: number,
+  series: "current" | "comparison" | "outlook",
+): { label: string; tasks: TaskFact[]; lines: ReadonlyArray<{ taskId: string; type: string; units: number }> } {
   const base = series === "current" ? period.current : period.comparison;
-  if (!base) return { label: "", tasks: [] };
+  if (!base) return { label: "", tasks: [], lines: [] };
   const year = Number(base.from.slice(0, 4));
   const pad = (n: number) => String(n).padStart(2, "0");
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -71,9 +111,9 @@ export function monthTasks(facts: DashboardFacts, period: ResolvedPeriod, basis:
   }
   const slice = volumeIn(facts, { from, to }, basis, teamIds);
   const label = `${MONTH_NAMES[month - 1]} ${year}`;
-  if (measure === "tasks") return { label, tasks: slice.tasks };
+  if (measure === "tasks") return { label, tasks: slice.tasks, lines: [] };
   const ids = new Set(slice.assets.map((a) => a.taskId));
-  return { label, tasks: facts.tasks.filter((t) => ids.has(t.id)) };
+  return { label, tasks: facts.tasks.filter((t) => ids.has(t.id)), lines: slice.assets };
 }
 
 /** The tasks holding deliverables of one type, among the period's asset lines. */

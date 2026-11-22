@@ -6,7 +6,8 @@ import { AvatarStack } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { User } from "@/domain";
+import { formatHours, type User } from "@/domain";
+import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import type { TaskFact } from "@/features/dashboard/analytics";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const NO_TASKS: readonly TaskFact[] = [];
 const PAGE_SIZE = 50;
 
 const SORTS = [
+  { key: "amount", label: "Amount" },
   { key: "due", label: "Due date" },
   { key: "created", label: "Created" },
   { key: "finished", label: "Finished" },
@@ -47,7 +49,7 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
   const [query, setQuery] = React.useState("");
   const [state, setState] = React.useState<StateKey>("all");
   const [team, setTeam] = React.useState<string>("all");
-  const [sort, setSort] = React.useState<SortKey>("due");
+  const [sort, setSort] = React.useState<SortKey>(request?.amount ? "amount" : "due");
   const [page, setPage] = React.useState(0);
 
   // A new figure starts clean: its own filters, its first page.
@@ -57,9 +59,16 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
     setQuery("");
     setState("all");
     setTeam("all");
-    setSort("due");
+    // A figure in hours or units opens on its biggest contributors.
+    setSort(request?.amount ? "amount" : "due");
     setPage(0);
   }
+
+  const amount = request?.amount ?? null;
+  const amountOf = (t: TaskFact) => amount?.byTask.get(t.id) ?? 0;
+  const formatAmount = (value: number) => (amount?.unit === "hours" ? formatHours(value) : formatCount(value));
+  const amountLabel = amount?.unit === "hours" ? "Hours" : "Units";
+  const sorts = amount ? SORTS.map((s) => (s.key === "amount" ? { ...s, label: amountLabel } : s)) : SORTS.filter((s) => s.key !== "amount");
 
   const tasks = request?.tasks ?? NO_TASKS;
   const teams = React.useMemo(() => [...new Map(tasks.map((t) => [t.team.id, t.team.name])).entries()].sort((a, b) => a[1].localeCompare(b[1])), [tasks]);
@@ -71,11 +80,14 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
         (team === "all" || t.team.id === team) &&
         (!q || t.name.toLowerCase().includes(q) || (t.ticket ?? "").toLowerCase().includes(q) || t.boardName.toLowerCase().includes(q)),
     );
+    if (sort === "amount" && amount) return [...rows].sort((a, b) => (amount.byTask.get(b.id) ?? 0) - (amount.byTask.get(a.id) ?? 0) || a.name.localeCompare(b.name));
     const key = (t: TaskFact): string => (sort === "due" ? (t.dueDate ?? "9999") : sort === "created" ? t.createdAt : sort === "finished" ? (t.flow.finishedAt ?? t.completedAt ?? "") : t.name.toLowerCase());
     // Dates newest first except due dates, which read soonest first; names A to Z.
     const dir = sort === "created" || sort === "finished" ? -1 : 1;
     return [...rows].sort((a, b) => key(a).localeCompare(key(b)) * dir || a.name.localeCompare(b.name));
-  }, [tasks, query, state, team, sort]);
+  }, [tasks, query, state, team, sort, amount]);
+  const total = amount ? tasks.reduce((sum, t) => sum + (amount.byTask.get(t.id) ?? 0), 0) : 0;
+  const filteredTotal = amount ? filtered.reduce((sum, t) => sum + (amount.byTask.get(t.id) ?? 0), 0) : 0;
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages - 1);
@@ -88,7 +100,16 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
         <DialogHeader className="border-b border-border/60 px-5 pt-4 pb-3">
           <DialogTitle className="flex items-baseline gap-2 pr-8">
             {request?.title}
-            <span className="text-[13px] font-normal text-muted-foreground tabular">{tasks.length.toLocaleString()} {tasks.length === 1 ? "task" : "tasks"}</span>
+            <span className="text-[13px] font-normal text-muted-foreground tabular">
+              {tasks.length.toLocaleString()} {tasks.length === 1 ? "task" : "tasks"}
+              {amount && (
+                <span data-testid="dashboard-task-list-total">
+                  {" · "}
+                  {formatAmount(total)}
+                  {amount.unit === "units" ? " units" : ""}
+                </span>
+              )}
+            </span>
           </DialogTitle>
           <DialogDescription>{request?.subtitle ?? "The tasks behind this figure."}</DialogDescription>
         </DialogHeader>
@@ -132,7 +153,7 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
           <label className="ml-auto flex items-center gap-1.5 text-2xs text-muted-foreground">
             Sort
             <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)} className="h-8 rounded-md border border-border/70 bg-card px-2 text-[13px] text-foreground" data-testid="dashboard-task-list-sort">
-              {SORTS.map((s) => (
+              {sorts.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.label}
                 </option>
@@ -158,6 +179,7 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                   <th className="w-36 py-2 pr-3 text-left font-medium">Status</th>
                   <th className="w-24 py-2 pr-3 text-left font-medium">PIC</th>
                   <th className="w-32 py-2 pr-3 text-left font-medium">Department</th>
+                  {amount && <th className="w-20 py-2 pr-4 text-right font-medium">{amountLabel}</th>}
                   <th className="w-24 py-2 pr-3 text-left font-medium">Due</th>
                   <th className="w-24 py-2 pr-5 text-left font-medium">Finished</th>
                 </tr>
@@ -195,6 +217,11 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                       </td>
                       <td className="py-2 pr-3">{owners.length ? <AvatarStack users={owners} size="xs" max={3} /> : <span className="text-muted-foreground">—</span>}</td>
                       <td className="truncate py-2 pr-3 text-muted-foreground">{task.department?.name ?? "—"}</td>
+                      {amount && (
+                        <td className="py-2 pr-4 text-right font-medium tabular" data-testid="dashboard-task-list-amount">
+                          {formatAmount(amountOf(task))}
+                        </td>
+                      )}
                       <td className={cn("py-2 pr-3 tabular", late ? "font-medium text-red-600 dark:text-red-400" : "text-muted-foreground")}>{task.dueDate ? formatShortDate(task.dueDate) : "—"}</td>
                       <td className="py-2 pr-5 text-muted-foreground tabular">{task.isDone && finished ? formatShortDate(finished) : "—"}</td>
                     </tr>
@@ -209,6 +236,7 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
           <span className="tabular" data-testid="dashboard-task-list-range">
             {filtered.length === 0 ? "0" : `${(current * PAGE_SIZE + 1).toLocaleString()}–${(current * PAGE_SIZE + rows.length).toLocaleString()}`} of {filtered.length.toLocaleString()}
             {narrowed ? ` (filtered from ${tasks.length.toLocaleString()})` : ""}
+            {amount && narrowed ? ` · ${formatAmount(filteredTotal)}${amount.unit === "units" ? " units" : ""}` : ""}
           </span>
           {pages > 1 && (
             <span className="ml-auto flex items-center gap-1">

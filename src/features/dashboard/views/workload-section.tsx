@@ -13,7 +13,7 @@ import { DashLink } from "@/features/dashboard/components/dash-link";
 import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
-import { useDrill, workloadTasks } from "@/features/dashboard/drill/drill";
+import { amountOfTasks, useDrill, workloadTasks } from "@/features/dashboard/drill/drill";
 import type { DashboardViewProps } from "./types";
 
 const WINDOWS = [2, 4, 8] as const;
@@ -194,7 +194,8 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
                 drill
                   ? (event) => {
                       if ((event.target as HTMLElement).closest("a")) return;
-                      drill({ title: row.name, subtitle: `Open work due within ${prefs.weeks} weeks, late or undated${group ? ` · ${group.name}` : ""}`, tasks: workloadTasks(facts, today, prefs.teamIds, prefs.weeks, row.userId, group?.key ?? null) });
+                      const tasks = workloadTasks(facts, today, prefs.teamIds, prefs.weeks, row.userId, group?.key ?? null);
+                      drill({ title: row.name, subtitle: `Open work due within ${prefs.weeks} weeks, late or undated${group ? ` · ${group.name}` : ""}`, tasks, amount: amountOfTasks(tasks, measure, valueOf) });
                     }
                   : undefined
               }

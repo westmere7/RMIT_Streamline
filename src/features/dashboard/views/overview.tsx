@@ -12,7 +12,7 @@ import { YearComparisonChart } from "@/features/dashboard/components/year-compar
 import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
-import { assetTypeTasks, monthTasks, useDrill } from "@/features/dashboard/drill/drill";
+import { amountOfLines, amountOfTasks, assetTypeTasks, monthTasks, useDrill } from "@/features/dashboard/drill/drill";
 import { FlowSection } from "./flow-section";
 import { ServiceSection } from "./service-section";
 import { WorkTypeProfilePanel } from "./work-types-section";
@@ -128,7 +128,7 @@ export function DashboardBody(props: DashboardViewProps) {
             trendLabels={monthlyEffort.map((row) => row.label)}
             accent={measure === "effort"}
             onSelect={() => set({ measure: "effort" })}
-            onDrill={drill ? () => drill({ title: "Effort", subtitle: `${basisLine} · tasks with rated deliverables`, tasks: scoped.filter((t) => rated.has(t.id)) }) : undefined}
+            onDrill={drill ? () => drill({ title: "Effort", subtitle: `${basisLine} · tasks with rated deliverables`, tasks: scoped.filter((t) => rated.has(t.id)), amount: amountOfLines(scopedAssets, "effort", rates) }) : undefined}
             help="effort"
             testId="dashboard-headline-effort"
           />
@@ -159,7 +159,7 @@ export function DashboardBody(props: DashboardViewProps) {
           trendLabels={monthlyAssets.map((row) => row.label)}
           accent={measure === "assets"}
           onSelect={() => set({ measure: "assets" })}
-          onDrill={drill ? () => drill({ title: "Asset units", subtitle: `${basisLine} · tasks with deliverables`, tasks: scoped.filter((t) => t.assetUnits > 0) }) : undefined}
+          onDrill={drill ? () => drill({ title: "Asset units", subtitle: `${basisLine} · tasks with deliverables`, tasks: scoped.filter((t) => t.assetUnits > 0), amount: amountOfLines(scopedAssets, "assets", rates) }) : undefined}
           help="assets"
           testId="dashboard-headline-assets"
         />
@@ -185,8 +185,8 @@ export function DashboardBody(props: DashboardViewProps) {
             onSelectMonth={
               drill
                 ? (month, series) => {
-                    const { label, tasks } = monthTasks(facts, report.period, prefs.basis, prefs.teamIds, measure, month, series);
-                    drill({ title: label, subtitle: `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${label}${series === "outlook" ? " · the rest of last year" : ""}${measure === "tasks" ? "" : ` · tasks with ${measure === "effort" ? "the hours" : "the units"} in that month`}`, tasks });
+                    const { label, tasks, lines } = monthTasks(facts, report.period, prefs.basis, prefs.teamIds, measure, month, series);
+                    drill({ title: label, subtitle: `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${label}${series === "outlook" ? " · the rest of last year" : ""}${measure === "tasks" ? "" : ` · tasks with ${measure === "effort" ? "the hours" : "the units"} in that month`}`, tasks, amount: amountOfLines(lines, measure, rates) });
                   }
                 : undefined
             }
@@ -204,7 +204,14 @@ export function DashboardBody(props: DashboardViewProps) {
               compact
               emptyMessage="No work in this period."
               hrefOf={links ? (row) => (row.id ? links.team(row.id) : null) : undefined}
-              onSelect={drill ? (row) => drill({ title: row.name, subtitle: `${basisLine} · by team`, tasks: scoped.filter((t) => t.team.id === row.id) }) : undefined}
+              onSelect={
+                drill
+                  ? (row) => {
+                      const tasks = scoped.filter((t) => t.team.id === row.id);
+                      drill({ title: row.name, subtitle: `${basisLine} · by team`, tasks, amount: amountOfTasks(tasks, measure, valueOf) });
+                    }
+                  : undefined
+              }
             />
           </Panel>
           <Panel title="By department" subtitle={unitWord} help="byDepartment" className="p-4" testId="dashboard-by-department">
@@ -212,7 +219,14 @@ export function DashboardBody(props: DashboardViewProps) {
               data={byDepartment.slice(0, 5)}
               compact
               emptyMessage="Nothing carries a department."
-              onSelect={drill ? (row) => drill({ title: row.name, subtitle: `${basisLine} · by department`, tasks: scoped.filter((t) => t.department?.name === row.name) }) : undefined}
+              onSelect={
+                drill
+                  ? (row) => {
+                      const tasks = scoped.filter((t) => t.department?.name === row.name);
+                      drill({ title: row.name, subtitle: `${basisLine} · by department`, tasks, amount: amountOfTasks(tasks, measure, valueOf) });
+                    }
+                  : undefined
+              }
             />
           </Panel>
           <Panel title="Priority" subtitle="tasks" help="priority" className="p-4" testId="dashboard-fourth-mix">
@@ -275,7 +289,22 @@ export function DashboardBody(props: DashboardViewProps) {
             format={byEffort ? formatHours : formatCount}
             emptyMessage={byEffort ? "Nothing in this period has a rate to weigh it by." : "No deliverables in this period."}
             testId="dashboard-asset-treemap"
-            onSelect={drill ? (row) => drill({ title: row.name, subtitle: `${basisLine} · tasks with this asset type`, tasks: assetTypeTasks(facts.tasks, scopedAssets, row.name) }) : undefined}
+            // Units or hours of this type alone, as the map weighs it (units when the page reads tasks).
+            onSelect={
+              drill
+                ? (row) =>
+                    drill({
+                      title: row.name,
+                      subtitle: `${basisLine} · tasks with this asset type`,
+                      tasks: assetTypeTasks(facts.tasks, scopedAssets, row.name),
+                      amount: amountOfLines(
+                        scopedAssets.filter((a) => a.type === row.name),
+                        byEffort ? "effort" : "assets",
+                        rates,
+                      ),
+                    })
+                : undefined
+            }
             className="min-h-0 flex-1"
           />
         </Panel>
