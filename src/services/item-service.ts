@@ -588,6 +588,18 @@ export class ItemService {
     );
   }
 
+  /**
+   * Deletes everything archived on a board, whatever the archive page is
+   * filtered to: each archived task with its subitems, values, updates and
+   * assets. Returns how many tasks went.
+   */
+  async clearArchive(boardId: EntityId, actorId: EntityId): Promise<number> {
+    const archived = (await this.repos.items.listByBoard(boardId, { includeArchived: true })).filter((i) => i.archivedAt !== null && i.parentItemId === null);
+    if (archived.length === 0) return 0;
+    await this.deleteItems(boardId, archived.map((i) => i.id), actorId);
+    return archived.length;
+  }
+
   async deleteItems(boardId: EntityId, itemIds: EntityId[], actorId: EntityId): Promise<void> {
     const items = await this.repos.items.listByIds(itemIds);
     const board = await this.repos.boards.getById(boardId);

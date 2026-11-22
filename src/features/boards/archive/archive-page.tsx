@@ -17,7 +17,7 @@ import { BoardContextProvider, type BoardContextValue } from "@/features/boards/
 import { buildBoardModel } from "@/features/boards/board-model";
 import { ArchiveTable } from "@/features/boards/archive/archive-table";
 import { ArchiveToolbar } from "@/features/boards/archive/archive-toolbar";
-import { useArchiveMutations, useArchivePage } from "@/features/boards/archive/use-archive";
+import { useArchiveCount, useArchiveMutations, useArchivePage } from "@/features/boards/archive/use-archive";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
@@ -82,6 +82,7 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
   const [request, setRequest] = React.useState<ArchiveRequest>(EMPTY_ARCHIVE_REQUEST);
   const [selectedIds, setSelectedIds] = React.useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = React.useState<string[] | null>(null);
+  const [confirmClear, setConfirmClear] = React.useState(false);
   const [now] = React.useState(() => new Date());
 
   // The board's channel, which carries the archive too: an item put away or
@@ -92,6 +93,8 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
 
   const page = useArchivePage(boardId, request, urlItemId);
   const archive = useArchiveMutations(boardId);
+  // The whole archive, not the filtered page: what Clear archive deletes.
+  const archivedCount = useArchiveCount(boardId);
   // The board's own mutations, for the panel: opening a task from the archive
   // shows the same panel, and it expects a board to act on.
   const mutations = useBoardMutations(boardId);
@@ -222,6 +225,7 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
         users={ws.activeUsers}
         extraTags={extraTags}
         loading={page.isFetching}
+        onClear={canManage && (archivedCount.data ?? 0) > 0 ? () => setConfirmClear(true) : undefined}
       />
 
       {page.isError && <ErrorState title="Something went wrong while loading the archive." error={page.error} onRetry={() => page.refetch()} />}
@@ -289,6 +293,19 @@ function ArchiveScreen({ boardId }: { boardId: string }) {
         </BoardContextProvider>
       )}
 
+      <ConfirmDialog
+        open={confirmClear}
+        onOpenChange={setConfirmClear}
+        title={(archivedCount.data ?? 0) === 1 ? "Delete the archived item permanently?" : `Delete all ${pluralize(archivedCount.data ?? 0, "archived item")} permanently?`}
+        description="Everything in this board's archive goes, whatever the filters show, with its updates, assets and history. This cannot be undone."
+        confirmLabel="Clear archive"
+        destructive
+        onConfirm={async () => {
+          setConfirmClear(false);
+          setSelectedIds([]);
+          await archive.clear.mutateAsync();
+        }}
+      />
       <ConfirmDialog
         open={confirmDelete !== null}
         onOpenChange={(open) => !open && setConfirmDelete(null)}

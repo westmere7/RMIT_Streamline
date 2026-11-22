@@ -104,5 +104,15 @@ export function useArchiveMutations(boardId: string) {
     onError: (error) => toast.error("Could not delete", { description: error instanceof Error ? error.message : undefined }),
   });
 
-  return { restore, remove };
+  /** Everything archived on the board, whatever the page is filtered to. */
+  const clear = useMutation({
+    mutationFn: () => services.items.clearArchive(boardId, user.id),
+    onSuccess: async (count) => {
+      await invalidate();
+      toast.success(count === 1 ? "1 archived item deleted" : `${count} archived items deleted`);
+    },
+    onError: (error) => toast.error("Could not clear the archive", { description: error instanceof Error ? error.message : undefined }),
+  });
+
+  return { restore, remove, clear };
 }

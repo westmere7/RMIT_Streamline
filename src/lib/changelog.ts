@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.141.3",
+    date: "2026-11-22",
+    title: "Clear archive",
+    changes: ["A board's archive has Clear archive: everything archived on the board is deleted for good, after a confirmation, whatever the filters show."],
+  },
+  {
     version: "0.141.2",
     date: "2026-11-22",
     title: "Booked by Form stays put",

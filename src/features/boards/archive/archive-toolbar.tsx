@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Filter, LoaderCircle, Search, Tag, UserRound, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Filter, LoaderCircle, Search, Tag, Trash2, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,8 @@ export interface ArchiveToolbarProps {
   /** Tags seen on the pages read so far, on top of the board's own palette. */
   extraTags: string[];
   loading: boolean;
+  /** Offered to people who can edit the board while anything is archived: empties the whole archive. */
+  onClear?: () => void;
 }
 
 /**
@@ -36,7 +38,7 @@ export interface ArchiveToolbarProps {
  * left runs against the whole archive, not the page on screen, because the
  * database is what does the filtering.
  */
-export function ArchiveToolbar({ request, onChange, groups, columns, users, extraTags, loading }: ArchiveToolbarProps) {
+export function ArchiveToolbar({ request, onChange, groups, columns, users, extraTags, loading, onClear }: ArchiveToolbarProps) {
   const { filters } = request;
   const filterCount = archiveFilterCount(filters);
   const setFilters = (patch: Partial<ArchiveFilters>) => onChange({ filters: { ...filters, ...patch } });
@@ -87,6 +89,11 @@ export function ArchiveToolbar({ request, onChange, groups, columns, users, extr
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
+        {onClear && (
+          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive" onClick={onClear} data-testid="archive-clear">
+            <Trash2 /> Clear archive
+          </Button>
+        )}
         {hasPeople && (
           <FilterPopover
             testId="archive-person-filter"
