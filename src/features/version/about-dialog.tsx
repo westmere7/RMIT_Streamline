@@ -8,6 +8,7 @@ import { BrandLogo } from "@/features/auth/components/auth-shell";
 import { useBugReportDialog } from "@/features/bug-report/bug-report-dialog";
 import { useDataContext } from "@/features/data/data-context";
 import { ChangelogDialog } from "@/features/version/changelog-dialog";
+import { TechStackDialog } from "@/features/version/tech-stack-dialog";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { BACKEND_REGION, DEPLOY_ENV, getAppConfig, supabaseProjectRef } from "@/lib/config";
 import { CURRENT_VERSION, shortBuildId } from "@/lib/version";
@@ -25,6 +26,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const built = CURRENT_VERSION.builtAt ? new Date(CURRENT_VERSION.builtAt) : null;
   const projectRef = providerKind === "supabase" ? supabaseProjectRef(getAppConfig().supabaseUrl) : null;
   const [changelogOpen, setChangelogOpen] = React.useState(false);
+  const [stackOpen, setStackOpen] = React.useState(false);
   const reportBug = useBugReportDialog((s) => s.show);
 
   return (
@@ -96,7 +98,15 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         <footer className="rounded-b-2xl border-t border-border/70 bg-surface/60 px-6 py-3.5 sm:px-10" data-testid="about-facts">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
             <Fact label="Workspace" value={ws.workspace.name} />
-            <Fact label="Data" value={providerKind === "supabase" ? "Server · shared" : "This browser only"} />
+            <div className="min-w-0">
+              <dt className="text-[10px] font-semibold tracking-wide text-muted-foreground/80 uppercase">Tech stack</dt>
+              <dd>
+                <button type="button" onClick={() => setStackOpen(true)} className="group inline-flex max-w-full items-center gap-0.5 text-2xs font-medium text-primary hover:underline" data-testid="about-tech-stack">
+                  <span className="truncate">Next.js · React · Supabase</span>
+                  <ChevronRight className="size-3 shrink-0 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </button>
+              </dd>
+            </div>
             <Fact label="Deployment" value={DEPLOY_ENV} />
             <Fact label="Commit" value={shortBuildId(CURRENT_VERSION.buildId)} mono />
             <Fact label="Backend region" value={BACKEND_REGION ?? (projectRef ? `${projectRef} · region not set` : "—")} />
@@ -112,6 +122,7 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         </footer>
       </DialogContent>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
+      <TechStackDialog open={stackOpen} onOpenChange={setStackOpen} />
     </Dialog>
   );
 }

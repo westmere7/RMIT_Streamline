@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.150.2",
+    date: "2026-11-22",
+    title: "The tech stack in About",
+    changes: [
+      "About lists what Streamline is built with: open Tech stack at the bottom.",
+    ],
+  },
+  {
     version: "0.150.1",
     date: "2026-11-22",
     title: "Teams are run by admins",
