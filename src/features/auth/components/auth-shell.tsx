@@ -176,7 +176,7 @@ export function BrandMark({ className, pulse }: { className?: string; pulse?: bo
  * The Streamline wordmark. Three artworks ship: one drawn for light backgrounds,
  * one for dark, and one with white lettering for the navy panel, where the dark
  * artwork's grey would read as washed out. "auto" swaps light and dark with the
- * theme (dim counts as dark, since it carries the same `dark` class).
+ * theme.
  */
 export function BrandLogo({ className, tone = "auto" }: { className?: string; tone?: "auto" | "onNavy" }) {
   if (tone === "onNavy") {

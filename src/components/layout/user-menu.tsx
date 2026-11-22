@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Bug, Building2, ChevronsUpDown, Database, Eye, Info, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunDim, SunMoon, UserRound, Users, Wrench } from "lucide-react";
+import { Bug, Building2, ChevronsUpDown, Database, Eye, Info, LogOut, MessageSquare, Monitor, Moon, RotateCcw, Settings, Sun, SunMoon, UserRound, Users, Wrench } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -132,9 +132,6 @@ export function UserMenu({ collapsed }: { collapsed: boolean }) {
               <DropdownMenuRadioGroup value={theme} onValueChange={(value) => setTheme(value as ThemePreference)}>
                 <DropdownMenuRadioItem value="light">
                   <Sun className="size-4 text-muted-foreground" /> Light
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dim">
-                  <SunDim className="size-4 text-muted-foreground" /> Dim
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="dark">
                   <Moon className="size-4 text-muted-foreground" /> Dark

@@ -73,7 +73,7 @@ const TYPE_SCALE: Array<{ name: string; className: string; sample: string }> = [
   { name: "Caption · 11 medium", className: "text-2xs font-medium text-muted-foreground", sample: "93 items" },
 ];
 
-const THEMES = ["light", "dark", "dim"] as const;
+const THEMES = ["light", "dark"] as const;
 
 export function DesignKit() {
   const params = useSearchParams();
@@ -82,7 +82,7 @@ export function DesignKit() {
   const [on, setOn] = React.useState(true);
 
   return (
-    <div className={cn(theme === "light" ? "light" : "dark", theme === "dim" && "dim", "min-h-screen bg-canvas text-foreground")} data-testid="design-kit">
+    <div className={cn(theme === "light" ? "light" : "dark", "min-h-screen bg-canvas text-foreground")} data-testid="design-kit">
       <div className="mx-auto max-w-[1280px] space-y-8 px-10 py-10">
         <header className="flex items-end justify-between gap-4">
           <div>

@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.148.1",
+    date: "2026-11-22",
+    title: "No more Dim theme",
+    changes: [
+      "The Dim theme is gone: the app is Light, Dark or System. Anyone who had chosen Dim now sees Dark.",
+    ],
+  },
+  {
     version: "0.148.0",
     date: "2026-11-22",
     title: "Auto-allocation picks the group",

@@ -3,26 +3,28 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 export const THEME_STORAGE_KEY = "streamline.theme";
-export const THEME_PREFERENCES = ["light", "dim", "dark", "system"] as const;
+export const THEME_PREFERENCES = ["light", "dark", "system"] as const;
 export type ThemePreference = (typeof THEME_PREFERENCES)[number];
 
 const listeners = new Set<() => void>();
 
 function isPreference(value: string | null): value is ThemePreference {
-  return value === "light" || value === "dim" || value === "dark" || value === "system";
+  return value === "light" || value === "dark" || value === "system";
 }
 
 export function readThemePreference(): ThemePreference {
   if (typeof window === "undefined") return "system";
   try {
     const raw = window.localStorage.getItem(THEME_STORAGE_KEY);
+    // The Dim theme is gone; whoever chose it gets Dark, its nearest.
+    if (raw === "dim") return "dark";
     return isPreference(raw) ? raw : "system";
   } catch {
     return "system";
   }
 }
 
-export type ResolvedTheme = "light" | "dim" | "dark";
+export type ResolvedTheme = "light" | "dark";
 
 export function resolveTheme(preference: ThemePreference): ResolvedTheme {
   if (preference !== "system") return preference;
@@ -31,16 +33,15 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
 }
 
 /**
- * Toggles the `dark` (and `dim`) classes on <html>. "Dim" is a mid-tone navy theme that
- * reuses every dark variant but overrides the surface tokens (see globals.css).
- * Mirrors the inline bootstrap script in the root layout.
+ * Toggles the `dark` class on <html>, and clears the old `dim` class should a
+ * page still carry it. Mirrors the inline bootstrap script in the root layout.
  */
 export function applyThemePreference(preference: ThemePreference): void {
   if (typeof document === "undefined") return;
   const resolved = resolveTheme(preference);
-  const dark = resolved !== "light";
+  const dark = resolved === "dark";
   document.documentElement.classList.toggle("dark", dark);
-  document.documentElement.classList.toggle("dim", resolved === "dim");
+  document.documentElement.classList.remove("dim");
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
 }
 
@@ -70,7 +71,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 /** Inline script (runs before hydration) so the first paint already has the right theme. */
-export const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var c=document.documentElement.classList;var d=t==="dark"||t==="dim"||((t===null||t==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(d){c.add("dark");document.documentElement.style.colorScheme="dark";}if(t==="dim"){c.add("dim");}}catch(e){}})();`;
+export const THEME_BOOTSTRAP_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});var c=document.documentElement.classList;var d=t==="dark"||t==="dim"||((t===null||t==="system")&&window.matchMedia("(prefers-color-scheme: dark)").matches);if(d){c.add("dark");document.documentElement.style.colorScheme="dark";}}catch(e){}})();`;
 
 export function useThemePreference(): [ThemePreference, (preference: ThemePreference) => void] {
   const preference = useSyncExternalStore(subscribe, readThemePreference, () => "system" as ThemePreference);

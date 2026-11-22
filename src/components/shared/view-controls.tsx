@@ -123,11 +123,11 @@ export function ViewControls({
 
 /**
  * The viewer's own app theme as a view control, for pages whose link carries no
- * theme of its own. Dim shows as dark: a visitor is offered light or dark.
+ * theme of its own.
  */
 export function useAppThemeControl(): ViewThemeControl {
   const [preference, setPreference] = useThemePreference();
-  return { value: preference === "dim" ? "dark" : preference, set: setPreference };
+  return { value: preference, set: setPreference };
 }
 
 /**

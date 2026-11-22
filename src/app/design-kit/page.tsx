@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Design kit", robots: { index: false 
 /**
  * Every component the app is drawn with, on one page, for capturing into Figma
  * (see design/figma/README.md). Development only: production answers 404.
- * `?theme=dark` or `?theme=dim` draws it in the other themes.
+ * `?theme=dark` draws it in the dark theme.
  */
 export default function DesignKitPage() {
   if (process.env.NODE_ENV === "production") notFound();

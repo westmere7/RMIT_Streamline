@@ -18,7 +18,7 @@ import { routes } from "@/lib/routes";
 import { useThemePreference, THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
-const THEME_ICONS: Record<ThemePreference, React.ComponentType<{ className?: string }>> = { light: Sun, dim: Moon, dark: Moon, system: SunMoon };
+const THEME_ICONS: Record<ThemePreference, React.ComponentType<{ className?: string }>> = { light: Sun, dark: Moon, system: SunMoon };
 
 /**
  * Everything the bottom bar has no room for: the pages reached now and then,

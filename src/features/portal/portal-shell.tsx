@@ -104,8 +104,6 @@ export function PortalThemeScope({
   React.useLayoutEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", dark);
-    // "Dim" is the app's own in-between theme; a portal is light or dark.
-    root.classList.remove("dim");
     root.style.colorScheme = dark ? "dark" : "light";
   }, [dark]);
   // Leaving the portal for the app within the same tab gives the app its own theme back.
