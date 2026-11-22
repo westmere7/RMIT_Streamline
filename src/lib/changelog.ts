@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.2",
+    date: "2026-11-22",
+    title: "Ticket prefixes stay in their workspace",
+    changes: [
+      "Only an admin of a workspace can rewrite its ticket prefix; someone signed in to another workspace no longer can.",
+    ],
+  },
+  {
     version: "0.149.1",
     date: "2026-11-22",
     title: "Tighter database functions",

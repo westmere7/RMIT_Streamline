@@ -178,3 +178,4 @@ migrations/0135_items_allocated_at.sql
 migrations/0136_intake_booked_tasks_only.sql
 migrations/0137_automation_board_moves.sql
 migrations/0138_lock_definer_functions.sql
+migrations/0139_ticket_prefix_non_members.sql
