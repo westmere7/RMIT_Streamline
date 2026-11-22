@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.0",
+    date: "2026-11-22",
+    title: "Book via form on Task Allocation",
+    changes: ["While the booking form takes requests, Task Allocation's New Item becomes Book via form: the same form opens over the board, filled in from your account, and closing it leaves the board as it was."],
+  },
+  {
     version: "0.142.0",
     date: "2026-11-22",
     title: "Choose what Assets recap shows",

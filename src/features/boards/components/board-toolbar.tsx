@@ -29,6 +29,7 @@ import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { activeFilterCount, sortFieldColumnId, useBoardUi, useBoardUiStore, type DateFilter, type SortField } from "@/stores/board-ui-store";
+import { BookViaFormButton, useBookingFormOpen } from "@/features/booking/book-via-form-dialog";
 
 const SORT_LABELS: Record<Exclude<SortField, `column:${string}`>, string> = { name: "Item name", dueDate: "Due date", priority: "Priority", status: "Status", createdAt: "Created date" };
 const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
@@ -540,7 +541,21 @@ function FilterOption({ label, color, checked, onChange }: { label: string; colo
   );
 }
 
+/**
+ * New Item, or on Task Allocation while the booking form takes requests,
+ * Book via form: a request belongs on the form, which opens over the board.
+ */
 function NewItemButton() {
+  const { board } = useBoardContext();
+  return board.system === "TASK_ALLOCATION" ? <TaskAllocationNewItem /> : <NewItemPopover />;
+}
+
+function TaskAllocationNewItem() {
+  const open = useBookingFormOpen();
+  return open ? <BookViaFormButton /> : <NewItemPopover />;
+}
+
+function NewItemPopover() {
   const { board, model, mutations, openItem } = useBoardContext();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
