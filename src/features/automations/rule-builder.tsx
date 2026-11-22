@@ -770,6 +770,7 @@ function ActionEditor({
 
       {action.kind === "move_to_group" && (
         <Picker
+          // Booked by Form stays on offer: a booked task may be sent back there.
           value={action.groupId}
           label="Group"
           onChange={(groupId) => onChange({ ...action, groupId })}
@@ -898,10 +899,11 @@ function ActionEditor({
           />
           {action.kind === "create_item" && (
             <Picker
-              value={action.groupId ?? (vocabulary.groups[0]?.id ?? "")}
+              value={action.groupId ?? (handGroups(vocabulary)[0]?.id ?? "")}
               label="Group"
               onChange={(groupId) => onChange({ ...action, groupId })}
-              options={vocabulary.groups.map((g) => ({ value: g.id, label: `in ${g.name}` }))}
+              // Not Booked by Form: it takes bookings only, so a task made there is refused.
+              options={handGroups(vocabulary).map((g) => ({ value: g.id, label: `in ${g.name}` }))}
             />
           )}
         </>
@@ -1135,7 +1137,7 @@ function defaultAction(allowed: readonly AutomationActionKind[], vocabulary: Rul
     case "clear_value":
       return { kind: "clear_value", columnId: firstOf(() => true) };
     case "move_to_group":
-      return { kind: "move_to_group", groupId: vocabulary.groups[0]?.id ?? "" };
+      return { kind: "move_to_group", groupId: (handGroups(vocabulary)[0] ?? vocabulary.groups[0])?.id ?? "" };
     case "assign_person":
       return { kind: "assign_person", columnId: firstOf(isPeopleColumn), userIds: [], useActor: true };
     case "unassign_person":
@@ -1147,7 +1149,7 @@ function defaultAction(allowed: readonly AutomationActionKind[], vocabulary: Rul
     case "add_comment":
       return { kind: "add_comment", body: "{actor} changed something on {item}." };
     case "create_item":
-      return { kind: "create_item", groupId: vocabulary.groups[0]?.id ?? null, name: "Follow up on {item}" };
+      return { kind: "create_item", groupId: handGroups(vocabulary)[0]?.id ?? null, name: "Follow up on {item}" };
     case "create_subitem":
       return { kind: "create_subitem", name: "Check {item}" };
     case "archive_item":
@@ -1191,4 +1193,9 @@ function toLocalInput(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** The groups a task can be put in by hand: every group but Task Allocation's Booked by Form, which takes bookings only. */
+function handGroups(vocabulary: Pick<RuleVocabulary, "groups">): RuleVocabulary["groups"] {
+  return vocabulary.groups.filter((g) => g.role !== "INTAKE");
 }

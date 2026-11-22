@@ -404,7 +404,23 @@ export interface AutomationEventPayload {
   /** For `item_renamed`: what it was called, and what it is called now. `item_created` carries `toName` too. */
   fromName?: string | null;
   toName?: string | null;
+  /**
+   * A task that changed boards (allocated, re-allocated, moved): `arrived` on
+   * the `item_created` filed on the board it reached, `left` on the
+   * `item_moved` filed on the board it left, with the board on the other side.
+   */
+  arrived?: boolean;
+  left?: boolean;
+  fromBoardId?: EntityId | null;
+  toBoardId?: EntityId | null;
 }
+
+/**
+ * What a rule may still do for a task that has left its board: tell people, say
+ * something on the task, make a task on its own board, call a webhook. Anything
+ * else would write this board's columns or groups into a task on another board.
+ */
+export const DEPARTED_TASK_ACTIONS: readonly AutomationAction["kind"][] = ["notify", "add_comment", "create_item", "send_webhook"];
 
 /**
  * The phrases a keyword trigger is listening for, from what was typed:

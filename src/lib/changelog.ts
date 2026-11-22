@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.0",
+    date: "2026-11-22",
+    title: "Automations and tasks that change boards",
+    changes: [
+      "A task that arrives on a board, by allocation, re-allocation or Move to board, now counts as created there: 'When a task is created' rules on that board run for it, once, not once per subitem.",
+      "The board it left hears it go: 'When a task leaves a group' rules there run, and may notify, comment, create a task or call a webhook, but not change the task, which is no longer on that board.",
+      "A rule waiting to run on a task that has since moved to another board is skipped and says so in Activity, instead of writing into it.",
+      "On Task Allocation, 'Create a task' never lands in Booked by Form: the builder leaves it out, a rule with no group uses the first other group, and so does the weekly review recipe.",
+    ],
+  },
+  {
     version: "0.148.3",
     date: "2026-11-22",
     title: "A bigger logo in About",

@@ -162,9 +162,10 @@ export const RECIPES: Recipe[] = [
     title: "Create a weekly review task",
     description: "Every Monday at nine, a task appears in the board's first group.",
     icon: CalendarSync,
-    unavailable: (board) => (board.groups.length > 0 ? null : "This board has no groups to put a task in."),
+    // Never Booked by Form, which takes bookings only.
+    unavailable: (board) => (board.groups.some((g) => g.role !== "INTAKE") ? null : "This board has no groups to put a task in."),
     build: (board) => {
-      const group = board.groups[0];
+      const group = board.groups.find((g) => g.role !== "INTAKE");
       if (!group) return null;
       return {
         trigger: { kind: "recurring", recurrence: "weekly", weekday: 1, atHour: 9 },

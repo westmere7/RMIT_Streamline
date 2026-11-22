@@ -239,6 +239,30 @@ export class LocalItemRepository implements ItemRepository {
     }
     const moved: Item = { ...item, boardId: input.boardId, groupId: input.groupId, position: input.position, updatedAt: now };
     await db.put("items", moved);
+    // As the database trigger does: each row that changed boards has left the
+    // one board (from its group) and arrived on the other (as if created there).
+    if (this.automations && item.boardId !== input.boardId) {
+      for (const row of moving) {
+        await this.automations.raise({
+          boardId: item.boardId,
+          itemId: row.id,
+          kind: "item_moved",
+          columnId: null,
+          actorId: null,
+          payload: { fromGroupId: row.groupId, toGroupId: null, parentItemId: row.parentItemId, left: true, toBoardId: input.boardId },
+          depth: 0,
+        });
+        await this.automations.raise({
+          boardId: input.boardId,
+          itemId: row.id,
+          kind: "item_created",
+          columnId: null,
+          actorId: null,
+          payload: { toGroupId: input.groupId, parentItemId: row.parentItemId, toName: row.name, arrived: true, fromBoardId: item.boardId },
+          depth: 0,
+        });
+      }
+    }
     return moved;
   }
 

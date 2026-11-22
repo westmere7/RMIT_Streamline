@@ -176,3 +176,4 @@ migrations/0133_intake_bookings_only.sql
 migrations/0134_items_booked_via.sql
 migrations/0135_items_allocated_at.sql
 migrations/0136_intake_booked_tasks_only.sql
+migrations/0137_automation_board_moves.sql

@@ -15,7 +15,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem } from "@/domain";
+import { DEPARTED_TASK_ACTIONS, MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, intakeGroupOf, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { CommentService } from "./comment-service";
 import type { ItemService } from "./item-service";
@@ -100,6 +100,8 @@ export interface DrainReport {
 
 /** Everything a rule can look at while it is being evaluated against one task. */
 interface FiringContext {
+  /** The event is the task leaving this board: only DEPARTED_TASK_ACTIONS run. */
+  departed?: boolean;
   board: Board;
   columns: BoardColumn[];
   groups: BoardGroup[];
@@ -213,6 +215,9 @@ export class AutomationEngine {
    */
   private triggerMatches(rule: AutomationRule, event: AutomationEvent): boolean {
     const trigger = rule.trigger;
+    // A subitem changes boards only with its task, and the task's arrival or
+    // departure is the one that happened: once per allocation, not once per row.
+    if ((event.payload.arrived || event.payload.left) && event.payload.parentItemId) return false;
     switch (trigger.kind) {
       case "item_created":
         return event.kind === "item_created" && (!trigger.groupId || event.payload.toGroupId === trigger.groupId);
@@ -296,6 +301,21 @@ export class AutomationEngine {
   private async fireAll(rules: AutomationRule[], event: AutomationEvent, report: DrainReport): Promise<void> {
     const context = await this.buildContext(event.boardId, event.itemId, event.actorId, event, event.depth);
     if (!context) return;
+    // The task has moved to another board since this event was queued. A rule
+    // here names this board's columns and groups, which the task no longer has:
+    // skipped, as "run now" skips it, unless the event is the task leaving, in
+    // which case only what still makes sense for it runs (see performActions).
+    if (context.item && context.item.boardId !== event.boardId) {
+      if (event.kind === "item_moved" && event.payload.left === true) {
+        context.departed = true;
+      } else {
+        report.skipped += rules.length;
+        await this.repos.automations.recordRuns(
+          rules.map((rule) => ({ ruleId: rule.id, boardId: rule.boardId, itemId: context.item!.id, status: "skipped" as const, summary: "Skipped: that task is on another board", detail: null })),
+        );
+        return;
+      }
+    }
     for (const rule of rules) await this.fire(rule, context, report);
   }
 
@@ -498,6 +518,12 @@ export class AutomationEngine {
     let lastError: string | null = null;
     try {
       for (const action of rule.actions) {
+        // A task that has left the board: only the actions that do not write into it.
+        if (context.departed && !DEPARTED_TASK_ACTIONS.includes(action.kind)) {
+          report.skipped += 1;
+          runs.push({ ruleId: rule.id, boardId: rule.boardId, itemId: context.item?.id ?? null, status: "skipped", summary: describeAction(action, context), detail: "The task has left this board" });
+          continue;
+        }
         try {
           const summary = await this.execute(action, context);
           ran += 1;
@@ -780,7 +806,10 @@ export class AutomationEngine {
           throw new Error("That board is not in this workspace.");
         }
         const groups = targetBoardId === board.id ? context.groups : await this.repos.boards.listGroups(targetBoardId);
-        const group = groups.find((g) => g.id === action.groupId) ?? groups[0];
+        // With no group named, or one since deleted, the first group that takes
+        // new tasks: never Task Allocation's Booked by Form, which takes bookings only.
+        const intake = intakeGroupOf(groups)?.id ?? null;
+        const group = groups.find((g) => g.id === action.groupId) ?? groups.slice().sort((a, b) => a.position - b.position).find((g) => g.id !== intake);
         if (!group) throw new Error("That board has no group to put the task in.");
         const created = await this.items.createItem(
           { boardId: targetBoardId, groupId: group.id, name: this.render(action.name, context), values: action.values ?? [] },

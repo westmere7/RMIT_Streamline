@@ -322,6 +322,10 @@ function validate(
       case "create_item":
       case "create_subitem":
         if (!action.name.trim()) throw new AutomationError("Give the new task a name.");
+        // A task made by a rule is made by hand, and Booked by Form takes bookings only.
+        if (action.kind === "create_item" && (!action.boardId || action.boardId === boardId) && action.groupId && group(action.groupId)?.role === "INTAKE") {
+          throw new AutomationError("Booked by Form takes bookings only. Pick another group for the new task.");
+        }
         break;
       case "send_webhook": {
         const problem = webhookUrlProblem(action.url);
