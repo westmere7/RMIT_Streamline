@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.149.6",
+    date: "2026-11-22",
+    title: "Portal submissions told apart properly",
+    changes: [
+      "A portal booking sent again under the same key is only taken as a retry when all its answers match, not just its title and dates.",
+    ],
+  },
+  {
     version: "0.149.5",
     date: "2026-11-22",
     title: "Mentions and deleting groups",

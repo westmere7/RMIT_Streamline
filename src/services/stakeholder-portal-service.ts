@@ -1456,7 +1456,15 @@ async function hashSubmission(portalId: EntityId, request: BookingRequest): Prom
     request.dueDate ?? null,
     request.priority ?? null,
     request.assetTypes,
-    request.assets.map((a) => [a.name, a.quantity, a.spec ?? ""]),
+    request.assets.map((a) => [a.name, a.quantity, a.spec ?? "", a.assetType ?? null]),
+    // What the four steps asked, so a key reused for another booking is never
+    // replayed as that booking's success.
+    request.requesterName?.trim() ?? "",
+    request.department ?? null,
+    request.serviceTypeId ?? null,
+    request.subServices ?? [],
+    request.referenceUrl ?? null,
+    Object.entries(request.answers ?? {}).sort(([a], [b]) => a.localeCompare(b)),
   ]);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");

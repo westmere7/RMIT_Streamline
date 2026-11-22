@@ -176,6 +176,11 @@ describe("booking through a portal", () => {
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(1);
   });
 
+  it("tells a reused key from a retry by the answers too, not only the title", async () => {
+    await book("key-reuse-0003");
+    await expect(book("key-reuse-0003", { requesterName: "Someone Else", referenceUrl: "https://example.com/other" })).rejects.toThrow(/already been used/i);
+  });
+
   it("refuses a reused key as a conflict, not as a fault in the server", async () => {
     await book("key-reuse-0002");
     // The refusal is deliberate, so it has to be able to say so: thrown as a
