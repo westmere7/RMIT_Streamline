@@ -18,11 +18,11 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.152.8",
+    version: "0.152.9",
     date: "2026-11-22",
     title: "Mark rows, explained",
     changes: [
-      "In Mark rows, Asset, Leave out and Band say what they do when you point at them.",
+      "In Mark rows, Asset, Leave out and Band say what they do when you point at them, Band even when it can't be used.",
       "Task assets opened from a task no longer shows everyone in a People column as Former member.",
     ],
   },

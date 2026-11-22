@@ -1105,7 +1105,18 @@ function RowMarkBody({
                 Leave out
               </Button>
             </SimpleTooltip>
-            <SimpleTooltip label={bandable ? "Becomes a heading that groups the rows under it into a block." : "Only a row with one value can become a band: its text names the block."}>
+            <SimpleTooltip
+              label={
+                bandable ? (
+                  "Becomes a heading that groups the rows under it into a block."
+                ) : (
+                  <span className="block max-w-64">
+                    A band is a heading row that groups the rows under it into a block.
+                    <span className="mt-1 block opacity-80">Only a row with one value can become one: its text names the block.</span>
+                  </span>
+                )
+              }
+            >
               <span>
                 <Button type="button" size="sm" variant="outline" disabled={!bandable} onClick={() => mark("band")} data-testid="row-mark-band">
                   Band
