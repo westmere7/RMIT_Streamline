@@ -188,3 +188,5 @@ policies/0036_follows_and_notifications.sql
 migrations/0142_ownership_guards.sql
 migrations/0143_task_structure_guards.sql
 migrations/0144_task_rows_follow_moves.sql
+migrations/0145_comment_time_and_shared_updates.sql
+migrations/0146_people_cells_name_workspace_people.sql
