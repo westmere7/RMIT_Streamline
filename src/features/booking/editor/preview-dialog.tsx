@@ -85,8 +85,8 @@ export function PreviewDialog({
           <DialogTitle>The form, as they will meet it</DialogTitle>
           <DialogDescription>Every step is open and nothing is required: this is for reading the form, not answering it. Nothing is sent and nothing is saved.</DialogDescription>
         </DialogHeader>
-        <div className="relative flex h-11 shrink-0 items-center justify-center px-12" style={{ backgroundColor: "#15803d", backgroundImage: "repeating-linear-gradient(-45deg, #15803d 0 14px, #166534 14px 28px)" }}>
-          <p className="flex min-w-0 items-center gap-1.5 bg-[#15803d] px-3 py-1 text-xs font-semibold text-white shadow-sm" data-testid="booking-preview-badge">
+        <div className="relative flex h-11 shrink-0 items-center justify-center px-12" style={{ backgroundColor: "#15803d", backgroundImage: "repeating-linear-gradient(-45deg, transparent 0 14px, rgb(0 0 0 / 0.09) 14px 28px)" }}>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-white [text-shadow:0_1px_1px_rgb(0_0_0/0.25)]" data-testid="booking-preview-badge">
             <Eye className="size-3.5 shrink-0" aria-hidden />
             <span className="truncate">Previewing {label} · nothing is sent or saved</span>
           </p>

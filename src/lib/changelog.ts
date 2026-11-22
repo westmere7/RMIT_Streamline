@@ -23,7 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "The preview says which form",
     changes: [
       "The booking form preview's strip names what it shows: the published form, or the form open in the editor (by its template's name, and whether it has your changes).",
-      "The preview is square, under a solid green header striped like barrier tape, with its close button in the header.",
+      "The preview is square, under a solid green header with faint barrier-tape stripes, its words and close button straight on it.",
     ],
   },
   {
