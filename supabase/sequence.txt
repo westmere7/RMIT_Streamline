@@ -192,3 +192,5 @@ migrations/0145_comment_time_and_shared_updates.sql
 migrations/0146_people_cells_name_workspace_people.sql
 migrations/0147_ticket_checks.sql
 policies/0037_presence_per_workspace.sql
+migrations/0148_teams_managed_by_admins.sql
+migrations/0149_workspace_keys_hidden.sql

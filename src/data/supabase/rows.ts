@@ -150,7 +150,7 @@ export interface WorkspaceRow {
 
 /**
  * Everything a session may read of a workspace. Not join_key or booking_key:
- * those are read through workspace_keys(), by admins and the server only (0140/0141).
+ * those are read through workspace_keys(), by admins and the server only (0140/0149).
  */
 export const WORKSPACE_COLUMNS = "id, name, slug, logo_url, booking_form, booking_form_draft, booking_form_name, booking_form_published_at, booking_form_published_by, booking_form_bookings, creative_team_name, asset_rates, work_types, size_scale, description, ticket_prefix, ticket_counter, bug_board_id, bug_ticket_counter, show_portal_menu, created_at, updated_at";
 

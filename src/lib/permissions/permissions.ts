@@ -139,21 +139,22 @@ export function canManageDashboardShare(ctx: PermissionContext): boolean {
   return isWorkspaceAdmin(ctx);
 }
 
+/** Teams decide who sees and edits their boards, so making one is an admin's job (0148). */
 export function canCreateTeam(ctx: PermissionContext): boolean {
-  return ctx.workspaceRole === "OWNER" || ctx.workspaceRole === "ADMIN" || ctx.workspaceRole === "MEMBER";
+  return isWorkspaceAdmin(ctx);
 }
 
-/**
- * Deleting a team for good is the workspace admins' alone, as teams_delete says.
- * Members who manage a team can archive it, which can be undone.
- */
+/** Deleting a team for good is the workspace admins' alone, as teams_delete says. */
 export function canDeleteTeam(ctx: PermissionContext): boolean {
   return isWorkspaceAdmin(ctx);
 }
 
-/** A team row outlives deactivation, so it counts only with an active seat (0112). */
-export function canManageTeam(ctx: PermissionContext, teamId: string): boolean {
-  return isWorkspaceAdmin(ctx) || (ctx.workspaceRole !== null && ctx.teamIds.has(teamId));
+/**
+ * Renaming, archiving and choosing a team's people and booking board: workspace
+ * admins only (0148). Being in a team is using it, not running it.
+ */
+export function canManageTeam(ctx: PermissionContext, _teamId: string): boolean {
+  return isWorkspaceAdmin(ctx);
 }
 
 /** Trackers are workspace-wide sheets: every member except guests can edit them. */

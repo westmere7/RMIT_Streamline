@@ -60,8 +60,11 @@ describe("workspace permissions", () => {
     expect(canViewBoard(ctx({ userId: "outsider" }), board())).toBe(false);
   });
 
-  it("team members manage their team only while active in the workspace", () => {
-    expect(canManageTeam(ctx({ userId: "u", role: "MEMBER", teamIds: ["team-1"] }), "team-1")).toBe(true);
+  it("teams are managed by workspace admins only, not by the people in them (0148)", () => {
+    expect(canManageTeam(ctx({ userId: "u", role: "MEMBER", teamIds: ["team-1"] }), "team-1")).toBe(false);
+    expect(canManageTeam(ctx({ userId: "u", role: "GUEST", teamIds: ["team-1"] }), "team-1")).toBe(false);
+    expect(canCreateTeam(ctx({ userId: "u", role: "MEMBER" }))).toBe(false);
+    expect(canCreateTeam(ctx({ userId: "u", role: "ADMIN" }))).toBe(true);
     expect(canManageTeam(ctx({ userId: "u", role: "MEMBER" }), "team-1")).toBe(false);
     expect(canManageTeam(ctx({ userId: "u", role: "ADMIN" }), "team-1")).toBe(true);
     const deactivated = buildPermissionContext({

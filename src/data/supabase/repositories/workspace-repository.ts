@@ -9,7 +9,7 @@ const MEMBER = "id, workspace_id, user_id, role, status, joined_at, weekly_hours
 
 /**
  * The join and booking keys, which a session cannot select from `workspaces`
- * (0141): workspace_keys() hands them to admins of those workspaces and to the
+ * (0149): workspace_keys() hands them to admins of those workspaces and to the
  * service role, and leaves them out for everyone else.
  */
 async function withKeys(rows: WorkspaceRow[]): Promise<WorkspaceRow[]> {

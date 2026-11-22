@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.150.1",
+    date: "2026-11-22",
+    title: "Teams are run by admins",
+    changes: [
+      "Creating a team, renaming or archiving it, and choosing its people are for workspace admins. Anyone can still leave a team.",
+      "Join and booking links can only be read by workspace admins.",
+    ],
+  },
+  {
     version: "0.150.0",
     date: "2026-11-22",
     title: "Tighter access across the workspace",
