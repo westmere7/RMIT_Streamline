@@ -1,6 +1,6 @@
 "use client";
 
-import { FileCheck2, LayoutTemplate, LoaderCircle, Plus, RefreshCcw, RotateCcw, Save, Trash2 } from "lucide-react";
+import { CalendarClock, FileCheck2, LayoutTemplate, LoaderCircle, Plus, RefreshCcw, RotateCcw, Save, Trash2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -25,6 +25,8 @@ export interface TemplatesMenuProps {
   onReset: () => void;
   /** Puts the published form back in the editor, to start from what stakeholders see. */
   onLoadLive: () => void;
+  /** Opens Saved forms, to publish or schedule one. */
+  onOpenSavedForms?: () => void;
   /** The editor already holds the published form. */
   showingLive: boolean;
   /** The template the editor was filled from, if it still exists: what the quick picker shows. */
@@ -44,7 +46,7 @@ export interface TemplatesMenuProps {
  * Loading only fills the editor, so a template can be read over, changed, and
  * published or thrown away without anybody outside having seen it.
  */
-export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, showingLive, loadedId, loadedChanged = false, children }: TemplatesMenuProps) {
+export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onDeleteTemplate, onReset, onLoadLive, onOpenSavedForms, showingLive, loadedId, loadedChanged = false, children }: TemplatesMenuProps) {
   const [saveOpen, setSaveOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [typed, setTyped] = React.useState<string | null>(null);
@@ -64,12 +66,12 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
     setBusy(true);
     try {
       await onSaveTemplate({ name: trimmed, description: description.trim() || null, template: current });
-      toast.success(replaces ? `Template “${trimmed}” updated` : `Saved as “${trimmed}”`);
+      toast.success(replaces ? `“${trimmed}” updated` : `Saved as “${trimmed}”`);
       setSaveOpen(false);
       setName("");
       setTyped(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save the template");
+      toast.error(error instanceof Error ? error.message : "Could not save the form");
     } finally {
       setBusy(false);
     }
@@ -79,7 +81,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
     <>
       <section className="space-y-2.5 rounded-2xl border border-border/70 bg-card p-4 shadow-xs" data-testid="booking-editor-templates">
         <h3 className="flex items-center gap-2 text-[13px] font-medium">
-          <LayoutTemplate className="size-4 text-muted-foreground" /> Templates
+          <LayoutTemplate className="size-4 text-muted-foreground" /> Saved forms
           {templates.length > 0 && <span className="text-2xs text-muted-foreground tabular">{templates.length}</span>}
         </h3>
         {/* Picking one loads it. Saving and deleting sit beside it, small. */}
@@ -93,8 +95,8 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
               if (picked) onLoad(picked);
             }}
           >
-            <SelectTrigger className="h-9 min-w-0 flex-1 text-[13px]" aria-label="Load a template" data-testid="template-quick-select">
-              <SelectValue placeholder={templates.length ? "Choose a template" : "No templates yet"} />
+            <SelectTrigger className="h-9 min-w-0 flex-1 text-[13px]" aria-label="Load a saved form" data-testid="template-quick-select">
+              <SelectValue placeholder={templates.length ? "Choose a saved form" : "No saved forms yet"} />
             </SelectTrigger>
             <SelectContent>
               {templates.map((t) => (
@@ -105,7 +107,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
               {templates.length > 0 && <SelectSeparator />}
               <SelectItem value={SAVE_NEW} data-testid="template-quick-save-new">
                 <span className="flex items-center gap-2">
-                  <Plus className="size-4 text-muted-foreground" /> Save as new template
+                  <Plus className="size-4 text-muted-foreground" /> Save as a new form
                 </span>
               </SelectItem>
             </SelectContent>
@@ -117,7 +119,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
                 variant="ghost"
                 size="icon-sm"
                 className="size-9 shrink-0 text-muted-foreground"
-                aria-label={`Reload template ${loaded.name}`}
+                aria-label={`Reload ${loaded.name}`}
                 disabled={!loadedChanged}
                 onClick={() => onLoad(loaded)}
                 data-testid="template-reload"
@@ -128,7 +130,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
           )}
           {loaded && (
             <SimpleTooltip label={`Delete “${loaded.name}”`}>
-              <Button type="button" variant="ghost" size="icon-sm" className="size-9 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Delete template ${loaded.name}`} onClick={() => setDeleting(loaded)} data-testid="template-delete">
+              <Button type="button" variant="ghost" size="icon-sm" className="size-9 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Delete ${loaded.name}`} onClick={() => setDeleting(loaded)} data-testid="template-delete">
                 <Trash2 />
               </Button>
             </SimpleTooltip>
@@ -136,8 +138,13 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         </div>
         {children}
         <div className="grid gap-0.5">
+          {onOpenSavedForms && (
+            <PanelRow icon={CalendarClock} onClick={onOpenSavedForms} disabled={templates.length === 0} testId="saved-forms-open">
+              Publish or schedule a saved form
+            </PanelRow>
+          )}
           <PanelRow icon={Save} onClick={() => setSaveOpen(true)} testId="template-save">
-            Save as new template
+            Save as a new form
           </PanelRow>
           <PanelRow icon={FileCheck2} onClick={onLoadLive} disabled={showingLive} testId="booking-editor-load-live">
             Load the published form
@@ -151,7 +158,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
       <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
         <DialogContent size="sm" data-testid="template-save-dialog">
           <DialogHeader>
-            <DialogTitle>Save as a template</DialogTitle>
+            <DialogTitle>Save as a new form</DialogTitle>
             <DialogDescription>Keeps the form as it is in the editor, for anyone who manages this workspace to load again later.</DialogDescription>
           </DialogHeader>
           <form
@@ -164,7 +171,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
             <div className="grid gap-1.5">
               <Label htmlFor="template-name">Name</Label>
               <Input id="template-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Summer intake" autoFocus maxLength={MAX_BOOKING_TEMPLATE_NAME} data-testid="template-name" />
-              {replaces && <p className="text-2xs text-amber-700 dark:text-amber-300">Replaces the template already called “{replaces.name}”.</p>}
+              {replaces && <p className="text-2xs text-amber-700 dark:text-amber-300">Replaces the saved form already called “{replaces.name}”.</p>}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="template-description">What it is for</Label>
@@ -183,7 +190,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
                 Cancel
               </Button>
               <Button type="submit" disabled={!trimmed || busy} data-testid="template-save-submit">
-                {busy ? <LoaderCircle className="animate-spin" /> : null} {replaces ? "Replace template" : "Save template"}
+                {busy ? <LoaderCircle className="animate-spin" /> : null} {replaces ? "Replace it" : "Save"}
               </Button>
             </DialogFooter>
           </form>
@@ -194,8 +201,8 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Delete “${deleting?.name ?? ""}”?`}
-        description="The template is removed for everyone. The form in use is not affected."
-        confirmLabel="Delete template"
+        description="It is removed for everyone. The form in use, and any days it is scheduled for, are not affected."
+        confirmLabel="Delete"
         destructive
         onConfirm={async () => {
           if (!deleting) return;
@@ -203,7 +210,7 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
             await onDeleteTemplate(deleting);
             toast.success(`Deleted “${deleting.name}”`);
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Could not delete the template");
+            toast.error(error instanceof Error ? error.message : "Could not delete the saved form");
           }
           setDeleting(null);
         }}

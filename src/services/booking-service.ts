@@ -22,6 +22,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
+import { DEFAULT_FORM_VERSION, activeSchedule, formForSubmission, overlappingSchedule, scheduleDatesProblem, scheduleToday, windowOpensAt, type BookingFormSchedule, type LiveBookingForm, type Workspace } from "@/domain";
 import { BOOKING_ASSET_TYPES, RefusedError, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, intakeGroupOf, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -216,7 +217,7 @@ export class BookingService {
     const clean = email.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return [];
     const workspace = await this.repos.workspaces.getById(workspaceId);
-    if (!workspace || resolveBookingTemplate(workspace).review.showPastBookings !== true) return [];
+    if (!workspace || (await liveBookingForm(this.repos, workspace)).template.review.showPastBookings !== true) return [];
     const person = await this.requesters.find(workspaceId, clean);
     if (!person) return [];
     const boards = (await this.repos.boards.listByWorkspace(workspaceId)).filter((b) => b.archivedAt === null);
@@ -323,8 +324,10 @@ export class BookingService {
     const assetTypes = listTypes.length > 0 ? toTagOptions(listTypes) : columnTypes;
 
     const options: BookingTeamOption[] = offered.map((team, i) => ({ id: team.id, name: team.name, description: team.description, color: team.color, icon: team.icon, boardName: receiving[i]?.name ?? null }));
+    // The form live today: a scheduled one while its window runs, else the default.
+    const live = await liveBookingForm(this.repos, workspace);
+    const template = live.template;
     // The boards the form's own routing names, so it can tell the requester where a booking goes. Only those.
-    const template = resolveBookingTemplate(workspace);
     const named = new Set<string>();
     for (const service of template.services) {
       if (!service.routing?.enabled) {
@@ -340,7 +343,7 @@ export class BookingService {
     // The stakeholder groups, so "school or department" is picked from a list
     // rather than typed six different ways.
     const departments: TagOption[] = (await this.activeDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color as TagOption["color"] }));
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template, publishedAt: workspace.bookingFormPublishedAt ?? null };
+    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template, publishedAt: live.schedule ? new Date(windowOpensAt(live.schedule)).toISOString() : (workspace.bookingFormPublishedAt ?? null), version: live.version };
   }
 
   /**
@@ -373,7 +376,9 @@ export class BookingService {
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
-    const template = resolveBookingTemplate(workspace);
+    // The form the visitor filled in: the live one, or the one live a moment
+    // ago if the form changed while they were typing (formForSubmission).
+    const template = (await bookingFormForSubmission(this.repos, workspace, request.formVersion)).template;
     const service = serviceById(template, request.serviceTypeId);
     if (request.serviceTypeId && !service) throw new BookingValidationError("That kind of work is no longer on the form. Start again and pick another.");
 
@@ -596,6 +601,61 @@ export class BookingService {
     });
     await this.recordPublication({ workspaceId, name: named, template: stored, publishedAt, publishedBy: options.publishedBy ?? null });
     return template;
+  }
+
+  /**
+   * A saved form, live now as the default form, under its own name. The draft
+   * stays where it was: it was not what the draft was working towards.
+   */
+  async publishSavedForm(workspaceId: EntityId, templateId: EntityId, publishedBy: EntityId | null): Promise<BookingFormTemplate> {
+    const saved = (await this.listTemplates(workspaceId)).find((t) => t.id === templateId);
+    if (!saved) throw new NotFoundError("Saved form", templateId);
+    return this.publishForm(workspaceId, saved.template, saved.name, { keepDraft: true, publishedBy });
+  }
+
+  /** The workspace's scheduled forms, soonest first, each read as a current form. */
+  async listSchedules(workspaceId: EntityId): Promise<BookingFormSchedule[]> {
+    return (await this.repos.bookingSchedules.listByWorkspace(workspaceId)).map((row) => ({ ...row, template: readBookingTemplate(row.template) ?? defaultBookingFormTemplate() }));
+  }
+
+  /**
+   * Puts a saved form live for a window of days (Vietnam days, both included),
+   * after which the default form comes back by itself. The window keeps a copy
+   * of the form as it is now. Windows never overlap.
+   */
+  async scheduleSavedForm(workspaceId: EntityId, input: { templateId: EntityId; startsOn: string; endsOn: string }, actorId: EntityId | null): Promise<BookingFormSchedule> {
+    const saved = (await this.listTemplates(workspaceId)).find((t) => t.id === input.templateId);
+    if (!saved) throw new NotFoundError("Saved form", input.templateId);
+    await this.checkWindow(workspaceId, input.startsOn, input.endsOn, null);
+    return this.repos.bookingSchedules.create({ workspaceId, templateId: saved.id, name: saved.name, template: normaliseBookingTemplate(saved.template), startsOn: input.startsOn, endsOn: input.endsOn, createdBy: actorId });
+  }
+
+  /** New days for a window, or its copy taken again from the saved form it came from. */
+  async updateSchedule(workspaceId: EntityId, scheduleId: EntityId, input: { startsOn?: string; endsOn?: string; refreshCopy?: boolean }): Promise<BookingFormSchedule> {
+    const current = (await this.repos.bookingSchedules.listByWorkspace(workspaceId)).find((s) => s.id === scheduleId);
+    if (!current) throw new NotFoundError("Scheduled form", scheduleId);
+    const startsOn = input.startsOn ?? current.startsOn;
+    const endsOn = input.endsOn ?? current.endsOn;
+    if (input.startsOn !== undefined || input.endsOn !== undefined) await this.checkWindow(workspaceId, startsOn, endsOn, scheduleId);
+    let copy: { name: string; template: BookingFormTemplate } | null = null;
+    if (input.refreshCopy) {
+      const saved = current.templateId ? (await this.listTemplates(workspaceId)).find((t) => t.id === current.templateId) : undefined;
+      if (!saved) throw new RefusedError("The saved form this came from has been deleted, so there is nothing newer to copy.");
+      copy = { name: saved.name, template: normaliseBookingTemplate(saved.template) };
+    }
+    return this.repos.bookingSchedules.update(scheduleId, { startsOn, endsOn, ...(copy ?? {}) });
+  }
+
+  /** Takes a window off the schedule. A live one ends now: the default form is back. */
+  async deleteSchedule(scheduleId: EntityId): Promise<void> {
+    await this.repos.bookingSchedules.delete(scheduleId);
+  }
+
+  private async checkWindow(workspaceId: EntityId, startsOn: string, endsOn: string, exceptId: EntityId | null): Promise<void> {
+    const problem = scheduleDatesProblem(startsOn, endsOn, scheduleToday());
+    if (problem) throw new RefusedError(problem);
+    const clash = overlappingSchedule(await this.repos.bookingSchedules.listByWorkspace(workspaceId), startsOn, endsOn, exceptId);
+    if (clash) throw new RefusedError(`Those days overlap “${clash.name}” (${clash.startsOn} to ${clash.endsOn}). Pick other days or change that one first.`);
   }
 
   /** Back to the built-in form, live and in the editor. */
@@ -932,3 +992,47 @@ export function taskAllocationColumns(_teamNames: readonly string[] = []): Array
  * column is a record of what was booked, not a copy of the form.
  */
 const DEFAULT_SERVICE_TAGS = defaultBookingFormTemplate().services.map((service) => ({ name: service.name, color: service.color }));
+
+/**
+ * A workspace's scheduled forms, or none when they can't be read (the table not
+ * there yet, a session that may not read them). Booking never fails over a
+ * schedule: the default form is served instead.
+ */
+async function schedulesOf(repos: Repositories, workspaceId: EntityId): Promise<BookingFormSchedule[]> {
+  try {
+    return await repos.bookingSchedules.listByWorkspace(workspaceId);
+  } catch (error) {
+    console.warn("Scheduled forms could not be read; serving the default form", error);
+    return [];
+  }
+}
+
+/** The default form: the one published the ordinary way, served whenever no window runs. */
+function defaultForm(workspace: Pick<Workspace, "bookingForm" | "bookingFormName">): { template: BookingFormTemplate; name: string | null } {
+  return { template: resolveBookingTemplate(workspace), name: workspace.bookingFormName ?? null };
+}
+
+function liveFrom(workspace: Pick<Workspace, "bookingForm" | "bookingFormName">, schedules: readonly BookingFormSchedule[], now: Date): LiveBookingForm {
+  const running = activeSchedule(schedules, scheduleToday(now));
+  if (running) {
+    const template = readBookingTemplate(running.template);
+    if (template) return { template, name: running.name, version: running.id, schedule: { ...running, template } };
+  }
+  return { ...defaultForm(workspace), version: DEFAULT_FORM_VERSION, schedule: null };
+}
+
+/** The form a workspace serves right now: a scheduled one while its window runs, else the default form. */
+export async function liveBookingForm(repos: Repositories, workspace: Pick<Workspace, "id" | "bookingForm" | "bookingFormName">, now: Date = new Date()): Promise<LiveBookingForm> {
+  return liveFrom(workspace, await schedulesOf(repos, workspace.id), now);
+}
+
+/** The form to check a booking against: the live one, or, for a little while after a switch, the one the visitor opened. */
+export async function bookingFormForSubmission(repos: Repositories, workspace: Pick<Workspace, "id" | "bookingForm" | "bookingFormName">, formVersion: string | null | undefined, now: Date = new Date()): Promise<LiveBookingForm> {
+  const schedules = await schedulesOf(repos, workspace.id);
+  const live = liveFrom(workspace, schedules, now);
+  const readable = schedules.flatMap((s) => {
+    const template = readBookingTemplate(s.template);
+    return template ? [{ ...s, template }] : [];
+  });
+  return formForSubmission(live, formVersion, defaultForm(workspace), readable, now);
+}

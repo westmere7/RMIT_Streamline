@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.0",
+    date: "2026-11-22",
+    title: "Saved forms you can publish or schedule",
+    changes: [
+      "Templates are now Saved forms. Publish or schedule a saved form opens them like save slots: publish one now, or schedule it for a run of days.",
+      "A scheduled form is live for its days, Vietnam time, and the default form comes back by itself after. The booking link and the portal both follow it.",
+      "A schedule keeps the copy it was given; take the saved form's newer copy, change its days or end it early from the same list.",
+      "Someone who opened the form just before it changed can still send it.",
+    ],
+  },
+  {
     version: "0.151.2",
     date: "2026-11-22",
     title: "Pin a reply",

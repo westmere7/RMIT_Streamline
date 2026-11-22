@@ -61,7 +61,7 @@ import { hashPortalPassword, verifyPortalPassword } from "@/lib/auth/portal-pass
 import { todayISO } from "@/lib/dates/dates";
 import { richTextToPlain } from "@/lib/rich-text";
 import { composeBrief, resolveBookingTemplate } from "./booking";
-import { BookingValidationError } from "./booking-service";
+import { BookingValidationError, bookingFormForSubmission } from "./booking-service";
 import { buildPortalBoard, type PortalBoardTask } from "./portal/portal-board";
 import { projectPortalExtras } from "./portal/portal-extra-columns";
 import {
@@ -1024,7 +1024,8 @@ export class StakeholderPortalService {
     // board's Brief column, which renders it; this copy is a public payload
     // read by the portal and matched against by its search, and markup nothing
     // has promised to render reads worse than the words alone.
-    const composed = richTextToPlain(composeBrief(request, resolveBookingTemplate(workspace))).trim();
+    const formUsed = workspace ? (await bookingFormForSubmission(this.repos, workspace, request.formVersion)).template : resolveBookingTemplate(workspace);
+    const composed = richTextToPlain(composeBrief(request, formUsed)).trim();
     const publicBrief = composed ? composed.slice(0, MAX_PUBLIC_BRIEF) : null;
     const requestHash = await hashSubmission(resolved.portal.id, request);
 

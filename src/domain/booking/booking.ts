@@ -104,6 +104,8 @@ export interface BookingForm {
   template: BookingFormTemplate;
   /** When the live form went live, for the small print under the page. Null for the built-in form never published. */
   publishedAt?: string | null;
+  /** Which form this is: "default", or the id of the scheduled window being served. Sent back with the booking. */
+  version?: string;
 }
 
 /** One deliverable in a booking: what, how many, and the spec it has to meet. */
@@ -160,6 +162,12 @@ export interface BookingRequest {
    * one booking rather than two. Ignored when it is already taken.
    */
   itemId?: EntityId | null;
+  /**
+   * Which form was filled in (BookingForm.version), so a booking made on the
+   * form that was live a moment ago is checked against that form, not the one
+   * that replaced it while the visitor was typing (see formForSubmission).
+   */
+  formVersion?: string | null;
 }
 
 /** One of the requester's other bookings, as the receipt lists them: no brief, no answers. */

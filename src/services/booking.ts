@@ -124,6 +124,7 @@ export const bookingRequestSchema = z.object({
   referenceUrl: url.nullable().default(null),
   answers: z.record(z.string(), bookingAnswerSchema).default({}),
   itemId: z.uuid().nullable().default(null),
+  formVersion: z.string().trim().max(80).nullable().default(null),
 });
 
 export type BookingRequestInput = z.input<typeof bookingRequestSchema>;
@@ -146,6 +147,7 @@ export function emptyBookingRequest(): BookingRequest {
     referenceUrl: null,
     answers: {},
     itemId: null,
+    formVersion: null,
   };
 }
 

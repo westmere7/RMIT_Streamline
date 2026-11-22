@@ -332,8 +332,8 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("editor-basics-title")).toHaveValue("About you and your request");
 
     // And delete it again.
-    await page.getByRole("button", { name: "Delete template Built-in copy" }).click();
-    await page.getByRole("button", { name: "Delete template", exact: true }).click();
-    await expect(page.getByTestId("template-quick-select")).toContainText("No templates yet");
+    await page.getByRole("button", { name: "Delete Built-in copy" }).click();
+    await page.getByRole("button", { name: "Delete", exact: true }).click();
+    await expect(page.getByTestId("template-quick-select")).toContainText("No saved forms yet");
   });
 });

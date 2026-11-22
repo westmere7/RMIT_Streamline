@@ -263,8 +263,10 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       referenceUrl: template.assets.enabled && template.assets.askLink ? (request.referenceUrl?.trim() || null) : null,
       brief: composeBrief(request, template),
       itemId,
+      // Which form this was, so a booking made just as the form changed is checked against it.
+      formVersion: form.version ?? null,
     }),
-    [request, assets, template, omit, itemId, allAssetTypes],
+    [request, assets, template, omit, itemId, allAssetTypes, form.version],
   );
 
   // Who the wizard is booking as without having to ask: the account first, and

@@ -17,7 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import type { Board, BookingBlock, BookingForm as BookingFormData, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
+import type { Board, BookingBlock, BookingForm as BookingFormData, BookingFormSchedule, BookingFormTemplate, BookingSavedBlock, BookingServiceType, BookingStandardField, BookingStandardKey, BookingTemplate, ColorToken } from "@/domain";
+import { activeSchedule, scheduleToday } from "@/domain";
+import { format, parseISO } from "date-fns";
 import {
   BOOKING_STANDARD_KEY_LABELS,
   defaultBookingFormTemplate,
@@ -42,6 +44,7 @@ import { RoutingDialog } from "./routing-dialog";
 import { PastFormsButton, PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesPanel } from "./templates-menu";
+import { SavedFormsDialog, type SavedFormsActions } from "./saved-forms-dialog";
 import Link from "next/link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
@@ -118,6 +121,10 @@ export interface BookingFormEditorProps {
   onClose?: () => void;
   onSaveTemplate: (input: { name: string; description: string | null; template: BookingFormTemplate }) => Promise<void>;
   onDeleteTemplate: (template: BookingTemplate) => Promise<void>;
+  /** Scheduled windows, for the Saved forms dialog and the published card. */
+  schedules?: BookingFormSchedule[];
+  /** Publishing and scheduling saved forms; absent where the page offers neither. */
+  savedFormActions?: Omit<SavedFormsActions, "onLoad">;
   onSaveBlock: (input: { name: string; block: BookingBlock }) => Promise<void>;
   onDeleteSavedBlock: (saved: BookingSavedBlock) => Promise<void>;
   /** Where the editing controls go. Given one, they sit beside the form rather than above it. */
@@ -148,6 +155,8 @@ export function BookingFormEditor({
   onClose,
   onSaveTemplate,
   onDeleteTemplate,
+  schedules,
+  savedFormActions,
   onSaveBlock,
   onDeleteSavedBlock,
   panelContainer,
@@ -241,10 +250,10 @@ export function BookingFormEditor({
         if (quiet) {
           setAutoStatus("saved");
           setAutoSavedAt(Date.now());
-        } else toast.success(`Template “${template.name}” updated`);
+        } else toast.success(`“${template.name}” updated`);
       } catch (error) {
         if (quiet) setAutoStatus("error");
-        else toast.error(error instanceof Error ? error.message : "Could not update the template");
+        else toast.error(error instanceof Error ? error.message : "Could not update the saved form");
       } finally {
         setUpdatingTemplate(false);
       }
@@ -337,11 +346,22 @@ export function BookingFormEditor({
     if (selectedService === id) setSelectedService(draft.services.find((x) => x.id !== id)?.id ?? null);
   };
 
+  const loadSaved = (t: BookingTemplate) => {
+    // A saved form may name work types since renamed or removed: it comes in as the work types stand now.
+    setDraft(clone(syncFormWorkTypes(t.template, normaliseWorkTypes(ws.workspace.workTypes).workTypes)));
+    setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
+    setSelectedService(t.template.services[0]?.id ?? null);
+    toast.success(`Loaded “${t.name}”`, { description: "Nothing is live until you publish it." });
+  };
+  // The scheduled form live today, if any: the default form waits behind it.
+  const running = activeSchedule(schedules ?? [], scheduleToday());
+  const [savedFormsOpen, setSavedFormsOpen] = React.useState(false);
+
   // The controls: beside the form when the page offers a place for them, above it otherwise.
   const panel = (
     <div className="space-y-3">
       <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
-        <PublishedFormCard info={{ ...published, template: live }} onOpen={() => setPreviewing("live")} />
+        <PublishedFormCard info={{ ...published, template: live }} scheduled={running ? { name: running.name, endsOn: running.endsOn } : null} onOpen={() => setPreviewing("live")} />
         {problem && (
           <p className="text-2xs text-destructive" role="alert" data-testid="booking-editor-problem">
             {problem}
@@ -368,6 +388,11 @@ export function BookingFormEditor({
             )}
           </div>
         </div>
+        {running && (
+          <p className="text-2xs text-muted-foreground" data-testid="booking-editor-scheduled-note">
+            “{running.name}” is live until {format(parseISO(running.endsOn), "d MMM")}. Publishing changes the form that comes back after.
+          </p>
+        )}
         {draftWaiting && (
           <p className="flex flex-wrap items-center gap-x-1.5 text-2xs text-muted-foreground" data-testid="booking-editor-draft-waiting">
             A saved draft is waiting to be published.
@@ -381,13 +406,8 @@ export function BookingFormEditor({
       <TemplatesPanel
         templates={templates}
         current={draft}
-        onLoad={(t) => {
-          // A saved form may name work types since renamed or removed: it comes in as the work types stand now.
-          setDraft(clone(syncFormWorkTypes(t.template, normaliseWorkTypes(ws.workspace.workTypes).workTypes)));
-          setFromTemplate({ id: t.id, name: t.name, description: t.description ?? null, template: clone(t.template) });
-          setSelectedService(t.template.services[0]?.id ?? null);
-          toast.success(`Loaded “${t.name}”`, { description: "Nothing is live until you publish it." });
-        }}
+        onLoad={loadSaved}
+        onOpenSavedForms={savedFormActions ? () => setSavedFormsOpen(true) : undefined}
         onSaveTemplate={async (input) => {
           await onSaveTemplate(input);
           // Saved from here, the editor is now that template's: the picker names it and reload goes back to it.
@@ -421,7 +441,7 @@ export function BookingFormEditor({
               size="sm"
               className="w-full min-w-0"
               disabled={!templateChanged || updatingTemplate || !check.success}
-              title={templateChanged ? `Overwrite the template “${template.name}” with the form as it is now` : `Matches the template “${template.name}”`}
+              title={templateChanged ? `Overwrite “${template.name}” with the form as it is now` : `Matches “${template.name}”`}
               onClick={() => void updateTemplate(false)}
               data-testid="booking-editor-update-template"
     >
@@ -462,6 +482,16 @@ export function BookingFormEditor({
   return (
     <div ref={rootRef} className="space-y-5" data-testid="booking-editor">
       {panelContainer ? createPortal(panel, panelContainer) : panel}
+      {savedFormActions && (
+        <SavedFormsDialog
+          open={savedFormsOpen}
+          onOpenChange={setSavedFormsOpen}
+          templates={templates}
+          schedules={schedules ?? []}
+          defaultForm={{ template: live, name: published.name }}
+          actions={{ ...savedFormActions, onLoad: loadSaved }}
+        />
+      )}
 
       {/* Pinned, like the bar it stands for: a form long enough to scroll is
           exactly when knowing which step is open matters. The four steps

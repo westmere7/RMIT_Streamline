@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { ErrorState } from "@/components/shared/error-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import type { BookingBlock, BookingFormTemplate, BookingSavedBlock, BookingTemplate } from "@/domain";
+import type { BookingBlock, BookingFormSchedule, BookingFormTemplate, BookingSavedBlock, BookingTemplate } from "@/domain";
+import { resolveBookingTemplate } from "@/services/booking";
 import { BookingFormEditor } from "@/features/booking/editor/booking-form-editor";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -63,6 +64,7 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
     () => [
       { table: "workspaces", filter: `id=eq.${ws.workspace.id}`, keys: [["booking-form", ws.slug]] },
       { table: "booking_templates", filter: `workspace_id=eq.${ws.workspace.id}`, keys: [queryKeys.bookingTemplates(ws.workspace.id)] },
+      { table: "booking_form_schedules", filter: `workspace_id=eq.${ws.workspace.id}`, keys: [queryKeys.bookingSchedules(ws.workspace.id), ["booking-form", ws.slug]] },
       { table: "booking_saved_blocks", filter: `workspace_id=eq.${ws.workspace.id}`, keys: [queryKeys.bookingSavedBlocks(ws.workspace.id)] },
     ],
     [ws.workspace.id, ws.slug],
@@ -78,6 +80,11 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
   const templates = useQuery({
     queryKey: queryKeys.bookingTemplates(ws.workspace.id),
     queryFn: () => services.booking.listTemplates(ws.workspace.id),
+    enabled: manager,
+  });
+  const schedules = useQuery({
+    queryKey: queryKeys.bookingSchedules(ws.workspace.id),
+    queryFn: () => services.booking.listSchedules(ws.workspace.id),
     enabled: manager,
   });
   const savedBlocks = useQuery({
@@ -124,6 +131,35 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
     await services.booking.saveTemplate(ws.workspace.id, input, ws.currentUser.id);
     await templatesChanged();
   };
+  // Saved forms published or scheduled from the Saved forms dialog. Each change
+  // can change the form being served, so the form is read again with it.
+  const schedulesChanged = async () => {
+    publishDataChange({ kinds: ["settings"] });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.bookingSchedules(ws.workspace.id) });
+    await queryClient.invalidateQueries({ queryKey: ["booking-form", ws.slug] });
+  };
+  const savedFormActions = {
+    onPublish: async (saved: BookingTemplate) => {
+      await services.booking.publishSavedForm(ws.workspace.id, saved.id, ws.currentUser.id);
+      await formChanged();
+    },
+    onSchedule: async (saved: BookingTemplate, startsOn: string, endsOn: string) => {
+      await services.booking.scheduleSavedForm(ws.workspace.id, { templateId: saved.id, startsOn, endsOn }, ws.currentUser.id);
+      await schedulesChanged();
+    },
+    onChangeDays: async (schedule: BookingFormSchedule, startsOn: string, endsOn: string) => {
+      await services.booking.updateSchedule(ws.workspace.id, schedule.id, { startsOn, endsOn });
+      await schedulesChanged();
+    },
+    onRefreshCopy: async (schedule: BookingFormSchedule) => {
+      await services.booking.updateSchedule(ws.workspace.id, schedule.id, { refreshCopy: true });
+      await schedulesChanged();
+    },
+    onUnschedule: async (schedule: BookingFormSchedule) => {
+      await services.booking.deleteSchedule(schedule.id);
+      await schedulesChanged();
+    },
+  };
   const deleteTemplate = async (template: BookingTemplate) => {
     await services.booking.deleteTemplate(template.id);
     await templatesChanged();
@@ -140,6 +176,10 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
     await services.booking.deleteSavedBlock(saved.id);
     await savedBlocksChanged();
   };
+
+  // The default form: what Publish changes, and what comes back after a
+  // scheduled one. The form above is whatever is served today.
+  const defaultLive = resolveBookingTemplate(ws.workspace);
 
   if (!manager && view === "editor") {
     return (
@@ -215,8 +255,8 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
             ) : (
               <BookingFormEditor
                 form={form.data}
-                live={form.data.template}
-                initial={draft.data ?? form.data.template}
+                live={defaultLive}
+                initial={draft.data ?? defaultLive}
                 templates={templates.data ?? []}
                 savedBlocks={savedBlocks.data ?? []}
                 publishing={publishForm.isPending}
@@ -233,6 +273,8 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
                 onDiscardDraft={discardDraft}
                 onSaveTemplate={saveTemplate}
                 onDeleteTemplate={deleteTemplate}
+                schedules={schedules.data ?? []}
+                savedFormActions={savedFormActions}
                 onSaveBlock={saveBlock}
                 onDeleteSavedBlock={deleteSavedBlock}
                 panelContainer={isMobile ? null : editorPanel}

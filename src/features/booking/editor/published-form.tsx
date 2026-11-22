@@ -46,7 +46,7 @@ export function defaultPublishName(teamName: string, at: Date = new Date()): str
  * much it has been used. Clicking it opens that form. A div acting as the
  * button, since it holds a link of its own (who published it).
  */
-export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; onOpen: () => void }) {
+export function PublishedFormCard({ info, scheduled, onOpen }: { info: PublishedFormInfo; scheduled?: { name: string; endsOn: string } | null; onOpen: () => void }) {
   const services = info.template.services.length;
   const when = info.publishedAt ? new Date(info.publishedAt) : null;
   const title = info.name ?? (info.builtIn ? "Built-in form" : "Published form");
@@ -64,7 +64,15 @@ export function PublishedFormCard({ info, onOpen }: { info: PublishedFormInfo; o
       className="block w-full cursor-pointer rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
       data-testid="booking-published-form"
     >
-      <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">Published form</p>
+      {scheduled && (
+        <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2 py-1 text-2xs text-emerald-700 dark:text-emerald-300" data-testid="booking-published-scheduled">
+          <CalendarClock className="size-3 shrink-0" aria-hidden />
+          <span className="min-w-0 truncate">
+            Live now: <span className="font-medium">{scheduled.name}</span>, until {format(new Date(`${scheduled.endsOn}T00:00:00`), "d MMM")}
+          </span>
+        </p>
+      )}
+      <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{scheduled ? "Default form, back after" : "Published form"}</p>
       <p className="mt-0.5 truncate text-[13px] font-medium" title={title} data-testid="booking-published-name">
         {title}
       </p>

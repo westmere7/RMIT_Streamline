@@ -58,7 +58,7 @@ import type {
   WorkspaceMember,
 } from "@/domain";
 import type { ActivityEventType, LastActivity } from "@/domain";
-import type { ArchivePage, ArchiveQuery, ItemBaseline, ItemBaselineInput, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, BookingFormPublication, BookingFormPublicationInput, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
+import type { ArchivePage, ArchiveQuery, ItemBaseline, ItemBaselineInput, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, BookingFormPublication, BookingFormPublicationInput, BookingFormSchedule, BookingFormScheduleInput, BookingFormSchedulePatch, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
 
 /**
  * Repository interfaces. Each has a Local (IndexedDB) implementation today and a
@@ -554,6 +554,14 @@ export interface BookingPublicationRepository {
   deleteMany(workspaceId: EntityId, ids: EntityId[]): Promise<void>;
 }
 
+/** Saved forms put live for a window of days (migration 0151). Windows never overlap. */
+export interface BookingScheduleRepository {
+  listByWorkspace(workspaceId: EntityId): Promise<BookingFormSchedule[]>;
+  create(input: BookingFormScheduleInput): Promise<BookingFormSchedule>;
+  update(id: EntityId, patch: BookingFormSchedulePatch): Promise<BookingFormSchedule>;
+  delete(id: EntityId): Promise<void>;
+}
+
 /** Board layouts saved under a name, per workspace, for new boards to start from. */
 export interface BoardTemplateRepository {
   listByWorkspace(workspaceId: EntityId): Promise<SavedBoardTemplate[]>;
@@ -824,6 +832,7 @@ export interface Repositories {
   stakeholderPortals: StakeholderPortalRepository;
   bookingTemplates: BookingTemplateRepository;
   bookingPublications: BookingPublicationRepository;
+  bookingSchedules: BookingScheduleRepository;
   boardTemplates: BoardTemplateRepository;
   savedViews: SavedViewRepository;
   baselines: BaselineRepository;
