@@ -1,16 +1,21 @@
 "use client";
 
-import { ArrowLeftRight, Check, CornerDownRight, SquareKanban, Link2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeftRight, Check, CornerDownRight, SquareKanban, Link2, Plus } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { Board, ColorToken, Item, Team } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
+import { useServices } from "@/features/data/data-context";
 import { useLinkCandidates, useLinkMapping, useLinkMutations } from "@/features/items/link-hooks";
 import { SyncFieldList } from "@/features/items/sync-field-list";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -57,7 +62,11 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
   // Everything the boards share syncs unless the user unticks it here.
   const [excluded, setExcluded] = React.useState<Set<string>>(new Set());
   const candidates = useLinkCandidates(item.id, debounced, boardId, true);
-  const mapping = useLinkMapping(board.id, selected?.board.id ?? null);
+  // Or a task made for the link, on a board and in a group of the person's choosing.
+  const [draft, setDraft] = React.useState<{ boardId: string | null; groupId: string | null; name: string } | null>(null);
+  const [creating, setCreating] = React.useState(false);
+  const services = useServices();
+  const mapping = useLinkMapping(board.id, selected?.board.id ?? draft?.boardId ?? null);
   const { link } = useLinkMutations(item.id);
 
   // Sync writes to both boards, so only boards the user can edit are offered; boards
@@ -84,11 +93,21 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
   const choose = (next: string | null) => {
     setBoardId(next);
     setSelected(null);
+    // A new task follows the board being browsed.
+    setDraft((d) => (d ? { ...d, boardId: next && !blocked.has(next) ? next : d.boardId, groupId: next && next !== d.boardId ? null : d.groupId } : d));
   };
   const select = (hit: LinkCandidate) => {
     if (hit.item.id !== selected?.item.id) setExcluded(new Set());
     setSelected(hit);
+    setDraft(null);
   };
+  const startDraft = () => {
+    setSelected(null);
+    setExcluded(new Set());
+    setSeedFrom("item");
+    setDraft({ boardId: activeBoard && !blocked.has(activeBoard.id) ? activeBoard.id : null, groupId: null, name: item.name });
+  };
+  const draftBoard = draft?.boardId ? (linkable.find((b) => b.id === draft.boardId) ?? null) : null;
   const toggleField = (keys: string[], on: boolean) => {
     setExcluded((prev) => {
       const next = new Set(prev);
@@ -99,10 +118,30 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
       return next;
     });
   };
-  const submit = () => {
-    if (!selected) return;
-    link.mutate({ targetId: selected.item.id, options: { seedFrom, excluded: [...excluded] } }, { onSuccess: onClose });
+  const submit = async () => {
+    if (selected) {
+      link.mutate({ targetId: selected.item.id, options: { seedFrom, excluded: [...excluded] } }, { onSuccess: onClose });
+      return;
+    }
+    if (!draft?.boardId || !draft.groupId || !draft.name.trim()) return;
+    // Made, then linked and filled from this task. A link that fails takes the new task with it.
+    setCreating(true);
+    try {
+      const created = await services.items.createItem({ boardId: draft.boardId, groupId: draft.groupId, name: draft.name.trim() }, ws.currentUser.id);
+      try {
+        await link.mutateAsync({ targetId: created.id, options: { seedFrom: "item", excluded: [...excluded] } });
+      } catch (error) {
+        await services.items.deleteItems(draft.boardId, [created.id], ws.currentUser.id).catch(() => undefined);
+        throw error;
+      }
+      onClose();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not make and link the task");
+    } finally {
+      setCreating(false);
+    }
   };
+  const canSubmit = selected ? !link.isPending : !!draft?.boardId && !!draft.groupId && !!draft.name.trim() && !creating && !link.isPending;
 
   return (
     <>
@@ -158,6 +197,19 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
         >
           <CommandInput placeholder={activeBoard ? `Search ${activeBoard.name}…` : "Search items across all boards…"} value={query} onValueChange={setQuery} autoFocus data-testid="link-search" />
           <CommandList className="scrollbar-thin max-h-none min-h-0 flex-1 px-2 pb-2">
+            <CommandGroup className="pt-1">
+              <CommandItem
+                value="__new-task"
+                onSelect={startDraft}
+                className={cn("gap-2 rounded-md px-2 py-2 text-[13px]", draft && "bg-accent")}
+                data-testid="link-new-task"
+              >
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-dashed border-muted-foreground/50 text-muted-foreground">
+                  <Plus className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1 truncate font-medium">{activeBoard ? `New task on ${activeBoard.name}` : "New task to link to"}</span>
+              </CommandItem>
+            </CommandGroup>
             {candidates.isLoading && (
               <div className="space-y-2 p-2">
                 {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
@@ -176,7 +228,53 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
 
         {/* Preview + options */}
         <aside className="scrollbar-thin flex min-h-0 flex-col gap-5 overflow-y-auto border-t p-4 md:border-t-0 md:border-l">
-          {!selected ? (
+          {draft ? (
+            <>
+              <section className="space-y-2.5" data-testid="link-new-task-form">
+                <SectionLabel>New task</SectionLabel>
+                <label className="grid gap-1 text-2xs text-muted-foreground">
+                  Board
+                  <Select value={draft.boardId ?? ""} onValueChange={(next) => setDraft({ ...draft, boardId: next, groupId: null })}>
+                    <SelectTrigger className="h-8 text-[13px]" aria-label="Board for the new task" data-testid="link-new-board">
+                      <SelectValue placeholder="Choose a board" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {linkable
+                        .filter((b) => !blocked.has(b.id))
+                        .map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </label>
+                {draftBoard && <DraftGroupSelect boardId={draftBoard.id} value={draft.groupId} onChange={(groupId) => setDraft({ ...draft, groupId })} />}
+                <label className="grid gap-1 text-2xs text-muted-foreground">
+                  Name
+                  <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="h-8 text-[13px]" aria-label="Name of the new task" data-testid="link-new-name" />
+                </label>
+                <p className="text-2xs text-muted-foreground">It starts with this task&rsquo;s values for every field that stays in sync.</p>
+              </section>
+              {draftBoard && (
+                <section>
+                  <SectionLabel>What stays in sync</SectionLabel>
+                  {mapping.isLoading || !mapping.data ? (
+                    <Skeleton className="h-24" />
+                  ) : (
+                    <SyncFieldList
+                      mapping={mapping.data}
+                      excluded={excluded}
+                      onToggle={toggleField}
+                      boardName={board.name}
+                      otherBoardName={draftBoard.name}
+                      ticket={{ self: item.ticket ?? null, other: null, from: "item" }}
+                    />
+                  )}
+                </section>
+              )}
+            </>
+          ) : !selected ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-[13px] text-muted-foreground">
               <span className="flex size-9 items-center justify-center rounded-full bg-surface-strong">
                 <ArrowLeftRight className="size-4" />
@@ -227,8 +325,8 @@ function LinkItemDialogBody({ item, onClose }: { item: Item; onClose: () => void
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={submit} disabled={!selected || link.isPending} data-testid="link-submit">
-          <Link2 /> {link.isPending ? "Linking…" : "Link items"}
+        <Button onClick={() => void submit()} disabled={!canSubmit} data-testid="link-submit">
+          <Link2 /> {creating || link.isPending ? "Linking…" : draft ? "Make and link" : "Link items"}
         </Button>
       </DialogFooter>
     </>
@@ -312,6 +410,36 @@ function SeedOption({ checked, onChange, label, hint }: { checked: boolean; onCh
         <span className="block font-medium">{label}</span>
         <span className="block truncate text-2xs text-muted-foreground">{hint}</span>
       </span>
+    </label>
+  );
+}
+
+/** The groups a new task can go in: any but Task Allocation's Booked by Form, which takes bookings only. The first is picked to begin with. */
+function DraftGroupSelect({ boardId, value, onChange }: { boardId: string; value: string | null; onChange: (groupId: string) => void }) {
+  const services = useServices();
+  const groups = useQuery({
+    queryKey: ["link-new-task-groups", boardId],
+    queryFn: async () => (await services.repos.boards.listGroups(boardId)).filter((g) => g.role !== "INTAKE").sort((a, b) => a.position - b.position),
+  });
+  const first = groups.data?.[0]?.id ?? null;
+  React.useEffect(() => {
+    if (!value && first) onChange(first);
+  }, [value, first, onChange]);
+  return (
+    <label className="grid gap-1 text-2xs text-muted-foreground">
+      Group
+      <Select value={value ?? ""} onValueChange={onChange} disabled={!groups.data?.length}>
+        <SelectTrigger className="h-8 text-[13px]" aria-label="Group for the new task" data-testid="link-new-group">
+          <SelectValue placeholder={groups.isLoading ? "Loading…" : "No groups on this board"} />
+        </SelectTrigger>
+        <SelectContent>
+          {(groups.data ?? []).map((g) => (
+            <SelectItem key={g.id} value={g.id}>
+              {g.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </label>
   );
 }

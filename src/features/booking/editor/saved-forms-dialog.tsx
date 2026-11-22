@@ -95,7 +95,7 @@ export function SavedFormsDialog({
         <div className="scrollbar-thin -mx-1 min-h-0 space-y-5 overflow-y-auto px-1">
           {/* What stakeholders get today, and what comes next. */}
           <div className="rounded-xl border border-border/70 bg-surface/60 px-3 py-2.5 text-[13px]" data-testid="saved-forms-now">
-            <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">On the form now</p>
+            <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">Currently published</p>
             <p className="mt-0.5 font-medium">
               {running ? running.name : defaultName}
               {(running || defaultForm.name) && <span className="ml-1.5 font-normal text-muted-foreground">{running ? `until ${day(running.endsOn)}, then ${defaultName}` : "default form"}</span>}

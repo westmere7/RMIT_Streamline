@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import type { AuthProvider } from "@/domain";
 import { createRepositories } from "@/data/provider";
 import { HttpReallocationTransport } from "@/data/supabase/reallocation-transport";
@@ -47,6 +48,16 @@ export function DataProviderContext({ children, value }: { children: React.React
     const auth = createAuthProvider(providerKind, repos);
     return { providerKind, services, auth };
   }, [value]);
+
+  // A change that could not reach a linked task (on a board the person only views): theirs stands, and the page says where.
+  useEffect(
+    () =>
+      built.services.links.onSyncSkipped(({ boardNames, what }) => {
+        const where = boardNames.length === 1 ? boardNames[0] : `${boardNames.length} boards`;
+        toast.warning(what === "update" ? `Not posted on the linked task on ${where}` : `Not updated on ${where}`, { description: "You can't edit it there. Saved here." });
+      }),
+    [built],
+  );
 
   return <DataContext.Provider value={built}>{children}</DataContext.Provider>;
 }

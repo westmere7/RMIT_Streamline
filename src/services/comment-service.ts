@@ -1,4 +1,4 @@
-import { COMMENT_REACTIONS, RefusedError, type Comment, type CommentPinState, type EntityId, type NotificationType, type User } from "@/domain";
+import { COMMENT_REACTIONS, RefusedError, type Board, type Comment, type CommentPinState, type EntityId, type NotificationType, type User } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -114,8 +114,17 @@ export class CommentService {
     ];
 
     if (linkedItems.length) {
+      const skipped: Board[] = [];
       for (const linked of linkedItems) {
-        await this.repos.comments.create({ itemId: linked.id, authorId: actorId, body: trimmed, mentionUserIds, sharedId });
+        // A linked task on a board the person only views takes no copy; theirs stands.
+        try {
+          await this.repos.comments.create({ itemId: linked.id, authorId: actorId, body: trimmed, mentionUserIds, sharedId });
+        } catch (error) {
+          console.warn("An update was not copied to a linked task", error);
+          const where = await this.repos.boards.getById(linked.boardId);
+          if (where) skipped.push(where);
+          continue;
+        }
         activities.push({
           workspaceId: board?.workspaceId ?? "",
           boardId: linked.boardId,
@@ -125,6 +134,7 @@ export class CommentService {
           metadata: { itemName: linked.name },
         });
       }
+      this.links?.reportSkipped(skipped, "update");
     }
 
     await this.repos.activities.createMany(activities);

@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.153.0",
+    date: "2026-11-22",
+    title: "Make a task to link to",
+    changes: [
+      "Link to another item offers New task: pick its board, group and name, and it is made and linked in one go, starting with this task's values.",
+      "A change to a linked task now saves even when you can't edit the task it's linked to; that one is left as it was, and you're told which board wasn't updated. The same goes for an update posted to linked tasks too.",
+      "Unlinking without the right to edit both tasks says so.",
+      "In Saved forms, On the form now is called Currently published.",
+    ],
+  },
+  {
     version: "0.152.13",
     date: "2026-11-22",
     title: "Sidebar icons as before",

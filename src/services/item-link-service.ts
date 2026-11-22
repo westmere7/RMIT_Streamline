@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnPair, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
+import { RefusedError, LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -79,6 +79,13 @@ function newSyncCache(): SyncCache {
   return { items: new Map(), links: new Map(), bundles: new Map(), values: new Map() };
 }
 
+/** Linked tasks a change could not reach, by their boards' names. */
+export interface SkippedSync {
+  boardNames: string[];
+  /** A field's change, or an update posted to linked tasks too. */
+  what: "change" | "update";
+}
+
 /**
  * Task Linking. Links are symmetric and transitive: a change to any item in a
  * connected set is mirrored to every other item it can reach, one write per item,
@@ -91,6 +98,27 @@ export class ItemLinkService {
     private readonly repos: Repositories,
     private readonly notifications: NotificationService,
   ) {}
+
+  /**
+   * Who hears about linked tasks a change could not reach: the person may edit
+   * this task but not the one it is linked to on another board. Their change
+   * stands; the page says which board was not updated.
+   */
+  private skippedListeners = new Set<(skipped: SkippedSync) => void>();
+
+  onSyncSkipped(listener: (skipped: SkippedSync) => void): () => void {
+    this.skippedListeners.add(listener);
+    return () => {
+      this.skippedListeners.delete(listener);
+    };
+  }
+
+  /** Tells the page about linked tasks left behind, one message per change. */
+  reportSkipped(boards: readonly Board[], what: SkippedSync["what"]): void {
+    const unique = [...new Map(boards.map((b) => [b.id, b])).values()];
+    if (unique.length === 0) return;
+    for (const listener of this.skippedListeners) listener({ boardNames: unique.map((b) => b.name), what });
+  }
 
   // ---- Reads ---------------------------------------------------------------
 
@@ -319,6 +347,8 @@ export class ItemLinkService {
     const link = await this.repos.links.getById(linkId);
     if (!link) return;
     await this.repos.links.delete(linkId);
+    // Removing a link takes the right to edit both tasks; a refusal deletes nothing and says nothing.
+    if (await this.repos.links.getById(linkId)) throw new RefusedError("Only someone who can edit both tasks can unlink them.");
     const [a, b] = await Promise.all([this.repos.items.getById(link.itemAId), this.repos.items.getById(link.itemBId)]);
     if (!a || !b) return;
     const [boardA, boardB] = await Promise.all([this.repos.boards.getById(a.boardId), this.repos.boards.getById(b.boardId)]);
@@ -440,6 +470,7 @@ export class ItemLinkService {
     const users = change.kind === "value" && !options.silent ? await this.repos.users.list() : [];
     const touched = new Set<EntityId>();
     const activities: ActivityInput[] = [];
+    const skipped: Board[] = [];
 
     // Breadth-first over links, remembering which column the change lives in at each hop.
     const visited = new Set<EntityId>([origin.id]);
@@ -469,10 +500,22 @@ export class ItemLinkService {
 
         visited.add(nextId);
         queue.push({ item: next, bundle, column: nextColumn });
+        // A linked task the person may not edit (it is on a board they only
+        // view): their own change stands, this one is left as it was.
+        const attempt = async (write: () => Promise<unknown>): Promise<boolean> => {
+          try {
+            await write();
+            return true;
+          } catch (error) {
+            console.warn("A linked task was not updated", error);
+            skipped.push(bundle.board);
+            return false;
+          }
+        };
 
         if (change.kind === "name") {
           if (next.name === change.name) continue;
-          await this.repos.items.update(next.id, { name: change.name });
+          if (!(await attempt(() => this.repos.items.update(next.id, { name: change.name })))) continue;
           touched.add(next.boardId);
           if (!options.silent) {
             activities.push({
@@ -489,14 +532,14 @@ export class ItemLinkService {
 
         if (change.kind === "description") {
           if ((next.description ?? null) === (change.description ?? null)) continue;
-          await this.repos.items.update(next.id, { description: change.description });
+          if (!(await attempt(() => this.repos.items.update(next.id, { description: change.description })))) continue;
           touched.add(next.boardId);
           continue;
         }
 
         if (change.kind === "ticket") {
           if (!change.ticket || (next.ticket ?? null) === change.ticket) continue;
-          await this.repos.items.update(next.id, { ticket: change.ticket });
+          if (!(await attempt(() => this.repos.items.update(next.id, { ticket: change.ticket })))) continue;
           touched.add(next.boardId);
           continue;
         }
@@ -510,8 +553,8 @@ export class ItemLinkService {
           // Seeding a link pushes every value at once; the caller writes them in
           // one statement instead of one round-trip per value.
           options.collect.push({ itemId: next.id, columnId: nextColumn!.id, value: translated.value });
-        } else {
-          await this.repos.items.setValue(next.id, nextColumn!.id, translated.value);
+        } else if (!(await attempt(() => this.repos.items.setValue(next.id, nextColumn!.id, translated.value)))) {
+          continue;
         }
         // Keep the cache honest for the rest of the run.
         cache.values.set(next.id, [
@@ -539,7 +582,9 @@ export class ItemLinkService {
       }
     }
 
-    if (activities.length) await this.repos.activities.createMany(activities);
+    // Recorded where the person may record it; the writes themselves have landed.
+    if (activities.length) await this.repos.activities.createMany(activities).catch((error) => console.warn("A linked task's history entry was not written", error));
+    if (!options.silent) this.reportSkipped(skipped, "change");
     return [...touched];
   }
 
