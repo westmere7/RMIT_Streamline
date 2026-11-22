@@ -216,10 +216,10 @@ const serviceSchema = z.object({
     .object({
       enabled: z.boolean().default(false),
       rules: z
-        .array(z.object({ id: z.string().trim().min(1).max(80), workTypes: z.array(z.string().trim().min(1).max(120)).max(40), boardId: z.uuid(), match: z.enum(["any", "exact"]).optional() }))
+        .array(z.object({ id: z.string().trim().min(1).max(80), workTypes: z.array(z.string().trim().min(1).max(120)).max(40), boardId: z.uuid(), groupId: z.string().trim().min(1).max(80).nullable().optional(), match: z.enum(["any", "exact"]).optional() }))
         .max(30)
         .default([]),
-      otherwise: z.discriminatedUnion("kind", [z.object({ kind: z.literal("team") }), z.object({ kind: z.literal("allocation") }), z.object({ kind: z.literal("board"), boardId: z.uuid() })]).default({ kind: "team" }),
+      otherwise: z.discriminatedUnion("kind", [z.object({ kind: z.literal("team") }), z.object({ kind: z.literal("allocation") }), z.object({ kind: z.literal("board"), boardId: z.uuid(), groupId: z.string().trim().min(1).max(80).nullable().optional() })]).default({ kind: "team" }),
     })
     .nullable()
     .optional(),

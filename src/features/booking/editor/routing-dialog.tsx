@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, Plus, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Plus, SquareKanban, X } from "lucide-react";
 import * as React from "react";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Button } from "@/components/ui/button";
@@ -8,12 +9,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Board, BookingRouteRule, BookingRouteTarget, BookingRouting, BookingServiceType } from "@/domain";
 import { newBlockId } from "@/domain";
+import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { queryKeys } from "@/lib/query/keys";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { Chip, ChipGroup } from "../booking-fields";
 
 const ALLOCATION = "__allocation__";
+const FIRST_GROUP = "__first__";
 const TEAM = "team:";
 
 /** What Save hands back: the rules, switched on, and the team that takes what no rule catches (if a team does). */
@@ -62,6 +66,10 @@ function RoutingForm({ service, onCancel, onSave }: { service: BookingServiceTyp
     if (target.kind === "team" && service.teamId) return TEAM + service.teamId;
     return ALLOCATION;
   });
+  const [otherwiseGroup, setOtherwiseGroup] = React.useState<string | null>(() => {
+    const target = service.routing?.otherwise;
+    return target?.kind === "board" ? (target.groupId ?? null) : null;
+  });
   const boards = ws.boards.filter((b) => !b.system && b.archivedAt === null);
   const teams = ws.teams.filter((t) => !t.system && t.archivedAt === null).sort((a, b) => a.name.localeCompare(b.name));
   const workTypes = service.subServices;
@@ -71,7 +79,7 @@ function RoutingForm({ service, onCancel, onSave }: { service: BookingServiceTyp
 
   const save = () => {
     const team = otherwise.startsWith(TEAM) ? otherwise.slice(TEAM.length) : null;
-    const target: BookingRouteTarget = team ? { kind: "team" } : otherwise === ALLOCATION ? { kind: "allocation" } : { kind: "board", boardId: otherwise };
+    const target: BookingRouteTarget = team ? { kind: "team" } : otherwise === ALLOCATION ? { kind: "allocation" } : { kind: "board", boardId: otherwise, groupId: otherwiseGroup };
     onSave({ routing: { enabled: true, rules, otherwise: target }, teamId: team });
   };
 
@@ -117,7 +125,9 @@ function RoutingForm({ service, onCancel, onSave }: { service: BookingServiceTyp
                 </ChipGroup>
                 <div className="flex items-center gap-2">
                   <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                  <BoardSelect value={rule.boardId} boards={boards} onChange={(boardId) => patchRule(rule.id, { boardId })} ariaLabel={`Board for rule ${index + 1}`} testId="routing-rule-board" />
+                  {/* Another board starts again from its first group. */}
+                  <BoardSelect value={rule.boardId} boards={boards} onChange={(boardId) => patchRule(rule.id, { boardId, groupId: null })} ariaLabel={`Board for rule ${index + 1}`} testId="routing-rule-board" />
+                  {rule.boardId && <GroupSelect boardId={rule.boardId} value={rule.groupId ?? null} onChange={(groupId) => patchRule(rule.id, { groupId })} ariaLabel={`Group for rule ${index + 1}`} testId="routing-rule-group" />}
                 </div>
               </div>
             ))}
@@ -135,10 +145,14 @@ function RoutingForm({ service, onCancel, onSave }: { service: BookingServiceTyp
 
           <div className="space-y-1.5">
             <p className="label-quiet">Otherwise</p>
+            <div className="flex items-center gap-2">
             <BoardSelect
               value={otherwise}
               boards={boards}
-              onChange={setOtherwise}
+              onChange={(next) => {
+                setOtherwise(next);
+                setOtherwiseGroup(null);
+              }}
               ariaLabel="Where everything else goes"
               testId="routing-otherwise"
               extra={
@@ -169,6 +183,8 @@ function RoutingForm({ service, onCancel, onSave }: { service: BookingServiceTyp
                 </>
               }
             />
+            {otherwise !== ALLOCATION && !otherwise.startsWith(TEAM) && <GroupSelect boardId={otherwise} value={otherwiseGroup} onChange={setOtherwiseGroup} ariaLabel="Group for everything else" testId="routing-otherwise-group" />}
+            </div>
           </div>
         </div>
       )}
@@ -211,13 +227,59 @@ function BoardSelect({ value, boards, onChange, ariaLabel, testId, extra }: { va
               {group.list.map((board) => (
                 <SelectItem key={board.id} value={board.id}>
                   <span className="flex min-w-0 items-center gap-2">
-                    <DynamicIcon name={board.icon} className={cn("size-3.5 shrink-0", colorClasses(board.color).text)} />
+                    <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="truncate">{board.name}</span>
                   </span>
                 </SelectItem>
               ))}
             </SelectGroup>
           </React.Fragment>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/**
+ * The group on the chosen board a booking lands in. "First group" is the
+ * default and follows the board's order. A group picked and since deleted is
+ * named as such: bookings then land in a group called Allocated, made if the
+ * board has none.
+ */
+function GroupSelect({ boardId, value, onChange, ariaLabel, testId }: { boardId: string; value: string | null; onChange: (groupId: string | null) => void; ariaLabel: string; testId?: string }) {
+  const services = useServices();
+  const groups = useQuery({
+    queryKey: queryKeys.boardGroups(boardId),
+    queryFn: () => services.repos.boards.listGroups(boardId),
+    staleTime: 30_000,
+  });
+  const list = (groups.data ?? []).slice().sort((a, b) => a.position - b.position);
+  const gone = !!value && !!groups.data && !list.some((g) => g.id === value);
+  return (
+    <Select value={gone ? "__gone__" : (value ?? FIRST_GROUP)} onValueChange={(next) => onChange(next === FIRST_GROUP ? null : next)}>
+      <SelectTrigger className="h-9 w-44 shrink-0 text-[13px]" aria-label={ariaLabel} data-testid={testId}>
+        <SelectValue placeholder="First group" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={FIRST_GROUP}>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="truncate">First group</span>
+            {list[0] && <span className="truncate text-muted-foreground">{list[0].name}</span>}
+          </span>
+        </SelectItem>
+        {gone && (
+          <SelectItem value="__gone__" disabled>
+            Deleted · lands in Allocated
+          </SelectItem>
+        )}
+        {list.length > 0 && <SelectSeparator />}
+        {list.map((group) => (
+          <SelectItem key={group.id} value={group.id}>
+            <span className="flex min-w-0 items-center gap-2">
+              <span aria-hidden className={cn("size-2.5 shrink-0 rounded-full", colorClasses(group.color).dot)} />
+              <span className="truncate">{group.name}</span>
+            </span>
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>

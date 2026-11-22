@@ -481,7 +481,8 @@ export interface BookingServiceType {
 }
 
 /** Where a booking goes: its team's nominated booking board, the allocation queue, or a board named here. */
-export type BookingRouteTarget = { kind: "team" } | { kind: "allocation" } | { kind: "board"; boardId: EntityId };
+/** Where a booking goes. A board may name the group it lands in; without one, or once that group is gone, its first group. */
+export type BookingRouteTarget = { kind: "team" } | { kind: "allocation" } | { kind: "board"; boardId: EntityId; groupId?: EntityId | null };
 
 /**
  * One rule: a booking whose work types match goes to this board. "any" (the
@@ -493,6 +494,8 @@ export interface BookingRouteRule {
   id: string;
   workTypes: string[];
   boardId: EntityId;
+  /** The group on that board it lands in; none means the board's first group. */
+  groupId?: EntityId | null;
   match?: "any" | "exact";
 }
 
@@ -521,7 +524,7 @@ export interface BookingRouting {
 export function routeBooking(service: Pick<BookingServiceType, "routing" | "boardId">, workTypes: readonly string[]): BookingRouteTarget {
   const routing = service.routing;
   if (!routing?.enabled) return service.boardId ? { kind: "board", boardId: service.boardId } : { kind: "team" };
-  for (const rule of routing.rules) if (ruleMatches(rule, workTypes)) return { kind: "board", boardId: rule.boardId };
+  for (const rule of routing.rules) if (ruleMatches(rule, workTypes)) return { kind: "board", boardId: rule.boardId, ...(rule.groupId ? { groupId: rule.groupId } : {}) };
   return routing.otherwise;
 }
 

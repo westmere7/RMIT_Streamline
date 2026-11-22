@@ -1,6 +1,7 @@
 import type {
   Board,
   BoardColumn,
+  BoardGroup,
   BookingBlock,
   BookingForm,
   BookingFormTemplate,
@@ -140,6 +141,9 @@ export interface BookingSubmission {
    */
   actorId?: EntityId | null;
 }
+
+/** Where a booking goes when the group its rule picked has been deleted. */
+export const ALLOCATED_GROUP_NAME = "Allocated";
 
 export class BookingAccessError extends Error {
   constructor(message: string) {
@@ -418,8 +422,10 @@ export class BookingService {
 
     const [columns, groups, members] = await Promise.all([this.repos.boards.listColumns(board.id), this.repos.boards.listGroups(board.id), this.repos.workspaces.listMembers(workspaceId)]);
     const actorId = this.actorFor(members, board, memberId);
-    // Task Allocation's intake group wherever it sits; a team's own board, its first group.
-    const group = board.system === "TASK_ALLOCATION" ? intakeGroupOf(groups) : groups.slice().sort((a, b) => a.position - b.position)[0];
+    // Task Allocation's intake group wherever it sits; a team's board, the group
+    // its rule names while that group is still on the board, else its first group.
+    const chosenGroupId = direct && route.kind === "board" && route.boardId === board.id ? (route.groupId ?? null) : null;
+    const group = board.system === "TASK_ALLOCATION" ? intakeGroupOf(groups) : await this.landingGroup(board, groups, chosenGroupId);
     if (!group) throw new BookingValidationError(`${board.name} has no group to receive bookings.`);
 
     // Who asked, as a person. A member signed in and booking as themselves is
@@ -795,6 +801,25 @@ export class BookingService {
     // book without the key; a public visitor must carry the right one.
     if (key !== null && workspace.bookingKey && key !== workspace.bookingKey) throw new BookingAccessError("This booking link is no longer valid. Ask the team for the current one.");
     return workspace;
+  }
+
+  /**
+   * The group a booking lands in on a team's board: the one its rule picked, or
+   * with none picked the board's first group. A picked group that has since been
+   * deleted (or a board with no groups at all) falls back to one called
+   * "Allocated", made at the top of the board the first time it is needed and
+   * used again after that.
+   */
+  private async landingGroup(board: Board, groups: readonly BoardGroup[], chosenGroupId: EntityId | null): Promise<BoardGroup> {
+    const ordered = groups.slice().sort((a, b) => a.position - b.position);
+    if (chosenGroupId) {
+      const chosen = groups.find((g) => g.id === chosenGroupId);
+      if (chosen) return chosen;
+    } else if (ordered[0]) return ordered[0];
+    const existing = groups.find((g) => g.name.trim().toLowerCase() === ALLOCATED_GROUP_NAME.toLowerCase());
+    if (existing) return existing;
+    const top = ordered[0] ? ordered[0].position - 1 : 0;
+    return this.repos.boards.createGroup({ boardId: board.id, name: ALLOCATED_GROUP_NAME, color: "green", position: top, collapsed: false });
   }
 
   /** Who a booking is recorded as: the member who booked it if they belong here, else the workspace owner, else the board's owner. */

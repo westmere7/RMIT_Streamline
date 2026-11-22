@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.148.0",
+    date: "2026-11-22",
+    title: "Auto-allocation picks the group",
+    changes: [
+      "Each auto-allocation rule, and Otherwise when it names a board, can pick the group a booking lands in on that board. First group stays the default.",
+      "If a picked group is deleted later, bookings land in a group called Allocated, made at the top of the board the first time and used again after; the rule says the group is gone.",
+    ],
+  },
+  {
     version: "0.147.0",
     date: "2026-11-22",
     title: "Auto-save a template",

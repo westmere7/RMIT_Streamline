@@ -110,6 +110,34 @@ describe("routing a booking by its work types", { timeout: 20_000 }, () => {
     expect((await bookPublic(["Digital / Social", "Print"])).boardId).toBe(socialBoard.id);
   });
 
+  it("2b. a rule can name the group a booking lands in; once that group is deleted, a group called Allocated takes it", async () => {
+    const groupsOf = async (boardId: string) => (await services.repos.boards.listGroups(boardId)).slice().sort((a, b) => a.position - b.position);
+    const groupOfItem = async (itemId: string) => (await services.repos.items.getById(itemId))!.groupId;
+    // A second group on the print board, picked by the rule.
+    const second = await services.boards.createGroup(printBoard.id, "Picked group", owner);
+    await route({ enabled: true, rules: [{ id: "g", workTypes: ["Print"], boardId: printBoard.id, groupId: second.id }], otherwise: { kind: "allocation" } });
+    expect(await groupOfItem((await bookPublic(["Print"])).itemId)).toBe(second.id);
+
+    // No group picked: the board's first group, as before.
+    await route({ enabled: true, rules: [{ id: "g", workTypes: ["Print"], boardId: printBoard.id }], otherwise: { kind: "allocation" } });
+    expect(await groupOfItem((await bookPublic(["Print"])).itemId)).toBe((await groupsOf(printBoard.id))[0]!.id);
+
+    // The picked group deleted: Allocated is made, at the top, and used from then on.
+    await route({ enabled: true, rules: [{ id: "g", workTypes: ["Print"], boardId: printBoard.id, groupId: second.id }], otherwise: { kind: "allocation" } });
+    await services.boards.deleteGroup(second.id, owner);
+    const first = await bookPublic(["Print"]);
+    const after = await groupsOf(printBoard.id);
+    expect(after[0]!.name).toBe("Allocated");
+    expect(await groupOfItem(first.itemId)).toBe(after[0]!.id);
+    await bookPublic(["Print"]);
+    expect((await groupsOf(printBoard.id)).filter((g) => g.name === "Allocated")).toHaveLength(1);
+
+    // Otherwise can name a group too.
+    const other = await services.boards.createGroup(otherBoard.id, "Everything else", owner);
+    await route({ enabled: true, rules: [{ id: "g", workTypes: ["Print"], boardId: printBoard.id }], otherwise: { kind: "board", boardId: otherBoard.id, groupId: other.id } });
+    expect(await groupOfItem((await bookPublic(["Key Visual"])).itemId)).toBe(other.id);
+  });
+
   it("3b. a rule can ask for exactly its work types, or just for any of them", async () => {
     // Exactly Print and Key Visual -> social; anything that includes Print -> print; the rest -> other.
     await route({
