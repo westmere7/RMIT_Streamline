@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.6",
+    date: "2026-11-22",
+    title: "Compact lists on a phone",
+    changes: [
+      "On a phone, task cards are smaller, a small gap apart, each with its group's colour as a straight line down its left edge rather than a curved one.",
+      "Rows are smaller: one line of chips, with new updates beside the people; an overdue date is shown in red without the word.",
+      "On Kanban, Move to lane is the first entry of a card's menu rather than a row under every card.",
+    ],
+  },
+  {
     version: "0.143.5",
     date: "2026-11-22",
     title: "Columns on a phone",

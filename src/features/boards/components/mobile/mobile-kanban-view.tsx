@@ -2,7 +2,6 @@
 
 import { ChevronLeft, ChevronRight, MoveRight, Plus } from "lucide-react";
 import * as React from "react";
-import { MenuSheet } from "@/components/layout/menu-sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -149,13 +148,13 @@ export function MobileKanbanView() {
               <ChevronRight className="size-5" />
             </button>
           </div>
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-1.5" data-testid="mobile-lane-list">
             {lane.items.map((item) => (
               <LaneCard key={item.id} item={item} laneId={lane.id} laneBy={laneBy} />
             ))}
-            {lane.items.length === 0 && <li className="rounded-xl border border-dashed border-border/70 px-3 py-4 text-[14px] text-muted-foreground">Nothing in this lane.</li>}
+            {lane.items.length === 0 && <li className="rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-[14px] text-muted-foreground">Nothing in this lane.</li>}
             {canEdit && lane.initial && (
-              <li className="rounded-xl border border-dashed border-border/70">
+              <li className="rounded-lg border border-dashed border-border/70">
                 {adding ? (
                   <div className="p-2">
                     <Input
@@ -215,7 +214,6 @@ export function MobileKanbanView() {
 function LaneCard({ item, laneId, laneBy }: { item: Item; laneId: string; laneBy: LaneBy }) {
   const { model, canEdit } = useBoardContext();
   const lanes = useKanbanLanes(laneBy);
-  const [moveOpen, setMoveOpen] = React.useState(false);
   const group = model.groups.find((g) => g.id === item.groupId) ?? model.groups[0];
   if (!group) return null;
 
@@ -226,25 +224,13 @@ function LaneCard({ item, laneId, laneBy }: { item: Item; laneId: string; laneBy
   const movable = canEdit && moveActions.length > 0;
   return (
     <>
-      {/* "Move to" travels inside the card it moves. */}
+      {/* Moving to another lane is the first entry of the card's menu. */}
       <MobileItemCard
         item={item}
         group={group}
         selectMode={false}
-        footer={
-          movable ? (
-            <button
-              type="button"
-              onClick={() => setMoveOpen(true)}
-              className="flex min-h-11 w-full items-center gap-2 border-t border-border/50 px-3 text-left text-[13px] font-medium text-muted-foreground active:bg-accent/70"
-              data-testid="mobile-kanban-move"
-            >
-              <MoveRight className="size-4" aria-hidden /> Move to another lane…
-            </button>
-          ) : null
-        }
+        menuLead={movable ? [{ type: "sub", label: "Move to lane", icon: <MoveRight />, items: moveActions }] : undefined}
       />
-      {movable && <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title={`Move “${item.name}” to`} actions={moveActions} />}
     </>
   );
 }

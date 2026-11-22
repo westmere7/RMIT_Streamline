@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown, CornerDownRight, MoreHorizontal } from "lucide-react";
 import * as React from "react";
+import type { MenuAction } from "@/components/layout/row-menu";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { LabelPill } from "@/components/shared/label-pill";
@@ -40,7 +41,22 @@ type Editing = "status" | "priority" | "date" | null;
  * name is the button that opens the item; the chips sit beside it rather than
  * inside it, because a button inside a button is not a thing.
  */
-export function MobileItemCard({ item, group, selectMode, indent = false, footer }: { item: Item; group: BoardGroup; selectMode: boolean; indent?: boolean; footer?: React.ReactNode }) {
+export function MobileItemCard({
+  item,
+  group,
+  selectMode,
+  indent = false,
+  footer,
+  menuLead,
+}: {
+  item: Item;
+  group: BoardGroup;
+  selectMode: boolean;
+  indent?: boolean;
+  footer?: React.ReactNode;
+  /** Entries a view puts first in the card's menu: Kanban's Move to lane. */
+  menuLead?: MenuAction[];
+}) {
   const { board, model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
   const selected = useBoardUiStore((s) => (s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds).includes(item.id));
   const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
@@ -96,14 +112,14 @@ export function MobileItemCard({ item, group, selectMode, indent = false, footer
     );
 
   return (
-    // A card is its own box, its group's colour down the left edge, so one task
-    // is never read as part of the next. Subitems sit inside their parent's box.
-    <li className={cn(indent ? "pl-5" : "overflow-hidden rounded-xl border border-l-[3px] border-border/70 bg-card shadow-xs dark:bg-surface")} style={indent ? undefined : { borderLeftColor: colorClasses(group.color).hex }}>
+    // A card of its own, its group's colour as a straight line down the left
+    // edge (square there, rounded on the right). Subitems sit inside their parent's card.
+    <li className={cn(indent ? "pl-5" : "overflow-hidden rounded-r-lg border border-l-[3px] border-border/70 bg-card shadow-xs dark:bg-surface")} style={indent ? undefined : { borderLeftColor: colorClasses(group.color).hex }}>
       {/* The whole card is the target, whitespace included, so a thumb does not
           have to land on the name. The name is also a real button, for keyboards;
           the div is the forgiving surface round it. */}
       { }
-      <div className="flex items-stretch gap-2 px-3 py-2.5 active:bg-accent/40" onClick={open} data-testid="mobile-item-card">
+      <div className="flex items-stretch gap-2 py-2 pr-1 pl-3 active:bg-accent/40" onClick={open} data-testid="mobile-item-card">
         {selectMode && (
            
           <span className="flex w-9 shrink-0 items-center justify-center" onClick={(e) => e.stopPropagation()}>
@@ -124,18 +140,18 @@ export function MobileItemCard({ item, group, selectMode, indent = false, footer
             {indent && <CornerDownRight aria-hidden className="mt-1 size-4 shrink-0 text-muted-foreground/60" />}
             {/* Done is said by the chip; striking the name through as well made
                 a finished task the hardest one on the list to read. */}
-            <span className={cn("line-clamp-2 min-w-0 flex-1 text-[16px] leading-snug font-medium", done && "text-muted-foreground")}>{item.name}</span>
+            <span className={cn("line-clamp-2 min-w-0 flex-1 text-[15px] leading-snug font-medium", done && "text-muted-foreground")}>{item.name}</span>
           </button>
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
             {statusColumn &&
               chip(
                 "status",
                 `Change status of ${item.name}`,
                 status ? (
-                  <LabelPill label={status} size="lg" striped={isStuckLabel(statusColumn, status.id)} />
+                  <LabelPill label={status} size="md" striped={isStuckLabel(statusColumn, status.id)} />
                 ) : (
-                  <span className="inline-flex h-7 items-center rounded-md border border-dashed border-border px-3 text-[13px] text-muted-foreground">Set status</span>
+                  <span className="inline-flex h-6.5 items-center rounded-md border border-dashed border-border px-2.5 text-xs text-muted-foreground">Set status</span>
                 ),
                 "mobile-card-status",
               )}
@@ -146,7 +162,7 @@ export function MobileItemCard({ item, group, selectMode, indent = false, footer
               chip(
                 "priority",
                 `Change priority of ${item.name}: ${priority.name}`,
-                <span className="inline-flex h-7 items-center rounded-md bg-surface-strong/70 px-2" title={priority.name}>
+                <span className="inline-flex h-6.5 items-center rounded-md bg-surface-strong/70 px-1.5" title={priority.name}>
                   <PrioritySignal level={priorityStrength(priority.id)} className={cn("size-4", colorClasses(priority.color).text)} />
                   <span className="sr-only">{priority.name}</span>
                 </span>,
@@ -158,33 +174,34 @@ export function MobileItemCard({ item, group, selectMode, indent = false, footer
                 `Change due date of ${item.name}`,
                 <span
                   className={cn(
-                    "inline-flex h-7 items-center rounded-md px-2.5 text-[13px] font-medium tabular",
+                    "inline-flex h-6.5 items-center rounded-md px-2 text-xs font-medium tabular",
                     late ? "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300" : due ? "bg-surface-strong/70 text-foreground/80" : "border border-dashed border-border text-muted-foreground",
                   )}
                 >
-                  {due ? `${late ? "Overdue · " : ""}${formatShortDate(due)}` : "No date"}
+                  {/* Red says overdue; the words would push the row onto a second line. */}
+                  {due ? formatShortDate(due) : "No date"}
+                  {late && <span className="sr-only"> (overdue)</span>}
                 </span>,
                 "mobile-card-date",
               )}
             {blocked && (
-              <span className="inline-flex h-7 items-center gap-1.5 rounded-md bg-amber-50 px-2.5 text-[13px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
+              <span className="inline-flex h-6.5 items-center gap-1.5 rounded-md bg-amber-50 px-2 text-xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-200">
                 <span aria-hidden className="size-1.5 rounded-full bg-current" /> Blocked
               </span>
             )}
-            {/* Who is on it, at the end of the same row. The ticket and the
-                link count are in the task, a tap away. */}
-            {owners.length > 0 && (
-              <span className="ml-auto">
-                <Owners userIds={owners} />
+            {/* Updates and who is on it, at the end of the same row: no column of their own, so a row stays one line of chips tall. */}
+            <span className="ml-auto flex items-center gap-1">
+              <span onClick={(e) => e.stopPropagation()}>
+                <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} className="-my-2 min-h-9 px-1.5" />
               </span>
-            )}
+              {owners.length > 0 && <Owners userIds={owners} />}
+            </span>
           </div>
         </div>
 
         { }
-        <span className="flex shrink-0 flex-col items-end justify-between" onClick={(e) => e.stopPropagation()}>
-          <CardMenu item={item} group={group} />
-          <UpdatesBadge summary={updates.get(item.id)} onClick={() => openItemUpdates(item.id)} className="min-h-11 px-2.5" />
+        <span className="-my-1 flex shrink-0 items-start" onClick={(e) => e.stopPropagation()}>
+          <CardMenu item={item} group={group} lead={menuLead} />
         </span>
       </div>
 
@@ -360,7 +377,7 @@ function DateSheet({ open, onOpenChange, title, current, onPick }: { open: boole
 }
 
 /** The item's actions: the same list as the desktop row menu (useItemMenuActions), drawn as a sheet. */
-function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
+function CardMenu({ item, group, lead }: { item: Item; group: BoardGroup; lead?: MenuAction[] }) {
   const { board, model, mutations, canManage } = useBoardContext();
   const selectedIds = useBoardUiStore((s) => s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds);
   const [open, setOpen] = React.useState(false);
@@ -381,12 +398,12 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Actions for ${item.name}`}
-        className="flex size-11 items-center justify-center rounded-lg text-muted-foreground active:bg-accent/70 focus-visible:outline-2 focus-visible:outline-ring"
+        className="flex size-10 items-center justify-center rounded-lg text-muted-foreground active:bg-accent/70 focus-visible:outline-2 focus-visible:outline-ring"
         data-testid="mobile-item-menu"
       >
         <MoreHorizontal className="size-5" aria-hidden />
       </button>
-      <MenuSheet open={open} onOpenChange={setOpen} title={item.name} actions={actions} />
+      <MenuSheet open={open} onOpenChange={setOpen} title={item.name} actions={lead && lead.length > 0 ? [...lead, { type: "separator" }, ...actions] : actions} />
       {/* Deleting asks first, exactly as the desktop row does. */}
       <ConfirmDialog
         open={confirmDelete}

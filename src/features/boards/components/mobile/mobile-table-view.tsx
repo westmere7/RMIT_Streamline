@@ -321,14 +321,16 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
       />
 
       {!collapsed && (
-        <ul className="flex flex-col gap-2">
+        // A card per task with a small gap between, each with its group's colour
+        // as a straight line down its left edge (square there, rounded on the right).
+        <ul className="flex flex-col gap-1.5" data-testid="mobile-group-list">
           {items.map((item) => (
             <MobileItemCard key={item.id} item={item} group={group} selectMode={selectMode} />
           ))}
-          {items.length === 0 && <li className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-[14px] text-muted-foreground">{group.id === model.intakeGroupId ? "No new bookings." : "Nothing in this group."}</li>}
+          {items.length === 0 && <li className="rounded-lg border border-dashed border-border/70 px-3 py-2.5 text-[14px] text-muted-foreground">{group.id === model.intakeGroupId ? "No new bookings." : "Nothing in this group."}</li>}
           {/* Booked by Form takes bookings only: nothing is added to it by hand. */}
           {canEdit && !selectMode && group.id !== model.intakeGroupId && (
-            <li className="rounded-xl border border-dashed border-border/70">
+            <li className="rounded-lg border border-dashed border-border/70">
               {adding ? (
                 <div className="flex items-center gap-2 px-2.5 py-2">
                   <Input
@@ -356,7 +358,7 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
                 <button
                   type="button"
                   onClick={() => setAdding(true)}
-                  className="flex min-h-12 w-full items-center gap-2 px-3 text-left text-[14px] text-muted-foreground active:bg-accent/70"
+                  className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-[14px] text-muted-foreground active:bg-accent/70"
                   data-testid="mobile-add-item"
                 >
                   <Plus className="size-4" aria-hidden /> Add item

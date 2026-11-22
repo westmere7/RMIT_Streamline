@@ -70,9 +70,11 @@ test.describe("phone layout", () => {
     await expect(lanes.first()).toBeVisible();
 
     const before = await lanes.first().innerText();
-    await page.getByTestId("mobile-kanban-move").first().click();
+    // Moving is the first entry of the card's menu: Move to lane, then the lane.
+    await page.getByTestId("mobile-item-menu").first().click();
     const sheet = page.getByRole("dialog");
     await expect(sheet).toBeVisible();
+    await sheet.getByRole("menuitem", { name: /Move to lane/ }).click();
     await sheet.getByRole("menuitem").first().click();
     await expect(lanes.first()).not.toHaveText(before);
   });
