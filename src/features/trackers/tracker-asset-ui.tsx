@@ -592,7 +592,7 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
       ) : (
         <>
         <section className="min-w-0 space-y-2" data-testid="task-assets-sheet">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase">The sheet</h3>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase">Which rows are assets</h3>
           {detected.length > 0 && (
             <label className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-surface/40 px-3 py-2 text-[13px]" data-testid="task-assets-nonasset">
               <span className="min-w-0">

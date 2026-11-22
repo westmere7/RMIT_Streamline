@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.10",
+    date: "2026-11-22",
+    title: "Which rows are assets",
+    changes: [
+      "In Task assets, the section that decides which rows count is called Which rows are assets.",
+    ],
+  },
+  {
     version: "0.152.9",
     date: "2026-11-22",
     title: "Mark rows, explained",
