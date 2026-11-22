@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, LoaderCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { useAppThemeControl, usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
@@ -25,6 +25,7 @@ import { routes } from "@/lib/routes";
  */
 export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: string; bookingKey: string | null }) {
   const services = useServices();
+  const queryClient = useQueryClient();
   // Someone with an account who opens the public link is recognised: their
   // details are filled in and the booking is recorded as theirs.
   const { status, user } = useAuth();
@@ -108,6 +109,11 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
               // A member can follow the ticket to the board; a board they may
               // not open says so itself.
               itemHref={signedIn ? (receipt) => routes.board(workspaceSlug, receipt.boardSlug, { itemId: receipt.itemId }) : undefined}
+              // Back in the app, the board and its count in the sidebar already have the new task.
+              onBooked={signedIn ? () => {
+                void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
+                void queryClient.invalidateQueries({ queryKey: ["board-item-count"] });
+              } : undefined}
             />
           </div>
         </>

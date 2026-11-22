@@ -88,8 +88,12 @@ function BookViaFormBody() {
             lookupRequester={(email) => services.booking.lookupRequester({ workspaceSlug: slug, key: null, email })}
             pastBookings={(email) => services.booking.pastBookings({ workspaceSlug: slug, key: null, email })}
             itemHref={(receipt) => routes.board(slug, receipt.boardSlug, { itemId: receipt.itemId })}
-            // The board behind shows the new task as soon as it exists.
-            onBooked={() => void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] })}
+            // The board behind shows the new task as soon as it exists, and the
+            // sidebar counts it (on Task Allocation, or the team's board it skipped to).
+            onBooked={() => {
+              void queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
+              void queryClient.invalidateQueries({ queryKey: ["board-item-count"] });
+            }}
           />
         )}
       </div>

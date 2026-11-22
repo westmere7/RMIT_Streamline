@@ -87,6 +87,8 @@ export function MoveToBoardDialog() {
       if (openItemId === itemId) setOpenItemId(null);
       await queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
       void queryClient.invalidateQueries({ queryKey: ["item-links"] });
+      // The task left one board for another: both sidebar counts move.
+      void queryClient.invalidateQueries({ queryKey: ["board-item-count"] });
       toast.success(`Moved to ${landed.name}`, { action: { label: "Open", onClick: () => router.push(ws.boardPath(landed, { itemId: itemId! })) } });
       close();
     },

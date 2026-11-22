@@ -64,6 +64,8 @@ export function ReallocateDialog() {
       await queryClient.invalidateQueries({ queryKey: ["board-snapshot"] });
       void queryClient.invalidateQueries({ queryKey: ["item-links"] });
       void queryClient.invalidateQueries({ queryKey: ["activity"] });
+      // Off a team's board and back on Task Allocation: both sidebar counts move.
+      void queryClient.invalidateQueries({ queryKey: ["board-item-count"] });
       toast.success(`Back on ${board.name}`, { action: { label: "Open", onClick: () => router.push(ws.boardPath(board, { itemId: itemId! })) } });
       close();
     },

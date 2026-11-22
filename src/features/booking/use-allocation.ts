@@ -79,6 +79,9 @@ export function useAllocation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(board.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(target.id) }),
+        // The sidebar counts on both boards: one less here, more there.
+        queryClient.invalidateQueries({ queryKey: queryKeys.boardItemCount(board.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.boardItemCount(target.id) }),
       ]);
       toast.success(`${count === 1 ? "Moved" : `${count} requests moved`} to ${target.name}`, { description: "Out of the allocation queue." });
     },

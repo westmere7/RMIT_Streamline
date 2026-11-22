@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.2",
+    date: "2026-11-22",
+    title: "Sidebar counts follow allocations",
+    changes: [
+      "The task counts beside boards in the sidebar change straight away when a request is allocated, a task moves to another board or is re-allocated, or a booking is made from the app, without a refresh.",
+    ],
+  },
+  {
     version: "0.143.1",
     date: "2026-11-22",
     title: "More of the desktop on a phone",
