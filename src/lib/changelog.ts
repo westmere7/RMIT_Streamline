@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.11",
+    date: "2026-11-22",
+    title: "Solid team lines",
+    changes: [
+      "In the sidebar, the line under an open team is solid in the team's colour instead of fading at both ends.",
+    ],
+  },
+  {
     version: "0.152.10",
     date: "2026-11-22",
     title: "Which rows are assets",

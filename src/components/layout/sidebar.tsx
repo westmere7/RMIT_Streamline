@@ -1016,12 +1016,9 @@ function TeamNode({
       </div>
       </RowMenu>
       {expanded && (
-        // A thin line in the team's colour runs down from its tile, fading at both ends, so the open list visibly belongs to it.
-        // A real 1px border, with the fade as its border-image: a border snaps to the screen's pixels, a drawn 1px box can smear across two.
-        <ul
-          className="mt-1 ml-[39px] space-y-1 border-l pl-2"
-          style={{ borderImage: `linear-gradient(to bottom, transparent, color-mix(in oklab, ${colors.hex} 55%, transparent) 25%, color-mix(in oklab, ${colors.hex} 55%, transparent) 75%, transparent) 1` }}
-        >
+        // A thin solid line in the team's colour runs down from its tile, so the open list visibly belongs to it.
+        // A real 1px border: a border snaps to the screen's pixels, a drawn 1px box can smear across two.
+        <ul className="mt-1 ml-[39px] space-y-1 border-l pl-2" style={{ borderColor: `color-mix(in oklab, ${colors.hex} 55%, transparent)` }}>
           {boards.length === 0 && trackers.length === 0 && docs.length === 0 && archivedBoards.length === 0 && <li className="py-1 pl-2 text-2xs text-muted-foreground">Nothing here yet</li>}
           {boards.map((board) => (
             <BoardLink
