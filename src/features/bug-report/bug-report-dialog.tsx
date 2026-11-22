@@ -25,20 +25,62 @@ import { ScreenshotError, toScreenshot } from "./screenshot";
  * mounted once in the app shell. The page it was opened on travels with the
  * report, so it is remembered at the moment of opening.
  */
-export const useBugReportDialog = create<{ open: boolean; pageUrl: string | null; show: () => void; hide: () => void }>((set) => ({
+export const useBugReportDialog = create<{ open: boolean; pageUrl: string | null; takeover: boolean; show: () => void; hide: () => void; talkToDanh: () => void }>((set) => ({
   open: false,
   pageUrl: null,
+  takeover: false,
   show: () => set({ open: true, pageUrl: typeof window === "undefined" ? null : window.location.href }),
   hide: () => set({ open: false }),
+  // Not a bug. The dialog goes, and for two and a half seconds the screen says so.
+  talkToDanh: () => {
+    set({ open: false, takeover: true });
+    window.setTimeout(() => set({ takeover: false }), 2500);
+  },
 }));
+
+/** Not one of the board's categories: picking it files nothing. */
+const PERSONAL_PROBLEM = "personal-problem";
 
 /** Mounted once, in the app shell. */
 export function BugReportHost() {
-  const { open, pageUrl, hide } = useBugReportDialog();
+  const { open, pageUrl, hide, takeover } = useBugReportDialog();
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && hide()}>
-      <DialogContent data-testid="bug-report-dialog">{open && <BugReportForm pageUrl={pageUrl} onDone={hide} />}</DialogContent>
-    </Dialog>
+    <>
+      <Dialog open={open} onOpenChange={(next) => !next && hide()}>
+        <DialogContent data-testid="bug-report-dialog">{open && <BugReportForm pageUrl={pageUrl} onDone={hide} />}</DialogContent>
+      </Dialog>
+      {takeover && <TalkToDanh />}
+    </>
+  );
+}
+
+/**
+ * The one screen in the app that breaks every rule of its design on purpose:
+ * hazard tape, Comic Sans, a wobble. Two and a half seconds, then gone.
+ */
+function TalkToDanh() {
+  return (
+    <div role="alert" aria-live="assertive" className="ttd fixed inset-0 z-[9999] grid place-items-center overflow-hidden" data-testid="talk-to-danh">
+      <style>{`
+        .ttd { background-color: #ffd400; background-image: linear-gradient(-45deg, #ffd400 25%, #111 25%, #111 50%, #ffd400 50%, #ffd400 75%, #111 75%); background-size: 130.11px 130.11px; animation: ttd-bg 0.6s linear infinite; }
+        .ttd-card { background: #ff2bd6; border: 10px solid #111; box-shadow: 18px 18px 0 #111; padding: 3vw 4vw; transform: rotate(-4deg); animation: ttd-in 0.45s cubic-bezier(.2,1.6,.4,1) both, ttd-wobble 0.35s ease-in-out 0.45s infinite alternate; }
+        .ttd-text { font-family: Impact, "Comic Sans MS", "Comic Sans", "Chalkboard SE", fantasy; font-size: clamp(44px, 11vw, 190px); line-height: 0.9; letter-spacing: -0.01em; color: #ffef00; -webkit-text-stroke: 4px #111; text-shadow: 6px 6px 0 #111, 12px 12px 0 #00e5ff; text-transform: uppercase; text-align: center; margin: 0; }
+        .ttd-sub { font-family: "Comic Sans MS", "Comic Sans", "Chalkboard SE", cursive; font-size: clamp(16px, 2.4vw, 34px); color: #111; text-align: center; margin: 1.2vw 0 0; font-weight: 700; }
+        .ttd-star { position: absolute; font-size: clamp(40px, 8vw, 120px); animation: ttd-spin 1s linear infinite; }
+        @keyframes ttd-bg { from { background-position: 0 0; } to { background-position: 130.11px 0; } }
+        @keyframes ttd-in { from { transform: rotate(-4deg) scale(0.1); } to { transform: rotate(-4deg) scale(1); } }
+        @keyframes ttd-wobble { from { transform: rotate(-5deg) scale(1); } to { transform: rotate(3deg) scale(1.04); } }
+        @keyframes ttd-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .ttd, .ttd-card, .ttd-star { animation: none !important; } }
+      `}</style>
+      <span aria-hidden className="ttd-star" style={{ top: "8%", left: "7%" }}>💥</span>
+      <span aria-hidden className="ttd-star" style={{ bottom: "9%", right: "8%" }}>📢</span>
+      <span aria-hidden className="ttd-star" style={{ top: "12%", right: "12%" }}>👀</span>
+      <div className="ttd-card">
+        <p className="ttd-text">Talk to Danh directly</p>
+        <p className="ttd-sub">(this is not a bug)</p>
+      </div>
+    </div>
   );
 }
 
@@ -143,7 +185,13 @@ function BugReportForm({ pageUrl, onDone }: { pageUrl: string | null; onDone: ()
       >
         <div className="grid gap-1.5">
           <Label>Category</Label>
-          <Select value={category} onValueChange={(value) => setCategory(value as BugCategoryId)}>
+          <Select
+            value={category}
+            onValueChange={(value) => {
+              if (value === PERSONAL_PROBLEM) return void useBugReportDialog.getState().talkToDanh();
+              setCategory(value as BugCategoryId);
+            }}
+          >
             <SelectTrigger aria-label="Category" data-testid="bug-report-category">
               <SelectValue />
             </SelectTrigger>
@@ -154,6 +202,10 @@ function BugReportForm({ pageUrl, onDone }: { pageUrl: string | null; onDone: ()
                   {c.name}
                 </SelectItem>
               ))}
+              <SelectItem value={PERSONAL_PROBLEM} data-testid="bug-report-category-personal">
+                <span aria-hidden className="size-2 rounded-full bg-fuchsia-500" />
+                Personal problem with author
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
