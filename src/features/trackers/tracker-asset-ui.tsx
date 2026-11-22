@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, CornerDownLeft, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { AlertTriangle, Check, CornerDownLeft, Info, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -611,13 +611,16 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
         <RowMarkDialog open={marking} sheet={shown} mapping={mapping} savedIgnore={savedIgnore ?? []} detected={spottedRows} marks={marks} onApply={setMarks} onClose={() => setMarking(false)} />
         <section className="space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase">Where each part comes from</h3>
+          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5 max-sm:grid-cols-2" data-testid="task-assets-parts">
+          <span aria-hidden className="max-sm:hidden" />
+          <span className="text-2xs text-muted-foreground">Sheet column</span>
+          <span className="text-2xs text-muted-foreground">If the cell is empty</span>
           <FieldRow label="Asset name" column={<ColumnSelect columns={columns} value={mapping.name} onChange={choose("name")} onCreate={newColumn("name")} none="Choose a column" testId="map-name" onPickOnSheet={onSheet("name")} />}>
             {warn(mapping.name, "name")}
           </FieldRow>
           <FieldRow
             label="Type"
             column={<ColumnSelect columns={columns} value={mapping.type.columnId} onChange={choose("type")} onCreate={newColumn("type")} none="No column" testId="map-type" onPickOnSheet={onSheet("type")} />}
-            fallbackFor={mapping.type.columnId}
             fallback={
               <select
                 value={mapping.type.value ?? ""}
@@ -640,7 +643,6 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
           <FieldRow
             label="Quantity"
             column={<ColumnSelect columns={columns} value={mapping.quantity.columnId} onChange={choose("quantity")} onCreate={newColumn("quantity")} none="No column" testId="map-quantity" onPickOnSheet={onSheet("quantity")} />}
-            fallbackFor={mapping.quantity.columnId}
             fallback={
               <Input
                 type="number"
@@ -658,7 +660,6 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
           <FieldRow
             label="PIC"
             column={<ColumnSelect columns={columns} value={mapping.pic.columnId} onChange={choose("pic")} onCreate={newColumn("pic")} none="No column" testId="map-pic" onPickOnSheet={onSheet("pic")} />}
-            fallbackFor={mapping.pic.columnId}
             fallback={<PeopleValue users={ws.activeUsers} value={mapping.pic.value ?? []} onChange={(value) => set({ pic: { ...mapping.pic, value: value.length ? value : null } })} placeholder="Nobody" />}
           >
             {warn(mapping.pic.columnId, "pic")}
@@ -666,7 +667,6 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
           <FieldRow
             label="Due date"
             column={<ColumnSelect columns={columns} value={mapping.due.columnId} onChange={choose("due")} onCreate={newColumn("due")} none="No column" testId="map-due" onPickOnSheet={onSheet("due")} />}
-            fallbackFor={mapping.due.columnId}
             fallback={<Input type="date" value={mapping.due.value ?? ""} onChange={(e) => set({ due: { ...mapping.due, value: e.target.value || null } })} aria-label={mapping.due.columnId ? "Due date when a cell is empty" : "Due date for every row"} className="h-8 w-full min-w-0 max-md:h-10" />}
           >
             {warn(mapping.due.columnId, "due")}
@@ -697,12 +697,9 @@ function TaskAssetsForm({ sheet, presetItem, initialMapping, afterLink, onClose 
               </div>
             )}
           </FieldRow>
-          <FieldRow label="Spec" hint="Shown under each asset's name, in this order. Tap a column to add it, tap again to take it out.">
-            <SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />
-          </FieldRow>
-          <FieldRow label="Links" hint="Columns holding links to files or drafts.">
-            <ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />
-          </FieldRow>
+          <FieldRow label="Spec" hint="Shown under each asset's name, in this order. Click a column to add it, click again to take it out." wide={<SpecChips columns={columns} hidden={new Set([...taken, ...mapping.links])} value={mapping.spec} onChange={(spec) => set({ spec })} />} />
+          <FieldRow label="Links" hint="Columns holding links to files or drafts." wide={<ColumnChips columns={columns} hidden={new Set([...taken, ...mapping.spec])} value={mapping.links} onChange={(links) => set({ links })} />} />
+          </div>
         </section>
         <p className="rounded-lg bg-surface px-3 py-2 text-[13px]" data-testid="task-assets-preview">
           {isMappingUsable(mapping) ? (
@@ -1317,48 +1314,29 @@ export function mismatchText({ unreadable, filled, expected, wrongType }: RoleMi
 }
 
 /**
- * One part of an asset and where it comes from. With a `column`, the sheet
- * column it is read from, labelled as such; with a `fallback`, what an empty
- * cell gets, or, with no column chosen, what every row gets, labelled to say
- * which. Anything else (a warning, the choices that count as done, the chips
- * for Spec and Links) goes under it.
+ * One line of the parts table: the part's name, the sheet column it comes
+ * from, and what an empty cell gets instead (with no column chosen, every
+ * cell is empty, so that is what every row gets). `wide` spans both columns
+ * (the chips of Spec and Links); anything in `children` (a warning, the
+ * choices that count as done) goes on a line of its own under the row.
  */
-function FieldRow({
-  label,
-  hint,
-  column,
-  fallback,
-  fallbackFor,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  column?: React.ReactNode;
-  fallback?: React.ReactNode;
-  /** The column the fallback stands in for: set, it fills empty cells; null, it fills every row. */
-  fallbackFor?: string | null;
-  children?: React.ReactNode;
-}) {
+function FieldRow({ label, hint, column, fallback, wide, children }: { label: string; hint?: string; column?: React.ReactNode; fallback?: React.ReactNode; wide?: React.ReactNode; children?: React.ReactNode }) {
+  const extra = React.Children.toArray(children);
   return (
-    <div className="space-y-1.5 rounded-xl border border-border/60 bg-surface/30 p-3" data-testid={`map-field-${label.toLowerCase().replace(/\s+/g, "-")}`}>
-      <p className="text-[13px] font-medium">{label}</p>
-      {hint && <p className="-mt-1 text-2xs text-muted-foreground">{hint}</p>}
-      {column && (
-        <div className={cn("grid gap-2", fallback ? "grid-cols-2" : "grid-cols-1")}>
-          <div className="grid min-w-0 gap-1">
-            <span className="text-2xs text-muted-foreground">Sheet column</span>
-            <div className="flex min-w-0">{column}</div>
-          </div>
-          {fallback && (
-            <div className="grid min-w-0 gap-1">
-              <span className="text-2xs text-muted-foreground">{fallbackFor ? "When a cell is empty" : "For every row"}</span>
-              <div className="flex min-w-0">{fallback}</div>
-            </div>
-          )}
-        </div>
-      )}
-      {children}
-    </div>
+    <>
+      <span className={cn("flex min-w-0 items-center gap-1 text-[13px] font-medium max-sm:col-span-2 max-sm:mt-1.5", wide && "self-start pt-1")} data-testid={`map-field-${label.toLowerCase().replace(/\s+/g, "-")}`}>
+        {label}
+        {hint && (
+          <SimpleTooltip label={hint}>
+            <Info className="size-3 shrink-0 text-muted-foreground" aria-label={hint} />
+          </SimpleTooltip>
+        )}
+      </span>
+      {column && <div className={cn("flex min-w-0", !fallback && "col-span-2")}>{column}</div>}
+      {column && fallback && <div className="flex min-w-0">{fallback}</div>}
+      {wide && <div className="col-span-2 min-w-0">{wide}</div>}
+      {extra.length > 0 && <div className="col-span-2 col-start-2 min-w-0 space-y-1 max-sm:col-start-1">{extra}</div>}
+    </>
   );
 }
 
