@@ -33,7 +33,7 @@ function toDashboardShare(row: DashboardShareRow): DashboardShare {
 
 /**
  * The public link of a workspace's dashboard. `dashboard_shares_*` policies let
- * members see that a link exists and admins change it; a visitor's read goes
+ * admins read and change it (policies/0033); a visitor's read goes
  * through the service role in src/server/dashboard-share.ts, because there is
  * no session for a policy to judge.
  */

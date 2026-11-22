@@ -75,8 +75,10 @@ export function useDocMutations() {
   });
   const remove = useMutation({
     mutationFn: async (doc: Pick<Doc, "id" | "filePath">) => {
-      await services.docs.delete(doc.id);
+      // The file first: the bucket's policies follow the doc's team while
+      // the doc row exists (policies/0032), and only its uploader once it is gone.
       await deleteDocFile(providerKind, doc.filePath);
+      await services.docs.delete(doc.id);
     },
     onSuccess: () => toast.success("Doc deleted"),
     onError: fail("Could not delete the doc"),

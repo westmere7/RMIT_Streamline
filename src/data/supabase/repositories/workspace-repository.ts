@@ -7,16 +7,31 @@ import { pruneUndefined, toWorkspace, toWorkspaceMember, WORKSPACE_COLUMNS, type
 const WORKSPACE = WORKSPACE_COLUMNS;
 const MEMBER = "id, workspace_id, user_id, role, status, joined_at, weekly_hours";
 
+/**
+ * The join and booking keys, which a session cannot select from `workspaces`
+ * (0141): workspace_keys() hands them to admins of those workspaces and to the
+ * service role, and leaves them out for everyone else.
+ */
+async function withKeys(rows: WorkspaceRow[]): Promise<WorkspaceRow[]> {
+  if (!rows.length) return rows;
+  const result = await db().rpc("workspace_keys", { p_workspace_ids: rows.map((r) => r.id) });
+  const keys = new Map(unwrapList<{ workspace_id: string; join_key: string | null; booking_key: string | null }>(result, "workspaces.keys").map((k) => [k.workspace_id, k]));
+  return rows.map((row) => {
+    const found = keys.get(row.id);
+    return found ? { ...row, join_key: found.join_key, booking_key: found.booking_key } : row;
+  });
+}
+
 export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   async list(): Promise<Workspace[]> {
     const result = await db().from("workspaces").select(WORKSPACE).order("name", { ascending: true });
-    return unwrapList<WorkspaceRow>(result, "workspaces.list").map(toWorkspace);
+    return (await withKeys(unwrapList<WorkspaceRow>(result, "workspaces.list"))).map(toWorkspace);
   }
 
   async getById(id: string): Promise<Workspace | null> {
     const result = await db().from("workspaces").select(WORKSPACE).eq("id", id).maybeSingle();
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getById");
-    return row ? toWorkspace(row) : null;
+    return row ? toWorkspace((await withKeys([row]))[0]!) : null;
   }
 
   async accessTo(kind: AccessKind, workspaceId: string, ref: string): Promise<AccessAnswer> {
@@ -44,13 +59,13 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   async getBySlug(slug: string): Promise<Workspace | null> {
     const result = await db().from("workspaces").select(WORKSPACE).eq("slug", slug).maybeSingle();
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getBySlug");
-    return row ? toWorkspace(row) : null;
+    return row ? toWorkspace((await withKeys([row]))[0]!) : null;
   }
 
   async update(id: string, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace> {
     const payload = pruneUndefined({ name: patch.name, slug: patch.slug, logo_url: patch.logoUrl, booking_key: patch.bookingKey, booking_form: patch.bookingForm, booking_form_draft: patch.bookingFormDraft, booking_form_name: patch.bookingFormName, booking_form_published_at: patch.bookingFormPublishedAt, booking_form_published_by: patch.bookingFormPublishedBy, booking_form_bookings: patch.bookingFormBookings, creative_team_name: patch.creativeTeamName, asset_rates: patch.assetRates, work_types: patch.workTypes, size_scale: patch.sizeScale, description: patch.description, ticket_prefix: patch.ticketPrefix, bug_board_id: patch.bugBoardId, join_key: patch.joinKey, show_portal_menu: patch.showPortalMenu ?? undefined });
     const result = await db().from("workspaces").update(payload).eq("id", id).select(WORKSPACE).single();
-    return toWorkspace(unwrap<WorkspaceRow>(result, "workspaces.update"));
+    return toWorkspace((await withKeys([unwrap<WorkspaceRow>(result, "workspaces.update")]))[0]!);
   }
 
   /**

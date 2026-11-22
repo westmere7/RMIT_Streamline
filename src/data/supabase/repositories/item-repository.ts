@@ -261,8 +261,10 @@ export class SupabaseItemRepository implements ItemRepository {
 
   async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number }): Promise<Item> {
     // Subitems come along: they are part of the task, and a subitem left on the
-    // old board would be an orphan row its parent no longer lists.
-    const subitems = await db().from("items").select("id").eq("parent_item_id", itemId);
+    // old board would be an orphan row its parent no longer lists. Only those on
+    // the task's own board: a row planted under it from elsewhere stays put.
+    const from = unwrap<{ board_id: string }>(await db().from("items").select("board_id").eq("id", itemId).single(), "items.moveToBoard.from");
+    const subitems = await db().from("items").select("id").eq("parent_item_id", itemId).eq("board_id", from.board_id);
     const moving = [itemId, ...unwrapList<{ id: string }>(subitems, "items.moveToBoard.subitems").map((row) => row.id)];
 
     // The task row first. Its update policy checks the right to edit the board

@@ -37,7 +37,8 @@ export class NotificationService {
    * silently drops the ones they have turned off. Returns what was written, so a
    * caller can tell whether anything actually landed.
    */
-  async deliver(inputs: readonly NotificationInput[]): Promise<Notification[]> {
+  async deliver(given: readonly NotificationInput[]): Promise<Notification[]> {
+    const inputs = await this.onlyBoardViewers(given);
     if (inputs.length === 0) return [];
     const preferences = await this.repos.notificationPreferences.getMany(inputs.map((input) => input.userId));
 
@@ -49,6 +50,22 @@ export class NotificationService {
     }
     if (deliverable.length === 0) return [];
     return this.repos.notifications.createMany(deliverable);
+  }
+
+  /**
+   * Drops anyone who cannot see the board a notification is about: its title
+   * and body carry the task's name and the words of an update, and the
+   * database refuses such a row anyway (policies/0036), which would fail the
+   * whole batch. Notifications about no board pass as they are.
+   */
+  private async onlyBoardViewers(inputs: readonly NotificationInput[]): Promise<NotificationInput[]> {
+    const viewersOf = this.repos.boards.viewersOf?.bind(this.repos.boards);
+    if (!viewersOf || inputs.length === 0) return [...inputs];
+    const byBoard = new Map<EntityId, Set<EntityId>>();
+    for (const input of inputs) if (input.boardId) byBoard.set(input.boardId, (byBoard.get(input.boardId) ?? new Set()).add(input.userId));
+    const allowed = new Map<EntityId, Set<EntityId>>();
+    await Promise.all([...byBoard].map(async ([boardId, users]) => allowed.set(boardId, new Set(await viewersOf(boardId, [...users])))));
+    return inputs.filter((input) => !input.boardId || !!allowed.get(input.boardId)?.has(input.userId));
   }
 
   /** Convenience for the single-recipient case. */

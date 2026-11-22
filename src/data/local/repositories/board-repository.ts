@@ -13,6 +13,7 @@ import { COLUMN_TYPES, SUBSCRIPTION_EVENTS } from "@/domain";
 import type { BoardRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
+import { buildPermissionContext, canViewBoard } from "@/lib/permissions/permissions";
 import { sortByPosition } from "@/lib/utils";
 import type { LocalConnection } from "../connection";
 import type { StreamlineDatabase } from "../database";
@@ -119,6 +120,21 @@ export class LocalBoardRepository implements BoardRepository {
   async listMembers(boardId: string): Promise<BoardMember[]> {
     const db = await this.conn.getDb();
     return db.getAllFromIndex("boardMembers", "byBoard", boardId);
+  }
+
+  /** Those of these people who can see the board, by the same rules the app's screens use. */
+  async viewersOf(boardId: string, userIds: readonly string[]): Promise<string[]> {
+    const db = await this.conn.getDb();
+    const board = await db.get("boards", boardId);
+    if (!board) return [];
+    const [workspaceMembers, teams, boardMembers] = await Promise.all([
+      db.getAllFromIndex("workspaceMembers", "byWorkspace", board.workspaceId),
+      db.getAllFromIndex("teams", "byWorkspace", board.workspaceId),
+      db.getAllFromIndex("boardMembers", "byBoard", boardId),
+    ]);
+    const teamIds = new Set(teams.map((t) => t.id));
+    const teamMembers = (await db.getAll("teamMembers")).filter((m) => teamIds.has(m.teamId));
+    return [...new Set(userIds)].filter((userId) => canViewBoard(buildPermissionContext({ userId, workspaceMembers, teamMembers, boardMembers, teams }), board));
   }
 
   async listMembersByWorkspace(workspaceId: string): Promise<BoardMember[]> {

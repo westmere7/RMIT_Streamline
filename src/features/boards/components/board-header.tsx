@@ -68,7 +68,8 @@ export function BoardHeader({ board }: { board: Board }) {
     requestDelete: () => setDeleteOpen(true),
     automations: () => setAutomationsOpen(true),
   });
-  const shareUrl = share ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
+  // Only the board's managers are given the token (policies/0033); everyone else sees that it is shared.
+  const shareUrl = share?.token ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
 
   return (
     <header className="relative px-7 pt-5 pb-4">
@@ -112,7 +113,12 @@ export function BoardHeader({ board }: { board: Board }) {
                 <Badge variant="muted" className="cursor-default">Archived</Badge>
               </SimpleTooltip>
             )}
-            {shared && (
+            {shared && !shareUrl && (
+              <Badge variant="outline" className="cursor-default gap-1 text-emerald-700 dark:text-emerald-300" data-testid="board-shared-badge">
+                <Globe className="size-3" /> Shared
+              </Badge>
+            )}
+            {shared && !!shareUrl && (
               <SimpleTooltip label="Shared by link. Click to copy it; anyone with it can read the board.">
                 <button
                   type="button"

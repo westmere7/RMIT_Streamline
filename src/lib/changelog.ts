@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.150.0",
+    date: "2026-11-22",
+    title: "Tighter access across the workspace",
+    changes: [
+      "Doc files follow their doc's team, and nobody can list other people's covers or avatars.",
+      "Share links' addresses and passwords are seen by the people who manage them only; others still see that a board is shared.",
+      "Notifications only reach people who can open the board they are about, and can't be forged.",
+      "Follows, history and tracker sheets tied to a private task or board stay private.",
+      "A board's owner, who made a task, and which board a group or column is on can no longer be rewritten.",
+      "Subitems stay under a task on their own board, linked tasks stay on separate boards, and follows and baselines move with a task to its new board.",
+    ],
+  },
+  {
     version: "0.149.6",
     date: "2026-11-22",
     title: "Portal submissions told apart properly",

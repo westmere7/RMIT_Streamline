@@ -217,7 +217,8 @@ export class LocalItemRepository implements ItemRepository {
     const db = await this.conn.getDb();
     const item = await db.get("items", itemId);
     if (!item) throw new NotFoundError("Item", itemId);
-    const subitems = await db.getAllFromIndex("items", "byParent", itemId);
+    // Only subitems on the task's own board come along.
+    const subitems = (await db.getAllFromIndex("items", "byParent", itemId)).filter((sub) => sub.boardId === item.boardId);
     const moving = [item, ...subitems];
     const now = nowIso();
 

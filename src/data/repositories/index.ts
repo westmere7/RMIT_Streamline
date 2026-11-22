@@ -232,6 +232,12 @@ export interface BoardRepository {
   listMembersByWorkspace(workspaceId: EntityId): Promise<BoardMember[]>;
   setMember(boardId: EntityId, userId: EntityId, role: BoardRole): Promise<BoardMember>;
   removeMember(boardId: EntityId, userId: EntityId): Promise<void>;
+  /**
+   * Those of these people who can see the board, by the database's own rules
+   * (board_viewers, policies/0036). Optional so test doubles need not carry it;
+   * a repository without it tells notification delivery nothing is filtered.
+   */
+  viewersOf?(boardId: EntityId, userIds: readonly EntityId[]): Promise<EntityId[]>;
 
   listFavourites(userId: EntityId): Promise<BoardFavourite[]>;
   addFavourite(boardId: EntityId, userId: EntityId): Promise<BoardFavourite>;

@@ -92,6 +92,12 @@ export class SupabaseBoardRepository implements BoardRepository {
     return unwrapList<BoardMemberRow>(result, "board_members.listMembersByWorkspace").map(toBoardMember);
   }
 
+  async viewersOf(boardId: string, userIds: readonly string[]): Promise<string[]> {
+    if (userIds.length === 0) return [];
+    const result = await db().rpc("board_viewers", { p_board: boardId, p_users: [...new Set(userIds)] });
+    return unwrapList<string>(result, "boards.viewersOf");
+  }
+
   async setMember(boardId: string, userId: string, role: BoardRole): Promise<BoardMember> {
     const result = await db()
       .from("board_members")

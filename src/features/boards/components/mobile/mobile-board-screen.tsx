@@ -67,7 +67,8 @@ export function MobileBoardHeader({ board }: { board: Board }) {
   const memberCount = ws.boardMembers.filter((m) => m.boardId === board.id).length;
   const share = useBoardShareStatus(board.id).data ?? null;
   const shared = !!share && share.enabled;
-  const shareUrl = share ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
+  // Only the board's managers are given the token (policies/0033).
+  const shareUrl = share?.token ? `${typeof window === "undefined" ? "" : window.location.origin}${routes.share(share.token)}` : "";
 
   const boardActions = useBoardMenuActions(board, {
     openSettings: setSettings,
@@ -129,7 +130,7 @@ export function MobileBoardHeader({ board }: { board: Board }) {
               )}
               {board.archivedAt && <span className="shrink-0 rounded bg-surface-strong px-1 py-px font-medium">Archived</span>}
               {shared && (
-                <button type="button" onClick={() => void copyToClipboard(shareUrl, "Link copied")} className="-my-2 flex shrink-0 items-center gap-0.5 py-2 text-emerald-700 dark:text-emerald-300" data-testid="mobile-board-shared">
+                <button type="button" onClick={() => shareUrl && void copyToClipboard(shareUrl, "Link copied")} className="-my-2 flex shrink-0 items-center gap-0.5 py-2 text-emerald-700 dark:text-emerald-300" data-testid="mobile-board-shared">
                   <Globe className="size-3" aria-hidden /> Shared
                 </button>
               )}
