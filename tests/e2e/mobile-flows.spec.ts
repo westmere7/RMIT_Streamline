@@ -145,8 +145,10 @@ test.describe("on a phone", () => {
   test("a board is made from Browse, in a sheet whose button is in reach with the phone on its side", async ({ page }) => {
     await page.setViewportSize({ width: pixel.viewport.height, height: pixel.viewport.width });
     await page.goto("/workspace/rmit/browse");
+    // New opens the sidebar's choices; Board is one of them.
     await page.getByTestId("browse-new-board").click();
-    const dialog = page.getByRole("dialog");
+    await page.getByTestId("browse-new-board-item").click();
+    const dialog = page.getByRole("dialog", { name: /create board/i });
     await expect(dialog).toBeVisible();
     // Never taller than the screen: it scrolls inside itself instead.
     expect((await dialog.boundingBox())!.height).toBeLessThanOrEqual(pixel.viewport.width);

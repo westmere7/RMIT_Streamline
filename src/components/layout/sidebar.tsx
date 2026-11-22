@@ -55,10 +55,13 @@ interface SidebarActions {
   openBoardSettings: (board: Board, section: BoardSettingsSection) => void;
   openBoardShare: (board: Board) => void;
   requestDeleteBoard: (board: Board) => void;
+  newBoard: () => void;
+  newTeam: () => void;
+  invite: () => void;
   newBoardInTeam: (teamId: string) => void;
-  newTrackerInTeam: (teamId: string) => void;
+  newTrackerInTeam: (teamId: string | null) => void;
   requestDeleteTracker: (tracker: Tracker) => void;
-  newDocInTeam: (teamId: string) => void;
+  newDocInTeam: (teamId: string | null) => void;
   requestDeleteDoc: (doc: DocSummary) => void;
   editTeam: (team: Team, section?: TeamSettingsSection) => void;
   archiveTeam: (team: Team) => void;
@@ -67,9 +70,9 @@ interface SidebarActions {
 
 const SidebarActionsContext = React.createContext<SidebarActions | null>(null);
 
-function useSidebarActions(): SidebarActions {
+export function useSidebarActions(): SidebarActions {
   const ctx = React.useContext(SidebarActionsContext);
-  if (!ctx) throw new Error("useSidebarActions must be used inside Sidebar");
+  if (!ctx) throw new Error("useSidebarActions must be used inside SidebarActionsHost");
   return ctx;
 }
 
@@ -86,7 +89,15 @@ function useNavClaim(): (href: string) => void {
   return React.useCallback((href: string) => flushSync(() => setNavPending(href)), [setNavPending]);
 }
 
-export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigate?: () => void } = {}) {
+export function Sidebar(props: { variant?: "drawer"; onNavigate?: () => void } = {}) {
+  return (
+    <SidebarActionsHost>
+      <SidebarBody {...props} />
+    </SidebarActionsHost>
+  );
+}
+
+function SidebarBody({ variant, onNavigate }: { variant?: "drawer"; onNavigate?: () => void } = {}) {
   const ws = useWorkspace();
   const drawer = variant === "drawer";
   const { user } = useAuth();
@@ -98,10 +109,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const setNavPending = useUiStore((s) => s.setNavPending);
   React.useEffect(() => setNavPending(null), [realPathname, setNavPending]);
   const pathname = navPending ?? realPathname;
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const services = useServices();
-  const queryClient = useQueryClient();
   // A drawer is always the full sidebar, whatever the desktop preference says.
   // Their own choice, or the window being too narrow to hold it open. The
   // second is never written back: resizing a window is not a preference, and a
@@ -111,81 +119,12 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const collapsed = (preferCollapsed || autoCollapsed) && !drawer;
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
   const unread = useUnreadCounts(user?.id ?? "");
-  const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
-  const [createBoardTeamId, setCreateBoardTeamId] = React.useState<string | null>(null);
-  const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
-  const [inviteOpen, setInviteOpen] = React.useState(false);
-  const [boardSettings, setBoardSettings] = React.useState<{ board: Board; section: BoardSettingsSection } | null>(null);
-  const [createTrackerTeamId, setCreateTrackerTeamId] = React.useState<string | null>(null);
-  const [createTrackerOpen, setCreateTrackerOpen] = React.useState(false);
-  const [deletingTracker, setDeletingTracker] = React.useState<Tracker | null>(null);
+  const sidebar = useSidebarActions();
   const trackers = useTrackers();
-  const [createDocTeamId, setCreateDocTeamId] = React.useState<string | null>(null);
-  const [createDocOpen, setCreateDocOpen] = React.useState(false);
-  const [deletingDoc, setDeletingDoc] = React.useState<DocSummary | null>(null);
   const docs = useDocs();
-  const docMutations = useDocMutations();
-  const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
-  const [sharingBoard, setSharingBoard] = React.useState<Board | null>(null);
-  const [editingTeam, setEditingTeam] = React.useState<{ team: Team; section?: TeamSettingsSection } | null>(null);
-  const [archivingTeam, setArchivingTeam] = React.useState<Team | null>(null);
-  const [deletingTeam, setDeletingTeam] = React.useState<Team | null>(null);
 
-  const archiveTeam = useMutation({
-    mutationFn: (team: Team) => services.workspace.archiveTeam(team.id, true),
-    onSuccess: async (team) => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
-      toast.success(`${team.name} archived`, { description: "Restore it from Settings → Teams." });
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not archive team"),
-  });
-
-  const deleteTeam = useMutation({
-    mutationFn: ({ team, withBoards }: { team: Team; withBoards: boolean }) => services.workspace.deleteTeam(team.id, { deleteBoards: withBoards }),
-    onSuccess: async (result, { team }) => {
-      // Whatever page the team's work was on has just gone: step back to Home
-      // rather than leave the person looking at a board that no longer exists.
-      const wasHere = pathname.includes(`/teams/${team.id}`) || ws.boardsForTeam(team.id).some((b) => pathname.endsWith(`/boards/${b.slug}`));
-      await ws.refresh();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.trackers(ws.workspace.id) });
-      setDeletingTeam(null);
-      if (wasHere) router.push(routes.workspace(ws.slug));
-      toast.success(`${team.name} deleted`, {
-        description: result.deletedBoards > 0 ? `${pluralize(result.deletedBoards, "board")} went with it.` : "Its boards are still here, without a team.",
-      });
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not delete team"),
-  });
-
-  const sidebarActions = React.useMemo<SidebarActions>(
-    () => ({
-      openBoardSettings: (board, section) => setBoardSettings({ board, section }),
-      openBoardShare: (board) => setSharingBoard(board),
-      requestDeleteBoard: (board) => setDeletingBoard(board),
-      newBoardInTeam: (teamId) => {
-        setCreateBoardTeamId(teamId);
-        setCreateBoardOpen(true);
-      },
-      newTrackerInTeam: (teamId) => {
-        setCreateTrackerTeamId(teamId);
-        setCreateTrackerOpen(true);
-      },
-      requestDeleteTracker: (tracker) => setDeletingTracker(tracker),
-      newDocInTeam: (teamId) => {
-        setCreateDocTeamId(teamId);
-        setCreateDocOpen(true);
-      },
-      requestDeleteDoc: (doc) => setDeletingDoc(doc),
-      editTeam: (team, section) => setEditingTeam({ team, section }),
-      archiveTeam: (team) => setArchivingTeam(team),
-      deleteTeam: (team) => setDeletingTeam(team),
-    }),
-    [],
-  );
   const sidebarWidth = useUiStore((s) => s.sidebarWidth);
   const [resizing, setResizing] = React.useState(false);
-  // Keep the settings dialog's board fresh after renames/moves.
-  const settingsBoard = boardSettings ? (ws.boardById(boardSettings.board.id) ?? null) : null;
 
   const trackersForTeamOf = (teamId: string) => (trackers.data ?? []).filter((t) => t.teamId === teamId);
   const docsForTeam = (teamId: string) => (docs.data ?? []).filter((d) => d.teamId === teamId).sort((a, b) => a.title.localeCompare(b.title));
@@ -231,7 +170,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
   const automationsBusyElsewhere = [...automationActivity].some((boardId) => ws.boardById(boardId)?.slug !== activeBoardSlug);
 
   return (
-    <SidebarActionsContext.Provider value={sidebarActions}>
+    <>
     {/* The sidebar rounds its corners and clips to them, so the edge you grab
         cannot live inside it: it sits in this wrapper instead, over the gap
         between the sidebar and the page. */}
@@ -420,21 +359,18 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" side="right" className="w-44">
                   {canCreateTeam(ws.permissions) && (
-                    <DropdownMenuItem onSelect={() => setCreateTeamOpen(true)} data-testid="sidebar-add-team">
+                    <DropdownMenuItem onSelect={() => sidebar.newTeam()} data-testid="sidebar-add-team">
                       <Users /> Team
                     </DropdownMenuItem>
                   )}
                   {canCreateBoard(ws.permissions) && (
-                    <DropdownMenuItem onSelect={() => setCreateBoardOpen(true)} data-testid="sidebar-add-board">
+                    <DropdownMenuItem onSelect={() => sidebar.newBoard()} data-testid="sidebar-add-board">
                       <SquareKanban /> Board
                     </DropdownMenuItem>
                   )}
                   {canEditTrackers(ws.permissions) && (
                     <DropdownMenuItem
-                      onSelect={() => {
-                        setCreateTrackerTeamId(null);
-                        setCreateTrackerOpen(true);
-                      }}
+                      onSelect={() => sidebar.newTrackerInTeam(null)}
                       data-testid="sidebar-add-tracker"
                     >
                       <FileSpreadsheet /> Tracker
@@ -442,10 +378,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
                   )}
                   {canEditDocs(ws.permissions) && (
                     <DropdownMenuItem
-                      onSelect={() => {
-                        setCreateDocTeamId(null);
-                        setCreateDocOpen(true);
-                      }}
+                      onSelect={() => sidebar.newDocInTeam(null)}
                       data-testid="sidebar-add-doc"
                     >
                       <FileText /> Doc
@@ -463,7 +396,7 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
           {canManageMembers(ws.permissions) && (
             <li>
               <SimpleTooltip label="Invite members" side="right" disabled={!collapsed}>
-                <button type="button" onClick={() => setInviteOpen(true)} aria-label="Invite members" className={cn(navItemClasses(false), collapsed && "justify-center px-0")}>
+                <button type="button" onClick={() => sidebar.invite()} aria-label="Invite members" className={cn(navItemClasses(false), collapsed && "justify-center px-0")}>
                   <UserPlus className="size-4 shrink-0" />
                   {!collapsed && <span>Invite Members</span>}
                 </button>
@@ -476,6 +409,106 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         </div>
       </div>
 
+    </aside>
+      {!drawer && <SidebarResizeHandle collapsed={collapsed} onResizing={setResizing} />}
+    </div>
+    </>
+  );
+}
+
+/**
+ * The dialogs the sidebar's rows open (new board, tracker, doc and team, a
+ * board's settings, share and delete, a team's settings, archive and delete,
+ * invite), with the actions that open them. The desktop sidebar sits inside
+ * one; so does a phone's Browse page, which offers the same menus.
+ */
+export function SidebarActionsHost({ children }: { children: React.ReactNode }) {
+  const ws = useWorkspace();
+  const pathname = usePathname();
+  const router = useRouter();
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const activeDocId = pathname.includes("/docs/") ? pathname.split("/docs/")[1]?.split("/")[0] : null;
+  const [createBoardOpen, setCreateBoardOpen] = React.useState(false);
+  const [createBoardTeamId, setCreateBoardTeamId] = React.useState<string | null>(null);
+  const [createTeamOpen, setCreateTeamOpen] = React.useState(false);
+  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [boardSettings, setBoardSettings] = React.useState<{ board: Board; section: BoardSettingsSection } | null>(null);
+  const [createTrackerTeamId, setCreateTrackerTeamId] = React.useState<string | null>(null);
+  const [createTrackerOpen, setCreateTrackerOpen] = React.useState(false);
+  const [deletingTracker, setDeletingTracker] = React.useState<Tracker | null>(null);
+  const trackers = useTrackers();
+  const [createDocTeamId, setCreateDocTeamId] = React.useState<string | null>(null);
+  const [createDocOpen, setCreateDocOpen] = React.useState(false);
+  const [deletingDoc, setDeletingDoc] = React.useState<DocSummary | null>(null);
+  const docMutations = useDocMutations();
+  const [deletingBoard, setDeletingBoard] = React.useState<Board | null>(null);
+  const [sharingBoard, setSharingBoard] = React.useState<Board | null>(null);
+  const [editingTeam, setEditingTeam] = React.useState<{ team: Team; section?: TeamSettingsSection } | null>(null);
+  const [archivingTeam, setArchivingTeam] = React.useState<Team | null>(null);
+  const [deletingTeam, setDeletingTeam] = React.useState<Team | null>(null);
+
+  const archiveTeam = useMutation({
+    mutationFn: (team: Team) => services.workspace.archiveTeam(team.id, true),
+    onSuccess: async (team) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaceContext(ws.workspace.id) });
+      toast.success(`${team.name} archived`, { description: "Restore it from Settings → Teams." });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not archive team"),
+  });
+
+  const deleteTeam = useMutation({
+    mutationFn: ({ team, withBoards }: { team: Team; withBoards: boolean }) => services.workspace.deleteTeam(team.id, { deleteBoards: withBoards }),
+    onSuccess: async (result, { team }) => {
+      // Whatever page the team's work was on has just gone: step back to Home
+      // rather than leave the person looking at a board that no longer exists.
+      const wasHere = pathname.includes(`/teams/${team.id}`) || ws.boardsForTeam(team.id).some((b) => pathname.endsWith(`/boards/${b.slug}`));
+      await ws.refresh();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.trackers(ws.workspace.id) });
+      setDeletingTeam(null);
+      if (wasHere) router.push(routes.workspace(ws.slug));
+      toast.success(`${team.name} deleted`, {
+        description: result.deletedBoards > 0 ? `${pluralize(result.deletedBoards, "board")} went with it.` : "Its boards are still here, without a team.",
+      });
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : "Could not delete team"),
+  });
+
+  const sidebarActions = React.useMemo<SidebarActions>(
+    () => ({
+      newBoard: () => setCreateBoardOpen(true),
+      newTeam: () => setCreateTeamOpen(true),
+      invite: () => setInviteOpen(true),
+      openBoardSettings: (board, section) => setBoardSettings({ board, section }),
+      openBoardShare: (board) => setSharingBoard(board),
+      requestDeleteBoard: (board) => setDeletingBoard(board),
+      newBoardInTeam: (teamId) => {
+        setCreateBoardTeamId(teamId);
+        setCreateBoardOpen(true);
+      },
+      newTrackerInTeam: (teamId) => {
+        setCreateTrackerTeamId(teamId);
+        setCreateTrackerOpen(true);
+      },
+      requestDeleteTracker: (tracker) => setDeletingTracker(tracker),
+      newDocInTeam: (teamId) => {
+        setCreateDocTeamId(teamId);
+        setCreateDocOpen(true);
+      },
+      requestDeleteDoc: (doc) => setDeletingDoc(doc),
+      editTeam: (team, section) => setEditingTeam({ team, section }),
+      archiveTeam: (team) => setArchivingTeam(team),
+      deleteTeam: (team) => setDeletingTeam(team),
+    }),
+    [],
+  );
+
+  // Keep the settings dialog's board fresh after renames/moves.
+  const settingsBoard = boardSettings ? (ws.boardById(boardSettings.board.id) ?? null) : null;
+
+  return (
+    <SidebarActionsContext.Provider value={sidebarActions}>
+      {children}
       <CreateBoardDialog
         open={createBoardOpen}
         onOpenChange={(open) => {
@@ -534,11 +567,53 @@ export function Sidebar({ variant, onNavigate }: { variant?: "drawer"; onNavigat
         onOpenChange={(open) => !open && setDeletingTeam(null)}
         onConfirm={(withBoards) => deletingTeam && deleteTeam.mutate({ team: deletingTeam, withBoards })}
       />
-    </aside>
-      {!drawer && <SidebarResizeHandle collapsed={collapsed} onResizing={setResizing} />}
-    </div>
     </SidebarActionsContext.Provider>
   );
+}
+
+/**
+ * A team's menu: open it, copy its link, add a board, tracker or doc to it, its
+ * settings, members, colour and icon and who can see and edit it, archive and
+ * delete. The sidebar adds what to show under the team; a phone's Browse page
+ * uses it as it is.
+ */
+export function useTeamMenuActions(team: Team, extra: MenuAction[] = []): MenuAction[] {
+  const ws = useWorkspace();
+  const router = useRouter();
+  const sidebar = useSidebarActions();
+  const manage = canManageTeam(ws.permissions, team.id);
+  const quick = useTeamQuickActions(team);
+  return [
+    { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
+    ...quick.open,
+    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
+      ? [
+          {
+            type: "sub",
+            label: "Add new",
+            icon: <Plus />,
+            items: [
+              ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <SquareKanban />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
+              ...(canEditDocs(ws.permissions) ? [{ type: "item", label: "Doc", icon: <FileText />, onSelect: () => sidebar.newDocInTeam(team.id) } satisfies MenuAction] : []),
+            ],
+          } satisfies MenuAction,
+        ]
+      : []),
+    { type: "separator" },
+    { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
+    ...quick.manage,
+    ...extra,
+    ...(manage && !team.system
+      ? [
+          { type: "separator" } satisfies MenuAction,
+          { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction,
+          ...(canDeleteTeam(ws.permissions)
+            ? [{ type: "item", label: "Delete team…", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.deleteTeam(team) } satisfies MenuAction]
+            : []),
+        ]
+      : []),
+  ];
 }
 
 /** Owns the delete flow for a board chosen from a sidebar row. */
@@ -548,7 +623,7 @@ function SidebarDeleteBoard({ board, onClose }: { board: Board; onClose: () => v
 }
 
 /** The board's menu, the same one its own header shows. */
-function useBoardRowActions(board: Board): MenuAction[] {
+export function useBoardRowActions(board: Board): MenuAction[] {
   const sidebar = useSidebarActions();
   return useBoardMenuActions(board, {
     openSettings: (section) => sidebar.openBoardSettings(board, section),
@@ -879,8 +954,6 @@ function TeamNode({
   searchView: string | null;
 }) {
   const ws = useWorkspace();
-  const router = useRouter();
-  const sidebar = useSidebarActions();
   const expandedIds = useUiStore((s) => s.expandedTeamIds);
   const toggleTeam = useUiStore((s) => s.toggleTeam);
   const showCounts = useUiStore((s) => s.showTeamCounts);
@@ -902,41 +975,9 @@ function TeamNode({
   }, [openedKey, team.id, setTeamExpanded]);
   const highlighted = activeTeam || (containsActive && !expanded);
   const colors = colorClasses(team.color);
-  const manage = canManageTeam(ws.permissions, team.id);
   const shown = useTeamSidebarItems(team.id, trackers, docs, activeTrackerId, activeDocId);
-  const quick = useTeamQuickActions(team);
 
-  const teamActions: MenuAction[] = [
-    { type: "item", label: "Open team", icon: <Users />, onSelect: () => router.push(routes.team(ws.slug, team.id)) },
-    ...quick.open,
-    ...(canCreateBoard(ws.permissions) || canEditTrackers(ws.permissions) || canEditDocs(ws.permissions)
-      ? [
-          {
-            type: "sub",
-            label: "Add new",
-            icon: <Plus />,
-            items: [
-              ...(canCreateBoard(ws.permissions) ? [{ type: "item", label: "Board", icon: <SquareKanban />, onSelect: () => sidebar.newBoardInTeam(team.id) } satisfies MenuAction] : []),
-              ...(canEditTrackers(ws.permissions) ? [{ type: "item", label: "Tracker", icon: <FileSpreadsheet />, onSelect: () => sidebar.newTrackerInTeam(team.id) } satisfies MenuAction] : []),
-              ...(canEditDocs(ws.permissions) ? [{ type: "item", label: "Doc", icon: <FileText />, onSelect: () => sidebar.newDocInTeam(team.id) } satisfies MenuAction] : []),
-            ],
-          } satisfies MenuAction,
-        ]
-      : []),
-    { type: "separator" },
-    { type: "item", label: "Team settings", icon: <Settings2 />, disabled: !manage, onSelect: () => sidebar.editTeam(team) },
-    ...quick.manage,
-    shown.menu,
-    ...(manage && !team.system
-      ? [
-          { type: "separator" } satisfies MenuAction,
-          { type: "item", label: "Archive team", icon: <Archive />, destructive: true, onSelect: () => sidebar.archiveTeam(team) } satisfies MenuAction,
-          ...(canDeleteTeam(ws.permissions)
-            ? [{ type: "item", label: "Delete team…", icon: <Trash2 />, destructive: true, onSelect: () => sidebar.deleteTeam(team) } satisfies MenuAction]
-            : []),
-        ]
-      : []),
-  ];
+  const teamActions = useTeamMenuActions(team, [shown.menu]);
 
   if (collapsed) {
     return (

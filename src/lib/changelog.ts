@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.146.0",
+    date: "2026-11-22",
+    title: "Browse on a phone has the sidebar's menus",
+    changes: [
+      "On a phone, every board in Browse has the sidebar's board menu (settings, members, share, rename, move to team, duplicate, template, archive, delete and the rest), and every team has its menu (add a board, tracker or doc, settings, members, who can see and edit, colour and icon, archive, delete).",
+      "New in Browse adds a board, tracker, doc or team, as the sidebar's New does, and archived boards are listed, folded away until opened.",
+    ],
+  },
+  {
     version: "0.145.2",
     date: "2026-11-22",
     title: "Edit work types opens them",
