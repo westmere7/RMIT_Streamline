@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.4",
+    date: "2026-11-22",
+    title: "Via Form on a booked task",
+    changes: [
+      "A task that came in through the booking form shows Via Form beside its ticket (Via Portal for a portal booking). Hover or tap it for when it was booked, who asked, their department and when it reached a team.",
+      "Hovering the person and time beside it says what they are to the task: who created it, who booked it, or the stand-in recorded for a booking from outside the team.",
+    ],
+  },
+  {
     version: "0.143.3",
     date: "2026-11-22",
     title: "Board header on a phone; board icons under teams",

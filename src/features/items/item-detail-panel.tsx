@@ -1,5 +1,6 @@
 "use client";
 
+import { format } from "date-fns";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -38,6 +39,7 @@ import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
 import { TaskJourneyDialog } from "@/features/journey/task-journey-dialog";
+import { BookedChip } from "@/features/items/booked-chip";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
@@ -529,6 +531,7 @@ function PanelHeader({
   const group = model.groups.find((g) => g.id === item.groupId);
   const parent = item.parentItemId ? model.itemById.get(item.parentItemId) : null;
   const creator = ws.userById(item.createdBy);
+  const creatorRole = creatorRoleOf(item, model);
   const links = useMentionLinks();
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   // The same three lines at every width, set tighter or looser to suit it.
@@ -616,6 +619,8 @@ function PanelHeader({
             the name, so the name is what the eye lands on. */}
         <div className={cn("flex flex-wrap items-center gap-y-2 text-2xs text-muted-foreground", "mt-4 gap-x-4")}>
           <TicketField item={item} canEdit={canEdit} onSave={(value) => mutations.setTicket(item.id, value)} onAssign={() => void mutations.assignTicket(item.id)} />
+          {/* Not behind a share link: who asked is the workspace's to know. */}
+          {!shared && <BookedChip item={item} />}
           {item.archivedAt && (
             <Badge variant="warning" className="gap-1" data-testid="panel-archived-badge">
               <Archive className="size-3" aria-hidden /> Archived <RelativeTime iso={item.archivedAt} />
@@ -639,15 +644,23 @@ function PanelHeader({
           {/* How far the deliverables are, before who made the task; it opens the Assets tab. */}
           <AssetProgressPill assets={assets} onOpen={boardHasDeliverables(board) ? () => setRequestedItemTab({ itemId: item.id, tab: "assets" }) : undefined} />
           {creator ? (
-            <p className="flex items-center gap-1.5">
-              <UserAvatar user={creator} size="xs" />
+            <p className="flex items-center gap-1.5" data-testid="panel-creator">
+              <SimpleTooltip label={creatorRole}>
+                <span className="inline-flex">
+                  <UserAvatar user={creator} size="xs" />
+                </span>
+              </SimpleTooltip>
               <span>
                 <PersonName user={creator}>
                   <Mention href={links.person(item.createdBy)} className="font-normal">
                     {creator.firstName}
                   </Mention>
                 </PersonName>{" "}
-                · <RelativeTime iso={item.createdAt} />
+                <SimpleTooltip label={creatorRole}>
+                  <span className="cursor-default" data-testid="panel-creator-time">
+                    · <RelativeTime iso={item.createdAt} />
+                  </span>
+                </SimpleTooltip>
               </span>
             </p>
           ) : (
@@ -661,6 +674,20 @@ function PanelHeader({
       {!shared && <TaskJourneyDialog item={item} open={journeyOpen} onOpenChange={setJourneyOpen} />}
     </div>
   );
+}
+
+/**
+ * What the person beside the ticket is to the task. A booking from outside the
+ * team (the public link, a portal) has no member to record, so the workspace
+ * owner stands in; the Booked chip says who asked.
+ */
+function creatorRoleOf(item: Item, model: BoardModel): string {
+  const when = format(new Date(item.createdAt), "d MMM yyyy, h:mm a");
+  if (!item.bookedVia) return `Created this task · ${when}`;
+  const requesterColumn = model.columns.find((c) => c.type === "REQUESTER");
+  const requester = requesterColumn ? model.getValue(item.id, requesterColumn.id) : undefined;
+  const bookedItThemselves = requester?.type === "REQUESTER" && requester.userIds[0] === item.createdBy;
+  return bookedItThemselves ? `Booked this task · ${when}` : `Stand-in creator for an outside booking · ${when}. Via Form shows who asked.`;
 }
 
 /** Long enough to tell a double click from two single ones, short enough that a copy still feels immediate. */
