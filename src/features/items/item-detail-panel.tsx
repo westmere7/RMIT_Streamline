@@ -5,7 +5,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -40,6 +40,9 @@ import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
 import { TaskJourneyDialog } from "@/features/journey/task-journey-dialog";
 import { BookedChip } from "@/features/items/booked-chip";
+import { MenuSheet } from "@/components/layout/menu-sheet";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import type { MenuAction } from "@/components/layout/row-menu";
 import { useBoardContext } from "@/features/boards/board-context";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
@@ -1299,6 +1302,69 @@ function ColumnRowMenu({ column }: { column: BoardColumn }) {
 }
 
 /**
+ * The column menu on a phone: the desktop's Insert, Hide and Remove, in a
+ * sheet, plus Move up and down, which stand in for dragging the row.
+ */
+function PhoneColumnMenu({ column }: { column: BoardColumn }) {
+  const { model, mutations } = useBoardContext();
+  const [open, setOpen] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [inserting, setInserting] = React.useState(false);
+  const system = isSystemColumnType(column.type);
+  const ids = model.columns.map((c) => c.id);
+  const at = ids.indexOf(column.id);
+  const move = (by: -1 | 1) => void mutations.reorderColumns(arrayMove(ids, at, at + by));
+  const hide = (patch: Partial<Pick<BoardColumn, "hidden" | "hiddenInPanel">>) => void mutations.updateColumn(column.id, patch);
+  const actions: MenuAction[] = [
+    { type: "item", label: "Insert column…", icon: <Plus />, onSelect: () => setInserting(true), testId: "phone-column-insert" },
+    { type: "item", label: "Move up", icon: <ArrowUp />, disabled: at <= 0, onSelect: () => move(-1), testId: "phone-column-up" },
+    { type: "item", label: "Move down", icon: <ArrowDown />, disabled: at < 0 || at >= ids.length - 1, onSelect: () => move(1), testId: "phone-column-down" },
+    {
+      type: "sub",
+      label: "Hide",
+      icon: <EyeOff />,
+      items: [
+        { type: "item", label: "On the board", onSelect: () => hide({ hidden: true }), testId: "phone-hide-on-board" },
+        { type: "item", label: "On this panel", onSelect: () => hide({ hiddenInPanel: true }), testId: "phone-hide-in-panel" },
+        { type: "item", label: "Both", onSelect: () => hide({ hidden: true, hiddenInPanel: true }), testId: "phone-hide-both" },
+      ],
+    },
+    { type: "separator" },
+    { type: "item", label: system ? "Remove from board" : "Remove column", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true), testId: "phone-column-remove" },
+  ];
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={`Options for ${column.name}`}
+        onClick={() => setOpen(true)}
+        className="-my-2 -mr-2 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground/70 active:bg-accent/70"
+        data-testid={`phone-column-menu-${column.id}`}
+      >
+        <MoreVertical className="size-4" />
+      </button>
+      <MenuSheet open={open} onOpenChange={setOpen} title={`${column.name} · ${COLUMN_TYPE_LABELS[column.type]} column`} actions={actions} />
+      <Sheet open={inserting} onOpenChange={setInserting}>
+        <SheetContent title={`Insert after ${column.name}`}>
+          <div className="pb-2" data-testid="phone-column-types">
+            <ColumnTypePicker variant="sheet" afterColumnId={column.id} onPick={(type) => void mutations.addColumn(COLUMN_TYPE_LABELS[type], type, { afterColumnId: column.id })} onAfterPick={() => setInserting(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={system ? `Remove “${column.name}” from the board?` : `Remove “${column.name}”?`}
+        description={system ? "Nothing is lost. Add it back any time and its values return." : "The column and everything every task has in it go, on this board and on the panel. This cannot be undone."}
+        confirmLabel={system ? "Remove from board" : "Remove column"}
+        destructive
+        onConfirm={() => void mutations.deleteColumn(column.id)}
+      />
+    </>
+  );
+}
+
+/**
  * One column of the board, as a row of the panel.
  *
  * Every column is here, in the board's order, so the two views agree about what
@@ -1352,7 +1418,14 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             <GripVertical className="size-3.5" />
           </button>
         )}
-        {label}
+        {isMobile && canEdit ? (
+          <span className="flex min-w-0 items-center justify-between gap-2">
+            {label}
+            <PhoneColumnMenu column={column} />
+          </span>
+        ) : (
+          label
+        )}
         {brief ? (
           <BriefRowValue
             title={column.name}

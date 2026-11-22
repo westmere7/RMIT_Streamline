@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.5",
+    date: "2026-11-22",
+    title: "Columns on a phone",
+    changes: [
+      "On a phone, anyone who can edit a board can show and hide its columns (in a saved view, anyone), as on a desktop, and the Columns chip counts the hidden ones.",
+      "Clear all appears on a phone while a search, filter or sort is on.",
+      "Each field in a task opened on a phone has the column's menu: insert a column after it, move it up or down, hide it on the board or the panel, or remove it.",
+    ],
+  },
+  {
     version: "0.143.4",
     date: "2026-11-22",
     title: "Via Form on a booked task",

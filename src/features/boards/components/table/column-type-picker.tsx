@@ -27,6 +27,20 @@ interface MenuItemProps {
   children?: React.ReactNode;
 }
 
+/** A type in a phone's sheet, where there is no menu primitive to be inside: a full-height button. */
+function SheetItem({ onSelect, disabled, className, children }: MenuItemProps) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(e) => onSelect?.(e.nativeEvent)}
+      className={cn("flex min-h-11 items-center gap-2 rounded-lg px-2 text-left text-[14px] active:bg-accent/70 disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground", className)}
+    >
+      {children}
+    </button>
+  );
+}
+
 /**
  * The column types on offer, in two groups of the same shape.
  *
@@ -51,13 +65,16 @@ export function ColumnTypePicker({
   onPick,
   afterColumnId,
   variant = "dropdown",
+  onAfterPick,
 }: {
   onPick: (type: ColumnType) => void;
   /** Where a new column goes: after this one, or at the end. A taken type's column is moved there instead. */
   afterColumnId?: string;
-  variant?: "dropdown" | "context";
+  variant?: "dropdown" | "context" | "sheet";
+  /** After either a new column or a move: a sheet closes itself, a menu does so on its own. */
+  onAfterPick?: () => void;
 }) {
-  const Item = (variant === "context" ? ContextMenuItem : DropdownMenuItem) as React.ComponentType<MenuItemProps>;
+  const Item = (variant === "context" ? ContextMenuItem : variant === "sheet" ? SheetItem : DropdownMenuItem) as React.ComponentType<MenuItemProps>;
   const { model, mutations, board } = useBoardContext();
   // The booking time is only a fact on the board bookings land on.
   const systemTypes = SYSTEM_TYPES.filter((type) => type !== "BOOKED_AT" || board.system === "TASK_ALLOCATION");
@@ -92,7 +109,14 @@ export function ColumnTypePicker({
         );
         return (
           <SimpleTooltip key={type} label={label} side="right">
-            <Item onSelect={() => (existing ? moveHere(existing) : onPick(type))} className="min-w-0">
+            <Item
+              onSelect={() => {
+                if (existing) moveHere(existing);
+                else onPick(type);
+                onAfterPick?.();
+              }}
+              className="min-w-0"
+            >
               <Icon className={cn(system && "text-green-600 dark:text-green-400", existing && "opacity-50")} />
               <span className={cn("truncate whitespace-nowrap", existing && "text-muted-foreground")}>{COLUMN_TYPE_LABELS[type]}</span>
             </Item>

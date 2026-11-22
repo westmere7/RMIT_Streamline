@@ -49,11 +49,14 @@ export function MobileBoardTools({
   /** Chips the current view adds to the strip, after the board's own. */
   extraChips?: React.ReactNode;
 }) {
-  const { board, model, canManage } = useBoardContext();
+  const { board, model, canEdit } = useBoardContext();
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
-  // Hiding columns is a board manager's, or a saved view's; nobody else gets a chip that only says no.
-  const columnsChangeable = useSavedViewStore((s) => !!s.boards[board.id]) || canManage;
+  // As on a desktop: anyone who can edit the board hides columns, and in a saved
+  // view anyone may (it is the view's); nobody else gets a chip that only says no.
+  const viewOpen = useSavedViewStore((s) => !!s.boards[board.id]);
+  const columnsChangeable = canEdit || viewOpen;
+  const hiddenCount = model.columns.filter((c) => c.hidden).length;
   const [open, setOpen] = React.useState<null | "views" | "search" | "filter" | "sort" | "columns">(null);
   const close = () => setOpen(null);
 
@@ -81,7 +84,19 @@ export function MobileBoardTools({
             <Chip onClick={() => setOpen("sort")} icon={ArrowUpDown} label={ui.sort ? sortLabel(ui.sort.field) : "Sort"} active={!!ui.sort} testId="mobile-sort-chip">
               {ui.sort && (ui.sort.direction === "asc" ? <ArrowUp className="size-3" aria-hidden /> : <ArrowDown className="size-3" aria-hidden />)}
             </Chip>
-            {columnsChangeable && <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" testId="mobile-columns-chip" />}
+            {columnsChangeable && <Chip onClick={() => setOpen("columns")} icon={EyeOff} label="Columns" count={hiddenCount} active={hiddenCount > 0} testId="mobile-columns-chip" />}
+            {(filterCount > 0 || !!ui.search || !!ui.sort) && (
+              <Chip
+                onClick={() => {
+                  store.clearFilters(board.id);
+                  store.setSearch(board.id, "");
+                  store.setSort(board.id, null);
+                }}
+                icon={X}
+                label="Clear all"
+                testId="mobile-clear-all"
+              />
+            )}
             {extraChips}
           </div>
         </div>
@@ -196,7 +211,7 @@ export function MobileBoardTools({
       </Sheet>
 
       <Sheet open={open === "columns"} onOpenChange={(next) => !next && close()}>
-        <SheetContent title="Columns" description="Hiding a column hides it for everyone on this board.">
+        <SheetContent title="Columns" description={viewOpen ? "Hidden in this view only." : "Hiding a column hides it for everyone on this board."}>
           <MobileColumns />
         </SheetContent>
       </Sheet>
@@ -367,8 +382,8 @@ function MobileFilters() {
  * change the desktop table from here.
  */
 function MobileColumns() {
-  const { board, model, mutations, canManage: manages } = useBoardContext();
-  const canManage = useSavedViewStore((s) => !!s.boards[board.id]) || manages;
+  const { board, model, mutations, canEdit } = useBoardContext();
+  const canManage = useSavedViewStore((s) => !!s.boards[board.id]) || canEdit;
   return (
     <div className="pb-2">
       {model.columns.map((column) => (
@@ -380,7 +395,7 @@ function MobileColumns() {
           onChange={() => void mutations.updateColumn(column.id, { hidden: !column.hidden })}
         />
       ))}
-      {!canManage && <p className="px-2 pt-2 text-[13px] text-muted-foreground">Only a board manager can hide columns.</p>}
+      {!canManage && <p className="px-2 pt-2 text-[13px] text-muted-foreground">Only people who can edit the board can hide columns.</p>}
     </div>
   );
 }
