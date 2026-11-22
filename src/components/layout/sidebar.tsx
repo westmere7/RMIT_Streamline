@@ -835,6 +835,7 @@ function BoardLink({
   nested,
   archived,
   fromFavourites = false,
+  tint,
 }: {
   board: Board;
   href: string;
@@ -842,6 +843,8 @@ function BoardLink({
   collapsed: boolean;
   nested?: boolean;
   archived?: boolean;
+  /** The team's text colour class (light and dark), for the icon of an item listed under its team. */
+  tint?: string;
   /** The entry under Favourites, whose board is then selected there alone. */
   fromFavourites?: boolean;
 }) {
@@ -872,7 +875,7 @@ function BoardLink({
           {archived ? (
             <Archive className="size-3.5 shrink-0 text-muted-foreground/60" />
           ) : (
-            <SquareKanban className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
+            <SquareKanban className={cn("size-3.5 shrink-0", tint ?? (active ? "text-foreground" : "text-muted-foreground/70"))} />
           )}
           {!collapsed && <span className="truncate">{board.name}</span>}
           {!collapsed && !archived && (
@@ -1028,13 +1031,14 @@ function TeamNode({
               active={activeBoardSlug === board.slug}
               collapsed={false}
               nested
+              tint={colors.text}
             />
           ))}
           {shown.trackers.map((tracker) => (
-            <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
+            <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} tint={colors.text} />
           ))}
           {shown.docs.map((doc) => (
-            <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
+            <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} tint={colors.text} />
           ))}
           <ArchivedFolder boards={archivedBoards} activeBoardSlug={activeBoardSlug} />
         </ul>
@@ -1146,13 +1150,13 @@ function AdminNode({
       </RowMenu>
       <ul className="mt-0.5 space-y-0.5">
         {boards.map((board) => (
-          <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={false} />
+          <BoardLink key={board.id} board={board} href={ws.boardPath(board)} active={activeBoardSlug === board.slug} collapsed={false} tint={colors.text} />
         ))}
         {shown.trackers.map((tracker) => (
-          <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} />
+          <TrackerLink key={tracker.id} tracker={tracker} active={activeTrackerId === tracker.id} tint={colors.text} />
         ))}
         {shown.docs.map((doc) => (
-          <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} />
+          <DocLink key={doc.id} doc={doc} active={activeDocId === doc.id} tint={colors.text} />
         ))}
       </ul>
     </section>
@@ -1244,7 +1248,7 @@ function useTeamSidebarItems(teamId: string, trackers: Tracker[], docs: DocSumma
 }
 
 /** A team's doc, shown after its boards and trackers, wearing its own emoji if it has one. */
-function DocLink({ doc, active }: { doc: DocSummary; active: boolean }) {
+function DocLink({ doc, active, tint }: { doc: DocSummary; active: boolean; tint?: string }) {
   const ws = useWorkspace();
   const router = useRouter();
   const sidebar = useSidebarActions();
@@ -1257,7 +1261,7 @@ function DocLink({ doc, active }: { doc: DocSummary; active: boolean }) {
     <li>
       <RowMenu label={`Options for ${doc.title}`} actions={actions}>
         <Link href={href} aria-current={active ? "page" : undefined} className={cn(navItemClasses(active), "h-8 pl-2.5 pr-7 font-normal")} data-testid="sidebar-doc">
-          {doc.icon ? <span className="w-3.5 shrink-0 text-center text-[13px] leading-none">{doc.icon}</span> : <FileText className={cn("size-3.5 shrink-0", active ? "text-foreground" : doc.kind === "pdf" ? "text-red-500/80" : "text-muted-foreground/70")} />}
+          {doc.icon ? <span className="w-3.5 shrink-0 text-center text-[13px] leading-none">{doc.icon}</span> : <FileText className={cn("size-3.5 shrink-0", tint ?? (active ? "text-foreground" : doc.kind === "pdf" ? "text-red-500/80" : "text-muted-foreground/70"))} />}
           <span className="truncate">{doc.title}</span>
         </Link>
       </RowMenu>
@@ -1266,7 +1270,7 @@ function DocLink({ doc, active }: { doc: DocSummary; active: boolean }) {
 }
 
 /** A team's tracker (in-app spreadsheet), shown beside its boards. */
-function TrackerLink({ tracker, active }: { tracker: Tracker; active: boolean }) {
+function TrackerLink({ tracker, active, tint }: { tracker: Tracker; active: boolean; tint?: string }) {
   const ws = useWorkspace();
   const router = useRouter();
   const sidebar = useSidebarActions();
@@ -1279,7 +1283,7 @@ function TrackerLink({ tracker, active }: { tracker: Tracker; active: boolean })
     <li>
       <RowMenu label={`Options for ${tracker.name}`} actions={actions}>
         <Link href={href} aria-current={active ? "page" : undefined} className={cn(navItemClasses(active), "h-8 pl-2.5 pr-7 font-normal")} data-testid="sidebar-tracker">
-          <FileSpreadsheet className={cn("size-3.5 shrink-0", active ? "text-foreground" : "text-muted-foreground/70")} />
+          <FileSpreadsheet className={cn("size-3.5 shrink-0", tint ?? (active ? "text-foreground" : "text-muted-foreground/70"))} />
           <span className="truncate">{tracker.name}</span>
         </Link>
       </RowMenu>
