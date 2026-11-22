@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowRight, ArrowRightLeft, Copy, LoaderCircle, Trash2, X } from "lucide-react";
+import { Archive, ArrowRight, ArrowRightLeft, Copy, LoaderCircle, SquareKanban, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -91,6 +91,7 @@ export function BulkActionsBar() {
                     <DropdownMenuSubContent className="w-56">
                       {boards.map((target) => (
                         <DropdownMenuItem key={target.id} onSelect={() => send(target.id)} data-testid={`bulk-allocate-${target.slug}`}>
+                          <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
                           <span className="min-w-0 truncate">{target.name}</span>
                         </DropdownMenuItem>
                       ))}

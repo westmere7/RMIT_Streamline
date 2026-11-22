@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, LoaderCircle, Search } from "lucide-react";
+import { AlertTriangle, ArrowRight, LoaderCircle, Search, SquareKanban } from "lucide-react";
 import { useRouter } from "next/navigation";
 import * as React from "react";
 import { toast } from "sonner";
@@ -133,7 +133,7 @@ export function MoveToBoardDialog() {
                               className="flex h-9 w-full items-center gap-2.5 rounded-lg px-2 text-left text-[13px] hover:bg-accent"
                               data-testid="move-board-option"
                             >
-                              <DynamicIcon name={b.icon} className={cn("size-4 shrink-0", colorClasses(b.color).text)} />
+                              <SquareKanban className="size-4 shrink-0 text-muted-foreground" />
                               <span className="min-w-0 flex-1 truncate">{b.name}</span>
                             </button>
                           </li>

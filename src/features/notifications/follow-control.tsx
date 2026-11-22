@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellRing, Check } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
+import type { MenuAction } from "@/components/layout/row-menu";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -54,6 +55,39 @@ export function useFollow() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.notificationPreferences(ws.currentUser.id) });
     },
   });
+}
+
+/**
+ * Following as a menu entry, for menus and a phone's sheets: start or stop, then
+ * the same ticks the bell has, each saved at once with the menu left open.
+ */
+export function useFollowMenuAction(target: SubscriptionTarget, kind: "board" | "task"): MenuAction {
+  const subscriptions = useMySubscriptions();
+  const follow = useFollow();
+  const events = subscriptions.data?.find((s) => s.boardId === target.boardId && s.itemId === target.itemId)?.events ?? [];
+  const following = events.length > 0;
+  return {
+    type: "sub",
+    label: following ? "Following" : "Follow",
+    icon: following ? <BellRing /> : <Bell />,
+    contentClassName: "w-56",
+    items: [
+      following
+        ? { type: "item", label: "Stop following", onSelect: () => follow.mutate({ target, events: [] }), testId: "menu-follow-stop" }
+        : { type: "item", label: `Follow this ${kind}`, onSelect: () => follow.mutate({ target, events: kind === "board" ? DEFAULT_BOARD_EVENTS : DEFAULT_ITEM_EVENTS }), testId: "menu-follow-start" },
+      { type: "separator" },
+      ...SUBSCRIPTION_EVENTS.map(
+        (event): MenuAction => ({
+          type: "item",
+          label: SUBSCRIPTION_EVENT_LABELS[event],
+          icon: events.includes(event) ? <Check /> : <span aria-hidden className="size-4" />,
+          keepOpen: true,
+          onSelect: () => follow.mutate({ target, events: events.includes(event) ? events.filter((e) => e !== event) : [...events, event] }),
+          testId: `menu-follow-event-${event}`,
+        }),
+      ),
+    ],
+  };
 }
 
 /**

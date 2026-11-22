@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, LoaderCircle } from "lucide-react";
+import { ArrowRightLeft, LoaderCircle, SquareKanban } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -86,7 +86,10 @@ export function AllocationSection({ item }: { item: Item }) {
                     </SelectLabel>
                     {boards.map((b) => (
                       <SelectItem key={b.id} value={b.id} data-testid={`allocation-board-${b.slug}`}>
-                        {b.name}
+                        <span className="flex items-center gap-2">
+                          <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
+                          {b.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectGroup>
@@ -96,7 +99,10 @@ export function AllocationSection({ item }: { item: Item }) {
                     <SelectLabel>No team</SelectLabel>
                     {loose.map((b) => (
                       <SelectItem key={b.id} value={b.id} data-testid={`allocation-board-${b.slug}`}>
-                        {b.name}
+                        <span className="flex items-center gap-2">
+                          <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
+                          {b.name}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectGroup>

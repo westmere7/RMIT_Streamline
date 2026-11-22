@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.3",
+    date: "2026-11-22",
+    title: "Board header on a phone; board icons under teams",
+    changes: [
+      "On a phone, a board's header shows its description (its managers tap it to change it), links to its team, and says Private, Team only or View only as the desktop does.",
+      "The phone's board menu has Follow, with the same choices as the desktop's bell, and Edit description.",
+      "Wherever boards are listed under their team (Allocate to, Move to board, the booking form's board choices), each board shows the board icon rather than its own.",
+    ],
+  },
+  {
     version: "0.143.2",
     date: "2026-11-22",
     title: "Sidebar counts follow allocations",

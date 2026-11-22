@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Check, Info, ChevronDown, CircleCheck, Copy, Eye, FileDown, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, Trash2, Undo2, X } from "lucide-react";
+import { Boxes, Check, Info, ChevronDown, CircleCheck, Copy, Eye, FileDown, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, SquareKanban, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -927,7 +927,7 @@ function ServicePanel({
                           return (
                             <SelectItem key={board.id} value={nominated ? team!.id : BOARD + board.id} data-testid={`editor-service-board-${key}-${board.slug}`}>
                               <span className="flex min-w-0 items-center gap-2">
-                                <DynamicIcon name={board.icon} className={cn("size-3.5 shrink-0", colorClasses(board.color).text)} />
+                                <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
                                 <span className="truncate">{board.name}</span>
                                 {nominated && <span className="truncate text-muted-foreground">{team!.name}&apos;s booking board</span>}
                               </span>

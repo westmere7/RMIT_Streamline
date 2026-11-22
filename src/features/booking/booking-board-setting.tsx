@@ -2,14 +2,12 @@
 
 import type * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Info } from "lucide-react";
-import { DynamicIcon } from "@/components/shared/dynamic-icon";
+import { ArrowRight, Info, SquareKanban } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Team } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { STANDARD_BOOKING_FIELDS, STANDARD_FIELD_LABELS, bookingDestinations, type BookingDestination, type StandardBookingField } from "@/services/booking";
@@ -63,7 +61,7 @@ export function BookingBoardSetting({ team, value, onChange }: { team: Team; val
           {boards.map((b) => (
             <SelectItem key={b.id} value={b.id} data-testid={`team-booking-board-${b.slug}`}>
               <span className="flex items-center gap-2">
-                <DynamicIcon name={b.icon} className={cn("size-3.5", colorClasses(b.color).text)} />
+                <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
                 {b.name}
               </span>
             </SelectItem>

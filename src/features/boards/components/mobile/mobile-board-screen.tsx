@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowLeft, CheckSquare, Globe, History, LayoutList, MoreHorizontal, Star, Table2, UserPlus, Users } from "lucide-react";
+import { Archive, ArrowLeft, CheckSquare, Eye, Globe, History, LayoutList, MoreHorizontal, Pencil, Star, Table2, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
@@ -23,8 +23,9 @@ import { MobileBoardTools, ToolChip } from "@/features/boards/components/mobile/
 import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { copyToClipboard } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useFollowMenuAction } from "@/features/notifications/follow-control";
 import { colorClasses } from "@/lib/colors";
-import { canManageBoard } from "@/lib/permissions/permissions";
+import { boardAccessOf, boardRoleFor, canManageBoard, teamAccessFor } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,7 @@ export function MobileBoardHeader({ board }: { board: Board }) {
   const [shareOpen, setShareOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [renaming, setRenaming] = React.useState(false);
+  const [describing, setDescribing] = React.useState(false);
   const [automationsOpen, setAutomationsOpen] = React.useState(false);
   // The header has no room for the desktop's Automations button, so the menu
   // button stands in for it: the ring turns round that while a rule runs on
@@ -57,6 +59,11 @@ export function MobileBoardHeader({ board }: { board: Board }) {
 
   const favourite = ws.isFavourite(board.id);
   const team = ws.teamById(board.teamId);
+  // As on a desktop: who can see it beyond the workspace, and View only when that is all the reader may do.
+  const seeing = boardAccessOf(board, team ? teamAccessFor(team) : null).see;
+  const role = boardRoleFor(ws.permissions, board);
+  const viewOnly = !!role && role === "VIEWER" && !manage;
+  const follow = useFollowMenuAction({ boardId: board.id, itemId: null }, "board");
   const memberCount = ws.boardMembers.filter((m) => m.boardId === board.id).length;
   const share = useBoardShareStatus(board.id).data ?? null;
   const shared = !!share && share.enabled;
@@ -73,6 +80,9 @@ export function MobileBoardHeader({ board }: { board: Board }) {
   // The phone's menu is the board's own actions plus the three the desktop
   // header keeps as separate buttons, which have no room here.
   const menuActions: MenuAction[] = [
+    follow,
+    ...(manage ? ([{ type: "item", label: board.description ? "Edit description" : "Add a description", icon: <Pencil />, onSelect: () => setDescribing(true), testId: "mobile-board-describe" }] satisfies MenuAction[]) : []),
+    { type: "separator" },
     { type: "item", label: "Members", icon: <Users />, hint: String(memberCount), onSelect: () => setSettings("members") },
     ...(manage ? ([{ type: "item", label: "Invite to this board", icon: <UserPlus />, onSelect: () => setSettings("members") }] satisfies MenuAction[]) : []),
     { type: "item", label: "Board activity", icon: <History />, onSelect: () => setActivityOpen(true) },
@@ -102,7 +112,21 @@ export function MobileBoardHeader({ board }: { board: Board }) {
               {board.name}
             </h1>
             <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-              {team && <span className="truncate">{team.name}</span>}
+              {team && (
+                <Link href={routes.team(ws.slug, team.id)} className="-my-2 truncate py-2 hover:text-foreground" data-testid="mobile-board-team">
+                  {team.name}
+                </Link>
+              )}
+              {seeing !== "WORKSPACE" && board.system !== "APP_DEVELOPMENT" && (
+                <span className="shrink-0 rounded border border-border/80 px-1 py-px font-medium" data-testid="mobile-board-visibility">
+                  {seeing === "PRIVATE" ? "Private" : "Team only"}
+                </span>
+              )}
+              {viewOnly && (
+                <span className="flex shrink-0 items-center gap-0.5 font-medium text-amber-600 dark:text-amber-400" data-testid="mobile-board-view-only">
+                  <Eye className="size-3" aria-hidden /> View only
+                </span>
+              )}
               {board.archivedAt && <span className="shrink-0 rounded bg-surface-strong px-1 py-px font-medium">Archived</span>}
               {shared && (
                 <button type="button" onClick={() => void copyToClipboard(shareUrl, "Link copied")} className="-my-2 flex shrink-0 items-center gap-0.5 py-2 text-emerald-700 dark:text-emerald-300" data-testid="mobile-board-shared">
@@ -135,6 +159,18 @@ export function MobileBoardHeader({ board }: { board: Board }) {
             {automationsRunning && <AutomationRing className="-inset-1.5" testId="mobile-board-automations-running" />}
           </Button>
         </div>
+        {/* The description, under the name as on a desktop; its managers tap it to change it. */}
+        {board.description ? (
+          manage ? (
+            <button type="button" onClick={() => setDescribing(true)} className="relative mt-1 block w-full px-3 text-left text-[13px] leading-snug text-muted-foreground line-clamp-2" data-testid="mobile-board-description">
+              {board.description}
+            </button>
+          ) : (
+            <p className="relative mt-1 px-3 text-[13px] leading-snug text-muted-foreground line-clamp-2" data-testid="mobile-board-description">
+              {board.description}
+            </p>
+          )
+        ) : null}
       </header>
 
       {board.archivedAt && (
@@ -150,6 +186,7 @@ export function MobileBoardHeader({ board }: { board: Board }) {
 
       <MenuSheet open={menuOpen} onOpenChange={setMenuOpen} title={board.name} actions={menuActions} />
       <RenameSheet board={board} open={renaming} onOpenChange={setRenaming} />
+      <DescriptionSheet board={board} open={describing} onOpenChange={setDescribing} />
       <BoardSettingsDialog board={board} section={settings} onSectionChange={setSettings} onRequestDelete={() => setDeleteOpen(true)} />
       <BoardActivityDialog board={board} open={activityOpen} onOpenChange={setActivityOpen} />
       <AutomationsDialog board={board} canManage={manage} open={automationsOpen} onOpenChange={setAutomationsOpen} />
@@ -196,6 +233,40 @@ function RenameSheet({ board, open, onOpenChange }: { board: Board; open: boolea
             aria-label="Board name"
             data-testid="mobile-board-rename-input"
           />
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+/** The board's description, in a sheet: the header has no room to edit it in place. */
+function DescriptionSheet({ board, open, onOpenChange }: { board: Board; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const actions = useBoardActions(board);
+  const [text, setText] = React.useState(board.description ?? "");
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setText(board.description ?? "");
+  }
+
+  const save = () => {
+    const next = text.trim();
+    if (next !== (board.description ?? "")) actions.updateBoard.mutate({ description: next });
+    onOpenChange(false);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        title="Description"
+        footer={
+          <Button className="h-11 w-full" onClick={save} data-testid="mobile-board-description-save">
+            Save
+          </Button>
+        }
+      >
+        <div className="pb-2">
+          <Input autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} placeholder="Add a description" aria-label="Board description" data-testid="mobile-board-description-input" />
         </div>
       </SheetContent>
     </Sheet>
