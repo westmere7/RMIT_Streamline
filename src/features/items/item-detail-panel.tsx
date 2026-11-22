@@ -48,7 +48,7 @@ import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
 import { COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
 import { useComments } from "@/features/comments/hooks";
-import { ItemUpdates } from "@/features/items/item-updates";
+import { ItemUpdates, PinnedUpdate } from "@/features/items/item-updates";
 import { useItemAssets } from "@/features/items/asset-hooks";
 import { AssetProgressPill } from "@/features/items/item-assets-recap";
 import { useItemLinks } from "@/features/items/link-hooks";
@@ -350,7 +350,7 @@ export function ItemDetailPanel({
               </UnderlineTabsTrigger>
             </UnderlineTabsList>
             <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
-              <Overview key={item.id} item={item} />
+              <Overview key={item.id} item={item} onOpenUpdates={() => setTab("updates")} />
             </TabsContent>
             <TabsContent value="updates" className="min-h-0 flex-1">
               <ItemUpdates itemId={item.id} canComment={canEdit} />
@@ -467,7 +467,7 @@ function PopupBody({
           {/* The scrollbar's room kept on both sides, so the overview sits centred
               in its half rather than nudged left by the track on its right. */}
           <TabsContent value="overview" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]">
-            <Overview key={item.id} item={item} />
+            <Overview key={item.id} item={item} onOpenUpdates={() => onLeftChange("updates")} />
           </TabsContent>
           <TabsContent value="updates" className="min-h-0 flex-1">
             <ItemUpdates itemId={item.id} canComment={canEdit} />
@@ -993,7 +993,7 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
 /** Nobody to mention in a description. */
 const NO_PEOPLE: readonly never[] = [];
 
-function Overview({ item }: { item: Item }) {
+function Overview({ item, onOpenUpdates }: { item: Item; onOpenUpdates?: () => void }) {
   // Below 768 the field rows stack; the cell fills the row rather than holding
   // its desktop width, which at 375px would push the panel sideways.
   const isMobile = useIsMobile();
@@ -1088,6 +1088,8 @@ function Overview({ item }: { item: Item }) {
 
   return (
     <div className={cn("space-y-6 p-4")}>
+      {/* The update pinned to the overview, read before the description. */}
+      <PinnedUpdate itemId={item.id} canEdit={canEdit} onOpenUpdates={onOpenUpdates} />
       <DescriptionSection item={item} canEdit={canEdit} />
       {fields}
       <AllocationSection item={item} />

@@ -22,6 +22,7 @@ import type {
   ColumnValue,
   Comment,
   CommentInput,
+  CommentPinState,
   CompleteOnboardingInput,
   DirectMessage,
   DirectMessageInput,
@@ -619,6 +620,8 @@ export interface CommentRepository {
   setReaction(comment: Pick<Comment, "id" | "itemId">, userId: EntityId, emoji: string, on: boolean): Promise<void>;
   /** Ticks (`on`) or unticks one checklist box on a comment. Ticking one twice is a no-op. */
   setCheck(comment: Pick<Comment, "id" | "itemId">, key: string, userId: EntityId, on: boolean): Promise<void>;
+  /** Pins an update, pins it to the task's overview (taking the overview from any other), or unpins it. */
+  setPin(comment: Pick<Comment, "id" | "itemId">, userId: EntityId, state: CommentPinState): Promise<void>;
 }
 
 export interface MessageRepository {

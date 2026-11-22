@@ -1,4 +1,4 @@
-import { COMMENT_REACTIONS, type Comment, type EntityId, type NotificationType, type User } from "@/domain";
+import { COMMENT_REACTIONS, RefusedError, type Comment, type CommentPinState, type EntityId, type NotificationType, type User } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId } from "@/lib/ids";
@@ -49,6 +49,16 @@ export class CommentService {
    * list, so the copies follow — where the actor may work on them; a copy on a
    * board they cannot edit keeps its own ticks rather than failing this one.
    */
+  /**
+   * Pins an update to the top of its task's updates, or to the task's overview
+   * too (one per task: the one there before stays pinned below), or unpins it.
+   * Replies are never pinned: a pin is a whole update, read on its own.
+   */
+  async setPin(comment: Pick<Comment, "id" | "itemId" | "parentId">, actorId: EntityId, state: CommentPinState): Promise<void> {
+    if (comment.parentId) throw new RefusedError("A reply can't be pinned. Pin the update it answers.");
+    await this.repos.comments.setPin(comment, actorId, state);
+  }
+
   async setCheck(comment: Pick<Comment, "id" | "itemId" | "sharedId">, key: string, actorId: EntityId, on: boolean): Promise<void> {
     await this.repos.comments.setCheck(comment, key, actorId, on);
     if (!comment.sharedId) return;

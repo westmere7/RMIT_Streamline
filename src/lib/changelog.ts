@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.151.0",
+    date: "2026-11-22",
+    title: "Pinned updates",
+    changes: [
+      "Pin an update to keep it at the top of a task's updates.",
+      "Pin to overview puts one update above the task's description, without its replies; a long one opens with Show more.",
+    ],
+  },
+  {
     version: "0.150.4",
     date: "2026-11-22",
     title: "Owner-only safeguards",

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { withCheck, withReaction, type Comment } from "@/domain";
+import { withCheck, withReaction, type Comment, type CommentPinState } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useAutomationNudge } from "@/features/automations/hooks";
 import { useServices } from "@/features/data/data-context";
@@ -144,5 +144,33 @@ export function useCommentMutations(itemId: string) {
     },
   });
 
-  return { add, edit, reply, remove, react, check };
+  // Shown at once; the overview pin moves off whichever update had it.
+  const pin = useMutation({
+    mutationFn: ({ comment, state }: { comment: Pick<Comment, "id" | "itemId" | "parentId">; state: CommentPinState }) => services.comments.setPin(comment, user.id, state),
+    onMutate: async ({ comment, state }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Comment[]>(key);
+      const at = nowIso();
+      queryClient.setQueryData<Comment[]>(key, (old) =>
+        old?.map((c) => {
+          if (c.id === comment.id) return { ...c, pin: state === "none" ? null : { overview: state === "overview", pinnedBy: user.id, pinnedAt: c.pin?.pinnedAt ?? at } };
+          return state === "overview" && c.pin?.overview ? { ...c, pin: { ...c.pin, overview: false } } : c;
+        }),
+      );
+      return { previous };
+    },
+    onError: (error, _v, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      toast.error(error instanceof Error ? error.message : "Could not pin the update");
+    },
+    onSuccess: (_d, { state }) => {
+      toast.success(state === "none" ? "Unpinned" : state === "overview" ? "Pinned to overview" : "Pinned");
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: key });
+      publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
+    },
+  });
+
+  return { add, edit, reply, remove, react, check, pin };
 }

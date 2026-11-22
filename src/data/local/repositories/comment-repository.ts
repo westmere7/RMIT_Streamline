@@ -1,4 +1,4 @@
-import { withCheck, withReaction, type Comment, type CommentInput } from "@/domain";
+import { withCheck, withReaction, type Comment, type CommentInput, type CommentPinState } from "@/domain";
 import type { CommentRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -77,5 +77,19 @@ export class LocalCommentRepository implements CommentRepository {
     const existing = await db.get("comments", comment.id);
     if (!existing) throw new NotFoundError("Comment", comment.id);
     await db.put("comments", { ...existing, checks: withCheck(existing.checks, key, userId, on, nowIso()) });
+  }
+
+  async setPin(comment: Pick<Comment, "id" | "itemId">, userId: string, state: CommentPinState): Promise<void> {
+    const db = await this.conn.getDb();
+    const existing = await db.get("comments", comment.id);
+    if (!existing) throw new NotFoundError("Comment", comment.id);
+    if (state === "overview") {
+      // One overview pin per task: the one there now stays pinned, off the overview.
+      for (const other of await db.getAllFromIndex("comments", "byItem", comment.itemId)) {
+        if (other.id !== comment.id && other.pin?.overview) await db.put("comments", { ...other, pin: { ...other.pin, overview: false } });
+      }
+    }
+    const pin = state === "none" ? null : { overview: state === "overview", pinnedBy: userId, pinnedAt: existing.pin?.pinnedAt ?? nowIso() };
+    await db.put("comments", { ...existing, pin });
   }
 }

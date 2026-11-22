@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, ListChecks, Maximize2, MessageSquare, Minimize2, Pencil, Reply, Send, SmilePlus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, ListChecks, Maximize2, MessageSquare, Minimize2, Pencil, Pin, PinOff, Reply, Send, SmilePlus, Trash2, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -9,11 +9,12 @@ import { RichText } from "@/components/shared/rich-text";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { PersonName, UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COMMENT_REACTIONS, groupReactions, type Comment } from "@/domain";
+import { COMMENT_REACTIONS, groupReactions, orderUpdates, overviewPinOf, pinStateOf, type Comment, type CommentPinState } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
@@ -31,6 +32,10 @@ const DeleteRule = React.createContext<(comment: Comment) => boolean>(() => fals
 type CheckHandler = (comment: Comment, key: string, on: boolean) => void;
 const CheckToggle = React.createContext<CheckHandler | undefined>(undefined);
 
+/** Pins an update or takes its pin away. Absent where the reader may not work on the task. */
+type PinHandler = (comment: Comment, state: CommentPinState) => void;
+const PinControl = React.createContext<PinHandler | undefined>(undefined);
+
 export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
   const ws = useWorkspace();
   const services = useServices();
@@ -38,8 +43,9 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   const board = item.data ? ws.boardById(item.data.boardId) ?? null : null;
   const mayDelete = React.useCallback((comment: Comment) => canDeleteComment(ws.permissions, comment, board), [ws.permissions, board]);
   const comments = useComments(itemId);
-  const { add, edit, reply, remove, react, check } = useCommentMutations(itemId);
+  const { add, edit, reply, remove, react, check, pin } = useCommentMutations(itemId);
   const onCheck = React.useCallback<CheckHandler>((comment, key, on) => check.mutate({ comment, key, on }), [check]);
+  const onPin = React.useCallback<PinHandler>((comment, state) => pin.mutate({ comment, state }), [pin]);
   const links = useItemLinks(itemId);
   const linkedCount = links.data?.length ?? 0;
   // Default on: if a task is linked, an update usually concerns both sides.
@@ -51,13 +57,13 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   const [writing, setWriting] = React.useState(false);
   const open = writing || draft.trim().length > 0;
   const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
-  // Updates newest first; the replies under each, oldest first, as a conversation reads.
+  // Pinned updates first, then the rest newest first; the replies under each, oldest first, as a conversation reads.
   const { updates, repliesTo } = React.useMemo(() => {
     const all = comments.data ?? [];
     const top = all.filter((c) => !c.parentId);
     const byParent = new Map<string, Comment[]>();
     for (const c of all) if (c.parentId) byParent.set(c.parentId, [...(byParent.get(c.parentId) ?? []), c]);
-    return { updates: [...top].reverse(), repliesTo: byParent };
+    return { updates: orderUpdates(top), repliesTo: byParent };
   }, [comments.data]);
   // Conversations folded to one line. Per visit, not stored: a panel reopened later starts open.
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set());
@@ -78,6 +84,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
 
   return (
     <DeleteRule.Provider value={mayDelete}>
+    <PinControl.Provider value={canComment ? onPin : undefined}>
     <CheckToggle.Provider value={canComment ? onCheck : undefined}>
     <div className="flex h-full flex-col">
       {canComment && (
@@ -178,6 +185,7 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
       </div>
     </div>
     </CheckToggle.Provider>
+    </PinControl.Provider>
     </DeleteRule.Provider>
   );
 }
@@ -512,6 +520,11 @@ function CommentHeader({
         </PersonName>
         <RelativeTime iso={comment.createdAt} className="text-2xs text-muted-foreground" />
         {edited && <span className="text-2xs text-muted-foreground">(edited)</span>}
+        {comment.pin && !comment.parentId && (
+          <span className="flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-2xs font-medium text-accent-soft-foreground" data-testid="comment-pinned-badge">
+            <Pin className="size-3" /> {comment.pin.overview ? "Pinned to overview" : "Pinned"}
+          </span>
+        )}
         {comment.sharedId && (
           <SimpleTooltip label="Posted on the linked task as well — editing changes both">
             <span className="flex items-center gap-1 rounded-full bg-surface-strong px-1.5 py-0.5 text-2xs font-medium text-muted-foreground" data-testid="comment-linked-badge">
@@ -521,6 +534,7 @@ function CommentHeader({
         )}
       </div>
       <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100 pointer-coarse:opacity-100">
+        {!comment.parentId && <PinMenu comment={comment} />}
         {canEditComment(ws.permissions, comment) && (
           <Button variant="ghost" size="icon-xs" aria-label={`Edit ${noun}`} onClick={onEdit}>
             <Pencil />
@@ -532,6 +546,108 @@ function CommentHeader({
       </span>
       {leading}
     </div>
+  );
+}
+
+/** Pin, Pin to overview, and the way back from each. Updates only, for whoever can work on the task. */
+function PinMenu({ comment }: { comment: Comment }) {
+  const onPin = React.useContext(PinControl);
+  if (!onPin) return null;
+  const state = pinStateOf(comment);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-xs" aria-label="Pin update" data-testid="comment-pin-menu">
+          <Pin />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {state === "none" ? (
+          <DropdownMenuItem onSelect={() => onPin(comment, "pinned")} data-testid="comment-pin">
+            <Pin /> Pin
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onSelect={() => onPin(comment, "none")} data-testid="comment-unpin">
+            <PinOff /> Unpin
+          </DropdownMenuItem>
+        )}
+        {state === "overview" ? (
+          <DropdownMenuItem onSelect={() => onPin(comment, "pinned")} data-testid="comment-unpin-overview">
+            <PinOff /> Remove from overview
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onSelect={() => onPin(comment, "overview")} data-testid="comment-pin-overview">
+            <Pin /> Pin to overview
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** How tall a pinned update stands on the overview before "Show more". */
+const PINNED_CLAMP_PX = 132;
+
+/**
+ * The update pinned to the task's overview, above the description: that one
+ * update on its own, without its replies or reactions, and clamped when long.
+ */
+export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: string; canEdit: boolean; onOpenUpdates?: () => void }) {
+  const ws = useWorkspace();
+  const links = useMentionLinks();
+  const comments = useComments(itemId);
+  const { pin } = useCommentMutations(itemId);
+  const pinned = overviewPinOf(comments.data ?? []);
+  const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = React.useState(false);
+  const [overflows, setOverflows] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    const measure = () => setOverflows(el.scrollHeight > PINNED_CLAMP_PX + 4);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [pinned?.body]);
+  if (!pinned) return null;
+  const author = ws.userById(pinned.authorId);
+  const clamped = overflows && !expanded;
+  return (
+    <section className="rounded-xl border border-border/70 bg-surface/60 p-3" data-testid="panel-pinned-update">
+      <div className="flex items-center gap-2">
+        <Pin className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <UserAvatar user={author} size="xs" />
+        <span className="min-w-0 truncate text-[13px] font-medium">
+          <Mention href={links.person(pinned.authorId)}>{author?.displayName ?? "Unknown"}</Mention>
+        </span>
+        <RelativeTime iso={pinned.createdAt} className="shrink-0 text-2xs text-muted-foreground" />
+        <span className="flex-1" />
+        {onOpenUpdates && (
+          <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-2xs text-muted-foreground" onClick={onOpenUpdates} data-testid="panel-pinned-open">
+            View in updates
+          </Button>
+        )}
+        {canEdit && (
+          <SimpleTooltip label="Remove from overview">
+            <Button type="button" variant="ghost" size="icon-xs" aria-label="Remove from overview" onClick={() => pin.mutate({ comment: pinned, state: "pinned" })} data-testid="panel-pinned-remove">
+              <X />
+            </Button>
+          </SimpleTooltip>
+        )}
+      </div>
+      <div className="relative mt-1.5">
+        <div ref={bodyRef} className={cn("overflow-hidden pl-[22px] text-[13px]", clamped && "[mask-image:linear-gradient(to_bottom,black_60%,transparent)]")} style={clamped ? { maxHeight: PINNED_CLAMP_PX } : undefined}>
+          <RichText body={pinned.body} mentionNames={names} className="leading-relaxed" mentionHref={links.personNamed} />
+        </div>
+        {overflows && (
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="mt-1 ml-[22px] text-2xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-testid="panel-pinned-more">
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }
 

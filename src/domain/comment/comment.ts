@@ -22,6 +22,40 @@ export interface Comment extends Timestamps {
   reactions?: CommentReaction[];
   /** The checklist boxes ticked in this update, by key (see checklistKey). Absent where a store has none to give. */
   checks?: CommentCheck[];
+  /** Pinned to the top of the task's updates, and maybe to its overview (0150). Absent or null when not pinned. */
+  pin?: CommentPin | null;
+}
+
+/**
+ * A pinned update. Anyone who can edit the task pins it; `overview` puts it
+ * above the task's description as well, and a task has at most one of those.
+ */
+export interface CommentPin {
+  overview: boolean;
+  pinnedBy: EntityId | null;
+  pinnedAt: string;
+}
+
+/** Where an update is pinned: not at all, at the top of the updates, or on the overview too. */
+export type CommentPinState = "none" | "pinned" | "overview";
+
+/** The state an update's pin is in. */
+export function pinStateOf(comment: Pick<Comment, "pin">): CommentPinState {
+  return !comment.pin ? "none" : comment.pin.overview ? "overview" : "pinned";
+}
+
+/** The task's overview pin, if one of these updates is it. */
+export function overviewPinOf<T extends Pick<Comment, "pin" | "parentId">>(comments: readonly T[]): T | null {
+  return comments.find((c) => !c.parentId && c.pin?.overview) ?? null;
+}
+
+/**
+ * The updates of a task in the order the Updates tab shows them: pinned ones
+ * first (the overview pin, then the latest pinned), then the rest newest first.
+ */
+export function orderUpdates<T extends Pick<Comment, "pin" | "createdAt">>(updates: readonly T[]): T[] {
+  const rank = (c: T) => (c.pin?.overview ? 0 : c.pin ? 1 : 2);
+  return [...updates].sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? b.pin!.pinnedAt.localeCompare(a.pin!.pinnedAt) : 0) || b.createdAt.localeCompare(a.createdAt));
 }
 
 /** One ticked box of a checklist in an update. No entry means not ticked. */

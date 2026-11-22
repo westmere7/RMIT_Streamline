@@ -586,6 +586,14 @@ export interface CommentRow {
   updated_at: string;
   comment_reactions?: Array<{ user_id: string; emoji: string; created_at: string }> | null;
   comment_checks?: Array<{ check_key: string; checked_by: string | null; checked_at: string }> | null;
+  /** One-to-one (comment_id is its key), so PostgREST may give an object or a one-row array. */
+  comment_pins?: CommentPinRow | CommentPinRow[] | null;
+}
+
+interface CommentPinRow {
+  overview: boolean;
+  pinned_by: string | null;
+  pinned_at: string;
 }
 
 export function toComment(row: CommentRow): Comment {
@@ -599,9 +607,15 @@ export function toComment(row: CommentRow): Comment {
     parentId: row.parent_id ?? null,
     reactions: (row.comment_reactions ?? []).map((r) => ({ userId: r.user_id, emoji: r.emoji, createdAt: r.created_at })).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     checks: (row.comment_checks ?? []).map((c) => ({ key: c.check_key, userId: c.checked_by, checkedAt: c.checked_at })),
+    pin: toCommentPin(row.comment_pins),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function toCommentPin(raw: CommentRow["comment_pins"]): Comment["pin"] {
+  const row = Array.isArray(raw) ? raw[0] : raw;
+  return row ? { overview: !!row.overview, pinnedBy: row.pinned_by ?? null, pinnedAt: row.pinned_at } : null;
 }
 
 export interface DirectMessageRow {

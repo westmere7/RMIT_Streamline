@@ -6,6 +6,7 @@ import type {
   BoardViewKind,
   Comment,
   CommentInput,
+  CommentPinState,
   Notification,
   NotificationPreferences,
   NotificationPreferencesInput,
@@ -39,7 +40,7 @@ import {
 } from "../rows";
 
 // The reactions and ticks come embedded, so a thread is still one request.
-const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, parent_id, created_at, updated_at, comment_reactions(user_id, emoji, created_at), comment_checks(check_key, checked_by, checked_at)";
+const COMMENT = "id, item_id, author_id, body, mention_user_ids, shared_id, parent_id, created_at, updated_at, comment_reactions(user_id, emoji, created_at), comment_checks(check_key, checked_by, checked_at), comment_pins(overview, pinned_by, pinned_at)";
 const ACTIVITY = "id, workspace_id, board_id, item_id, actor_id, event_type, metadata, created_at";
 const NOTIFICATION = "id, user_id, type, delivery, title, body, entity_type, entity_id, board_id, workspace_id, actor_id, read_at, created_at";
 const NOTIFICATION_PREFERENCES = "user_id, types, muted_board_ids, browser_enabled, updated_at";
@@ -100,6 +101,21 @@ export class SupabaseCommentRepository implements CommentRepository {
       const result = await db().from("comment_checks").delete().eq("comment_id", comment.id).eq("check_key", key);
       if (result.error) throw new Error(`comment_checks.remove: ${result.error.message}`);
     }
+  }
+
+  async setPin(comment: Pick<Comment, "id" | "itemId">, userId: string, state: CommentPinState): Promise<void> {
+    if (state === "none") {
+      const result = await db().from("comment_pins").delete().eq("comment_id", comment.id);
+      if (result.error) throw new Error(`comment_pins.remove: ${result.error.message}`);
+      return;
+    }
+    if (state === "overview") {
+      // One overview pin per task: the one there now stays pinned, off the overview.
+      const cleared = await db().from("comment_pins").update({ overview: false }).eq("item_id", comment.itemId).eq("overview", true).neq("comment_id", comment.id);
+      if (cleared.error) throw new Error(`comment_pins.clearOverview: ${cleared.error.message}`);
+    }
+    const result = await db().from("comment_pins").upsert({ comment_id: comment.id, item_id: comment.itemId, overview: state === "overview", pinned_by: userId }, { onConflict: "comment_id" });
+    if (result.error) throw new Error(`comment_pins.set: ${result.error.message}`);
   }
 
   async update(id: string, patch: Pick<Comment, "body" | "mentionUserIds">): Promise<Comment> {

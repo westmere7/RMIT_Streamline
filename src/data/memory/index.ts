@@ -216,6 +216,7 @@ export function createMemoryRepositories(
       delete: readOnly("deleting an update"),
       setReaction: readOnly("reacting to an update"),
       setCheck: readOnly("ticking a checklist"),
+      setPin: readOnly("pinning an update"),
     },
     workspaceLists: {
       // A shared board is read with the built-in lists; nobody is signed in to edit them.
