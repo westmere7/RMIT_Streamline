@@ -198,3 +198,4 @@ migrations/0150_comment_pins.sql
 policies/0038_checklist_ticks_by_author.sql
 policies/0039_replies_can_be_pinned.sql
 migrations/0151_booking_form_schedules.sql
+migrations/0152_booking_brief_kept.sql

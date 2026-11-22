@@ -7,7 +7,7 @@ import { portalBriefMarkdown } from "@/domain/portal/stakeholder-portal";
  * The brief as the booking wrote it, kept for evidence.
  *
  * A booked task keeps its own copy of the brief (`items.booking_brief`, 0068),
- * written once by the booking and never changed by the app afterwards. The Brief
+ * written once by the booking and never changed afterwards (0152). The Brief
  * column holds the working copy, which the team may edit; this is what it is
  * compared with, and what Revert puts back.
  */

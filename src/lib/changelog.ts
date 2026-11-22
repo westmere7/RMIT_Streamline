@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.154.1",
+    date: "2026-11-22",
+    title: "The brief as booked can't be overwritten",
+    changes: [
+      "The copy of the brief a booking saves can no longer be changed or cleared, so Revert always has the original to go back to."
+    ],
+  },
+  {
     version: "0.154.0",
     date: "2026-11-22",
     title: "The brief as booked, kept",
