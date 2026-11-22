@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, Bug, ChartColumnBig, ChevronRight, Globe, Link2, Sparkles, Zap } from "lucide-react";
+import { Boxes, Bug, ChartColumnBig, ChevronRight, Globe, Heart, Link2, Sparkles, Zap } from "lucide-react";
 import * as React from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -102,7 +102,13 @@ export function AboutDialog({ open, onOpenChange }: { open: boolean; onOpenChang
             <Fact label="Backend region" value={BACKEND_REGION ?? (projectRef ? `${projectRef} · region not set` : "—")} />
             <Fact label="Built" value={built && !Number.isNaN(built.getTime()) ? built.toLocaleDateString() : "—"} />
           </dl>
-          <p className="mt-3 border-t border-border/60 pt-2.5 text-2xs text-muted-foreground">Built by RMIT marketing team</p>
+          <div className="mt-3 flex items-center justify-between gap-3 border-t border-border/60 pt-2.5 text-2xs text-muted-foreground">
+            <p>Built by RMIT marketing team</p>
+            {/* Every donation is gratefully received. */}
+            <a href="https://www.youtube.com/watch?v=dQw4w9WgXcQ" target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 font-medium text-primary hover:underline" data-testid="about-donate">
+              <Heart className="size-3" aria-hidden /> Donate
+            </a>
+          </div>
         </footer>
       </DialogContent>
       <ChangelogDialog open={changelogOpen} onOpenChange={setChangelogOpen} />
