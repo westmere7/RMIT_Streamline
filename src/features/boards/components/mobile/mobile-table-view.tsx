@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowRight, CheckSquare, ChevronDown, Copy, LayoutList, Plus, SearchX, Table2, Trash2, X } from "lucide-react";
+import { Archive, ArrowRight, ArrowRightLeft, CheckSquare, ChevronDown, Copy, LayoutList, MoreHorizontal, Plus, SearchX, Table2, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -12,11 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
-import { MobileItemCard } from "@/features/boards/components/mobile/mobile-item-card";
+import { MobileItemCard, NameSheet } from "@/features/boards/components/mobile/mobile-item-card";
+import { useGroupMenuActions } from "@/features/boards/components/group-menu-actions";
 import { TableLayoutProvider } from "@/features/boards/components/table/table-layout";
 import { colorClasses } from "@/lib/colors";
 import { cn, pluralize } from "@/lib/utils";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { BookViaFormButton, useBookingFormOpen } from "@/features/booking/book-via-form-dialog";
+import { useAllocation } from "@/features/booking/use-allocation";
 
 /** One shared empty array, so a group with no items keeps a stable identity. */
 const NO_OVERRIDES: string[] = [];
@@ -45,7 +48,7 @@ export function MobileTableView({
   selectMode?: boolean;
   onSelectModeChange?: (on: boolean) => void;
 }) {
-  const { board, model, canEdit } = useBoardContext();
+  const { board, model, canEdit, mutations } = useBoardContext();
   const ui = useBoardUi(board.id);
   const loading = useBoardUiStore((s) => s.boardLoading);
   const clearSelection = useBoardUiStore((s) => s.clearSelection);
@@ -100,6 +103,11 @@ export function MobileTableView({
             ) : (
               model.visibleGroups.map((group) => <MobileGroup key={group.id} group={group} selectMode={selectMode} />)
             )}
+            {canEdit && !selectMode && !nothingMatches && (
+              <Button variant="ghost" className="mt-1 h-11 w-full justify-start text-muted-foreground" onClick={() => void mutations.createGroup("New group")} data-testid="mobile-add-group">
+                <Plus /> Add new group
+              </Button>
+            )}
             {loading && <p className="py-4 text-center text-2xs text-muted-foreground">Refreshing…</p>}
           </div>
         </div>
@@ -144,7 +152,19 @@ function ModeToggle({ mode, onChange }: { mode: "cards" | "grid"; onChange: (mod
  * "Add item" rows stay for anyone already at the bottom of one.
  */
 function NewItemButton() {
-  const { model, mutations } = useBoardContext();
+  const { board } = useBoardContext();
+  return board.system === "TASK_ALLOCATION" ? <TaskAllocationNewItem /> : <NewItemSheetButton />;
+}
+
+/** Task Allocation: Book via form while the booking form takes requests, as on a desktop; New item otherwise. */
+function TaskAllocationNewItem() {
+  const open = useBookingFormOpen();
+  if (open === null) return null;
+  return open ? <BookViaFormButton size="default" className="fixed right-4 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+1rem)] z-30 h-12 rounded-full px-4 shadow-lg shadow-primary/25" testId="mobile-book-via-form" /> : <NewItemSheetButton />;
+}
+
+function NewItemSheetButton() {
+  const { model, mutations, openItem } = useBoardContext();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   // Never Booked by Form on Task Allocation: that group takes bookings only.
@@ -153,12 +173,14 @@ function NewItemButton() {
   const [groupId, setGroupId] = React.useState<string>(groups[0]?.id ?? "");
   const chosen = groups.find((g) => g.id === groupId) ?? groups[0];
 
-  const submit = () => {
+  // "Create & open", as the desktop's New Item has: the new task opens straight away.
+  const submit = async (openAfter = false) => {
     const trimmed = name.trim();
     if (!trimmed || !chosen) return;
-    void mutations.createItem({ groupId: chosen.id, name: trimmed });
     setName("");
     setOpen(false);
+    const item = await mutations.createItem({ groupId: chosen.id, name: trimmed });
+    if (openAfter && item) openItem(item.id);
   };
 
   return (
@@ -174,9 +196,14 @@ function NewItemButton() {
         <SheetContent
           title="New item"
           footer={
-            <Button className="h-11 w-full" disabled={!name.trim() || !chosen} onClick={submit} data-testid="mobile-new-item-save">
-              <Plus /> Add to {chosen?.name ?? "the board"}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" className="h-11 flex-1" disabled={!name.trim() || !chosen} onClick={() => void submit(true)} data-testid="mobile-new-item-open">
+                Create &amp; open
+              </Button>
+              <Button className="h-11 flex-1" disabled={!name.trim() || !chosen} onClick={() => void submit()} data-testid="mobile-new-item-save">
+                <Plus /> Add to {chosen?.name ?? "the board"}
+              </Button>
+            </div>
           }
         >
           <div className="space-y-3 pb-2">
@@ -184,7 +211,7 @@ function NewItemButton() {
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submit()}
+              onKeyDown={(e) => e.key === "Enter" && void submit()}
               placeholder="What needs doing?"
               aria-label="Item name"
               className="h-12 text-base"
@@ -226,6 +253,11 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
   const ui = useBoardUi(board.id);
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState("");
+  // The group's menu, the same entries as the desktop's: Rename, Change colour, Duplicate, Delete.
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [renaming, setRenaming] = React.useState(false);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const groupActions = useGroupMenuActions(group, { onRename: () => setRenaming(true), onDelete: () => setConfirmDelete(true) });
 
   // Folding is the board's own setting for anyone who may change it, and this
   // visit's business for anyone who may not — exactly as on the desktop.
@@ -270,7 +302,23 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
           <span className={cn("min-w-0 truncate text-[16px] font-semibold tracking-tight", colors.text)}>{group.name}</span>
           <span className="shrink-0 rounded-full bg-surface-strong/80 px-2 py-0.5 text-xs font-medium text-muted-foreground tabular">{items.length}</span>
         </button>
+        {groupActions.length > 0 && !selectMode && (
+          <button type="button" onClick={() => setMenuOpen(true)} aria-label={`Options for ${group.name}`} className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted-foreground active:bg-accent/70" data-testid="mobile-group-menu">
+            <MoreHorizontal className="size-5" aria-hidden />
+          </button>
+        )}
       </div>
+      <MenuSheet open={menuOpen} onOpenChange={setMenuOpen} title={group.name} actions={groupActions} />
+      <NameSheet open={renaming} onOpenChange={setRenaming} title="Rename group" initial={group.name} placeholder="Group name" onSave={(name) => void mutations.updateGroup(group.id, { name })} />
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete “${group.name}”?`}
+        description={items.length > 0 ? `This permanently deletes the group and its ${pluralize(items.length, "item")}.` : "This permanently deletes the group."}
+        confirmLabel="Delete group"
+        destructive
+        onConfirm={() => mutations.deleteGroup(group.id).then(() => undefined)}
+      />
 
       {!collapsed && (
         <ul className="flex flex-col gap-2">
@@ -333,7 +381,10 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
   const { board, model, mutations } = useBoardContext();
   const ui = useBoardUi(board.id);
   const [moveOpen, setMoveOpen] = React.useState(false);
+  const [allocateOpen, setAllocateOpen] = React.useState(false);
   const [confirm, setConfirm] = React.useState<"delete" | null>(null);
+  // On Task Allocation: send the selection straight to a team's board, as the desktop bar does.
+  const allocation = useAllocation();
   // Archiving asks what happens to anything linked; the board renders that one
   // dialog for every place archiving is offered from.
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
@@ -367,6 +418,7 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
           </Button>
         </div>
         <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+          {allocation.available && !allocation.empty && <BulkButton icon={ArrowRightLeft} label="Allocate" onClick={() => setAllocateOpen(true)} testId="mobile-bulk-allocate" />}
           <BulkButton icon={ArrowRight} label="Move" onClick={() => setMoveOpen(true)} testId="mobile-bulk-move" />
           <BulkButton icon={Copy} label="Duplicate" onClick={() => after(() => ids.forEach((id) => void mutations.duplicateItem(id)))} />
           {/* Archive and delete ask first, exactly as the desktop bar does. */}
@@ -375,6 +427,16 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
         </div>
       </div>
       <MenuSheet open={moveOpen} onOpenChange={setMoveOpen} title="Move to group" actions={moveActions} />
+      <MenuSheet
+        open={allocateOpen}
+        onOpenChange={setAllocateOpen}
+        title={ids.length === 1 ? "Allocate to" : `Allocate ${ids.length} requests to`}
+        actions={allocation.targets.map(({ team, boards }) => ({
+          type: "sub" as const,
+          label: team ? team.name : "No team",
+          items: boards.map((target) => ({ type: "item" as const, label: target.name, onSelect: () => after(() => allocation.allocate.mutate({ itemIds: ids, boardId: target.id })) })),
+        }))}
+      />
       <ConfirmDialog
         open={confirm === "delete"}
         onOpenChange={(open) => !open && setConfirm(null)}

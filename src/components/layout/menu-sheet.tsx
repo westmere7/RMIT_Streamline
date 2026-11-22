@@ -64,7 +64,15 @@ export function MenuSheet({ open, onOpenChange, title, actions }: { open: boolea
                 </h3>
               );
             if (action.type === "sub") {
-              // A panel sub-menu (a colour picker, say) has no list to drill into: show it inline.
+              // A panel sub-menu (a colour picker, say) has no list to drill into: show it inline,
+              // unless it is switched off, when only its name shows (the pickers would still work).
+              if (!action.items && action.disabled)
+                return (
+                  <span key={index} className="flex min-h-12 items-center gap-3 rounded-lg px-2 text-[15px] opacity-50">
+                    <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4">{action.icon}</span>
+                    <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                  </span>
+                );
               if (!action.items)
                 return (
                   <section key={index} className="px-2 py-2">
@@ -79,7 +87,7 @@ export function MenuSheet({ open, onOpenChange, title, actions }: { open: boolea
                   role="menuitem"
                   disabled={action.disabled}
                   onClick={() => setPath((p) => [...p, index])}
-                  className="flex min-h-12 items-center gap-3 rounded-lg px-2 text-left text-[15px] active:bg-accent/70 disabled:opacity-50"
+                  className={cn("flex min-h-12 items-center gap-3 rounded-lg px-2 text-left text-[15px] active:bg-accent/70 disabled:opacity-50", action.accent && "font-medium text-primary")}
                 >
                   <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4">{action.icon}</span>
                   <span className="min-w-0 flex-1 truncate">{action.label}</span>
@@ -93,9 +101,10 @@ export function MenuSheet({ open, onOpenChange, title, actions }: { open: boolea
                 type="button"
                 role="menuitem"
                 disabled={action.disabled}
-                onClick={() => run(action.onSelect)}
+                // A tick in a list of ticks (Follow's events, say) leaves the sheet open for the next one.
+                onClick={() => (action.keepOpen ? action.onSelect() : run(action.onSelect))}
                 data-testid={action.testId}
-                className={cn("flex min-h-12 items-center gap-3 rounded-lg px-2 text-left text-[15px] active:bg-accent/70 disabled:opacity-50", action.destructive && "text-destructive")}
+                className={cn("flex min-h-12 items-center gap-3 rounded-lg px-2 text-left text-[15px] active:bg-accent/70 disabled:opacity-50", action.destructive && "text-destructive", action.accent && "font-medium text-primary")}
               >
                 <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground [&_svg]:size-4">{action.icon}</span>
                 <span className="min-w-0 flex-1 truncate">{action.label}</span>

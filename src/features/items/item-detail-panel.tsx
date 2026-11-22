@@ -1076,6 +1076,7 @@ function Overview({ item }: { item: Item }) {
  * tells you what the panel is keeping from you.
  */
 function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void; onJourney: () => void; shared?: boolean; popup?: boolean }) {
+  const isMobile = useIsMobile();
   const { model, mutations, openItem } = useBoardContext();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
@@ -1098,17 +1099,20 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
               board to sit over. */}
           {!shared && (
             <>
-              <DropdownMenuItem onSelect={() => openItem(item.id, popup ? "panel" : "popup")} data-testid="panel-open-mode">
-                {popup ? (
-                  <>
-                    <PanelRight /> Open in side panel
-                  </>
-                ) : (
-                  <>
-                    <PictureInPicture2 /> Open in pop-up
-                  </>
-                )}
-              </DropdownMenuItem>
+              {/* A phone shows the task full screen either way: there is no pop-up to switch to. */}
+              {!isMobile && (
+                <DropdownMenuItem onSelect={() => openItem(item.id, popup ? "panel" : "popup")} data-testid="panel-open-mode">
+                  {popup ? (
+                    <>
+                      <PanelRight /> Open in side panel
+                    </>
+                  ) : (
+                    <>
+                      <PictureInPicture2 /> Open in pop-up
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onSelect={onJourney} data-testid="open-task-journey">
                 <Route /> Task journey
               </DropdownMenuItem>

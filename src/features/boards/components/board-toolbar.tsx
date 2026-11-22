@@ -29,7 +29,7 @@ import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { activeFilterCount, sortFieldColumnId, useBoardUi, useBoardUiStore, type DateFilter, type SortField } from "@/stores/board-ui-store";
-import { BookViaFormButton, useBookingFormOpen } from "@/features/booking/book-via-form-dialog";
+import { BookViaFormButton, BookViaFormPlaceholder, useBookingFormOpen } from "@/features/booking/book-via-form-dialog";
 
 const SORT_LABELS: Record<Exclude<SortField, `column:${string}`>, string> = { name: "Item name", dueDate: "Due date", priority: "Priority", status: "Status", createdAt: "Created date" };
 const DATE_FILTERS: Array<{ id: NonNullable<DateFilter>; label: string }> = [
@@ -102,7 +102,8 @@ export function BoardToolbar({
       <BoardViewSwitcher view={view} onChange={onViewChange} archive={archive} views={boardViewsFor(board)} />
       <span aria-hidden className="h-6 w-px shrink-0 bg-border/70" />
       {/* A slot: New item, or a quick run the board has put there. */}
-      {tableTools && canEdit && <PrimaryActionSlot newItem={<NewItemButton />} />}
+      {/* Task Allocation is built in: its one button stands alone, with no toolbar buttons beside it. */}
+      {tableTools && canEdit && (board.system === "TASK_ALLOCATION" ? <TaskAllocationNewItem /> : <PrimaryActionSlot newItem={<NewItemPopover />} />)}
       {(tableTools || searchAlways) && <SearchBox value={ui.search} onChange={(v) => store.setSearch(board.id, v)} />}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {savedViews}
@@ -542,16 +543,13 @@ function FilterOption({ label, color, checked, onChange }: { label: string; colo
 }
 
 /**
- * New Item, or on Task Allocation while the booking form takes requests,
- * Book via form: a request belongs on the form, which opens over the board.
+ * Task Allocation's button: Book via form while the booking form takes
+ * requests (a request belongs on the form, which opens over the board), New
+ * Item otherwise.
  */
-function NewItemButton() {
-  const { board } = useBoardContext();
-  return board.system === "TASK_ALLOCATION" ? <TaskAllocationNewItem /> : <NewItemPopover />;
-}
-
 function TaskAllocationNewItem() {
   const open = useBookingFormOpen();
+  if (open === null) return <BookViaFormPlaceholder />;
   return open ? <BookViaFormButton /> : <NewItemPopover />;
 }
 

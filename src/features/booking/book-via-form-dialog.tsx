@@ -15,9 +15,14 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
-/** Whether the workspace's booking form is taking requests: the portal open and booking on. */
-export function useBookingFormOpen(): boolean {
+/**
+ * Whether the workspace's booking form is taking requests: the portal open and
+ * booking on. Null until that is known, so a button that depends on it waits
+ * rather than showing the other choice first; false if it cannot be read.
+ */
+export function useBookingFormOpen(): boolean | null {
   const overview = usePortalOverview();
+  if (overview.isPending) return null;
   const portal = overview.data?.portal;
   return !!portal && portal.enabled && portal.allowBooking;
 }
@@ -89,6 +94,15 @@ function BookViaFormBody() {
         )}
       </div>
     </>
+  );
+}
+
+/** Holds the button's place while it is not yet known which one shows, so the toolbar does not jump. */
+export function BookViaFormPlaceholder() {
+  return (
+    <Button size="sm" className="invisible" aria-hidden tabIndex={-1} data-testid="book-via-form-pending">
+      <ClipboardPen /> Book via form
+    </Button>
   );
 }
 

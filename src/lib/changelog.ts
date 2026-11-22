@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.143.1",
+    date: "2026-11-22",
+    title: "More of the desktop on a phone",
+    changes: [
+      "On a phone, a task's menu now has everything the desktop's does: Allocate, Task journey, Star, Follow, Rename, Share by link, Link to another item, Move to board and Re-allocate.",
+      "Groups on a phone have their menu (rename, colour, duplicate, delete), and Add new group is at the foot of the board.",
+      "The phone's bulk bar can Allocate, New item has Create & open, and Task Allocation shows Book via form.",
+      "Task Allocation's button stands alone, without the toolbar-button menu beside it, and no longer shows New item for a moment before Book via form.",
+    ],
+  },
+  {
     version: "0.143.0",
     date: "2026-11-22",
     title: "Book via form on Task Allocation",

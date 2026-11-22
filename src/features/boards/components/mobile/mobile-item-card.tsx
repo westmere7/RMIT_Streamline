@@ -4,7 +4,6 @@ import { Check, ChevronDown, CornerDownRight, MoreHorizontal } from "lucide-reac
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import type { MenuAction } from "@/components/layout/row-menu";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack } from "@/components/shared/user-avatar";
@@ -16,11 +15,12 @@ import type { BoardColumn, BoardGroup, ColumnLabel, Item } from "@/domain";
 import { columnLabels, isStuckLabel, priorityStrength } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { UpdatesBadge } from "@/features/items/updates-badge";
-import { copyToClipboard } from "@/features/members/hooks";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue, toISODate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { EMPTY_BOARD_UI, useBoardUiStore } from "@/stores/board-ui-store";
+import { useItemMenuActions } from "@/features/boards/components/item-menu-actions";
+import { ShareItemDialog } from "@/features/items/share-item-dialog";
 
 /** Which of the card's chips is being changed, if any. */
 type Editing = "status" | "priority" | "date" | null;
@@ -359,44 +359,21 @@ function DateSheet({ open, onOpenChange, title, current, onPick }: { open: boole
   );
 }
 
-/** The item's actions, from the same declarations the desktop row menu uses. */
+/** The item's actions: the same list as the desktop row menu (useItemMenuActions), drawn as a sheet. */
 function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
-  const { model, mutations, canEdit, openItem } = useBoardContext();
-  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
+  const { board, model, mutations, canManage } = useBoardContext();
+  const selectedIds = useBoardUiStore((s) => s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds);
   const [open, setOpen] = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const ticket = item.ticket;
+  const [naming, setNaming] = React.useState<"rename" | "subitem" | null>(null);
+  const [sharing, setSharing] = React.useState(false);
   const subitems = model.subitemsByParent.get(item.id) ?? [];
-
-  const actions: MenuAction[] = React.useMemo(() => {
-    const base: MenuAction[] = [{ type: "item", label: "Open", onSelect: () => openItem(item.id) }];
-    if (ticket) base.push({ type: "item", label: `Copy ID ${ticket}`, onSelect: () => void copyToClipboard(ticket, `${ticket} copied`) });
-    if (!canEdit) return base;
-    return [
-      ...base,
-      // A subitem lives in its parent's group and has no subitems of its own,
-      // so neither offer makes sense for one.
-      ...(item.parentItemId
-        ? []
-        : ([
-            { type: "item", label: "Add subitem", onSelect: () => void mutations.createItem({ groupId: item.groupId, parentItemId: item.id, name: "New subitem" }) },
-          ] satisfies MenuAction[])),
-      ...(item.groupId === model.intakeGroupId ? [] : ([{ type: "item", label: "Duplicate", onSelect: () => void mutations.duplicateItem(item.id) }] satisfies MenuAction[])),
-      ...(item.parentItemId
-        ? []
-        : ([
-            {
-              type: "sub",
-              label: "Move to group",
-              disabled: !model.moveTargetsFor([item.id]).some((g) => g.id !== group.id),
-              items: model.moveTargetsFor([item.id]).filter((g) => g.id !== group.id).map((g) => ({ type: "item" as const, label: g.name, onSelect: () => void mutations.moveItemsToGroup([item.id], g.id) })),
-            },
-          ] satisfies MenuAction[])),
-      { type: "separator" },
-      { type: "item", label: "Archive", onSelect: () => setArchiveRequest([item.id]) },
-      { type: "item", label: "Delete", destructive: true, onSelect: () => setConfirmDelete(true) },
-    ];
-  }, [item.id, item.groupId, item.parentItemId, ticket, group.id, canEdit, model, mutations, openItem, setArchiveRequest]);
+  const { actions, dialogs } = useItemMenuActions(
+    item,
+    group,
+    { onRename: () => setNaming("rename"), onAddSubitem: () => setNaming("subitem"), onShare: () => setSharing(true), onDelete: () => setConfirmDelete(true) },
+    { phone: true, allocating: selectedIds.includes(item.id) ? selectedIds : [item.id] },
+  );
 
   return (
     <>
@@ -420,6 +397,58 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
         destructive
         onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
       />
+      <NameSheet
+        open={naming !== null}
+        onOpenChange={(next) => !next && setNaming(null)}
+        title={naming === "rename" ? "Rename" : "Add subitem"}
+        initial={naming === "rename" ? item.name : ""}
+        placeholder={naming === "rename" ? "Name" : "Subitem name"}
+        onSave={(name) => {
+          if (naming === "rename") void mutations.renameItem(item.id, name);
+          else void mutations.createItem({ groupId: item.groupId, parentItemId: item.id, name });
+        }}
+      />
+      {canManage && <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />}
+      {dialogs}
     </>
+  );
+}
+
+/** A name to type, in a sheet: Rename and Add subitem, which the desktop row does in place. */
+export function NameSheet({ open, onOpenChange, title, initial, placeholder, onSave }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; initial: string; placeholder: string; onSave: (name: string) => void }) {
+  const [draft, setDraft] = React.useState(initial);
+  const [wasOpen, setWasOpen] = React.useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setDraft(initial);
+  }
+  const save = () => {
+    const name = draft.trim();
+    if (!name) return;
+    onSave(name);
+    onOpenChange(false);
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        title={title}
+        footer={
+          <Button className="h-11 w-full" disabled={!draft.trim() || draft.trim() === initial.trim()} onClick={save} data-testid="mobile-name-save">
+            Save
+          </Button>
+        }
+      >
+        <Input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && save()}
+          placeholder={placeholder}
+          aria-label={title}
+          className="h-12 text-base"
+          data-testid="mobile-name-input"
+        />
+      </SheetContent>
+    </Sheet>
   );
 }

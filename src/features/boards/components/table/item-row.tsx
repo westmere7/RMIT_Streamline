@@ -1,16 +1,14 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { Archive, ArrowRightLeft, ChevronDown, ChevronRight, Copy, CornerDownRight, GripVertical, Link2, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, Plus, RefreshCw, Share2, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, CornerDownRight, GripVertical, LoaderCircle, Maximize2, MoreHorizontal, Pencil, PictureInPicture2, RefreshCw, Trash2 } from "lucide-react";
 import * as React from "react";
 import { useMenuFocusGuard, type MenuAction, renderContext, renderDropdown } from "@/components/layout/row-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ShareItemDialog } from "@/features/items/share-item-dialog";
-import { useTaskMenuExtras } from "@/features/items/use-task-menu-extras";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { useAllocation, useMovingItems } from "@/features/booking/use-allocation";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -22,11 +20,10 @@ import { UpdatesBadge } from "@/features/items/updates-badge";
 import { columnCellStyle, leadingCellStyle } from "@/features/boards/board-model";
 import { useShowTicket, useTableLayout } from "@/features/boards/components/table/table-layout";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
-import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
-import { canEditBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 import { EMPTY_BOARD_UI, useBoardUiStore } from "@/stores/board-ui-store";
+import { useItemMenuActions } from "@/features/boards/components/item-menu-actions";
 
 export interface ItemRowProps {
   item: Item;
@@ -49,13 +46,6 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const toggleSelected = useBoardUiStore((s) => s.toggleSelected);
   const selectRange = useBoardUiStore((s) => s.selectRange);
   const toggleExpanded = useBoardUiStore((s) => s.toggleExpanded);
-  const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
-  const setMoveRequest = useBoardUiStore((s) => s.setMoveRequest);
-  const setReallocateRequest = useBoardUiStore((s) => s.setReallocateRequest);
-  const ws = useWorkspace();
-  const queueBoard = ws.boards.find((b) => b.system === "TASK_ALLOCATION" && !b.archivedAt);
-  const canReallocate = !!queueBoard && canEditBoard(ws.permissions, queueBoard);
-  const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const [renaming, setRenaming] = React.useState(false);
   const [nameRef, nameClipped] = useClipped<HTMLButtonElement>(item.name, renaming);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -93,105 +83,23 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
   const allocation = useAllocation();
   const movingTo = useMovingItems().get(item.id);
   const movingBoard = movingTo ? allocation.targets.flatMap((t) => t.boards).find((b) => b.id === movingTo) : undefined;
-  const allocating = selected ? selectedIds : [item.id];
-  const allocateLabel = selected && selectedIds.length > 1 ? `Allocate ${selectedIds.length} requests to` : "Allocate to";
-  const allocateAction: MenuAction | null = !allocation.available || item.parentItemId !== null
-    ? null
-    : allocation.empty
-      ? // Nowhere to send it: there, but blocked, and it says why.
-        { type: "item", label: allocateLabel, icon: <ArrowRightLeft />, disabled: true, hint: "No boards", onSelect: () => {}, testId: "allocate-blocked" }
-      : {
-          type: "sub",
-          label: allocateLabel,
-          icon: <ArrowRightLeft />,
-          accent: true,
-          // Team, then board: one name per line, and no entry long enough to
-          // wrap. A team with a single board still opens to it, so the board
-          // a request lands on is always named before it is sent there.
-          items: allocation.targets.map(({ team, boards }) => {
-            const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : <CornerDownRight />;
-            const send = (boardId: string) => allocation.allocate.mutate({ itemIds: allocating, boardId });
-            return {
-              type: "sub" as const,
-              label: team ? team.name : "No team",
-              icon,
-              items: boards.map((target) => ({ type: "item" as const, label: target.name, onSelect: () => send(target.id) })),
-            };
-          }),
-        };
-
-  // What the panel offers beyond these: the journey, the star, following, hidden columns.
-  const extras = useTaskMenuExtras(item, canEdit);
-
-  // Shared by the hover "…" button and the right-click menu on the row.
-  const actions: MenuAction[] = canEdit
-    ? [
-        ...(allocateAction ? [allocateAction, { type: "separator" } satisfies MenuAction] : []),
-        { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
-        { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
-        ...extras.reading,
-        { type: "separator" },
-        { type: "item", label: "Rename", icon: <Pencil />, onSelect: () => menuFocus.run(() => setRenaming(true)) },
-        {
-          type: "item",
-          label: "Add subitem",
-          icon: <Plus />,
-          onSelect: () =>
-            menuFocus.run(() => {
-              setAddingSubitem(true);
-              if (!expanded) toggleExpanded(board.id, item.id);
-            }),
-        },
-        // A copy is made by hand, and Booked by Form takes bookings only.
-        ...(item.groupId === model.intakeGroupId ? [] : [{ type: "item", label: "Duplicate", icon: <Copy />, onSelect: () => void mutations.duplicateItem(item.id) } satisfies MenuAction]),
-        ...(canManage ? [{ type: "item", label: "Share by link…", icon: <Share2 />, onSelect: () => setSharing(true) } satisfies MenuAction] : []),
-        // Nothing in the allocation queue is linkable: it is a request
-        // waiting for a team, and a link would mirror it onto that team's
-        // board while it still sat here. Allocating moves it; that is the
-        // one way out of this board.
-        ...(allocation.available
-          ? []
-          : [
-              {
-                type: "item",
-                label: "Link to another item…",
-                icon: <Link2 />,
-                onSelect: () => {
-                  setLinkDialogItem(item.id);
-                  openItem(item.id);
-                },
-              } satisfies MenuAction,
-            ]),
-        {
-          type: "sub",
-          label: "Move to group",
-          icon: <CornerDownRight />,
-          // With one group there is nowhere to go: greyed out rather than an empty list.
-          disabled: !model.moveTargetsFor([item.id]).some((g) => g.id !== group.id),
-          items: model
-            .moveTargetsFor([item.id])
-            .filter((g) => g.id !== group.id)
-            .map((g) => ({
-              type: "item" as const,
-              label: g.name,
-              icon: <span className={cn("size-2.5 rounded-full", colorClasses(g.color).dot)} />,
-              onSelect: () => void mutations.moveItemsToGroup([item.id], g.id),
-            })),
-        },
-        // To another board: not off a built-in board (Task Allocation allocates instead).
-        ...(board.system ? [] : [{ type: "item", label: "Move to board…", icon: <ArrowRightLeft />, onSelect: () => setMoveRequest(item.id), testId: "item-move-board" } satisfies MenuAction]),
-        // Back to Task Allocation, reset: for whoever can edit it (admins and allocators).
-        ...(!board.system && canReallocate && item.bookedVia ? [{ type: "item", label: "Re-allocate…", icon: <Undo2 />, onSelect: () => setReallocateRequest(item.id), testId: "item-reallocate" } satisfies MenuAction] : []),
-        ...extras.columns,
-        { type: "separator" },
-        { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },
-        { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => setConfirmDelete(true) },
-      ]
-    : [
-        { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
-        { type: "item", label: "Open in pop-up", icon: <PictureInPicture2 />, onSelect: () => openItem(item.id, "popup") },
-        ...extras.reading,
-      ];
+  // One list with the phone's card and the kanban card (useItemMenuActions); the row
+  // brings its own field for Rename and Add subitem, and its own share and delete dialogs.
+  const { actions, dialogs: menuDialogs } = useItemMenuActions(
+    item,
+    group,
+    {
+      onRename: () => menuFocus.run(() => setRenaming(true)),
+      onAddSubitem: () =>
+        menuFocus.run(() => {
+          setAddingSubitem(true);
+          if (!expanded) toggleExpanded(board.id, item.id);
+        }),
+      onShare: () => setSharing(true),
+      onDelete: () => setConfirmDelete(true),
+    },
+    { allocating: selected ? selectedIds : [item.id] },
+  );
 
   return (
     <>
@@ -428,7 +336,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
         onConfirm={() => mutations.deleteItems([item.id]).then(() => undefined)}
       />
       {canManage && <ShareItemDialog item={item} open={sharing} onOpenChange={setSharing} />}
-      {extras.dialogs}
+      {menuDialogs}
     </>
   );
 });
