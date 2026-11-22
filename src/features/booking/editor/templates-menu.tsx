@@ -110,11 +110,6 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
               </SelectItem>
             </SelectContent>
           </Select>
-          <SimpleTooltip label="Save as a template">
-            <Button type="button" variant="outline" size="icon-sm" className="size-9 shrink-0" aria-label="Save as a template" onClick={() => setSaveOpen(true)} data-testid="template-save">
-              <Save />
-            </Button>
-          </SimpleTooltip>
           {loaded && (
             <SimpleTooltip label={loadedChanged ? `Reload “${loaded.name}”, dropping your changes` : `Matches “${loaded.name}”`}>
               <Button
@@ -141,6 +136,9 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         </div>
         {children}
         <div className="grid gap-0.5">
+          <PanelRow icon={Save} onClick={() => setSaveOpen(true)} testId="template-save">
+            Save as new template
+          </PanelRow>
           <PanelRow icon={FileCheck2} onClick={onLoadLive} disabled={showingLive} testId="booking-editor-load-live">
             Load the published form
           </PanelRow>

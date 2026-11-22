@@ -68,6 +68,34 @@ const ALLOCATION_TEAM = "__allocation__";
 const BOARD = "board:";
 const BY_WORK_TYPE = "__by_work_type__";
 
+
+/** Where this browser keeps the auto-save choice. */
+const AUTOSAVE_KEY = "streamline.booking-template-autosave";
+/** How long after the last change auto-save waits, so typing a word is one save. */
+const AUTOSAVE_DELAY_MS = 1500;
+/** Held here too, for a browser that refuses storage: on for this visit only. */
+let autoSaveFallback = false;
+const autoSaveListeners = new Set<() => void>();
+function readAutoSave(): boolean {
+  try {
+    return window.localStorage.getItem(AUTOSAVE_KEY) === "1";
+  } catch {
+    return autoSaveFallback;
+  }
+}
+function writeAutoSave(on: boolean) {
+  autoSaveFallback = on;
+  try {
+    window.localStorage.setItem(AUTOSAVE_KEY, on ? "1" : "0");
+  } catch {
+    // Storage blocked: the fallback above carries it.
+  }
+  autoSaveListeners.forEach((listener) => listener());
+}
+function subscribeAutoSave(listener: () => void) {
+  autoSaveListeners.add(listener);
+  return () => void autoSaveListeners.delete(listener);
+}
 export interface BookingFormEditorProps {
   form: BookingFormData;
   /** The form stakeholders are being served right now; what "Publish" would replace. */
@@ -194,6 +222,71 @@ export function BookingFormEditor({
   // Still in the list: a template deleted since it was loaded has no slot to write back to.
   const template = fromTemplate && templates.some((t) => t.id === fromTemplate.id) ? fromTemplate : null;
   const templateChanged = !!template && draftKey !== formKey(template.template);
+
+  const [autoStatus, setAutoStatus] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [autoSavedAt, setAutoSavedAt] = React.useState<number | null>(null);
+  // Writes the editor's form into the template it was loaded from. Quiet when
+  // auto-saving: the status line under the button says how it went.
+  const updateTemplate = React.useCallback(
+    async (quiet: boolean) => {
+      if (!template) return;
+      const snapshot = clone(draft);
+      setUpdatingTemplate(true);
+      if (quiet) setAutoStatus("saving");
+      try {
+        await onSaveTemplate({ name: template.name, description: template.description, template: snapshot });
+        // What was written, not what is on screen now: an edit made while it was
+        // saving still counts as a change, and is saved in turn.
+        setFromTemplate({ ...template, template: snapshot });
+        if (quiet) {
+          setAutoStatus("saved");
+          setAutoSavedAt(Date.now());
+        } else toast.success(`Template “${template.name}” updated`);
+      } catch (error) {
+        if (quiet) setAutoStatus("error");
+        else toast.error(error instanceof Error ? error.message : "Could not update the template");
+      } finally {
+        setUpdatingTemplate(false);
+      }
+    },
+    [template, draft, onSaveTemplate],
+  );
+
+  // Auto-save, a choice kept in this browser: a template loaded into the editor
+  // takes each change a moment after the typing stops, while the form is valid.
+  // Off on the server and until this browser says otherwise.
+  const autoSave = React.useSyncExternalStore(subscribeAutoSave, readAutoSave, () => false);
+  const setAutoSave = writeAutoSave;
+  const autoReady = autoSave && !!template && templateChanged && check.success && !updatingTemplate;
+  React.useEffect(() => {
+    if (!autoReady) return;
+    const timer = window.setTimeout(() => void updateTemplate(true), AUTOSAVE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [autoReady, draftKey, updateTemplate]);
+  // Saved means the stored copy reads back the same as the editor, not only that
+  // the write returned: until the list of templates comes back matching, it is
+  // still being checked.
+  const storedCopy = template ? templates.find((t) => t.id === template.id)?.template : undefined;
+  const confirmed = !!template && !!storedCopy && formKey(storedCopy) === formKey(template.template);
+  const templatePending = autoSave && !!template && (templateChanged || !confirmed);
+  // Until then, leaving asks first: closing or reloading the tab, or a link out of the editor.
+  React.useEffect(() => (templatePending ? beginUnsavedWork() : undefined), [templatePending]);
+  const pendingName = templatePending ? template.name : null;
+  React.useEffect(() => {
+    if (!pendingName) return;
+    const onClick = (event: MouseEvent) => {
+      const link = (event.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || event.defaultPrevented) return;
+      const url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin || url.pathname === window.location.pathname) return;
+      if (!window.confirm(`Changes to “${pendingName}” are not saved yet. Leave anyway?`)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [pendingName]);
   const matchesLive = draftKey === liveKey;
   const draftWaiting = savedKey !== liveKey;
   // Changes that are neither saved as the draft nor live would be lost by a
@@ -320,6 +413,8 @@ export function BookingFormEditor({
         {template && (
           // The picker above names the template; this is the way back into it.
           <div data-testid="booking-editor-loaded-template">
+            {/* With auto-save on, the status line says it all. */}
+            {!autoSave && (
             <Button
               type="button"
               variant="outline"
@@ -327,23 +422,37 @@ export function BookingFormEditor({
               className="w-full min-w-0"
               disabled={!templateChanged || updatingTemplate || !check.success}
               title={templateChanged ? `Overwrite the template “${template.name}” with the form as it is now` : `Matches the template “${template.name}”`}
-              onClick={async () => {
-                setUpdatingTemplate(true);
-                try {
-                  await onSaveTemplate({ name: template.name, description: template.description, template: draft });
-                  setFromTemplate({ ...template, template: clone(draft) });
-                  toast.success(`Template “${template.name}” updated`);
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Could not update the template");
-                } finally {
-                  setUpdatingTemplate(false);
-                }
-              }}
+              onClick={() => void updateTemplate(false)}
               data-testid="booking-editor-update-template"
     >
               {updatingTemplate ? <LoaderCircle className="animate-spin" /> : <Save />}
               <span className="min-w-0 truncate">{templateChanged ? `Update “${template.name}”` : `“${template.name}” saved`}</span>
             </Button>
+            )}
+            {/* Auto-save, and how it is going. */}
+            <div className={cn("flex items-center justify-between gap-2 px-1", !autoSave && "mt-2")} data-testid="template-autosave-row">
+              <span className="min-w-0 truncate text-2xs text-muted-foreground" aria-live="polite" data-testid="template-autosave-status">
+                {!autoSave
+                  ? "Auto-save off"
+                  : updatingTemplate || autoStatus === "saving"
+                    ? "Saving…"
+                    : templateChanged && !check.success
+                      ? "Not saved until the form is fixed"
+                      : autoStatus === "error"
+                        ? "Could not save. Trying again on the next change"
+                        : templateChanged
+                          ? "Unsaved changes…"
+                          : !confirmed
+                            ? "Checking it saved…"
+                            : autoSavedAt
+                            ? `Saved ${new Date(autoSavedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                            : "All changes saved"}
+              </span>
+              <label className="flex shrink-0 items-center gap-1.5 text-2xs font-medium">
+                Auto-save
+                <Switch size="sm" checked={autoSave} onCheckedChange={setAutoSave} data-testid="template-autosave" />
+              </label>
+            </div>
           </div>
         )}
       </TemplatesPanel>

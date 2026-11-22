@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.147.0",
+    date: "2026-11-22",
+    title: "Auto-save a template",
+    changes: [
+      "The booking form editor can auto-save the template it has open: switch Auto-save on under the template picker (it stays on in this browser). Each change is saved a moment after you stop typing, while the form is valid.",
+      "The status beside the switch says how it stands: unsaved changes, saving, saved at a time (once the stored copy reads back the same), not saved until the form is fixed, or could not save. With auto-save on, the save button gives way to it.",
+      "Until a change is saved, leaving asks first: closing or reloading the tab, or following a link out of the editor.",
+      "Save as new template is a row of its own, above Load the published form.",
+    ],
+  },
+  {
     version: "0.146.1",
     date: "2026-11-22",
     title: "The preview says which form",
