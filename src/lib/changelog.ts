@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.153.2",
+    date: "2026-11-22",
+    title: "Developer notes brought up to date",
+    changes: [
+      "Behind the scenes: the knowledge base for whoever works on the app now covers everything up to this version."
+    ],
+  },
+  {
     version: "0.153.1",
     date: "2026-11-22",
     title: "Teams line up with the menu",

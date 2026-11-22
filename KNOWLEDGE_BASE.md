@@ -21,6 +21,11 @@ This document is the technical and operational reference for developers, maintai
 - **The audit's SQL** (migrations 0079–0081 and policy 0020) is in `supabase/` and applies on the next deploy. It is described here as current.
 - **Repository heads:** migration **0081**, policy **0020**, `supabase/sequence.txt` listing all 100 SQL files, IndexedDB **17**.
 
+**Brought up to date on 22 November 2026** (package `0.153.1`, revision `c41c315`). The second changes table below and the sections it points to describe the app as it is now; older paragraphs that the new behaviour replaced were rewritten, the rest stand. Compiled from the commit messages v0.91 → v0.153 and the SQL itself; where this prose and the code disagree, the code wins.
+
+- **Heads now:** migration **0151** (149 files; there is no 0069 or 0141), policy **0039**, `supabase/sequence.txt` listing all 188 SQL files, IndexedDB **21**.
+- **The app is live for the team** (since 18 November). Every SQL file in `supabase/` on `main` is applied to production on the next build: draft and prove new SQL on the disposable stack (§19) first.
+
 **Evidence precedence.** When sources disagree, trust them in this order:
 
 1. Executable code and current configuration.
@@ -46,6 +51,27 @@ What was executed for this rewrite, and what was only read, is recorded in the a
 | Everywhere | Realtime on the remaining workspace tables (0049); "Department" is the only word for who work is for (0063/0065). |
 | Phone | Card list with quick sheets and a New item button; grid and Kanban fitted to a phone (v0.24–v0.25). In v0.50: dialogs as bottom sheets, full-screen search, My Work search and filters, Settings as a list, calmer task cards, installable to a home screen, an offline bar. |
 | Operations | The migration runner applies `supabase/sequence.txt` order, so an empty database can be built from the repo; `db:seed` works again (audit fixes F-108, F-109). |
+
+### Changes since the 6 October update (v0.91 → v0.153)
+
+| Area | What changed |
+| --- | --- |
+| Security | The 22 November audit (v0.149–v0.150): anon locked out of five definer functions (0138/0139), join and booking keys behind `workspace_keys()` with column-level SELECT on `workspaces` (0140/0149), share rows for managers only (p0033), activities, notifications, follows and storage tightened (p0032–p0036), ownership and structure guards (0142–0147), teams admin-only (0148), owner-only re-onboard and wipe. §9 |
+| Team access | A team decides who can see and who can edit its boards, with a per-board override (0120/0123, p0028–p0030); a team kept to itself is hidden live; Task Allocation has its own seats and the Admin team is admins-only (0125/0126, p0031). §9 |
+| Members | Join-link sign-ups wait for approval (0121/0122, switch 0128); admins change emails through the server (0111) and remove someone from one workspace; you change your own password; department chosen at invite. §8, §9 |
+| Task Allocation | Built-in intake group "Booked by Form" that takes bookings only (0132/0133/0136); `booked_via` and `allocated_at` on tasks (0134/0135); Re-allocate; Move to board; "Book via form" as its New item. §10, §11 |
+| Booking | Steps are Essentials → Brief → Assets → Confirm; the editor has its own page; Auto-allocation rules with a landing group; question kinds switch in place, Acknowledgement, own choices, formatted answers; Download PDF; past bookings on the receipt; publish history (0127/0129); Saved forms published or scheduled for Vietnam-day windows (0151); auto-save; idempotent retries. §12 |
+| Portal | Two cards (Portal, Booking form) with separate switches; closed booking page with its own heading and rich text (0130/0131); team filter; member read-only view (0118); `ViewControls` on every visitor page; revision-gated polling (0116/0117). §13c |
+| Polling cost | Public dashboard, portal board and shared board/task answer `{ unchanged }` when the workspace revision (0109) has not moved; pg_cron's run log pruned daily (0114, 381 → 53 MB). §13, §13b, §17 |
+| Linking | No two linked tasks on one board, even by a move (0143); a change reaches the linked tasks the person may edit and skips the rest with a message; "New task" in the link dialog. §11 |
+| Trackers as assets | Asset roles from the column menu, sheet lines edited on the task, Move into sheet, New tracker for this task, fresh sheets set themselves up, non-asset rows (bands, left out), wrong-type checks and the fit prompt, keep assets when a sheet is deleted, the compact mapping grid with "If the cell is empty". §11, §15 |
+| Updates | Pinned updates and replies, one overview pin above the description (0150, p0039); checklist ticks by the update's author only (p0038); whole-name mentions. §14 |
+| People | Online dots over Realtime Presence, per workspace (p0027 → p0037); the person card almost everywhere; profiles update live; avatar crop. §14 |
+| Home | Portal and Booking cards, Favourites, Recently visited (0124), My work, and a sticky Recent activity column. §14 |
+| Boards | Task counts in the sidebar and on team pages, live; T-shirt sizes as spans of working time (0110); Assets recap format; Clear archive; board access shown in the header; tabbed board and team settings. §10 |
+| Automations | A board move raises `item_created` on arrival and `item_moved` on departure (0137); Create a task never lands in Booked by Form. §13e |
+| Phone | Keyboard-aware sheets (`KeyboardInset`); task, group, lane and column menus shared with desktop; Browse with the sidebar's menus. §13d |
+| Look | Dim theme removed; RMIT logo on visitor pages; no hover outlines on cards and rows; Tech stack in About; team rows aligned with the menu (v0.153.1). |
 
 ### Navigation
 
@@ -358,6 +384,24 @@ Every handler awaits its promised `params`. `src/server/http.ts` wraps them:
 | `/api/snapshots/upload` | POST | Admin/owner. Raw body ≤4 MiB, `.json.gz` or `.json`. |
 | `/api/snapshots/wipe-boards` | POST | Admin/owner. `{workspaceId, password, resetTickets}`. |
 
+### Added since v0.91
+
+| Route | What it does |
+| --- | --- |
+| `/workspace/<slug>/book/form` | The booking form editor's own page (`routes.bookFormEditor`); non-admins are sent to the links page |
+| `POST /api/allocate` | Allocates as the service role after checking, with the caller's session, that they can edit Task Allocation and see the target board (`src/server/allocation.ts`); 403 when not seated |
+| `POST /api/reallocate` | Sends a booked task back to Task Allocation (`ReallocationService`); checks `private.can_edit_board` on both boards as the caller, then runs with the service role (no member may delete activity) |
+| `POST /api/people/<id>/email` | Admin changes a person's email: trimmed and lowercased, 409 when taken; Auth first, then the profile, Auth put back if the profile fails |
+| `POST /api/people/<id>/remove-seat` | Remove from this workspace (admins). Refused for yourself, an Owner, or someone with no other active seat |
+| `POST /api/account/password` | Change your own password: the current one is checked with a throwaway client, the new one set with the service role, other sessions signed out |
+| `POST /api/book/[slug]/past` | Past bookings for an email, with the booking key; answers nothing unless the live form's `showPastBookings` is on |
+| `DELETE /api/snapshots?confirm=DELETE` | Owners delete every snapshot, then `VACUUM FULL` (best effort) |
+
+- **Refusals are 409.** A service's `RefusedError` (`src/domain/common/errors.ts`) reaches callers as 409 with its message and `NotFoundError` as 404 (`handleRoute`), not a generic 500 (was F-113).
+- **Revision-gated reads.** The public dashboard, the portal board and shared board/task routes admit first (link, password, expiry, sign-in) and then answer `{ unchanged, revision }` when the page's revision is current (§13, §13b, §13c).
+- **The portal's booking routes** resolve with a scope (`StakeholderPortalService.resolve(scope)`): "board" needs the portal open, "booking" needs `allow_booking` whatever the portal switch says; a password applies to both.
+- **`/api/automations/run`**: a session nudge needs an active seat in some workspace.
+
 ## 7. Domain and persistence
 
 ### Principal entities
@@ -398,7 +442,7 @@ The Supabase provider keeps comments, activities, notifications, preferences and
 
 ### Local database
 
-IndexedDB `rmit-streamline`, **`DB_VERSION` 17**. Each version added:
+IndexedDB `rmit-streamline`, **`DB_VERSION` 21** (`src/data/local/database.ts`). Each version added:
 
 | Version | Added |
 | --- | --- |
@@ -418,8 +462,12 @@ IndexedDB `rmit-streamline`, **`DB_VERSION` 17**. Each version added:
 | 15 | Saved blocks |
 | 16 | Automation stores: `automationRules`, `automationEvents`, `automationRuns`, `automationMarks`, `automationScheduleFires`; the heartbeat lives in `meta` |
 | 17 | `boardTemplates` |
+| 18 | `subscriptions` (follows) |
+| 19 | `itemFavourites` |
+| 20 | `savedViews` |
+| 21 | `docs` |
 
-Tickets, column roles, hidden-in-panel, link pairs and reactions are plain fields on existing stores; reactions live on the comment record. Upgrade callbacks log when another open tab blocks them.
+Tickets, column roles, hidden-in-panel, link pairs and reactions are plain fields on existing stores; reactions and pins live on the comment record. The local demo keeps some things in browser storage rather than IndexedDB: recent visits, booking publications and form schedules. Upgrade callbacks log when another open tab blocks them.
 
 ### Supabase database
 
@@ -449,6 +497,14 @@ Tickets, column roles, hidden-in-panel, link pairs and reactions are plain field
 - **Local mode.** `exportAll()`, `importAll()` and `resetToSeed()` still exist, but only **Reset demo data** has a control (the user menu). The Settings → Storage section that held Export and Import was removed in v0.47.3.
 - **Supabase.** The admin repository refuses reset, export and import. Supabase uses Snapshots (§17) instead.
 - **Tracker files.** Tracker `.xlsx` interchange is separate from all of these.
+
+### Added since v0.91
+
+- **Repositories:** `itemVisits` (record, listRecent); `bookingPublications` (with `deleteMany`); booking schedules; `commentPins` (embedded with comments); `workspaces.getJoinApproval`/`setJoinApproval` and `accessTo`; `activities.deleteMany` and `listByActor`; `items.countLive`, `listValuesNamingUser`; `itemAssets.listAssignedTo`, `attachToSheet`, `detachFromSheet`; `links` used by `PortalService.links`. The followers wrapper on activities names its methods one by one: a new activity method must be passed through there.
+- **New fields:** `items.booked_via`, `items.allocated_at`; `board_groups.role` ('INTAKE'); `teams.board_visibility`, `board_edit`; `boards.follows_team`, `edit_scope`; `workspaces.size_scale`, `description`, `join_needs_approval`, `booking_form_published_by`; `workspace_members.weekly_hours` (half-hour steps); `department_portals.booking_closed_message`/`heading`; `TrackerAssetMapping.ignoreRows`, `nameValue`.
+- **Form JSON (no migration):** services' `routing` (rules with `match` 'any' or 'exact', `groupId`, an otherwise) and `boardId`; `template.header`; `field.description`; `review.offerPdf`, `pdfLabel`, `showPastBookings`; block kinds `ack`, `allowOwn`, `rich`. A booking carries `formVersion`; `BookingForm.version`.
+- **Domain helpers worth knowing:** `form-schedule.ts` (schedules, `liveBookingForm`), `routeBooking`, `intakeGroupOf`, `moveEnds` (reads both ITEM_MOVED shapes), `size-scale.ts`, `teamAccessFor`/`boardAccessOf`, `readDate`/`readQuantity` (`tracker-values.ts`).
+- **Reads that must stay narrow.** Profile and My Work read one person's rows in the database (`listValuesNamingUser` by jsonb containment, `listAssignedTo` on the GIN index, `listByActor`), never the whole workspace.
 
 ## 8. Authentication and onboarding
 
@@ -497,6 +553,22 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 - `activeUsers` feeds pickers, mentions and messages.
 - Requester cells and hover cards show pending people too.
 
+### Join approval (v0.115, v0.123)
+
+- The workspace join link (`/invite/<key>`) flags its invitation `needs_approval` while `workspaces.join_needs_approval` is on (default on, admins switch it under the join link; read tolerantly, taken as on when unreadable).
+- Finishing such a link sets the seat to **AWAITING_APPROVAL**. Every active admin gets a MEMBER_JOINED inbox item, which opens Members at `?status=AWAITING_APPROVAL`; Approve lets them in, Decline deactivates.
+- A waiting person reads nothing in the workspace. The shell and the root page call `my_waiting_workspaces()` and show a waiting screen polling every 15 s, then reload once approved.
+- Someone an admin added is let in on finishing, as before. A link issued while approval was off stays good after it is switched on.
+
+### Your own account (v0.96 → v0.100)
+
+- **Password:** Edit profile → Password, on your own profile only (never as an admin or while viewing as someone): 8–72 characters, different, entered twice; `POST /api/account/password`.
+- **Email:** no session changes an email, the person's own included (0111); admins use `POST /api/people/<id>/email`.
+- **Department at onboarding:** Add member and the join page offer the workspace's departments; only a listed one is accepted, and it never overwrites one already set.
+- **Avatar crop** (`AvatarCropDialog`): a 512 px PNG crop, stored as a 256 px WebP (JPEG where the browser can't encode WebP, 0115).
+- **Re-onboard** (Reinitiate onboarding) is for an **active Owner** of the workspace only (v0.150.4), because the link sets the person's password.
+- **Booking forms never name staff to visitors** (v0.149.6): `formNameFor()` fills a name only for someone who booked before as a pending member, and names a joined member only for a signed-in member on the in-app form.
+
 ## 9. Authorization
 
 ### Workspace and team roles
@@ -515,7 +587,7 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
   - Only Owners create and delete workspaces, make and remove Owners, and use snapshots. The last Owner and the last workspace cannot be removed. Only someone who has finished joining, and is not deactivated, can be made an Owner.
   - The OWNER role is refused to anyone who is not in `app_owners`, and an Owner's seat can't be demoted, deactivated or removed while they are one (trigger `workspace_member_owner_guard`). An admin sees Owners' rows with no actions, and cannot edit an Owner's profile.
 - **An Admin runs one workspace**: the one their ADMIN seat is in. Inside it, admins and Owners have the same powers.
-- Non-guest active members can create boards and teams and edit trackers.
+- Non-guest active members can create boards and edit trackers. **Teams are workspace admins' since v0.150.1** (0148): creating, renaming and archiving one, choosing its people, and its access settings; deleting one too (`canDeleteTeam`, never the built-in Admin team). Anyone may leave a team.
 
 ### Several workspaces
 
@@ -543,18 +615,19 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 
 `boardRoleFor()`, mirrored by `private.board_role_for()` (policy 0015):
 
-1. System board and not an administrator → no access.
-2. No active workspace role → no access (ownership and seats included).
+Rewritten by policies 0028, 0030 and 0031 (v0.114 → v0.118); `boardRoleFor()` and `boardAccessOf()` mirror it:
+
+1. No active workspace role → no access (ownership and seats included).
+2. **Task Allocation:** an administrator → EDITOR; anyone else gets their seat (an OWNER seat counts as EDITOR), then the board's **own** visibility and `edit_scope` — never its team's. It is PRIVATE / ADDED (0125), so only people admins add get in. The App development board is members-only, even for admins (p0021).
 3. Literal board owner → OWNER.
 4. Explicit board membership → its role.
 5. Workspace administrator → EDITOR.
-6. WORKSPACE visibility → VIEWER for non-guests; guests get nothing inherited.
-7. TEAM visibility → EDITOR for a member of the board's team; otherwise nothing.
-8. PRIVATE → nothing inherited.
+6. **Who can see** — the team's settings when the board follows its team (`boards.follows_team`, the default except for private team boards), else the board's own: WORKSPACE (every non-guest), TEAM (the team's members) or PRIVATE (seats only). Guests reach only boards they are added to.
+7. **Who can edit** — `teams.board_edit` or the board's `edit_scope`: ADDED (seats only), TEAM (the team's members) or VIEWERS (everyone who can see it). Editing is never wider than seeing.
 
-- **Edit and manage.** `canEditBoard()` needs OWNER or EDITOR. `canManageBoard()` allows OWNER or a workspace administrator.
+- **Edit and manage.** `canEditBoard()` needs OWNER or EDITOR. `canManageBoard()` allows OWNER or a workspace administrator; on Task Allocation only administrators manage it and its seats.
 - **Delete.** `canDeleteBoard()` needs literal ownership or administration, plus an active role. `BoardService` separately protects system boards.
-- **Precedence surprises.** An explicit VIEWER beats a later inherited EDITOR. Team membership adds no editing on a WORKSPACE-visible board.
+- **Precedence surprises.** An explicit VIEWER seat beats an inherited EDITOR. Private is the one setting a team's board keeps for itself.
 
 ### Feature permissions (UI / service / database)
 
@@ -566,17 +639,51 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 | Save a template | Any member (RLS 0019 allows guests too) | UI + RLS |
 | Delete / overwrite a template | Its creator or an admin | UI + RLS 0019 |
 | Snapshots, download, upload, restore | Owners (`requireSnapshotOwner`). A snapshot holds, and a restore puts back, every workspace | Server only. Settings → Every workspace, on Supabase |
-| Wipe this workspace's boards (Danger zone) | Active OWNER/ADMIN of the workspace (`requireSnapshotAdmin`), with their password | Server only |
+| Wipe this workspace's boards (Danger zone) | The workspace's Owner (`requireSnapshotAdmin`, v0.150.4; the section is shown to Owners only) | Server only |
+| Delete every snapshot | Owners, typing DELETE | Server only |
 | Create, rename across, delete workspaces; make Owners | Owners | UI + service + RLS 0089 (`app_owners`, `workspaces_insert/delete`) |
 | Change departments | Any workspace admin; applies to every workspace | Server `POST /api/departments/<ws>` |
 | Ticket prefix | Workspace admin | UI + RLS (`workspaces_update`) + RPC check |
-| Allocate from Task Allocation | Admins (system board gate). Target boards offered by *view* rights (F-160) | UI + RLS |
+| Allocate and re-allocate | Admins and the allocators they seat on Task Allocation; target boards the caller can see | `/api/allocate`, `/api/reallocate` (service role after the checks); allocator seats follow the board (0126) |
+| Create, rename, archive, delete teams; choose members; team access | Workspace admins (0148; `canManageTeam`, `canCreateTeam`, `canDeleteTeam`) | UI + RLS |
+| Pin an update or reply | Anyone who can edit the task | UI + RLS (0150, p0039) |
+| Tick a checklist line | The update's author, while they can edit the task | UI + `CommentService.setCheck` + RLS p0038 |
+| Read share links (token, password hash) | Board managers; dashboard shares admins only | RLS p0033; `board_share_state()` / `item_share_state()` say whether one exists |
+| Read join and booking keys | Admins and the server | `workspace_keys()` (0140); the columns are not granted to sessions (0149) |
 | Portal and form editor | Admins | UI + RLS 0013 |
 | Comment | Board editors (`comments_insert` = `can_edit_item`) | UI + RLS |
 | Edit a comment | Its author, while they can edit its task | UI + RLS: policy 0020 needs edit rights, and migration 0079 freezes `item_id`, `author_id`, `shared_id` and `parent_id` (F-104) |
 | Delete a comment | Its author, or an admin or Owner who is a member of that board | UI + RLS (0089 `can_delete_comment`) |
 | React | UI: board editors. RLS 0070: anyone who can view the task ("viewers included") | Both |
+| Write activity | Editors of the item's board, with the server's clock | RLS p0034 |
+| Write a notification | Only as the app writes it: own actor, an editable board, the session's kinds, a recipient who can see the board | RLS p0036 + `NotificationService.deliver`, which drops non-viewers first (`board_viewers()` RPC) |
 | Edit trackers | Active non-guests | UI + RLS |
+
+### Team access settings (v0.114 → v0.118)
+
+- **Team:** `board_visibility` (WORKSPACE, TEAM) and `board_edit` (ADDED, TEAM, VIEWERS); **board:** `follows_team` and `edit_scope`. Set in Team settings → Access (admins, saved at once) and Board settings → Access ("Follow <team>'s settings", `AccessPickers`, `AccessGrid`; Task Allocation has no switch). Nobody's access changed when these arrived; a team without `board_edit` is read from the older `members_can_edit`.
+- **A team kept to itself is hidden** (`teams_select`) from all but its members, admins and anyone who can open one of its boards (`has_board_in_team`). Its trackers and docs follow `private.can_see_team`; a built-in team's trackers and docs stay with admins.
+- **Every access change touches the workspace row** (`teams_visibility_touches_workspace`), because Realtime only delivers rows the reader may read: an update that hides a team would otherwise never reach the people it hides it from.
+- **The Admin team is admins-only:** a trigger lets only owners and admins in (invited included) and removes anyone demoted or deactivated. Task Allocation never follows it.
+- **"Missing" vs "not yours":** `public.access_to(kind, workspace, ref)` answers ok, `denied` or `missing` (always `missing` outside the workspace); the pages say "You don't have access to this …".
+- **The board header** shows the reader's own access as an icon with a tooltip: Owner, Can manage, Can edit, View only (amber).
+- **Mirror rule.** A change to RLS is mirrored in `boardRoleFor`, `boardAccessOf`, `teamAccessFor`, the local store and View as.
+
+### The 22 November audit (v0.149 → v0.150)
+
+Every fix was proven on the disposable stack, in rolled-back transactions where possible; live was only read. The rules it left:
+
+- **Revoke from anon explicitly.** Supabase's default grants survive `revoke … from public`; five definer functions were anon-executable until 0138. `automation_sweep` is service-role only; counters move at most 1000 per call.
+- **Coalesce helper results before NOT.** `private.is_workspace_admin` (and `can_edit_item`) return NULL for a non-member, so `not is_workspace_admin(…)` never fired (0139).
+- **Keys are never read from `workspaces` by a session.** SELECT on `workspaces` is granted column by column without `join_key` and `booking_key` (0149); a new column there needs `grant select (<col>) on public.workspaces to authenticated` in its migration. The app reads keys through `workspace_keys()`; the revoke shipped one deploy after the code that stopped reading them.
+- **Fixed for sessions** (0142): `boards.owner_id`, `created_by` on items, assets, rules and saved views, a group's or column's `board_id`, your own `deactivated_at`.
+- **Task structure** (0143): a subitem's parent exists, is top-level and is on the same board; promotion into the intake group needs `booked_via`; no session move puts linked tasks on one board or a task onto a built-in board. Follows, baselines and favourites move with a task (0144).
+- **Comments** (0145): the server's clock on create, `created_at` fixed, `shared_id` only new or already the same author's.
+- **People cells** (0146): someone newly named in a PERSON/PEOPLE cell or on a deliverable must hold a seat (any status) in the task's workspace, or is dropped from the write; people already named stay.
+- **Tickets** (0147): `ticket_taken()` answers across boards the caller can't read; `TicketService.setTicket` refuses a hidden holder and `assign` refuses before the counter moves when the caller can't edit. Uniqueness is still app-side, no unique index.
+- **Storage** (p0032): the docs bucket follows the doc's team; covers and avatars are not listable.
+- **Mentions:** whole names only, longest first, each `@` claimed once; replies and edits mention only active members of the task's workspace, and an edit notifies the newly mentioned.
+- **Public dashboard:** boards a plain member can't open are counted with their names blanked ("Private board", "Private task"); timezones no longer travel. Share links leave out archived tasks, cross-board moves, seat changes and removed-column history.
 
 ### View as
 
@@ -806,6 +913,23 @@ Search, filter, sort and Hide sit on the table toolbar, but filters apply to eve
   - Editors can restore or delete permanently.
 - **Linked items.** Archiving selected linked items offers `cascade` (archive direct counterparts too) or `break` (unlink first). The panel's "Archive task" skips that question (F-149).
 
+### Task Allocation's intake group (v0.139 → v0.143)
+
+- **Booked by Form** is the group with `board_groups.role = 'INTAKE'` (0132; one per board, Task Allocation only, set on its "New" group or first group). It can be renamed, not deleted (trigger and service), except when the whole board or workspace goes. It stays first and has no drag handle (`pinIntakeFirst`), and is drawn framed with a `?` popover.
+- **Bookings only.** `createItem`/`duplicateItem` refuse hand-made tasks there and 0133 refuses them from a session; only booked tasks move in (`INTAKE_MOVE_MESSAGE`, 0136). `addableGroups` keeps New item, kanban lanes and the phone's add row out; `moveTargetsFor` hides it from Move to group unless every chosen task was booked. Automations' Create a task never lands there.
+- **Book via form.** Task Allocation's New item opens the booking wizard in a dialog, signed in as the member, while the workspace takes bookings (`usePortalOverview`); otherwise it is plain New item.
+- **Re-allocate** sends a booked task (`booked_via` set) back (§11). The dashboard counts the intake group's requests as Incoming.
+
+### Counts, sizes and other board additions
+
+- **Task counts** (v0.103): `BoardItemCount` (a head-only `items.countLive`) beside boards in the sidebar, team pages and phone Browse; `TeamItemCount` sums them in the team's colour. Switches in Settings → Appearance → Board lists (`showBoardCounts`, `showTeamCounts`; off means no request). Counts follow the `board-counts:<workspace>` channel (activity inserts of created/moved/archived/restored/deleted, at most one recount per 2 s) and refresh in the same tab after Allocate, Move to board, Re-allocate and an in-app booking.
+- **T-shirt sizes** (v0.95, 0110 `workspaces.size_scale`): each size is a span of working time (week = 5 × 8 h, month = 21 working days), a scope and examples; Settings → Sizes (admins). The picker shows the assets' hours at the output rates and the fitting size; Follow assets (`auto: true`) is applied client-side by `SizeAutoAdjust` wherever an editor has the board open.
+- **Assets recap format** (v0.142): tickable parts — asset count, quantity, PIC, effort hours, next due/overdue, done (3/5); settings kind `assetsRecap`.
+- **Clear archive** (v0.141.3, editors): `ItemService.clearArchive` deletes every archived task on the board with what hangs off it, whatever the page filter, logging `ITEM_DELETED`. The Delete group dialog counts the archived tasks its cascade takes too.
+- **Board and team settings** are tabbed dialogs (`SettingsDialogFrame`). Board: General, Access, Members, Share, Columns, Assets, Permissions, Archive, Danger Zone. Team: General, Access, Members, Bookings (a built-in team shows General and Members). Both read the live object (`ws.teamById`), not a stale copy.
+- **Sidebar.** Team rows: the icon on a tile of the team's colour, aligned with the primary menu's icons, the fold chevron after the name, the open list under a solid 1px line in the team's colour; boards under a team show `SquareKanban`. "Show in sidebar" per team hides trackers or docs (`teamHiddenKinds`, per device). The Admin team is a panel of its own under the primary menu.
+- **Header toggles** share one accent style: star, follow, share (while on), automations (while any rule is on).
+
 ## 11. Items, tickets, links, and assets
 
 ### Item identity and lifecycle
@@ -909,7 +1033,7 @@ One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
   - the same board, or another workspace;
   - Task Allocation;
   - an existing link;
-  - a chain that would hold two items from one board.
+  - a chain that would hold two items from one board — enforced in the database too (0143), and a move onto a board holding a task in the chain is refused.
 - **What syncs** (`src/services/item-link-sync.ts`, `mapColumns`):
   - Excluded first: DEPENDENCY, ASSETS_RECAP and BOOKED_AT.
   - Then pairs are made, in order:
@@ -922,8 +1046,10 @@ One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
   - Single-person targets keep the first person.
   - Rich text is flattened into plain columns.
 - **Exclusions** (`item_links.excluded`): `name`, `description`, `ticket`, `updates`, column ids. The "Choose what syncs" dialog sets them; assets are always shared.
-- **Propagation** walks links breadth-first and stops at a link that excludes the field.
-- **Updates.** "Post to linked task(s)", on by default, copies an update across the chain with a shared id. Replies stay on their own task.
+- **Propagation** walks links breadth-first and stops at a link that excludes the field. Since v0.153.0 each write to a linked task is tried on its own: one the person may not make (a board they only view) is skipped, their own change stands, and `ItemLinkService.onSyncSkipped` tells the page, which says "Not updated on <board>" (`DataProviderContext`). History entries for linked writes are best-effort. Before, the person got an error after the save but before history and notifications.
+- **Unlinking** needs edit rights on both tasks; a refused delete throws `RefusedError` ("Only someone who can edit both tasks can unlink them.").
+- **New task to link to** (v0.153.0): the link dialog's first row makes a task on a linkable board outside the chain (any group but Booked by Form), links it and fills it from this task; if the link fails the new task is deleted.
+- **Updates.** "Post to linked task(s)", on by default, copies an update across the chain with a shared id, to the linked tasks the person may write to (the rest are reported as above). Replies stay on their own task. Pins and ticks on each copy are that copy's own; a tick shows on every copy (`comment_checks` by words).
 - **Deliverables are shared across links.** A line lives on the task it was added to and shows on every linked task. `ItemAssetService.loadBoard()` returns `lines` (stored here, for totals) and `byItem` (shown, links included).
 
 ### Assets (deliverables)
@@ -938,6 +1064,21 @@ One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
   - Progress counts lines, not units.
 - **Booking deliverables** are one-line rows: name ≤160, type, quantity 1–9999, spec ≤500. A booking holds at most 50.
 - **Portal and dashboard** projections drop notes and links.
+
+### Move to board, re-allocate and booked tasks (v0.140 → v0.143)
+
+- **Move to board** (task menu, not on built-in boards; `ItemMoveService.preview/planMove`): the workspace's other open boards the reader can edit, by team; a preview of the columns that come across (paired as links pair them), values left behind and why, subitems; a landing group. The move re-plans from the boards as they are, writes values and the brief first, then re-points links' column pairs (a link the mover can't rewrite no longer aborts it), recomputes the recap and logs `ITEM_MOVED` ("Moved to X from Y", `moveEnds`). Moving needs edit rights on both boards (`items_update`).
+- **`booked_via`** ('booking' or 'portal', 0134) marks a task the form or portal made; it stays wherever the task goes and is never set from a session. The task panel shows a **Via Form / Via Portal** chip whose card gives the booked time, who asked, the department and when it reached a team.
+- **`allocated_at`** (0135) is when a booked task reached a team: set by a direct booking onto a team board and by `allocate`, kept across team boards, cleared by re-allocate; server-only, fires no automation.
+- **Re-allocate** (`ReallocationService`, booked tasks, people who can edit Task Allocation): the task goes back to a Task Allocation group (never Booked by Form) or a new one. Kept: booking time and first log entry, ticket, description, deliverables, values Task Allocation has columns for. Dropped: people, status, updates, the rest of the log, subitems, links (`ITEM_UNLINKED` on the other side), follows, deliverables' people and ticks. A linked tracker sheet is unlinked with its assets kept.
+- **Allocation** refuses subitems and archived requests; bulk allocation runs one after another. A booking with no landing group uses a group called "Allocated", made once at the top and reused.
+
+### Task assets, more
+
+- **Task panel.** The description is rich text (the updates' editor, no @ picker; saved on leaving). The header wash takes the status colour (`itemAccent`); no outline. The Assets tab's Block, Tracker and To-do are icon buttons; it shows a skeleton until the assets (and a linked sheet's lines) are read.
+- **Pickers** offer "Task's PIC" and "Task's due" (`taskDefaults`, read through `resolveColumnRoles`).
+- **Links on lines** must be http(s) or mailto; a schemeless link becomes https.
+- **Sheets as a task's assets** are covered in §15.
 
 ### Covers and avatars
 
@@ -974,7 +1115,7 @@ The local provider checks the key only when one is passed.
 
 ### The four steps
 
-Details → Brief → Deliverables → Confirm. Deliverables is dropped when `assets.enabled` is false.
+Essentials → Brief → Assets → Confirm (renamed from Details and Deliverables in v0.105). Assets is dropped when `assets.enabled` is false. The form's own header (`template.header`, else the page's name and "Task booking") and a "Published <date>" footnote frame it; the receipt offers **Download PDF** (`booking-pdf.ts`, jsPDF loaded on click, the Geist font for Vietnamese; `review.offerPdf`, `pdfLabel`) and, when the form switches it on, the email's **past bookings** (≤20, with portal links while the portal is on).
 
 - **Progress bar** (`booking-progress`) reads "Step i of n". You can jump only to steps already reached.
 - **Details:**
@@ -995,8 +1136,10 @@ Details → Brief → Deliverables → Confirm. Deliverables is dropped when `as
   - It then says "Used before. Name filled in." or "Used before as {name}. Use this name".
   - The name is replaced only if it hasn't changed since the email last did.
   - It runs signed in too, whenever the details aren't exactly the account's.
+- **Work types** are the workspace's (Settings → Asset & Work types): a service offers a subset (`WorkTypeToggles`, `syncFormWorkTypes`), and a lone one is picked and locked.
 - **Brief:**
   - the chosen service's questions only;
+  - kinds Short, Long, Link, Single and Multiple choice (switchable within their group, `convertBlock`), Acknowledgement (always required), Multiple choice with "Add your own" (`allowOwn`, ≤5 own values of ≤60 characters), formatted answers (`rich`); new questions are required by default; `usableAnswer` drops an answer whose shape no longer fits;
   - single-choice follow-ups one level deep (≤12 per option, numbered 4a, 4b);
   - chips or a dropdown;
   - only visible blocks are validated.
@@ -1029,7 +1172,10 @@ The lookup endpoints (`/api/book/[slug]/requester`, `/api/portal/[token]/request
 ### Destination and what is written
 
 1. The service comes from the **live** form. An unknown service is refused.
-2. The service's team's receiving board is used if it is active, non-system and in this workspace; otherwise Task Allocation. Either way the task goes into the first group.
+2. `routeBooking()` picks the board, the same for the server, the requester's note and the recap (v0.121 → v0.148):
+   1. Auto-allocation rules, when on: work types → board, first match wins; `match` 'any' (includes) or 'exact' (same set); a rule or the otherwise may name a group (`groupId`).
+   2. A direct `boardId` on the service, then the team's nominated booking board, then the queue (Task Allocation, into Booked by Form).
+   3. A gone or archived board falls back to the team's board, then the queue. Publishing, routing and resetting never change the booking key.
 3. The server validates the request:
    - answers are filtered to the service's questions, and sub-services to those offered;
    - the department is checked against the ACTIVE list and stored in the list's spelling;
@@ -1062,18 +1208,15 @@ These are several writes, not one transaction.
   - Trigger 0074 can refuse a department after the move (F-161).
   - Target boards are listed by view rights (F-160).
 
-### The form editor, drafts and templates
+### The form editor, saved forms and schedules
 
-- **The page.** Portal and Booking has tabs "Portal" and "Form Editor".
-  - The editor writes `booking_form_draft` only.
-  - **Publish** asks for a name, defaulting to "<team> · d MMM yyyy, HH:mm". It stores the name and publish time (0059), resets the booking counter, and clears the draft. Publishing the built-in default stores null.
-- **Published card:** "N questions · M services", "Published …", "N tasks booked since".
-- **Templates** (`booking_templates`):
-  - save (name ≤80, description ≤280; the same name replaces, case-insensitively);
-  - load; update a loaded template in one click; load the published form; reset.
-- **Saved blocks** (`booking_saved_blocks`, 0039/0016) insert as copies with fresh ids.
-- **Preview** sends nothing.
-- **Service settings:** team routing ("Bookings go to"), sub-services, questions.
+- **The page.** Portal and Booking shows two cards, Portal and Booking form; "Edit form" opens the editor on its own page (`/workspace/<slug>/book/form`), guarded against leaving with unsaved work. Members see the cards read-only (§13c).
+- **Editing.** The editor writes `booking_form_draft`. A step bar of four steps; services in a "Brief for" picker; "Bookings go to" at the bottom of each service (Task Allocation, Auto-allocation… which opens `RoutingDialog` with a group picker per board, or any board by team); fixed questions have editable descriptions. The preview is a barrier-tape strip naming the form it shows, and sends nothing.
+- **Saved forms** (`booking_templates`, called Templates before v0.152): save (name ≤80, description ≤280; a same name replaces), load, Save as new; **auto-save** for the loaded one (switch kept per browser; writes 1.5 s after the last edit; "Saved <time>" only once the stored copy reads back equal).
+- **Publish** makes a saved form the **default** (the draft stays) and stores its name, time and publisher (0059, 0119); the published card shows questions, services, the allocation recap ("2 auto-allocated · 1 to a team …") and requests since. Every publish and reset is recorded in `booking_form_publications` (0127, admins only): **Past forms** lists them, re-publishes one, adds one to saved forms, deletes or cleans up (never the live one, 0129).
+- **Schedule** (v0.152, 0151 `booking_form_schedules`): a saved form goes live for a run of Vietnam days (both included), then the default returns. Each window keeps its own copy of the form (`template_id` set null when the saved form goes); overlaps are refused by a trigger; admins only, realtime. Windows can be moved, ended early or refreshed with the saved form's newer copy. The editor shows "Currently published" and a "Next scheduled" box with a countdown in days.
+- **No job switches forms.** `liveBookingForm()` resolves the live form at read time (Asia/Ho_Chi_Minh): `buildForm`, validation, routing, the past-bookings switch and the portal's brief all go through it. A booking's `formVersion` is checked against the form it was made on with a 6-hour grace either side (`formForSubmission`).
+- **Saved blocks** (`booking_saved_blocks`, 0039/0016) insert as copies with fresh ids, follow-ups included.
 - **Legacy forms.** `migrateLegacyTemplate()` reads version-1 forms as a General service.
 
 ### Limits and retry boundaries
@@ -1087,8 +1230,9 @@ These are several writes, not one transaction.
   - different content, or a claim still pending, gives 409;
   - a failure releases the claim, but does not roll back a task already created.
   - Department isn't part of the content hash (F-162).
-- **Public `/api/book` has no retry protection.** A resubmission books twice (F-158).
-- **Refusals** from `BookingService` (unlisted department, removed service, missing answer) reach Supabase callers as a generic 500 (F-113).
+- **Retries are idempotent** (v0.149.6): the same item id within an hour, already booked in the workspace, returns the first receipt; the submission hash covers the requester, department, service, work types, link, every answer and each asset line, so a reused key with a different booking is refused. Due dates must be real days. If the asset lines fail, the new task is deleted so a retry makes one whole booking (was F-158).
+- **Refusals** from `BookingService` (unlisted department, removed service, missing answer) are `RefusedError` and reach callers as 409 with their message (was F-113).
+- **Anonymous booking has no rate limit.**
 
 ## 13. Board and task sharing
 
@@ -1106,7 +1250,9 @@ These are several writes, not one transaction.
   - scoped assets and comments, and up to 100 activities;
   - the board's metadata, groups and columns — no links and no siblings.
   - An archived task can't be opened this way.
-- **Refresh.** Share pages poll every 4 s (`SHARE_REFRESH_MS`) while visible, and on focus.
+- **Refresh.** Share pages poll every 4 s (`SHARE_REFRESH_MS`) while visible, and on focus. Since v0.103.8 each poll is admitted first (link live, expiry, password, private-link sign-in, task not archived) and then answered `{ unchanged, revision }` when the workspace revision plus the link's own state hasn't moved; `HttpShareTransport`/`HttpItemShareTransport` hold the last payload (latest 8). Admission runs on every poll.
+- **Who sees the link rows.** Share rows (token, password hash) are readable by board managers only; dashboard shares by admins (p0033). The dialog's switch reads "Link is on/off"; there is no address row before the first link.
+- **What is left out** (v0.149.3): archived tasks and their deliverables, cross-board moves, seat changes and removed-column history. An archived board, or a subitem whose task is archived, refuses its link.
 
 ## 13b. Workspace dashboard
 
@@ -1169,7 +1315,7 @@ Export PDF in the dashboard header (`export-button.tsx`, `export-pdf.ts`). It dr
 | --- | --- | --- |
 | In-app dashboard | Every 60 s, **visible only**; on focus | Realtime on 10 tables, coalesced over 2 s, at most once every 20 s |
 | Profile's department split | A borrowed snapshot | No polling |
-| Public link `/dashboard/<token>` | Every 60 s, **including background tabs** | About 4.5 MB per snapshot (F-119) |
+| Public link `/dashboard/<token>` | Every 60 s, **including background tabs** | Revision-gated since v0.94.3: `{ unchanged }` (85 B) unless the workspace changed, else the full snapshot (MBs) |
 
 The public link is one per workspace, managed by admins, with an optional password and expiry. `publicDashboardSnapshot()` strips from what it sends:
 
@@ -1181,19 +1327,24 @@ The public link is one per workspace, managed by admins, with an optional passwo
 
 Named workload stays.
 
+### Workspace revisions (0109, 0116, 0117, 0150)
+
+- `public.workspace_revisions` holds one counter per workspace. Statement-level triggers on every table the dashboard, portal and shares read note the touched workspaces in `private.workspace_revision_pending`; a deferred constraint trigger bumps them at commit, in id order (no deadlocks). The function is `private.note_dashboard_statement`, re-created whenever a table joins (portal tables and comments 0116, every board activity 0117, `comment_pins` 0150).
+- **Rule:** a new table any of those snapshots reads needs a revision trigger, or pages stay stale.
+- Snapshot restore (triggers off) calls `private.bump_all_workspace_revisions()`; the rehearsal expects that table to change.
+
+### Drill amounts (v0.145)
+
+A drill can carry a `DrillAmount` (unit plus a per-task map): the task list gains an Hours or Units column after Task, totals it and opens sorted by it. `amountOfLines` sums a figure's own deliverable lines; `amountOfTasks` takes whole tasks at the page's `valueOf`.
+
 ## 13c. Stakeholder portal
 
 ### One workspace link
 
 - One `department_portals` row per workspace with `department_id` null (0037), created switched off, with a 32-character token.
 - Old per-department links answer "This link has been replaced". Portal pages set noindex and no-referrer.
-- The **admin card**, in Portal and Booking:
-  - Open / Closed;
-  - a password popover (add, change, remove);
-  - "New link" (with a confirmation);
-  - two tiles, each with copy and open buttons and a gear:
-    - the portal link — its figure is the number of departments;
-    - the booking link — its figure is requests booked; it shows "Not serving" when closed or not taking requests.
+- **Portal and Booking** (v0.102 onward) is two cards side by side, **Portal** and **Booking form**, each with its own on/off switch (independent since v0.144: a closed portal can still take bookings, and an open one can show "Booking turned off"), a gear, Open and Copy link. "New link" sits in each card's settings and changes both links (one address). An existing password can be removed from the Portal card; there is no setter on the page any more. The Booking card shows the current published form.
+- **Members** see the cards read-only (Open, Copy link, settings listed as words, Book a task) through `portal_link_for_member()` (0118), which never returns the password hash; guests see "managed by workspace admins".
 - **Settings dialogs** (`portal-portal-settings`, `portal-booking-settings`) edit a draft. Save writes every change in one call; Discard resets; closing with unsaved changes asks first.
 - **Portal settings:**
   - team name (≤60), opening view, **default range** (1w/2w/1m/3m/6m, 0058), default theme and whether visitors may switch it;
@@ -1249,7 +1400,7 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
   - `?range` defaults to the link's own default, then 3 months;
   - search widens the range to all time;
   - `?task` opens a task from the current payload only, so a request outside the range shows "Item not found" (F-163).
-- **Refresh.** The board polls every 4 s while visible and refetches on focus. It also polls on the booking page, because it supplies the department list.
+- **Refresh.** The board polls every 4 s while visible and refetches on focus. It also polls on the booking page, because it supplies the department list. Since v0.103.7 the route reads the workspace revision after the gate and answers `{ unchanged, revision, servedAt }` when it matches (hour, viewer, scope and credential version folded in); the gate still runs every time. This took an open portal from ~21,600 full reads a day to near nothing.
 - **Theme.**
   - The link's theme beats the visitor's app theme.
   - A visitor's own choice is stored per token and page (`streamline.portal-theme:<token>:<board|booking>` as `{theme, over}`) and lapses when the team changes the link's setting.
@@ -1263,7 +1414,15 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 3. **Since v0.49.1** it sends null otherwise, and the service finds the department on the list by the request's name (`departmentNamed`).
    - Before that, every department with no work yet — so every department after a wipe — failed with "Pick which department this is for." (F-101).
 4. Either way the server checks the department is ACTIVE and writes its name over whatever the body said.
-5. `allowBooking = false` is enforced by the service: a closed link answers 404, "This portal is not taking new requests at the moment."
+5. When the workspace isn't taking requests, `/portal/<token>/book` shows **BookingClosed** before any password: the team's heading (≤80) and rich-text message (≤2000 characters of markup, 0130/0131), edited in Booking form settings → "When not taking requests", with "See requests in the portal" while the portal is open. The service still refuses a submission.
+
+### Portal additions since v0.101
+
+- **Columns:** every column switched on in Portal settings is drawn; the brief comes from the task's Brief column, else the booking's public brief; people carry a public avatar link and a name only.
+- **Team filter** (`?team=<uuid>`, in the scope and revision key): teams whose boards hold the portal's requests, with counts; the Admin team is not offered.
+- **`ViewControls`** (`src/components/shared/view-controls.tsx`): a Light/Dark pill and a − size + control on the portal, booking pages, shares and the shared dashboard; the size is kept per browser (`useVisitorScale`), zoom through `data-page-zoom` on `<html>`. The link's theme still beats the app's on portal pages.
+- **Branding:** RMIT's logo leads the portal top bar and the shared pages (`SharedHeaderEnd`); the Streamline mark is small.
+- **Settings words:** "Left panel heading" and "Left panel text" are the words beside the portal's booking form.
 
 ## 13d. The phone experience
 
@@ -1307,6 +1466,11 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 - a month calendar's chips are smaller than 44 px;
 - the portal can show its own sign-in hint and the wizard's offer together (M-17);
 - not yet checked on a real iPhone and Android.
+
+### Phone additions since v0.101
+
+- **`KeyboardInset`** (in `AppProviders`) measures the on-screen keyboard from `visualViewport` and publishes `--keyboard-inset` and `data-keyboard` on `<html>`; phone dialogs and sheets sit above it, and a focused field is centred once the resizes settle.
+- **Parity with desktop** (v0.143–v0.146): the task sheet and group menus come from the shared `useItemMenuActions`/`useGroupMenuActions` (Booked by Form says why not); bulk Allocate; the board header shows the description, team link and access, with Follow and Edit description; field rows have a column menu (Insert, Move, Hide, Remove); compact cards with a group-colour line; kanban lane menus (Rename, Move left/right); Browse carries the sidebar's menus (`SidebarActionsHost`, `useTeamMenuActions`), New, and folded Archived boards.
 
 ## 13e. Automations
 
@@ -1423,11 +1587,17 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 - 0018: board viewers can read pending events.
 - Marks and receipts have RLS on and no policies.
 
+### Board moves (0137, v0.149)
+
+- A task whose `board_id` changes raises `item_created` on the board it reached (arrived, `fromBoardId`) and `item_moved` on the board it left (left, `fromGroupId`, `toBoardId`). Plain group moves are unchanged; the local store raises the same pair.
+- On a departure the engine runs only notify, `create_item` and `send_webhook`, logging the rest as skipped ("The task has left this board"); queued rules skip a task that has since moved board. A subitem's own pair is ignored.
+- Create a task never lands in Booked by Form: the engine falls back to the first group that takes new tasks, and saving a rule that names it is refused.
+
 ## 14. Personal work and collaboration
 
 ### Home, My Work and search
 
-- **Home** shows recent boards, your work, favourites, teams and workspace activity.
+- **Home** (v0.117): on desktop the Portal and Booking cards (admins and members, while the portal menu is on), Favourites as board cards, **Recently visited** (the 6 latest tasks still open to you, from `item_visits`, 0124, recorded when a task's panel opens), then My work; Recent activity (40 entries) is a sticky column of its own. The phone keeps one Portal and Booking card.
 - **My Work** (`MyWorkService.listAssigned`) reads every PIC column, removed ones included.
   - **Sections:** Overdue / Today / This week / Later / No date / Completed. Linked copies collapse.
   - **Filters** (`src/features/my-work/filters.ts`): search by kind (Items / People / Boards), PIC, board, status, priority by name, due bucket, type.
@@ -1488,7 +1658,9 @@ Automation notify actions deliver as ASSIGNED.
   - A chevron or a click on the header folds one update; "Collapse all" / "Expand all" folds them all (for the visit only).
   - A collapsed card shows the author and time, the reaction tally, "N replies" and two lines of text.
 - **Delete** turns the bin into a red "Delete?" badge; a second click deletes. Blur, Escape or 4 s stands it down. Replies and shared copies go too.
-- **Edit.** Only the author can edit. Edited updates show "(edited)", and the edit sends no notifications.
+- **Edit.** Only the author can edit. Edited updates show "(edited)"; since v0.149.5 an edit notifies only the people it newly mentions.
+- **Checklists** (`- [ ]` lines; ticks in `comment_checks`, keyed by the line's words): only the update's author ticks, while they can edit the task (p0038, v0.151.1); everyone who sees the task sees the ticks and who made them.
+- **Pins** (v0.151, `comment_pins`, 0150): anyone who can edit the task pins an update or a reply to the top of Updates; one per task can be pinned to the **overview**, above the description, clamped to about six lines with Show more and the same live checklist. A pinned reply lifts its conversation (`threadPinOf`). Pins have their own table because touching the comment row would mark it "(edited)" and only the author may update it.
 - **Reactions** (0070, `comment_reactions`):
   - 16 emoji: 👍 👎 ❤️ 🎉 😄 😂 😮 😢 😡 🤔 👀 🙏 👏 🔥 🚀 ✅.
   - One per person per emoji; click a chip to toggle it; the tooltip names who reacted. They are live for everyone.
@@ -1502,9 +1674,12 @@ Automation notify actions deliver as ASSIGNED.
   - **Header:** role, pending/deactivated badges, department chip, teams, Message, Edit (yourself or an admin).
   - **Figures,** two rows of four. Tasks: open, overdue, due this week, in progress (with stuck and high priority). Assets: done x/y, overdue, due this week, units still to make.
   - **Tabs:** tasks (open/done), assets, boards, activity (from the workspace's latest 300 events).
-- **Hover card** (v0.49, `person-card.tsx`): avatars and single-person cells open a card after 350 ms.
-  - It shows the name, title, pending/deactivated status, email, department, teams, local time and "View profile".
-  - Outside the workspace layout (shares, portal) it falls back to a name tooltip.
+- **Person card** (`person-card.tsx`, `PersonName`): avatars and names open a card after 350 ms almost everywhere a person is named (update authors, mentions, cells, inbox, members, kanban, dashboard, assets, trackers); pickers' own lists don't.
+  - It shows the name (linking to the profile), title, status, email, department, teams (linking), local time, View profile and Message, with a × close.
+  - It stays shut inside a popper, menu or list, and while any popover is open. Outside the workspace layout (shares, portal) it falls back to a name tooltip.
+- **Profiles update live** (v0.136.1): `useProfileRealtime` listens to the person's work on the workspace's boards, coalesced (1.5 s, at most every 5 s); `useProfileWork` also refetches every 60 s while visible.
+- **Presence** (v0.108; per workspace since p0037): Supabase Realtime Presence on private channels `presence:<workspaceId>`, for active members of that workspace only; no database writes. A tab tracks on join and reconnect and untracks after a minute hidden; the `track()` payload stays empty and there is no "last seen". `UserAvatar` draws the green dot (`useIsOnline`). Realtime doesn't bind the presence key to the JWT, so a member of a shared workspace could claim to be another member.
+- **Notifications added:** MEMBER_JOINED (entity USER) for join-link sign-ups; SUBSCRIPTION for follows. Notification settings are two tabs, Delivery and Following and boards. Other workspaces' unread counts count only unread Notifications whose task still exists and is readable (`useOtherWorkspacesUnread`).
 
 ## 15. Trackers and Excel interchange
 
@@ -1512,8 +1687,16 @@ Automation notify actions deliver as ASSIGNED.
 - **Column types:** text, longText, list (options with colours), date, url, number (plain, integer, decimal, currency, percent), checkbox, person (v0.91). A person cell stores user ids comma-separated (`personIds`/`personValue`); `tracker-people.ts` holds the workspace directory the grid sets (`useTrackerPeopleDirectory`) so formatting, search, sort, CSV and the workbook show names, and typed or pasted names become ids (`coercePeople`). Switching a column into or out of person converts its cells.
 - **Summaries:** filled, empty, sum, average, min, max, checked and percent checked.
 - **Saving.** `useSheetEditor()` debounces saves by 600 ms and flushes on unmount (audit F-004, 9 September). Undo keeps about 50 snapshots, with a separate redo stack. Since v0.91 a save is compare-and-swap: `TrackerService.saveSheetDraft` writes only if `updated_at` still equals the version the editor started from (`updateSheetIfCurrent`, an `.eq("updated_at", …)` on the PostgREST string, which keeps microseconds); otherwise it returns the current sheet and the editor merges (`mergeSheets`, three-way by row, column and cell id: whichever side changed a thing wins, this side on a clash, deletions stand) and saves again. A realtime version arriving while edits are unsaved is merged the same way. The local store bumps `updatedAt` past the previous value so two saves never share a stamp.
-- **Sheets as task assets (v0.91, migration 0108, policies 0026).** `tracker_sheets.item_id` (unique where set; on delete set null) links a sheet to one task, `asset_mapping` (TrackerAssetMapping) says which column gives each asset's name, type, quantity, PIC, due date, done (checkbox, or dropdown choices), spec and links, each detail optionally a value for every row or for empty cells. `sheetAssetLines()` turns data rows into lines (bands become blocks, block ids made uuids by `asUuid`; a row with neither name nor type is not an asset). After every save `ItemAssetService.syncFromSheet()` diffs them against `item_assets` rows carrying `tracker_sheet_id`/`tracker_row_id` (unique pair; cascade with the sheet), writes only what moved, then recomputes the recap/progress cells, records one summed activity entry and runs the PIC sync, so dashboard, Workload, My Work and recaps count them unchanged. Lines from a sheet are refused for any edit outside it except completion, which `TrackerService.setLineDone` writes back as the row's Done cell (CAS with retry). Sheet lines sit at positions from 100 000 so the task's own lines stay first. Unlinking and deleting a sheet or tracker (service paths) take the lines off and put the recap right; the DB cascade is the backstop.
+- **Sheets as task assets (v0.91, migration 0108, policies 0026).** `tracker_sheets.item_id` (unique where set; on delete set null) links a sheet to one task, `asset_mapping` (TrackerAssetMapping) says which column gives each asset's name, type, quantity, PIC, due date, done (checkbox, or dropdown choices), spec and links, each detail optionally a value for every row or for empty cells. `sheetAssetLines()` turns data rows into lines (bands become blocks, block ids made uuids by `asUuid`; a row with neither name nor type is not an asset). After every save `ItemAssetService.syncFromSheet()` diffs them against `item_assets` rows carrying `tracker_sheet_id`/`tracker_row_id` (unique pair; cascade with the sheet), writes only what moved, then recomputes the recap/progress cells, records one summed activity entry and runs the PIC sync, so dashboard, Workload, My Work and recaps count them unchanged. A sheet line can be edited on the task's Assets tab: its fields are a draft until Update, which writes the row through `TrackerService.editLine` (CAS with retry; it throws when the sheet saved but the task's lines could not follow). Sheet lines sit at positions from 100 000 so the task's own lines stay first. Unlinking and deleting a sheet or tracker (service paths) take the lines off and put the recap right; the DB cascade is the backstop.
 - **Who edits a linked sheet.** `private.can_edit_tracker_sheet(tracker, item)`: a tracker editor who can also edit the linked task's board. Sheets are never inserted linked; deleting a tracker is refused while any sheet links a task the caller cannot edit. `can_edit_item` returns NULL (not false) with no board role, so every use is wrapped in `coalesce(…, false)`. Checked by `scripts/tracker-sheet-rls-check.mjs` (disposable stack only).
+- **Mapping a sheet to assets** (Task assets dialog, v0.92 → v0.152). One grid: each part (Asset name, Type, Quantity, PIC, Due date, Done) has a **Sheet column** and an **If the cell is empty** value; Spec and Links span both. Every column list starts with "Pick on the sheet…" (`ColumnPickerDialog`, the whole sheet up to 300 rows). Asset name's fallback (`nameValue`) applies only to rows holding something, so blank rows are never assets; an empty Done cell is not done. Spec columns are ordered and joined by breaks (`SPEC_JOINERS`: `sep` "  |  ", `br` a new line, `sp` a space), offered when pointing between two columns. Any column can give any part (the column menu's Asset role too); quantity parses text, PIC resolves names, a text Done column reads Done/Delivered/Approved.
+- **Which rows are assets.** `detectNonAssetRows` finds headers, totals and section labels; sections become bands (`bandRows`) and headers/totals go into `mapping.ignoreRows` (the sheet is untouched). "Mark rows" (`RowMarkDialog`) sets rows to Asset, Leave out or Band by hand, and hand marks win.
+- **Wrong kinds of data.** `readDate` (ISO, day-first, Excel serials 20000–80000, written out with a year) and `readQuantity` (whole numbers, x/pcs/units, within a SQL integer) are shared by `coerce` and `sheetAssetLines`; `roleMismatch` flags cells a part can't read, and `ColumnFitPrompt` offers Clear N cells (retyping the column), another column, a new column or Cancel. `sheetLineCells` refuses to write into a column that can't hold the value.
+- **New tracker for this task** makes a tracker on the board's team with one asset sheet (Asset, Type, Quantity, Spec, PIC, Due date, Done; 20 rows), links it and maps it; a fresh sheet (nothing typed, columns still "Column N") is set up the same way. **Move into sheet** places the ticked assets the task shows that no sheet holds (its own, then a linked task's) below existing rows, adding missing columns first; lines keep their ids and dates (`attachToSheet`), so dashboard figures don't move.
+- **Unlink and delete keep assets by default:** unlinking asks first and "Keep the assets" detaches the lines (`detachFromSheet`) so they stay as the task's own; deleting a tracker or a sheet does the same before the cascade.
+- **Who sees a linked sheet.** Since p0035 a sheet linked to a task is readable only while that task is.
+- **Grid hardening** (v0.129): type-to-edit is synchronous; retyping a column converts its values and drops formats and summaries the new type lacks; widths 60–1200; `coerce` never guesses a date from bare digits outside the Excel range, keeps hex as text, and reads "done" as a tick.
+
 - **Excel.** `tracker-xlsx.ts` (ExcelJS). Person cells export as names, and a reimported names column maps back as a PIC by name (`resolvePeople`).
   - **Export** carries structure, formats, dropdowns and summary formulas.
   - **Import** reads cached formula results and literal-list validations; arbitrary Excel features do not round-trip.
@@ -1575,8 +1758,8 @@ Channels are shared and reference-counted.
 | State | Where |
 | --- | --- |
 | Local auth session | localStorage `streamline.local-session` |
-| UI preferences | `streamline.ui`: sidebar width 240–480 and collapse; item column widths; panel size; asset recap expanded; team counts |
-| Theme | `streamline.theme` (light / dim / dark / system) |
+| UI preferences | `streamline.ui`: sidebar width 240–480 and collapse; open teams and `teamHiddenKinds`; item column widths; panel size; asset recap expanded; `showBoardCounts`, `showTeamCounts` |
+| Theme | `streamline.theme` (light / dark / system; Dim was removed in v0.148.1 and a stored "dim" reads as dark) |
 | View as | sessionStorage `streamline.view-as` |
 | "Later" for a build | sessionStorage `streamline.version` |
 | Board view; per-view settings | `streamline.board-view`; `streamline.view-settings` (+ server after 600 ms) |
@@ -1586,6 +1769,10 @@ Channels are shared and reference-counted.
 | Portal theme / status order / booking size | `streamline.portal-theme:<token>:<page>`, `streamline.portal-status-order:<token>`, `streamline.portal-scale:<token>` |
 | Booking memory | `streamline.booking` |
 | OS notifications already shown | `streamline.os-notifications.seen:<user>` |
+| Last workspace opened | `streamline:last-workspace` |
+| Visitor size per page | `useVisitorScale` keys (per portal link, per workspace booking link, shares, shared dashboard) |
+| Booking editor auto-save switch; Task assets "Pick columns" choice; sheet card folded | localStorage, guarded (an in-memory fallback where storage throws) |
+| Recent visits (local demo only) | localStorage; Supabase keeps them in `item_visits` |
 
 UI stores rehydrate after mount, to avoid hydration mismatches.
 
@@ -1601,8 +1788,8 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 
 ### Heads and order
 
-- **Heads:** migrations **0001–0089** (88 files; there is no 0069), policies **0001–0022**.
-- **`supabase/sequence.txt`** lists all 96 files in the order they were first applied. The order was taken from git history, with rename detection off.
+- **Heads:** migrations **0001–0151** (149 files; there is no 0069, and 0141 was renumbered to 0149 before it was ever applied), policies **0001–0039**.
+- **`supabase/sequence.txt`** lists all 188 files in the order they were first applied (plus a comment header). The older part was taken from git history; every new file is appended. Each directory must also stay in numeric order (`tests/unit/sql-sequence.test.ts`).
 - **Why the order matters.** Thirteen migrations (0005, 0010, 0013, 0015, 0043, 0050–0052, 0055–0057, 0059, 0070) call `private.*` helpers defined by policy files. "Every migration, then every policy" therefore stops at 0005 on an empty database (audit F-108).
 
 ### Migration runner
@@ -1654,12 +1841,70 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0075 | `board_columns.removed` |
 | 0076 | Snapshot kind `before_wipe` |
 | 0077 | `board_templates` |
+| 0078 | REQUESTER type |
+| 0079–0081 | 26 September audit: comments stay on their task; recurring receipts; a prefix rewrite keeps long numbers |
+| 0082 | `workspaces.bug_board_id`; public `bug-screenshots` bucket (advisory) |
+| 0083 | App development board built in (`boards.system = 'APP_DEVELOPMENT'`) |
+| 0084 | `workspaces.bug_ticket_counter`, `next_bug_ticket_numbers()` (BUG_001 series) |
+| 0085 | App development board drops Due date, Timeline, Department, Size, Assets recap |
+| 0086 | `workspaces.join_key`: the `/invite/<key>` join link |
+| 0087, 0088 | `item_assets.links` (list of {id,label,url,icon}), `block_id`, `block_name`, `block_links` |
+| 0089 | Multi-workspace: `app_owners`, `is_app_owner()`, OWNER seats kept in step, shared people directory |
+| 0090, 0091 | `boards.assets_fill_pic`, `assets_clear_pic`; `items.pic_from_assets` |
+| 0092 | `subscriptions` (follows), SUBSCRIPTION notifications |
+| 0093 | `item_favourites` |
+| 0094 | PROGRESS column type |
+| 0095 | `comment_checks` (checklist ticks keyed by `check_key`) |
+| 0096 | `department_portals.column_layout` |
+| 0097, 0098 | `workspaces.work_types` (`{workTypes, assets}`) |
 | 0099 | `board_saved_views` |
 | 0100 | `board_saved_views.is_default`, one per board, always shared |
 | 0101 | LAST_UPDATED and BUTTON column types; `board_last_activity()` |
 | 0102 | `boards.primary_action`: the toolbar slot, `{buttons, activeId}` since v0.80 (`toolbarSlot` reads the first, single-quick-run shape too) |
 | 0103 | `boards.view_only`: view only for everyone (a safety catch; the personal one is `streamline.board-lock` in the browser) |
-| 0078 | REQUESTER type |
+| 0104 | `board_status_since(board_id)` |
+| 0105 | `item_baselines`, `save_board_baseline()` |
+| 0106 | `workspace_members.weekly_hours` |
+| 0107 | `docs` (page JSON or PDF), private `docs` bucket |
+| 0108 | `tracker_sheets.item_id`, `asset_mapping`; `item_assets.tracker_sheet_id`, `tracker_row_id` |
+| 0109 | `workspace_revisions`, statement triggers, deferred bump at commit, `bump_all_workspace_revisions()` |
+| 0110 | `workspaces.size_scale` |
+| 0111 | `profile_edit_guard()`: admins edit members' profiles; no session changes an email |
+| 0112 | `is_team_member()` needs an active seat in the team's workspace |
+| 0113 | `workspaces.description` |
+| 0114 | pg_cron: daily delete of run-log rows older than 7 days, daily VACUUM, shorter automation command (only where pg_cron exists) |
+| 0115 | `avatars`, `item-covers`, `bug-screenshots` take JPEG too |
+| 0116, 0117 | Revisions cover the portal tables and comments; every board activity counts |
+| 0118 | `portal_link_for_member()`: members read the portal link without the hash |
+| 0119 | `workspaces.booking_form_published_by` |
+| 0120 | `teams.board_visibility`, `members_can_edit` |
+| 0121, 0122 | AWAITING_APPROVAL, MEMBER_JOINED, USER enum values; `workspace_invitations.needs_approval`, `my_waiting_workspaces()` |
+| 0123 | `teams.board_edit`, `boards.follows_team`, `boards.edit_scope` |
+| 0124 | `item_visits` |
+| 0125, 0126 | Task Allocation PRIVATE / ADDED; allocator seats follow the board (`follow_task_allocation_seat()`) |
+| 0127 | `booking_form_publications` |
+| 0128 | `workspaces.join_needs_approval` (default on) |
+| 0129 | `booking_form_publications` delete policy |
+| 0130, 0131 | `department_portals.booking_closed_message`, `booking_closed_heading` |
+| 0132 | `board_groups.role` ('INTAKE'), `intake_group_guard()`, "Booked by Form" |
+| 0133 | Sessions can't create tasks in the intake group |
+| 0134 | `items.booked_via` + guard, backfilled from the log |
+| 0135 | `items.allocated_at`, backfilled, server-only |
+| 0136 | Only booked tasks move into the intake group |
+| 0137 | A board change raises `item_created` (arrived) and `item_moved` (left) |
+| 0138 | Five definer functions locked from anon; counters capped |
+| 0139 | `rewrite_ticket_prefix` treats a NULL admin check as no |
+| 0140 | `workspace_keys(workspace_ids[])` |
+| 0142 | Ownership columns fixed for sessions; delivery rules view scoped |
+| 0143 | Subitem parent, intake promotion, linked tasks never share a board, no moves onto built-in boards |
+| 0144 | Follows, baselines and favourites move with the task |
+| 0145 | Comments: server clock, `created_at` fixed, `shared_id` rules |
+| 0146 | People named in cells or on deliverables must hold a seat |
+| 0147 | `ticket_taken()`, `can_edit_task()` |
+| 0148 | `can_manage_team()` / `can_create_team()` admins only |
+| 0149 | Column-level SELECT on `workspaces`, without `join_key` and `booking_key` |
+| 0150 | `comment_pins` |
+| 0151 | `booking_form_schedules` |
 
 | Policy | Change |
 | --- | --- |
@@ -1668,11 +1913,30 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0017 | Automation rules (view / manage board) and runs |
 | 0018 | `automation_events` readable by board viewers |
 | 0019 | Board templates: members read and insert as themselves; creator or admin updates/deletes |
+| 0020 | Comment edits need edit rights on the task (F-104) |
+| 0021 | The App development board is members-only (`board_role_for`, manage, delete); its activities read by who sees it |
+| 0022 | Board seats are someone else's to change; `owns_board()` |
 | 0023 | Saved views: board viewers read shared and own, save private; shared ones are board editors' |
+| 0024 | `item_baselines`: viewers read, editors write |
+| 0025 | `docs`: members read, non-guests write (storage half replaced by 0032) |
+| 0026 | Linked tracker sheets follow the task's edit rights; `can_edit_tracker_sheet()` |
+| 0027 | Presence on `presence:app` (replaced by 0037) |
+| 0028 | Team board access (`board_role_for` step), hidden teams, trackers and docs follow, admin-only settings |
+| 0029 | Hiding a team touches the workspace row; `access_to()` |
+| 0030 | Who can see / who can edit; guests only where added |
+| 0031 | Task Allocation seats and own settings; Admin team admins-only; `can_see_team()` |
+| 0032 | Storage follows access (docs bucket by doc rights; public buckets not listable) |
+| 0033 | Share rows for managers only; `board_share_state()`, `item_share_state()` |
+| 0034 | Activities: editors only, server clock |
+| 0035 | Linked tracker sheets readable only with the task; `trackers_delete` |
+| 0036 | Follows readable by owner or board viewers; notification inserts as the app writes them; `board_viewers()` |
+| 0037 | Presence per workspace (`can_use_presence_topic()`) |
+| 0038 | Checklist ticks by the update's author only |
+| 0039 | Replies can be pinned |
 
 **From the 26 September audit** (checked on a disposable stack first): migrations 0079 (comments stay on their task), 0080 (recurring receipts) and 0081 (a prefix rewrite keeps long numbers), and policy 0020 (comment edits need edit rights). They are the last four lines of `sequence.txt`.
 
-`supabase/optional/automations_pg_cron.sql` is applied by hand only.
+`supabase/optional/automations_pg_cron.sql` is applied by hand only. 0114 prunes pg_cron's run log, which had grown to 337 of the database's 381 MB (the Free plan stops at 500 MB); the one-off `VACUUM FULL` that brought it to 53 MB was run by hand, since it can't run in a migration's transaction. 0082 and 0107 create their storage buckets as advisory: create the bucket by hand if the migration role can't.
 
 ### Seeds and data scripts
 
@@ -1815,6 +2079,17 @@ Set this up whenever RLS, a server route, a trigger, the runner, a restore or a 
    - Point Playwright at it (with `E2E_PROVIDER=supabase`), or probe PostgREST with each persona's JWT from `/auth/v1/token?grant_type=password`.
 5. Reset with `npx supabase db reset`, then steps 3–4 again. Remove everything with `npx supabase stop` and `git worktree remove`.
 
+### Since v0.91
+
+- **The stack's ports moved** to 55321 (API) and 55322 (database) in November, because Windows reserved 54232–54331 after a restart; the worktree is `../_streamline_sb` (app on :3300) and the stack folder `../_streamline_sbstack`. If Docker restarts the containers itself they have no host ports: `npx supabase stop`, then `start`.
+- **Never run scripts from the main checkout:** its `.env.local` points at production. Audit and check scripts live in the worktree's `.audit/` (not committed).
+- **Stack-only suites:** `sbstack-booking-allocation` (runs only with `SBSTACK=1` against a local database), `asset-system-supabase.spec.ts` (two people over realtime and RLS), `scripts/tracker-sheet-rls-check.mjs`.
+- **Unit suites added** include `item-move-to-board`, `reallocate-and-intake`, `allocation-time`, `clear-archive`, `assets-recap-settings`, `dashboard-drill-amount`, `automation-board-moves`, `booking-routing`, `booking-past-bookings`, `tracker-grid-ops`, `tracker-asset-linking`, `tracker-wrong-types`, `tracker-nonasset-rows`, `tracker-move-into-sheet`, `item-link-skips`, and the form schedule, pin and check rules. About 1,720 tests in all at v0.153.
+- **Known flakes:** a full run can hit 5 s timeouts under load (the xlsx round trip among them); each passes alone.
+- **Stale e2e tests:** booking's "an admin builds a service in a draft" (clicks a test id removed in v0.121.1) and asset-system's "task lines" and "sheet lines".
+- **`next build` type-checks tests too**, with `noUncheckedIndexedAccess`; a test type error stops a deploy.
+- **Don't use fixed calendar dates** in tests whose seed stamps values with the real now (`nineAmAfter(days)`).
+
 ### Evidence rules
 
 - A local-provider test proves UI behaviour, not RLS, triggers or server routes.
@@ -1856,6 +2131,19 @@ Set this up whenever RLS, a server route, a trigger, the runner, a restore or a 
 
 For a persistence defect, capture the provider, route, role, ids, operation and exact error. Follow the path hook → service → repository → row mapping → policy. Don't start with a reset.
 
+### Since v0.91
+
+| Symptom | Likely area | Check |
+| --- | --- | --- |
+| A deleted team (or other row) comes back on refresh | RLS refused the delete silently | A policy-gated delete must ask for the row back and throw when none comes |
+| A page stays stale after a change only some readers make | Realtime delivers only rows the reader may read | Touch the workspace row (as team access does) or add the table to the revision triggers |
+| Public link, portal or share never refreshes | Revision triggers | The table is missing from `note_dashboard_statement` |
+| "new row violates row-level security" after a save that looked fine | A linked or follow-on write the person may not make | Try each such write on its own and report it (as linking does) |
+| Upload fails in Safari with "mime type not supported" | WebP not encodable | `encodeCanvas` falls back to JPEG; buckets take JPEG (0115) |
+| A PIC reverts to another person | Two people share a name | `cellNameFor` writes a unique name, else the email |
+| Database size climbing | pg_cron's run log | 0114 and its schedule |
+| "Former member" in a tracker's people cells | The people directory isn't set | Call `useTrackerPeopleDirectory()` where the grid or dialog renders |
+
 ## 21. Development change guides
 
 ### Adding a column type
@@ -1891,8 +2179,10 @@ jsonb enforces no types: coerce numbers read from rules.
 3. Make it idempotent (`if not exists`, `create or replace`).
 4. Test it on a disposable database (§19).
 5. Run `npm run db:snapshot:rehearse` when a table changes, so snapshots still round-trip.
+6. Draft it in the disposable worktree and apply it to the stack first; only then copy it here. A file in this checkout can go live with the next build.
+7. Revoke new definer functions from `anon` explicitly; coalesce NULL helper results before NOT; give a new `workspaces` column its own `grant select (…) to authenticated`; add a table that a dashboard, portal or share reads to the revision triggers; ship a revoke one deploy after the code that stops needing the grant.
 
-Pushing to `main` applies it to production.
+Pushing to `main` applies it to production. Check `schema_migrations` before claiming a file is or isn't live.
 
 ### Changing permissions
 
@@ -1966,6 +2256,16 @@ Historical design notes in `docs/` and audits in `Test_prompts/` stay dated.
 | Restore asks for your password | It asks you to type RESTORE (the password check is switched off) |
 | Two tasks can be open at once (changelog 0.20.0) | One task at a time; the release meant two browser tabs |
 | Every folded column gets a summary (changelog 0.29.0) | Seven types show none |
+| Members can create and run teams | Workspace admins only (0148, v0.150.1); anyone may leave |
+| A team member edits every board of the team | The team's "who can edit" decides (ADDED by default) |
+| Task Allocation follows the Admin team | It has its own seats and settings; the Admin team is admins-only |
+| The booking form has Details and Deliverables steps | Essentials and Assets (v0.105) |
+| Templates in the form editor | Saved forms (v0.152), published or scheduled |
+| A cron job switches scheduled forms | Nothing switches them: the live form is resolved at read time |
+| Any editor ticks a checklist | Only the update's author (v0.151.1) |
+| `/api/book` books twice on a retry | Idempotent within an hour (v0.149.6) |
+| A change to a linked task fails when the other side is view-only | It saves, and the other side is skipped with a message (v0.153.0) |
+| The Dim theme | Removed (v0.148.1) |
 
 Limits to keep in mind:
 
@@ -1976,6 +2276,9 @@ Limits to keep in mind:
 - **Restore is database-wide.** Snapshots and restore cover the whole database and must be narrowed to one workspace before multi-workspace.
 - **Local data is per origin.** One browser origin, one store; the local provider enforces no permissions and runs no automations.
 - **Open defects** from the 26 September audit are in `Test_prompts/audits/2026-09-26-full-e2e/FINDINGS.md`.
+- **Accepted after the 22 November audit:** an automation run by an allocation acts as the task's creator; join links issued while approval was off still let people straight in; anonymous booking has no rate limit; `next_ticket_numbers` is callable by members; presence can be spoofed within a shared workspace; INVITED members get no board notifications; viewers can't copy a share link.
+- **Past bookings by email** (off by default) show any booker's tickets to whoever types their email on the form; the owner accepted this.
+- **The repository is public.** Pushed audit notes are world-readable: ship fixes with or before them.
 
 ## 23. Source index
 
