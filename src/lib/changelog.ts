@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.152.3",
+    date: "2026-11-22",
+    title: "A steadier plus between blocks",
+    changes: [
+      "In the booking form editor, the plus between two blocks no longer pushes them apart; it is a little bigger and says Add a block here.",
+    ],
+  },
+  {
     version: "0.152.2",
     date: "2026-11-22",
     title: "Saved forms, everywhere",
