@@ -16,7 +16,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { EMPTY_ARCHIVE_LINK_IMPACT, INTAKE_MANUAL_MESSAGE, emptyValueFor, intakeGroupOf, normaliseTicket, otherEndOf } from "@/domain";
+import { EMPTY_ARCHIVE_LINK_IMPACT, INTAKE_MANUAL_MESSAGE, INTAKE_MOVE_MESSAGE, emptyValueFor, intakeGroupOf, normaliseTicket, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -136,6 +136,14 @@ export class ItemService {
     /** Applies each recipient's preferences to what gets written. */
     private readonly notifications: NotificationService,
   ) {}
+
+  /** Refuses moving a task a team made into Task Allocation's intake group: it holds bookings only. */
+  private async refuseIntakeMove(boardId: EntityId, groups: readonly BoardGroup[], toGroupId: EntityId, moving: readonly Item[]): Promise<void> {
+    if (!moving.some((i) => !i.parentItemId && !i.bookedVia)) return;
+    if (intakeGroupOf(groups)?.id !== toGroupId) return;
+    if ((await this.repos.boards.getById(boardId))?.system !== "TASK_ALLOCATION") return;
+    throw new Error(INTAKE_MOVE_MESSAGE);
+  }
 
   /** Refuses a task made by hand in Task Allocation's intake group. */
   private async refuseIntake(boardId: EntityId, groupId: EntityId): Promise<void> {
@@ -360,6 +368,7 @@ export class ItemService {
   async moveItem(input: MoveItemInput, actorId: EntityId): Promise<void> {
     const item = await this.getItem(input.itemId);
     const groups = await this.repos.boards.listGroups(input.boardId);
+    if (item.groupId !== input.toGroupId) await this.refuseIntakeMove(input.boardId, groups, input.toGroupId, [item]);
     const fromGroup = groups.find((g) => g.id === item.groupId);
     const toGroup = groups.find((g) => g.id === input.toGroupId);
 
@@ -393,6 +402,7 @@ export class ItemService {
   async moveItemsToGroup(boardId: EntityId, itemIds: EntityId[], toGroupId: EntityId, actorId: EntityId): Promise<void> {
     const all = await this.repos.items.listByBoard(boardId);
     const groups = await this.repos.boards.listGroups(boardId);
+    await this.refuseIntakeMove(boardId, groups, toGroupId, all.filter((i) => itemIds.includes(i.id) && i.groupId !== toGroupId));
     const toGroup = groups.find((g) => g.id === toGroupId);
     const target = all.filter((i) => i.groupId === toGroupId && i.parentItemId === null);
     let next = target.reduce((max, i) => Math.max(max, i.position), -1) + 1;

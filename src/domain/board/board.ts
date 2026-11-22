@@ -109,6 +109,21 @@ export interface BoardGroup {
 
 export type BoardGroupRole = "INTAKE";
 
+/** Why a task a team made cannot be moved into the intake group (the database says the same, migration 0136). */
+export const INTAKE_MOVE_MESSAGE = "Only tasks booked through the form can go in Booked by Form.";
+
+/**
+ * A new order for a board's groups with Task Allocation's intake group kept
+ * first: it does not move, and nothing is put above it. Other boards' orders
+ * pass through as they are.
+ */
+export function pinIntakeFirst<G extends Pick<BoardGroup, "id" | "name" | "position"> & { role?: BoardGroupRole | null }>(orderedIds: readonly string[], groups: readonly G[], boardSystem: string | null | undefined): string[] {
+  if (boardSystem !== "TASK_ALLOCATION") return [...orderedIds];
+  const intake = intakeGroupOf(groups)?.id;
+  if (!intake || !orderedIds.includes(intake)) return [...orderedIds];
+  return [intake, ...orderedIds.filter((id) => id !== intake)];
+}
+
 /** Why a task cannot be added to the intake group by hand (the database says the same, migration 0133). */
 export const INTAKE_MANUAL_MESSAGE = "Booked by Form takes only bookings from the form. Add the task to another group.";
 

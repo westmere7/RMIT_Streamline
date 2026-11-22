@@ -108,7 +108,7 @@ export function BulkActionsBar() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top">
-            {model.groups.map((g) => (
+            {model.moveTargetsFor(ids).map((g) => (
               <DropdownMenuItem
                 key={g.id}
                 onSelect={() => {

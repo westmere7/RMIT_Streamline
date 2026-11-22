@@ -26,6 +26,7 @@ import { tableWidth } from "@/features/boards/board-model";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { BulkActionsBar } from "./bulk-actions-bar";
 import { GroupSection } from "./group-section";
+import { cn } from "@/lib/utils";
 
 export type DragData =
   | { type: "group"; groupId: string }
@@ -72,6 +73,9 @@ const collisionDetection: CollisionDetection = (args) => {
  */
 /** Width of the faded strip down the scroller's right edge, where its scrollbar runs. */
 const SCROLL_EDGE = 16;
+
+/** Room left of the groups inside the scroller on a board with Booked by Form (the frame's padding and border, and a little more). */
+const FRAME_ROOM = 12;
 
 export const BoardTable = React.memo(function BoardTable() {
   const { board, model, mutations, canEdit, showTicket } = useBoardContext();
@@ -210,6 +214,22 @@ export const BoardTable = React.memo(function BoardTable() {
   );
   const nothingVisible = model.visibleTopLevel === 0 && model.totalTopLevel > 0;
 
+  // Task Allocation's Booked by Form sits in a frame that reaches past the other
+  // groups' edges, so their tables line up. The frame needs room on the left
+  // inside the scroller (FRAME_ROOM of the usual gutter moves inside); while the
+  // board is scrolled sideways, a strip in the backdrop's colour covers that
+  // room so rows do not show left of the frozen name column.
+  const framed = !!model.intakeGroupId;
+  const [scrolledX, setScrolledX] = React.useState(false);
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!framed || !el) return;
+    const update = () => setScrolledX(el.scrollLeft >= FRAME_ROOM);
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    return () => el.removeEventListener("scroll", update);
+  }, [framed]);
+
   // The gutter left of the table is a margin on the scroller, not padding inside
   // it: padding belongs to the scrollport, so rows slid through it and showed up
   // left of the frozen name column. A margin puts the scrollport's edge where the
@@ -218,7 +238,12 @@ export const BoardTable = React.memo(function BoardTable() {
     <div className="relative flex min-h-0 flex-1 flex-col bg-surface/50">
       {/* Scroll padding clears the pinned group title and column headers, so a
           row focused by keyboard is scrolled into view below them, not under. */}
-      <div ref={scrollRef} className="scrollbar-thin ml-6 flex-1 scroll-pt-[5.25rem] overflow-auto [container-type:size] max-md:scroll-pt-[5.5rem]" data-testid="board-table">
+      <div ref={scrollRef} className={cn("scrollbar-thin flex-1 scroll-pt-[5.25rem] overflow-auto [container-type:size] max-md:scroll-pt-[5.5rem]", framed ? "ml-3 pl-3" : "ml-6")} data-testid="board-table">
+        {framed && scrolledX && (
+          <div aria-hidden className="pointer-events-none sticky top-0 -left-3 z-[9] h-0" data-testid="frame-room-cover">
+            <div className="absolute top-0 left-0 h-[100cqh] w-3 bg-[color-mix(in_srgb,var(--color-surface)_50%,var(--color-background))]" />
+          </div>
+        )}
         <CellStretchProvider>
         <TableScrollProvider scrollRef={scrollRef}>
           <div style={{ minWidth: width + SCROLL_EDGE }} className="pb-24">

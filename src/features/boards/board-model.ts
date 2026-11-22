@@ -12,6 +12,8 @@ export interface BoardModel {
   addableGroups: BoardGroup[];
   /** Task Allocation's Booked by Form, or null on any other board. */
   intakeGroupId: string | null;
+  /** Groups these tasks can be moved to: Booked by Form only when every one of them was booked through the form. */
+  moveTargetsFor: (itemIds: readonly string[]) => BoardGroup[];
   /** The columns on the board, hidden ones included; special ones taken off it are not. */
   columns: BoardColumn[];
   /** Special columns taken off the board: kept, and not shown anywhere. */
@@ -134,6 +136,7 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     groups,
     addableGroups,
     intakeGroupId,
+    moveTargetsFor: (itemIds) => (intakeGroupId && !itemIds.every((id) => !!itemById.get(id)?.bookedVia) ? addableGroups : groups),
     // While a search or a filter is on, a group with nothing left in it is a
     // heading over an empty space — three of them turn one result into a page
     // of scrolling. Unfiltered they all stay: an empty group is somewhere to

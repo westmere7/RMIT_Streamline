@@ -388,15 +388,15 @@ function CardMenu({ item, group }: { item: Item; group: BoardGroup }) {
             {
               type: "sub",
               label: "Move to group",
-              disabled: !model.groups.some((g) => g.id !== group.id),
-              items: model.groups.filter((g) => g.id !== group.id).map((g) => ({ type: "item" as const, label: g.name, onSelect: () => void mutations.moveItemsToGroup([item.id], g.id) })),
+              disabled: !model.moveTargetsFor([item.id]).some((g) => g.id !== group.id),
+              items: model.moveTargetsFor([item.id]).filter((g) => g.id !== group.id).map((g) => ({ type: "item" as const, label: g.name, onSelect: () => void mutations.moveItemsToGroup([item.id], g.id) })),
             },
           ] satisfies MenuAction[])),
       { type: "separator" },
       { type: "item", label: "Archive", onSelect: () => setArchiveRequest([item.id]) },
       { type: "item", label: "Delete", destructive: true, onSelect: () => setConfirmDelete(true) },
     ];
-  }, [item.id, item.groupId, item.parentItemId, ticket, group.id, canEdit, model.groups, model.intakeGroupId, mutations, openItem, setArchiveRequest]);
+  }, [item.id, item.groupId, item.parentItemId, ticket, group.id, canEdit, model, mutations, openItem, setArchiveRequest]);
 
   return (
     <>

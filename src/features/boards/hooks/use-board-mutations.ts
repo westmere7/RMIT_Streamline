@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -470,7 +470,8 @@ export function useBoardMutations(boardId: string) {
     (orderedIds: string[]) =>
       run(
         (s) => {
-          const order = new Map(orderedIds.map((id, i) => [id, i]));
+          // Booked by Form stays first on Task Allocation, here as in the service.
+          const order = new Map(pinIntakeFirst(orderedIds, s.groups, s.board.system).map((id, i) => [id, i]));
           return { ...s, groups: s.groups.map((g) => ({ ...g, position: order.get(g.id) ?? g.position })) };
         },
         () => services.boards.reorderGroups(boardId, orderedIds),

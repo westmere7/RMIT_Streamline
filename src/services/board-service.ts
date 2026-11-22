@@ -14,7 +14,7 @@ import type {
   EntityId,
   Item,
 } from "@/domain";
-import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, intakeGroupOf, isSystemColumnType, portalBriefMarkdown } from "@/domain";
+import { COLUMN_TYPE_LABELS, ONE_PER_BOARD_COLUMN_TYPES, SPECIAL_BOARD_COLUMN_TYPES, columnTypeTaken, intakeGroupOf, isSystemColumnType, pinIntakeFirst, portalBriefMarkdown } from "@/domain";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { Repositories } from "@/data/repositories";
 import { backfillAssetsRecap, isAssetColumn } from "./item-asset-service";
@@ -443,7 +443,10 @@ export class BoardService {
   }
 
   async reorderGroups(boardId: EntityId, orderedIds: EntityId[]): Promise<BoardGroup[]> {
-    return this.repos.boards.reorderGroups(boardId, orderedIds);
+    // Task Allocation's Booked by Form stays first, whatever was dragged above it.
+    const board = await this.getBoard(boardId);
+    const ordered = board.system === "TASK_ALLOCATION" ? pinIntakeFirst(orderedIds, await this.repos.boards.listGroups(boardId), board.system) : orderedIds;
+    return this.repos.boards.reorderGroups(boardId, ordered);
   }
 
   async duplicateGroup(groupId: EntityId, actorId: EntityId): Promise<BoardGroup> {

@@ -277,8 +277,9 @@ function MobileGroup({ group, selectMode }: { group: BoardGroup; selectMode: boo
           {items.map((item) => (
             <MobileItemCard key={item.id} item={item} group={group} selectMode={selectMode} />
           ))}
-          {items.length === 0 && <li className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-[14px] text-muted-foreground">Nothing in this group.</li>}
-          {canEdit && !selectMode && (
+          {items.length === 0 && <li className="rounded-xl border border-dashed border-border/70 px-3 py-3 text-[14px] text-muted-foreground">{group.id === model.intakeGroupId ? "No new bookings." : "Nothing in this group."}</li>}
+          {/* Booked by Form takes bookings only: nothing is added to it by hand. */}
+          {canEdit && !selectMode && group.id !== model.intakeGroupId && (
             <li className="rounded-xl border border-dashed border-border/70">
               {adding ? (
                 <div className="flex items-center gap-2 px-2.5 py-2">
@@ -344,7 +345,7 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
     onDone();
   };
 
-  const moveActions: MenuAction[] = model.groups.map((g) => ({
+  const moveActions: MenuAction[] = model.moveTargetsFor(ids).map((g) => ({
     type: "item",
     label: g.name,
     onSelect: () => after(() => void mutations.moveItemsToGroup(ids, g.id)),

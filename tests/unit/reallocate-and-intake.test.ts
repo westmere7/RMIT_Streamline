@@ -43,6 +43,31 @@ describe("Task Allocation: Booked by Form, re-allocating, and links", () => {
     });
   });
 
+  describe("Booked by Form stays first, and holds booked tasks only", () => {
+    it("keeps its place first whatever order the groups are given in", async () => {
+      const ids = (await repos.boards.listGroups(queue.id)).sort((a, b) => a.position - b.position).map((g) => g.id);
+      const rest = ids.filter((id) => id !== intake.id);
+      await services.boards.reorderGroups(queue.id, [...rest, intake.id]);
+      const after = (await repos.boards.listGroups(queue.id)).sort((a, b) => a.position - b.position).map((g) => g.id);
+      expect(after[0]).toBe(intake.id);
+      expect(after.slice(1)).toEqual(rest);
+    });
+
+    it("refuses a task a team made, by drag or by Move to group; a booked task may go back in", async () => {
+      const own = await services.items.createItem({ boardId: queue.id, groupId: other.id, name: "Admin's note" }, danh);
+      await expect(services.items.moveItemsToGroup(queue.id, [own.id], intake.id, danh)).rejects.toThrow("Only tasks booked through the form");
+      await expect(services.items.moveItem({ boardId: queue.id, itemId: own.id, toGroupId: intake.id, orderedIdsInTargetGroup: [own.id] }, danh)).rejects.toThrow("Only tasks booked through the form");
+      expect((await repos.items.getById(own.id))?.groupId).toBe(other.id);
+      const booked = await services.items.createItem({ boardId: queue.id, groupId: intake.id, name: "Booked", activity: { via: "booking" } }, danh);
+      await services.items.moveItemsToGroup(queue.id, [booked.id], other.id, danh);
+      await services.items.moveItemsToGroup(queue.id, [booked.id], intake.id, danh);
+      expect((await repos.items.getById(booked.id))?.groupId).toBe(intake.id);
+      // A mixed selection is refused as a whole.
+      await expect(services.items.moveItemsToGroup(queue.id, [own.id, booked.id], other.id, danh)).resolves.toBeUndefined();
+      await expect(services.items.moveItemsToGroup(queue.id, [own.id, booked.id], intake.id, danh)).rejects.toThrow("Only tasks booked through the form");
+    });
+  });
+
   describe("re-allocating", () => {
     let item: Item;
     let partner: Item;

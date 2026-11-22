@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.141.2",
+    date: "2026-11-22",
+    title: "Booked by Form stays put",
+    changes: [
+      "Booked by Form always stays first on Task Allocation, and its frame lines up with the other groups.",
+      "Only tasks booked through the form can be moved into it; a team's own task can't be parked there.",
+    ],
+  },
+  {
     version: "0.141.1",
     date: "2026-11-21",
     title: "Allocation time recorded",

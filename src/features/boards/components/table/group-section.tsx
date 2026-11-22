@@ -97,8 +97,8 @@ export function GroupSection({
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: group.id,
     data: { type: "group", groupId: group.id },
-    // Off while the name is a text field, so dragging across it selects text.
-    disabled: !dndEnabled || renaming,
+    // Off while the name is a text field, so dragging across it selects text; never for Booked by Form, which stays first.
+    disabled: !dndEnabled || renaming || intake,
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: `group-drop:${group.id}`, data: { type: "group-drop", groupId: group.id }, disabled: !dndEnabled });
 
@@ -135,7 +135,7 @@ export function GroupSection({
               {collapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
             </button>
           </div>
-          {dndEnabled && (
+          {dndEnabled && !intake && (
             <button
               ref={setActivatorNodeRef}
               type="button"
@@ -240,7 +240,8 @@ export function GroupSection({
       aria-label={`Group ${group.name}`}
       // The intake group sits in a frame of its own colour, header and rows: where bookings arrive.
       // mt-2: as the first group it would start on the scroll area's top edge, which cuts off the frame's top.
-      className={cn("mb-7", intake && "mt-2 rounded-2xl border border-[color-mix(in_oklab,var(--intake)_35%,transparent)] px-2 pb-2", intake && INTAKE_FILL, isDragging && "opacity-50")}
+      // -mx-[9px]: the frame reaches past the other groups by its padding and border, so the tables line up (the board makes room, FRAME_ROOM).
+      className={cn("mb-7", intake && "mt-2 -mx-[9px] rounded-2xl border border-[color-mix(in_oklab,var(--intake)_35%,transparent)] px-2 pb-2", intake && INTAKE_FILL, isDragging && "opacity-50")}
       style={{ transform: CSS.Transform.toString(transform), transition, ...(intake ? ({ "--intake": colors.hex } as React.CSSProperties) : {}) }}
       data-testid={`group-${group.name}`}
       data-intake={intake || undefined}
