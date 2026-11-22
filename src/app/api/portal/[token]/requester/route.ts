@@ -10,7 +10,7 @@ type Context = { params: Promise<{ token: string }> };
 export const POST = handleRoute(async (request: Request, { params }: Context) => {
   const { token } = await params;
   const body = portalRequesterSchema.parse(await readJson(request));
-  const resolved = await admitPortal(portalServices(), decodeURIComponent(token), body);
+  const resolved = await admitPortal(portalServices(), decodeURIComponent(token), body, "booking");
   const email = body.email.trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ name: null });
   return json({ name: (await serverRequesterDirectory().find(resolved.workspaceId, email))?.name ?? null });

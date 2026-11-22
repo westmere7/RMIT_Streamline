@@ -321,7 +321,7 @@ export class StakeholderPortalService {
   /** The booking form, behind the same gate: a workspace's questions are not public. */
   async publicBookingForm(grant: PortalGrant): Promise<BookingForm> {
     if (this.transport) return this.transport.bookingForm(grant);
-    const resolved = await this.resolve(grant);
+    const resolved = await this.resolve(grant, "booking");
     return this.buildForm(resolved.workspaceId);
   }
 
@@ -330,7 +330,7 @@ export class StakeholderPortalService {
     const clean = email.trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) return null;
     if (this.transport) return this.transport.lookupRequester(grant, clean);
-    const resolved = await this.resolve(grant);
+    const resolved = await this.resolve(grant, "booking");
     return booking.requesterNameFor(resolved.workspaceId, clean);
   }
 
@@ -342,7 +342,7 @@ export class StakeholderPortalService {
     booking: { book(workspaceId: EntityId, request: BookingRequest, memberId: EntityId | null, stakeholder: string | null): Promise<BookingReceipt> },
   ): Promise<BookingReceipt> {
     if (this.transport) return this.transport.book(grant, submissionKey, request, departmentId);
-    const resolved = await this.resolve(grant);
+    const resolved = await this.resolve(grant, "booking");
     return this.book(resolved, { submissionKey, request, departmentId, booking, memberId: grant.viewer?.userId ?? null });
   }
 
@@ -656,14 +656,17 @@ export class StakeholderPortalService {
     // typo: the difference is whether the holder asks for the new link or
     // checks whether they copied the old one properly.
     if (portal.departmentId !== null) return { ...closed, refusal: "revoked" };
-    // A closed portal closes its booking link too. That link still says so in the team's own words
-    // (and its own theme), so somebody sent it is not left with a bare "this does not open".
-    if (!portal.enabled) return { ...closed, refusal: "off", bookingTheme: portal.bookingTheme, bookingThemeSwitch: portal.bookingThemeSwitch, bookingClosedHeading: portal.bookingClosedHeading ?? null, bookingClosedMessage: portal.bookingClosedMessage ?? null };
+    // The portal and its booking form are switched separately. With both off the
+    // booking link still says so in the team's own words (and its own theme), so
+    // somebody sent it is not left with a bare "this does not open".
+    if (!portal.enabled && !portal.allowBooking) return { ...closed, refusal: "off", bookingTheme: portal.bookingTheme, bookingThemeSwitch: portal.bookingThemeSwitch, bookingClosedHeading: portal.bookingClosedHeading ?? null, bookingClosedMessage: portal.bookingClosedMessage ?? null };
     const workspace = await this.repos.workspaces.getById(portal.workspaceId);
     const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
     return {
-      open: true,
-      refusal: null,
+      // A closed portal whose form takes requests: the board is shut, the form is
+      // not, and the form says what any booking page says (the team's name).
+      open: portal.enabled,
+      refusal: portal.enabled ? null : "off",
       needsPassword: !!portal.passwordHash,
       portalName: teamName,
       creativeTeamName: teamName,
@@ -692,12 +695,16 @@ export class StakeholderPortalService {
    * credential version and the password are checked, and no endpoint can be
    * written that forgets one of them.
    */
-  async resolve(grant: PortalGrant): Promise<ResolvedPortal> {
+  async resolve(grant: PortalGrant, scope: "board" | "booking" = "board"): Promise<ResolvedPortal> {
     const portal = isPlausiblePortalToken(grant.token) ? await this.repos.stakeholderPortals.getPortalByToken(grant.token) : null;
     if (!portal) throw new PortalAccessError("unknown", portalAccessMessage("unknown"));
     // Superseded per-department links, refused before anything else is read.
     if (portal.departmentId !== null) throw new PortalAccessError("revoked", portalAccessMessage("revoked"));
-    if (!portal.enabled) throw new PortalAccessError("off", portalAccessMessage("off"));
+    // Two switches: the portal opens the board and everything on it; taking
+    // requests opens the booking form (its questions, the requester lookup, the
+    // booking), whether or not the portal is open.
+    if (scope === "board" && !portal.enabled) throw new PortalAccessError("off", portalAccessMessage("off"));
+    if (scope === "booking" && !portal.allowBooking) throw new PortalAccessError("off", "This portal is not taking new requests at the moment.");
 
     // A grant that names an older version was issued before the link or the
     // password changed, and is dead however valid it once was.

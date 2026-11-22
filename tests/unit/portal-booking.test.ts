@@ -231,8 +231,18 @@ describe("booking through a portal", () => {
     expect((await services.portals.tasks(resolved)).tasks).toHaveLength(1);
   });
 
-  it("will not book through a portal that has been switched off", async () => {
+  it("books through a closed portal while its form takes requests, and not once the form is off", async () => {
     await services.portals.setEnabled(WS, false);
     await expect(services.portals.resolve({ token: resolved.portal.token, password: null })).rejects.toMatchObject({ reason: "off" });
+    const grant = { token: resolved.portal.token, password: null };
+    await expect(services.portals.resolve(grant, "booking")).resolves.toBeTruthy();
+    // The whole way through, as the closed portal's form sends it: no department id, found by name.
+    const receipt = await services.portals.publicBook(grant, "key-closed-0001", request({ department: department.name }), null, services.booking);
+    expect(receipt.ticket).toMatch(/^CP_\d{3,}$/);
+    expect((await services.repos.items.getById(receipt.itemId))?.bookedVia).toBe("portal");
+
+    await services.portals.setPresentation(WS, { allowBooking: false });
+    await expect(services.portals.resolve(grant, "booking")).rejects.toMatchObject({ reason: "off" });
+    await expect(services.portals.publicBook(grant, "key-closed-0002", request({ department: department.name }), null, services.booking)).rejects.toMatchObject({ reason: "off" });
   });
 });

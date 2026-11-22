@@ -52,7 +52,7 @@ export function PortalLinks({ heading, className, variant = "rows" }: { heading?
   const { token, enabled, allowBooking } = links.data;
   const url = portalUrl(token);
   const portal = { icon: Globe, label: "Portal", lead: "Departments see their work.", href: routes.portal(token), url, serving: enabled, testId: "home-portal-link" };
-  const booking = { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: `${routes.portal(token)}/book`, url: `${url}/book`, serving: enabled && allowBooking, testId: "home-booking-link" };
+  const booking = { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: `${routes.portal(token)}/book`, url: `${url}/book`, serving: allowBooking, testId: "home-booking-link" };
   return (
     <section>
       {heading}

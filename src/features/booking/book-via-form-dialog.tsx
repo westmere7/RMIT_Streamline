@@ -16,15 +16,15 @@ import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 
 /**
- * Whether the workspace's booking form is taking requests: the portal open and
- * booking on. Null until that is known, so a button that depends on it waits
+ * Whether the workspace's booking form is taking requests: its own switch,
+ * whether or not the portal is open. Null until that is known, so a button that depends on it waits
  * rather than showing the other choice first; false if it cannot be read.
  */
 export function useBookingFormOpen(): boolean | null {
   const overview = usePortalOverview();
   if (overview.isPending) return null;
   const portal = overview.data?.portal;
-  return !!portal && portal.enabled && portal.allowBooking;
+  return !!portal && portal.allowBooking;
 }
 
 /**

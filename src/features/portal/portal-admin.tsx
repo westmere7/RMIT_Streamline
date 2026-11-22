@@ -159,15 +159,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
         <LinkTile
           icon={ClipboardPen}
           label="Booking form"
-          lead={
-            !open ? (
-              <>Lives inside the portal, so it opens when the portal does.</>
-            ) : portal.allowBooking ? (
-              <>Opens straight on the form. Requests land on the board.</>
-            ) : (
-              <>Not taking requests.</>
-            )
-          }
+          lead={portal.allowBooking ? <>Opens straight on the form. Requests land on the board.</> : <>Not taking requests.</>}
           url={bookingUrl}
           href={`${routes.portal(portal.token)}/book`}
           openLabel="Open Form"
@@ -186,16 +178,15 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
               </Button>
             )
           }
-          open={open && portal.allowBooking}
-          // Taking requests is the form's own switch. It waits on the portal's.
+          open={portal.allowBooking}
+          // Taking requests is the form's own switch, apart from the portal's: a
+          // closed portal can still take bookings, and an open one can stop.
           toggle={{
-            on: open && portal.allowBooking,
+            on: portal.allowBooking,
             pending: setPresentation.isPending,
-            disabled: !open,
             onChange: (next) =>
               setPresentation.mutate({ allowBooking: next }, { onSuccess: () => toast.success(next ? "Taking requests" : "Not taking requests") }),
             label: portal.allowBooking ? "Stop taking requests" : "Take requests",
-            hint: open ? undefined : "Open the portal first",
             testId: "portal-allow-booking",
           }}
         >

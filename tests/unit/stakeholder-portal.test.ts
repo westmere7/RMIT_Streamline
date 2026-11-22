@@ -174,6 +174,8 @@ describe("the stakeholder portal", () => {
 
   it("refuses an unknown token the same way it refuses a closed one", async () => {
     const { portal } = await twoDepartments();
+    // Closed, form included: a form that takes requests says the team's name, as any booking page does.
+    await services.portals.setPresentation(WS, { allowBooking: false });
     await services.portals.setEnabled(WS, false);
 
     const closed = await services.portals.gate(portal.token);
@@ -207,13 +209,42 @@ describe("the stakeholder portal", () => {
 
   it("a closed portal's booking link still carries the message, and nothing else about the workspace", async () => {
     const { portal } = await twoDepartments();
-    await services.portals.setPresentation(WS, { bookingClosedHeading: "See you in January", bookingClosedMessage: "Closed over the break.", bookingTheme: "dark" });
+    await services.portals.setPresentation(WS, { bookingClosedHeading: "See you in January", bookingClosedMessage: "Closed over the break.", bookingTheme: "dark", allowBooking: false });
     await services.portals.setEnabled(WS, false);
 
     const closed = await services.portals.gate(portal.token);
     expect(closed).toMatchObject({ open: false, refusal: "off", bookingOpen: false, bookingClosedHeading: "See you in January", bookingClosedMessage: "Closed over the break.", bookingTheme: "dark", portalName: "", creativeTeamName: "" });
     // A token that names nothing gets no message.
     expect(await services.portals.gate("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")).toMatchObject({ open: false, bookingClosedMessage: null });
+  });
+
+  it("switches the portal and its booking form separately", async () => {
+    const { portal } = await twoDepartments();
+    const grant = { token: portal.token, password: null };
+
+    // Portal closed, form on: the board is shut, the form opens (its questions, the lookup, the booking).
+    await services.portals.setEnabled(WS, false);
+    expect(await services.portals.gate(portal.token)).toMatchObject({ open: false, refusal: "off", bookingOpen: true, creativeTeamName: "RMIT Creative Team" });
+    await expect(services.portals.resolve(grant)).rejects.toMatchObject({ reason: "off" });
+    await expect(services.portals.resolve(grant, "booking")).resolves.toMatchObject({ workspaceId: WS });
+    await expect(services.portals.publicBoard(grant)).rejects.toMatchObject({ reason: "off" });
+    await expect(services.portals.publicBookingForm(grant)).resolves.toBeTruthy();
+
+    // Portal open, form off: the board opens, the form and everything behind it do not.
+    await services.portals.setEnabled(WS, true);
+    await services.portals.setPresentation(WS, { allowBooking: false });
+    expect(await services.portals.gate(portal.token)).toMatchObject({ open: true, bookingOpen: false });
+    await expect(services.portals.resolve(grant)).resolves.toMatchObject({ workspaceId: WS });
+    await expect(services.portals.resolve(grant, "booking")).rejects.toMatchObject({ reason: "off" });
+    await expect(services.portals.publicBookingForm(grant)).rejects.toMatchObject({ reason: "off" });
+
+    // A password still guards the form of a closed portal.
+    await services.portals.setPresentation(WS, { allowBooking: true });
+    await services.portals.setEnabled(WS, false);
+    await services.portals.setPassword(WS, "let me in");
+    const version = (await services.repos.stakeholderPortals.getUnifiedPortal(WS))!.credentialVersion;
+    await expect(services.portals.resolve({ token: portal.token, password: null, credentialVersion: version }, "booking")).rejects.toMatchObject({ reason: "password" });
+    await expect(services.portals.resolve({ token: portal.token, password: "let me in", credentialVersion: version }, "booking")).resolves.toMatchObject({ workspaceId: WS });
   });
 
   it("asks for the password on every call, not just the landing page", async () => {

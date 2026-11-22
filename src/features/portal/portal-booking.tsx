@@ -65,10 +65,10 @@ export function PortalBookingScreen({
   scale?: number;
   /** Whether the visitor may change that size for themselves. */
   scaleSwitch?: boolean;
-  /** Opens the request that was just booked, on the board. */
-  onView: (itemId: string) => void;
-  /** Back to the board without booking, or once the ticket has been read. */
-  onClose: () => void;
+  /** Opens the request that was just booked, on the board. Absent while the portal is closed and only its form is open. */
+  onView?: (itemId: string) => void;
+  /** Back to the board without booking, or once the ticket has been read. Absent with the portal closed. */
+  onClose?: () => void;
 }) {
   const services = useServices();
   const queryClient = useQueryClient();
@@ -129,9 +129,11 @@ export function PortalBookingScreen({
             {account ? ` · signed in as ${account.name}` : ""}
           </p>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} data-testid="portal-book-close">
-          <ArrowLeft /> Back to Portal
-        </Button>
+        {onClose && (
+          <Button variant="ghost" size="sm" onClick={onClose} data-testid="portal-book-close">
+            <ArrowLeft /> Back to Portal
+          </Button>
+        )}
       </div>
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-7 py-6 sm:px-8">
         {/* The frame is on screen at once; the form waits inside it until both
@@ -185,7 +187,7 @@ export function PortalBookingScreen({
                 void queryClient.invalidateQueries({ queryKey: ["portal-board", credentials.token] });
               }}
             />
-            {booked && (
+            {booked && onView && onClose && (
               <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-4">
                 <Button onClick={() => onView(booked)} data-testid="portal-view-request">
                   View request

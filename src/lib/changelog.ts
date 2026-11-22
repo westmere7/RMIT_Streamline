@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.144.0",
+    date: "2026-11-22",
+    title: "Portal and booking switch separately",
+    changes: [
+      "Closing the portal no longer closes the booking form. Each has its own switch in Portal and Booking: a closed portal can still take bookings, and an open one can stop taking them.",
+      "With the portal open and booking off, the portal shows Booking turned off where Book a task was.",
+      "With the portal closed and booking on, the booking link opens the form on its own, without the way back to the portal. Task Allocation's Book via form follows the booking switch alone.",
+    ],
+  },
+  {
     version: "0.143.6",
     date: "2026-11-22",
     title: "Compact lists on a phone",

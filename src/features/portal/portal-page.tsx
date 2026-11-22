@@ -168,7 +168,9 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     );
   }
 
-  if (gate.isError || !gate.data?.open) {
+  // The form of a closed portal that still takes requests opens on its own.
+  const formOnly = startOnBooking && !!gate.data && !gate.data.open && gate.data.bookingOpen;
+  if (gate.isError || (!gate.data?.open && !formOnly)) {
     return (
       <PortalShell>
         <Closed refusal={gate.data?.refusal ?? "unknown"} />
@@ -226,15 +228,17 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           creativeTeamName={context?.creativeTeamName ?? gate.data.creativeTeamName}
           stakeholder={context?.stakeholders.find((row) => row.id === stakeholderId) ?? null}
           // Chosen inside step one; null until the portal has read them, so the
-          // form does not appear and then grow a question.
-          stakeholders={context?.stakeholders ?? null}
+          // form does not appear and then grow a question. With the portal closed
+          // there is no board to read them from: the department is found by name.
+          stakeholders={formOnly ? [] : (context?.stakeholders ?? null)}
           headline={gate.data.bookingHeadline}
           lead={gate.data.bookingLead}
           offerSignIn={gate.data.bookingSignIn}
           scale={gate.data.bookingScale ?? 100}
           scaleSwitch={gate.data.bookingScaleSwitch ?? true}
-          onView={(itemId) => router.push(`/portal/${encodeURIComponent(token)}?task=${encodeURIComponent(itemId)}`)}
-          onClose={leave}
+          // Nothing to go back to while the portal is closed.
+          onView={formOnly ? undefined : (itemId) => router.push(`/portal/${encodeURIComponent(token)}?task=${encodeURIComponent(itemId)}`)}
+          onClose={formOnly ? undefined : leave}
         />
       </PortalThemeScope>
     );

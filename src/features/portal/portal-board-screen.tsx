@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDownUp, CalendarSearch, ClipboardPen, GripVertical, Hourglass, Inbox, Rows3, SearchX } from "lucide-react";
+import { ArrowDownUp, CalendarSearch, ClipboardPen, ClipboardX, GripVertical, Hourglass, Inbox, Rows3, SearchX } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
@@ -291,11 +291,9 @@ function PortalBoard({
             <div className="flex items-center gap-2" data-testid="portal-mobile-controls">
               {rangePicker}
               <AllYearsMark on={searchingAllYears} />
-              {bookHref && (
-                <span className="ml-auto">
-                  <BookButton href={bookHref} />
-                </span>
-              )}
+              <span className="ml-auto">
+                <BookButton href={bookHref} />
+              </span>
             </div>
             <MobileBoardTools
               view={view}
@@ -326,12 +324,10 @@ function PortalBoard({
             onViewChange={(next) => replaceParams({ view: next })}
             searchAlways
             leading={
-              bookHref || rangePicker ? (
-                <>
-                  {bookHref && <BookButton href={bookHref} />}
-                  {rangePicker}
-                </>
-              ) : undefined
+              <>
+                <BookButton href={bookHref} />
+                {rangePicker}
+              </>
             }
             actions={
               <>
@@ -573,7 +569,15 @@ function PortalEmpty({ search, filtered, onShowAll, bookHref }: { search: string
 }
 
 /** The toolbar's is `portal-book-button`; the empty state's, drawn beside it, has its own id. */
-function BookButton({ href, testId = "portal-book-button" }: { href: string; testId?: string }) {
+/** Book a task; with the form switched off, the same place says so and does nothing. */
+function BookButton({ href, testId = "portal-book-button" }: { href: string | null; testId?: string }) {
+  if (!href) {
+    return (
+      <Button disabled variant="outline" className="shrink-0 gap-2 px-4 text-[13px] font-semibold disabled:opacity-70" data-testid="portal-booking-off">
+        <ClipboardX className="size-4" /> Booking turned off
+      </Button>
+    );
+  }
   return (
     // A new tab: the form is a page of its own, and the board stays where it was.
     <Button asChild className="shrink-0 gap-2 px-4 text-[13px] font-semibold shadow-sm shadow-primary/25">

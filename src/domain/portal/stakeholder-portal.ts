@@ -390,7 +390,8 @@ export interface PortalGate {
   bookingScale: number;
   bookingScaleSwitch: boolean;
   /**
-   * Whether the booking link takes requests: the portal open and booking on.
+   * Whether the booking link takes requests: its own switch, apart from the
+   * portal's (`open`), so a closed portal's form can still take bookings.
    * Said before any password, so a closed form never asks for one first.
    */
   bookingOpen: boolean;

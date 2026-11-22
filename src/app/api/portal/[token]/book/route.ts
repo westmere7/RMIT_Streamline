@@ -18,7 +18,7 @@ export const POST = handleRoute(async (request: Request, { params }: Context) =>
   const { token } = await params;
   const body = portalBookSchema.parse(await readJson(request));
   const services = portalServices();
-  const resolved = await admitPortal(services, decodeURIComponent(token), body);
+  const resolved = await admitPortal(services, decodeURIComponent(token), body, "booking");
   // A member who happens to be signed in is recorded as the author; a
   // stakeholder is not, and neither can choose who they are.
   const viewer = await portalViewer(request, resolved.workspaceId);
@@ -49,6 +49,6 @@ export const PUT = handleRoute(async (request: Request, { params }: Context) => 
   const { token } = await params;
   const body = portalGrantSchema.parse(await readJson(request));
   const services = portalServices();
-  const resolved = await admitPortal(services, decodeURIComponent(token), body);
+  const resolved = await admitPortal(services, decodeURIComponent(token), body, "booking");
   return json(await services.booking.buildForm(resolved.workspaceId));
 });

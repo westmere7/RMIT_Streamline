@@ -172,9 +172,9 @@ export async function portalViewer(request: Request, workspaceId: string): Promi
  * version and the password are checked in one place and an endpoint cannot be
  * written that skips one.
  */
-export async function admitPortal(services: Services, token: string, grant: { password?: string | null; credentialVersion?: number }): Promise<ResolvedPortal> {
+export async function admitPortal(services: Services, token: string, grant: { password?: string | null; credentialVersion?: number }, scope: "board" | "booking" = "board"): Promise<ResolvedPortal> {
   try {
-    return await services.portals.resolve({ token, password: grant.password ?? null, credentialVersion: grant.credentialVersion });
+    return await services.portals.resolve({ token, password: grant.password ?? null, credentialVersion: grant.credentialVersion }, scope);
   } catch (error) {
     if (error instanceof PortalAccessError) throw new HttpError(portalErrorStatus(error), error.message);
     throw error;
