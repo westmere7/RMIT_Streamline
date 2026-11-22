@@ -3,6 +3,7 @@ import type { ColumnRole } from "@/domain/board/column-role";
 import { DEFAULT_DATE_TIME_SETTINGS, type DateTimeColumnSettings } from "@/domain/board/date-time-format";
 import { DEFAULT_COUNTDOWN_SETTINGS, type CountdownColumnSettings } from "@/domain/board/countdown";
 import { DEFAULT_PROGRESS_SETTINGS, type ProgressColumnSettings } from "@/domain/board/progress";
+import type { AssetsRecapColumnSettings } from "@/domain/board/assets-recap";
 import { DEFAULT_LAST_UPDATED_SETTINGS, type LastUpdatedColumnSettings } from "@/domain/board/last-updated";
 import { DEFAULT_BUTTON_SETTINGS, type ButtonColumnSettings } from "@/domain/board/button";
 
@@ -183,6 +184,7 @@ export interface EmptyColumnSettings {
 export type { DateTimeColumnSettings, CountdownColumnSettings, ProgressColumnSettings, LastUpdatedColumnSettings, ButtonColumnSettings };
 
 export type ColumnSettings =
+  | AssetsRecapColumnSettings
   | DateTimeColumnSettings
   | CountdownColumnSettings
   | ProgressColumnSettings

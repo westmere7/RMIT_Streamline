@@ -5,7 +5,7 @@ import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
 import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { columnLabels, columnTagOptions, dropdownStyle, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, formatProgressNumber, progressColumnValue, progressCounts, progressPercent, progressSettings, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
+import { assetsRecapSettings, columnLabels, columnTagOptions, formatHours, dropdownStyle, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, formatProgressNumber, progressColumnValue, progressCounts, progressPercent, progressSettings, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -13,6 +13,7 @@ import { CountdownPicker, DateTimePicker, TimePicker } from "@/features/boards/c
 import { DependencyPicker } from "@/features/boards/components/pickers/dependency-picker";
 import { TagsEditor } from "@/features/boards/components/pickers/tags-editor";
 import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-picker";
+import { itemHours } from "@/features/boards/components/views/workload-hours";
 import { sizeEvidence, useAssetRates, useSizeScale } from "@/features/boards/size-fit";
 import { routes } from "@/lib/routes";
 import { useBoardContext } from "@/features/boards/board-context";
@@ -384,36 +385,95 @@ export function AssetsRecapCell({ item, column, value, width }: CellProps) {
   const overdue = live ? live.overdue : stored.overdue;
   const quantity = live ? live.quantity : stored.quantity;
   const people = live ? live.assigneeIds.length : stored.people;
+  const nextDue = live ? live.nextDue : stored.nextDue;
+  const done = live ? live.done : null;
   const text = live ? formatAssetsRecap({ lines: live.lines, quantity: live.quantity, types: live.types, people: live.assigneeIds }) : formatAssetsRecap(stored);
+  // Which parts the column shows (Format in its menu), and the effort in hours at the workspace's rates.
+  const show = assetsRecapSettings(column.settings).show;
+  const rates = useAssetRates();
+  const hours = React.useMemo(() => {
+    if (!show.includes("hours")) return null;
+    const itemLines = assets.data?.byItem.get(item.id);
+    return itemLines ? itemHours(itemLines, rates) : null;
+  }, [show, assets.data, item.id, rates]);
+  // Lines, not copies: "1 asset ×25" is one thing to make. The receipt and the subitem list count it that way too.
+  const parts: Array<{ key: string; node: React.ReactNode }> = [];
+  if (show.includes("assets"))
+    parts.push({
+      key: "assets",
+      node: (
+        <>
+          <span className="font-medium text-foreground">{lines}</span> {lines === 1 ? "asset" : "assets"}
+          {show.includes("quantity") && quantity > lines && <span className="ml-1 tabular">×{quantity}</span>}
+        </>
+      ),
+    });
+  else if (show.includes("quantity"))
+    parts.push({
+      key: "quantity",
+      node: (
+        <>
+          <span className="font-medium text-foreground">{quantity}</span> {quantity === 1 ? "unit" : "units"}
+        </>
+      ),
+    });
+  if (show.includes("pic"))
+    parts.push({
+      key: "pic",
+      node: (
+        <>
+          <span className="font-medium text-foreground">{people}</span> PIC
+        </>
+      ),
+    });
+  // No rate for any of its asset types: said so, rather than a quiet gap or a made-up number.
+  if (show.includes("hours") && hours !== null)
+    parts.push({
+      key: "hours",
+      node: hours > 0 ? <span className="font-medium text-foreground">{formatHours(hours)}</span> : <span title="No output rate for these asset types yet (Settings → Asset & Work types)">– h</span>,
+    });
+  if (show.includes("due") && (nextDue || overdue > 0))
+    parts.push({
+      key: "due",
+      node: overdue > 0 ? <span className="font-medium text-red-600 dark:text-red-400">{overdue} overdue</span> : <span className="font-medium text-foreground">{formatShortDate(nextDue!)}</span>,
+    });
+  if (show.includes("done") && done !== null)
+    parts.push({
+      key: "done",
+      node: (
+        <>
+          <span className="font-medium text-foreground">
+            {done}/{lines}
+          </span>{" "}
+          done
+        </>
+      ),
+    });
   const open = () => {
     setRequestedItemTab({ itemId: item.id, tab: "assets" });
     openItem(item.id);
   };
   return (
     <CellShell width={width ?? column.width} align={columnAlign(column.type)} aria-label={`${column.name}: ${text || "no assets"} for ${item.name}`} data-testid="assets-recap-cell">
-      <button type="button" onClick={open} className="flex h-full min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden px-1 text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring" title={text || "Open the Assets tab"}>
+      {/* Every part stays whole: a full badge starts at the left and is clipped at the right, so the first part always reads. */}
+      <button type="button" onClick={open} className={cn("flex h-full min-w-0 flex-1 items-center gap-1 overflow-hidden px-1 text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring", parts.length > 3 ? "justify-start" : "justify-center")} title={text || "Open the Assets tab"}>
         {lines === 0 ? (
           <span className="text-2xs text-muted-foreground/60">—</span>
         ) : (
           <span
             className={cn(
-              "inline-flex h-5.5 min-w-0 items-center rounded-md border border-border/60 bg-surface/70 text-2xs tabular",
+              "inline-flex h-5.5 shrink-0 items-center rounded-md border border-border/60 bg-surface/70 text-2xs tabular",
               overdue > 0 && "border-red-300/80 dark:border-red-500/40",
             )}
           >
-            <span className="flex min-w-0 items-center gap-1 truncate px-1.5">
-              
-              {/* Lines, not copies: "1 asset ×25" is one thing to make. The
-                  receipt and the subitem list count it that way too. */}
-              <span className="truncate text-muted-foreground">
-                <span className="font-medium text-foreground">{lines}</span> {lines === 1 ? "asset" : "assets"}
-                {quantity > lines && <span className="ml-1 tabular">×{quantity}</span>}
-              </span>
-            </span>
-            <span aria-hidden className="h-full w-px shrink-0 bg-border/70" />
-            <span className="shrink-0 px-1.5 text-muted-foreground">
-              <span className="font-medium text-foreground">{people}</span> PIC
-            </span>
+            {parts.map((part, index) => (
+              <React.Fragment key={part.key}>
+                {index > 0 && <span aria-hidden className="h-full w-px shrink-0 bg-border/70" />}
+                <span className="shrink-0 px-1.5 whitespace-nowrap text-muted-foreground" data-testid={`assets-recap-${part.key}`}>
+                  {part.node}
+                </span>
+              </React.Fragment>
+            ))}
           </span>
         )}
       </button>

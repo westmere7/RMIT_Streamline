@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.142.0",
+    date: "2026-11-22",
+    title: "Choose what Assets recap shows",
+    changes: ["The Assets recap column's Format lets you pick what its badge shows: number of assets, quantity, people in charge, hours of effort (at your output rates), the next due date and how many are done."],
+  },
+  {
     version: "0.141.3",
     date: "2026-11-22",
     title: "Clear archive",

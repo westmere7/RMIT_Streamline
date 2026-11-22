@@ -13,6 +13,7 @@ export * from "./board/column-role";
 export * from "./board/date-time-format";
 export * from "./board/countdown";
 export * from "./board/progress";
+export * from "./board/assets-recap";
 export * from "./board/last-updated";
 export * from "./board/button";
 export * from "./board/toolbar-buttons";

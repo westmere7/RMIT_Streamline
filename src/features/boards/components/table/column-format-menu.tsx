@@ -33,6 +33,10 @@ import {
   PROGRESS_NUMBERS,
   progressSettings,
   type ProgressColumnSettings,
+  ASSETS_RECAP_PART_LABELS,
+  ASSETS_RECAP_PARTS,
+  assetsRecapSettings,
+  toggleAssetsRecapPart,
   LAST_UPDATED_DISPLAY_LABELS,
   LAST_UPDATED_DISPLAYS,
   LAST_UPDATED_SOURCE_LABELS,
@@ -62,7 +66,7 @@ const FORMAT_PARTS: Partial<Record<ColumnType, { date: boolean; time: boolean }>
 };
 
 export function hasFormatMenu(column: BoardColumn): boolean {
-  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS" || column.type === "LAST_UPDATED" || column.type === "BUTTON" || column.type === "DROPDOWN";
+  return column.type in FORMAT_PARTS || column.type === "COUNTDOWN" || column.type === "PROGRESS" || column.type === "ASSETS_RECAP" || column.type === "LAST_UPDATED" || column.type === "BUTTON" || column.type === "DROPDOWN";
 }
 
 type Primitives = {
@@ -90,6 +94,7 @@ export function ColumnFormatMenu({ column, variant = "dropdown" }: { column: Boa
   const { Sub, SubTrigger, SubContent, Item, Label, Separator } = PRIMITIVES[variant];
   if (column.type === "COUNTDOWN") return <CountdownFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "PROGRESS") return <ProgressFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
+  if (column.type === "ASSETS_RECAP") return <AssetsRecapFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "DROPDOWN") return <DropdownStyleMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "LAST_UPDATED") return <LastUpdatedFormatMenu column={column} primitives={PRIMITIVES[variant]} />;
   if (column.type === "BUTTON") return <ButtonSettingsItem column={column} primitives={PRIMITIVES[variant]} />;
@@ -255,6 +260,35 @@ function LastUpdatedFormatMenu({ column, primitives }: { column: BoardColumn; pr
             ))}
           </>
         )}
+      </SubContent>
+    </Sub>
+  );
+}
+
+/** Assets recap's Format: which parts the badge shows, ticked on and off (the last one stays). Stays open between choices. */
+function AssetsRecapFormatMenu({ column, primitives }: { column: BoardColumn; primitives: Primitives }) {
+  const { mutations } = useBoardContext();
+  const { Sub, SubTrigger, SubContent, Item, Label } = primitives;
+  const settings = assetsRecapSettings(column.settings);
+  return (
+    <Sub>
+      <SubTrigger>
+        <SlidersHorizontal /> Format
+      </SubTrigger>
+      <SubContent className="w-52" data-testid="assets-recap-format-menu">
+        <Label className="text-2xs font-normal text-muted-foreground">Show</Label>
+        {ASSETS_RECAP_PARTS.map((part) => (
+          <Item
+            key={part}
+            onSelect={(event) => {
+              event.preventDefault();
+              void mutations.updateColumn(column.id, { settings: { ...settings, show: toggleAssetsRecapPart(settings.show, part) } });
+            }}
+          >
+            <span>{ASSETS_RECAP_PART_LABELS[part]}</span>
+            {settings.show.includes(part) && <Check className="ml-auto size-3.5" />}
+          </Item>
+        ))}
       </SubContent>
     </Sub>
   );
