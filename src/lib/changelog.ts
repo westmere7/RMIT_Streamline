@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.154.2",
+    date: "2026-11-23",
+    title: "Work types under the service",
+    changes: [
+      "A brief's header shows its work types under the service.",
+      "An edited brief says \"not original brief\"."
+    ],
+  },
+  {
     version: "0.154.1",
     date: "2026-11-22",
     title: "The brief as booked can't be overwritten",

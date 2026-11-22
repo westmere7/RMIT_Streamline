@@ -112,7 +112,7 @@ export function richTextToDocxBody(body: string, title: string): { xml: string; 
   const { facts, rest } = splitBriefFacts(parseRichText(body));
   const parts = [paragraph(run(title), { style: "Title" })];
   if (facts?.service) parts.push(paragraph(run("Service", { caps: true, color: "6B7280", size: 18 }), { after: 0 }), paragraph(run(facts.service, { bold: true, size: 36 })));
-  if (facts?.involves.length) parts.push(paragraph(run("Involves", { caps: true, color: "6B7280", size: 18 }), { after: 0 }), paragraph(run(facts.involves.join("  ·  "), { bold: true, size: 26 })));
+  if (facts?.involves.length) parts.push(paragraph(run("Work types", { caps: true, color: "6B7280", size: 18 }), { after: 0 }), paragraph(run(facts.involves.join("  ·  "), { bold: true, size: 26 })));
   if (facts) parts.push(paragraph("", { border: true }));
   parts.push(...rest.map((node) => block(node, links)));
   return { xml: parts.join(""), links: links.targets };

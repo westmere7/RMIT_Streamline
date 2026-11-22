@@ -458,7 +458,7 @@ export interface BriefFacts {
 }
 
 /**
- * The "Service:" and "Involves:" lines a booking puts at the top of its brief,
+ * The "Service:" and "Work types:" (once "Involves:") lines a booking puts at the top of its brief,
  * lifted out so they can head the document, and the blocks left after them. A
  * body that does not start with them comes back untouched.
  */
@@ -473,7 +473,7 @@ export function splitBriefFacts(blocks: BlockNode[]): { facts: BriefFacts | null
     const label = plainInline(first.children).trim();
     const value = plainInline(block.children.slice(1)).trim();
     if (label === "Service:" && !facts.service && value) facts.service = value;
-    else if (label === "Involves:" && facts.involves.length === 0 && value) facts.involves = value.split(/,\s*/).filter(Boolean);
+    else if ((label === "Work types:" || label === "Involves:") && facts.involves.length === 0 && value) facts.involves = value.split(/,\s*/).filter(Boolean);
     else break;
   }
   if (index === 0) return { facts: null, rest: blocks };

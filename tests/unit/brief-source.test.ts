@@ -51,3 +51,12 @@ describe("who booked it and when, in the brief", () => {
     expect(briefForVisitors(null)).toBeNull();
   });
 });
+
+describe("the brief's header", () => {
+  it("puts the work types under the service, and keeps who booked it in the body", async () => {
+    const { parseRichText, splitBriefFacts } = await import("@/lib/rich-text");
+    const { facts, rest } = splitBriefFacts(parseRichText("**Service:** Design Request\n\n**Work types:** Design, Motion graphic\n\n**Booked by:** Danh Nguyen · Comm.\n\n---\n\n## 1. Audience\nStudents"));
+    expect(facts).toEqual({ service: "Design Request", involves: ["Design", "Motion graphic"] });
+    expect(rest[0]?.type).toBe("paragraph");
+  });
+});

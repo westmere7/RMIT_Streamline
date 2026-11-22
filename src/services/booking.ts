@@ -595,6 +595,8 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
   const lines: string[] = [];
   // The facts a producer looks at first, on their own lines above the rule.
   if (service) lines.push(`**Service:** ${plain(service.name)}`);
+  // Straight under the service, which they narrow: the header shows both.
+  if (request.subServices.length) lines.push("", `**Work types:** ${request.subServices.map(plain).join(", ")}`);
   if (booked) {
     // Who asked and when, as words: the brief is the record of the request,
     // and it reads the same wherever it is copied, printed or exported.
@@ -602,7 +604,6 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
     if (who) lines.push("", `${BOOKED_BY_LABEL} ${who}`);
     lines.push("", `**Booked:** ${formatBookedAt(booked.at)}`);
   }
-  if (request.subServices.length) lines.push("", `**Work types:** ${request.subServices.map(plain).join(", ")}`);
   if (lines.length) lines.push("", "---");
 
   const numbers = questionNumbers(service?.blocks ?? []);

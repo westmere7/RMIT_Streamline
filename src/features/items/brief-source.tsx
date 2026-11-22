@@ -50,7 +50,7 @@ export function useBriefSource(item: Pick<Item, "id">, column: Pick<BoardColumn,
   }, [raw, edited, activity.data, column, ws]);
 }
 
-/** "Edited by Danh Nguyen · Nov 22, 2026 at 2:20 PM", under the brief's title bar. */
+/** "Edited by Danh Nguyen · Nov 22, 2026 at 2:20 PM · not original brief", under the brief's title bar. */
 export function BriefEditedNote({ source, className }: { source: BriefSource; className?: string }) {
   if (!source.edited) return null;
   return (
@@ -62,7 +62,7 @@ export function BriefEditedNote({ source, className }: { source: BriefSource; cl
         </>
       )}
       {source.editedAt && <> · {formatDateTime(source.editedAt)}</>}
-      {" "}· not as booked
+      {" "}· not original brief
     </p>
   );
 }

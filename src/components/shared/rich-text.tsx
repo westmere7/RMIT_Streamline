@@ -213,10 +213,10 @@ function Block({ node, mentionHref, variant = "compact", checklist }: { node: Bl
   }
 }
 
-/** What was booked, above everything else in the brief: the service large, what it involves as chips. */
+/** What was booked, above everything else in the brief: the service large, its work types as chips under it. */
 function BriefFactsHeader({ facts }: { facts: BriefFacts }) {
   return (
-    <div className="mb-4 flex flex-wrap gap-x-8 gap-y-3 rounded-lg bg-muted/60 px-3.5 py-3" data-testid="brief-facts">
+    <div className="mb-4 flex flex-col gap-2.5 rounded-lg bg-muted/60 px-3.5 py-3" data-testid="brief-facts">
       {facts.service && (
         <div className="min-w-0">
           <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Service</p>
@@ -225,7 +225,7 @@ function BriefFactsHeader({ facts }: { facts: BriefFacts }) {
       )}
       {facts.involves.length > 0 && (
         <div className="min-w-0">
-          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Involves</p>
+          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Work types</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {facts.involves.map((part) => (
               <span key={part} className="rounded-md border bg-background px-2 py-0.5 text-[13px] font-medium text-foreground">
