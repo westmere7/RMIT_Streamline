@@ -21,7 +21,7 @@ import { HttpError } from "./http";
  *   - they can see the board it is going to (read with their own session).
  */
 
-export const allocateBodySchema = z.object({ itemId: z.uuid(), boardId: z.uuid(), groupId: z.uuid().nullable().optional() });
+export const allocateBodySchema = z.object({ itemId: z.uuid(), boardId: z.uuid() });
 
 interface BoardRow {
   id: string;
@@ -100,5 +100,5 @@ export async function allocateRequest(request: Request, input: z.infer<typeof al
 
   routeRepositoriesThrough(admin);
   const services = createServices(createSupabaseRepositories());
-  return services.booking.allocate(input.itemId, input.boardId, userId, { groupId: input.groupId ?? null });
+  return services.booking.allocate(input.itemId, input.boardId, userId);
 }

@@ -7,8 +7,9 @@ import { createServices } from "@/services";
 
 /**
  * A board's landing group (v0.156): where tasks from other boards land when
- * allocated, moved or booked straight onto it, unless the one moving them picks
- * another. One per board; none on a built-in board.
+ * allocated, moved or booked straight onto it (a move may pick another group;
+ * allocating may not). Always one per board, the chosen group else the first;
+ * none on a built-in board.
  */
 describe("the landing group", () => {
   let services: ReturnType<typeof createServices>;
@@ -49,15 +50,12 @@ describe("the landing group", () => {
     expect(updated.landingGroupId).toBe(groups[1]!.id);
   });
 
-  it("takes an allocated request unless another group is picked", async () => {
+  it("always takes an allocated request: the chosen group, else the first", async () => {
+    const first = await bookOnQueue("Lands in the first group");
+    expect((await services.booking.allocate(first.id, target.id, danh)).item.groupId).toBe(groups[0]!.id);
     await services.boards.updateBoard(target.id, { landingGroupId: groups[1]!.id }, danh);
-    const first = await bookOnQueue("Lands by default");
-    expect((await services.booking.allocate(first.id, target.id, danh)).item.groupId).toBe(groups[1]!.id);
-    const second = await bookOnQueue("Lands where picked");
-    expect((await services.booking.allocate(second.id, target.id, danh, { groupId: groups[0]!.id })).item.groupId).toBe(groups[0]!.id);
-    const third = await bookOnQueue("Picked on the wrong board");
-    const queueGroup = (await repos.boards.listGroups(queue.id))[0]!;
-    await expect(services.booking.allocate(third.id, target.id, danh, { groupId: queueGroup.id })).rejects.toThrow(/not on/);
+    const second = await bookOnQueue("Lands in the chosen group");
+    expect((await services.booking.allocate(second.id, target.id, danh)).item.groupId).toBe(groups[1]!.id);
   });
 
   it("takes a task moved from another board, and the choice goes when the group does", async () => {

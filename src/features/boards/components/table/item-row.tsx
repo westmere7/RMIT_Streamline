@@ -200,6 +200,10 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 }}
                 data-testid="item-name-cell"
               >
+                {/* Somebody who only views the board has nothing to add: no "Add subitem" for them, just the room it takes. */}
+                {!canEdit && subitems.length === 0 ? (
+                  <span aria-hidden className="size-5 shrink-0" />
+                ) : (
                 <button
                   type="button"
                   aria-label={expanded ? "Hide subitems" : subitems.length ? `Show ${subitems.length} subitems` : "Add subitem"}
@@ -217,6 +221,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
                 >
                   {expanded ? <ChevronDown className="size-3.5" /> : subitems.length ? <ChevronRight className="size-3.5" /> : <CornerDownRight className="size-3.5" />}
                 </button>
+                )}
                 {/* Renaming, the field spans the whole cell and the badges and buttons step aside for it. */}
                 <div className={cn("flex h-full min-w-0 items-center", renaming && "flex-1 pr-1")}>
                   {renaming ? (

@@ -35,7 +35,7 @@ export class HttpBookingTransport implements BookingTransport {
   }
 
   /** Allocating goes through src/app/api/allocate (src/server/allocation.ts), with the member's session. */
-  async allocate(input: { itemId: string; boardId: string; groupId?: string | null }): Promise<{ item: Item; board: Board }> {
+  async allocate(input: { itemId: string; boardId: string }): Promise<{ item: Item; board: Board }> {
     return callApi<{ item: Item; board: Board }>("/api/allocate", { method: "POST", body: JSON.stringify(input) }, { auth: "required" });
   }
 

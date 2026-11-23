@@ -80,9 +80,10 @@ test("a rename on a board reaches the other person's open board, live", async ({
   const danh = await signedIn(browser, "danh@rmit.local");
   await danh.goto(`/workspace/rmit/boards/${aBoard.slug}`);
   await expect(danh.getByTestId("board-table")).toBeVisible({ timeout: 30_000 });
-  const emily = await as("emily@rmit.local");
+  // Renamed with the service role: what is under test is the live update reaching Danh, not who may edit
+  // (team access, v0.116, keeps Emily off this board's edits, and RLS would quietly change nothing).
   const renamed = `${aBoard.name} (live)`;
-  const { error } = await emily.from("items").update({ name: renamed }).eq("id", aBoard.itemId);
+  const { error } = await service().from("items").update({ name: renamed }).eq("id", aBoard.itemId);
   expect(error).toBeNull();
   await expect(danh.getByText(renamed, { exact: true }).first()).toBeVisible({ timeout: 20_000 });
   await danh.context().close();

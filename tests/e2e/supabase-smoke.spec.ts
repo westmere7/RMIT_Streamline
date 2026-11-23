@@ -371,8 +371,8 @@ test.describe("supabase provider", () => {
     await expect(page.getByTestId("profile-figures")).toBeVisible();
     await expect(page.getByTestId("profile-tab-boards")).toBeVisible();
     await expect(page.getByTestId("profile-task").first()).toBeVisible({ timeout: 20_000 });
-    // She has joined, so her details are hers: not even an Owner edits them.
-    await expect(page.getByTestId("profile-edit")).toHaveCount(0);
+    // Admins edit a member's details, joined or not (v0.96, migration 0111); the email stays the server's to change.
+    await expect(page.getByTestId("profile-edit")).toBeVisible();
     expect(errors).toEqual([]);
   });
 

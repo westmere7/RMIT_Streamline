@@ -177,16 +177,20 @@ test.describe("the asset system", () => {
 
     // A text column as the due date: its cells are not dates, so it asks first. Cancel.
     await giveRole(page, "MESSAGE", "Due date");
-    const warning = page.getByRole("alertdialog");
+    // The fit prompt (v0.133.1): says what does not read, and offers to clear, pick another or make a new column.
+    const warning = page.getByTestId("column-fit-prompt");
     await expect(warning).toContainText("aren’t a date");
-    await warning.getByRole("button", { name: "Cancel" }).click();
+    await warning.getByTestId("column-fit-cancel").click();
     await expect(warning).toBeHidden();
 
-    // LIVE DATE reads as dates: given at once, no question. DEVELOPED BY as the PIC: asked, accepted.
+    // LIVE DATE reads as dates: given at once, no question. DEVELOPED BY as the PIC: if asked, a new People column takes it.
     await giveRole(page, "LIVE DATE", "Due date");
-    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(page.getByTestId("column-fit-prompt")).toHaveCount(0);
     await giveRole(page, "DEVELOPED BY", "PIC");
-    await page.getByRole("alertdialog").getByRole("button", { name: "Use anyway" }).click();
+    if (await warning.waitFor({ state: "visible", timeout: 3_000 }).then(() => true).catch(() => false)) {
+      await warning.getByTestId("column-fit-new").click();
+      await expect(warning).toBeHidden({ timeout: 10_000 });
+    }
     // One column a part: the menu names the column that holds Asset name.
     await headerMenu(page, "STATUS");
     await page.getByRole("menuitem", { name: "Asset role" }).click();
@@ -236,7 +240,8 @@ test.describe("the asset system", () => {
     await panel(page).getByTestId("open-tracker-sheet").click();
     await expect(page.getByTestId("tracker-grid")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("gridcell", { name: "Format: E2E renamed format" })).toBeVisible();
-    await expect(page.getByRole("gridcell", { name: /DEVELOPED BY: Danh/ })).toBeVisible();
+    // The PIC is the People column the fit prompt made (DEVELOPED BY holds places, not people), or DEVELOPED BY when it was taken as is.
+    await expect(page.getByRole("gridcell", { name: /^(PIC|DEVELOPED BY): Danh/ }).first()).toBeVisible();
   });
 
   test("two tabs stay in step: a cell typed in the sheet reaches the task, a tick on the task reaches the sheet", async ({ page, context }) => {

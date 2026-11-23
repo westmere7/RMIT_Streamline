@@ -78,8 +78,8 @@ export function BulkActionsBar() {
               {/* Team, then board, so every line is one name long. */}
               {allocation.targets.map(({ team, boards }) => {
                 const icon = team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : null;
-                const send = (boardId: string, groupId: string | null = null) => {
-                  allocation.allocate.mutate({ itemIds: ids, boardId, groupId });
+                const send = (boardId: string) => {
+                  allocation.allocate.mutate({ itemIds: ids, boardId });
                   clear();
                 };
                 return (
@@ -89,34 +89,12 @@ export function BulkActionsBar() {
                       <span className="min-w-0 truncate">{team ? team.name : "No team"}</span>
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="w-56">
-                      {boards.map((target) => {
-                        const groups = allocation.groupsFor(target);
-                        // One group (or not read yet): the board alone, landing in its landing group.
-                        if (!groups || groups.groups.length <= 1)
-                          return (
-                            <DropdownMenuItem key={target.id} onSelect={() => send(target.id)} data-testid={`bulk-allocate-${target.slug}`}>
-                              <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
-                              <span className="min-w-0 truncate">{target.name}</span>
-                            </DropdownMenuItem>
-                          );
-                        const ordered = [...groups.groups].sort((a, b) => (a.id === groups.landingId ? -1 : b.id === groups.landingId ? 1 : a.position - b.position));
-                        return (
-                          <DropdownMenuSub key={target.id}>
-                            <DropdownMenuSubTrigger data-testid={`bulk-allocate-${target.slug}`}>
-                              <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
-                              <span className="min-w-0 truncate">{target.name}</span>
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent className="w-56">
-                              {ordered.map((group) => (
-                                <DropdownMenuItem key={group.id} onSelect={() => send(target.id, group.id)} data-testid={`bulk-allocate-${target.slug}-group-${group.id}`}>
-                                  <span className="min-w-0 flex-1 truncate">{group.name}</span>
-                                  {group.id === groups.landingId && <span className="text-2xs text-muted-foreground">Landing</span>}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                        );
-                      })}
+                      {boards.map((target) => (
+                        <DropdownMenuItem key={target.id} onSelect={() => send(target.id)} data-testid={`bulk-allocate-${target.slug}`}>
+                          <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 truncate">{target.name}</span>
+                        </DropdownMenuItem>
+                      ))}
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>
                 );

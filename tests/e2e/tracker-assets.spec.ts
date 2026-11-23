@@ -103,6 +103,11 @@ test.describe("tracker sheets as task assets", () => {
 
     await page.getByTestId("linked-sheet-settings").click();
     await page.getByTestId("task-assets-unlink").click();
+    // Unlinking asks first (v0.136.5) and keeps the assets unless told not to: here they come off.
+    const confirm = page.getByRole("alertdialog");
+    await confirm.getByRole("switch").click();
+    await expect(confirm.getByRole("switch")).toHaveAttribute("aria-checked", "false");
+    await confirm.getByRole("button", { name: "Unlink" }).click();
     await expect(bar).toHaveCount(0);
   });
 
@@ -119,7 +124,10 @@ test.describe("tracker sheets as task assets", () => {
     const dialog = page.getByTestId("task-assets-dialog");
     await expect(dialog.getByTestId("task-assets-task")).toBeVisible();
     await dialog.getByTestId("map-name").click();
-    await page.getByRole("option", { name: "Format", exact: true }).click();
+    // The first free sheet is whichever the picker lists first (team's own first, v0.135.2): name the assets from its first column.
+    const options = page.getByRole("option");
+    await expect(options.nth(2)).toBeVisible();
+    await options.nth(2).click();
     await dialog.getByTestId("task-assets-save").click();
     await expect(panel.getByTestId("tracker-sheet-section")).toBeVisible({ timeout: 10_000 });
     await expect(panel.getByTestId("tracker-sheet-line").first()).toBeVisible();

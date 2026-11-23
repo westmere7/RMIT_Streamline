@@ -1,10 +1,9 @@
 "use client";
 
-import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
-import type { Board, BoardGroup } from "@/domain";
-import { landingGroupOf } from "@/domain";
+import type { Board } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useBoardContext } from "@/features/boards/board-context";
 import { useServices } from "@/features/data/data-context";
@@ -14,7 +13,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import type { ColorToken } from "@/domain";
 
-/** Every allocation, from the row, the selection or the panel, carries this key and `{ itemIds, boardId, groupId? }`. */
+/** Every allocation, from the row, the selection or the panel, carries this key and `{ itemIds, boardId }`; the request lands in the board's landing group. */
 export const ALLOCATE_KEY = ["allocate"] as const;
 
 /**
@@ -35,12 +34,6 @@ export function useMovingItems(): ReadonlyMap<string, string> {
     for (const vars of pending) if (vars) for (const id of vars.itemIds) moving.set(id, vars.boardId);
     return moving;
   }, [pending]);
-}
-
-/** A target board's groups a request can land in, and the one it lands in when none is picked. */
-export interface TargetGroups {
-  groups: BoardGroup[];
-  landingId: string | null;
 }
 
 /** A board a request can be sent to, under the team that owns it. */
@@ -71,12 +64,12 @@ export function useAllocation() {
 
   const allocate = useMutation({
     mutationKey: ALLOCATE_KEY,
-    mutationFn: async ({ itemIds, boardId, groupId = null }: { itemIds: string[]; boardId: string; groupId?: string | null }) => {
+    mutationFn: async ({ itemIds, boardId }: { itemIds: string[]; boardId: string }) => {
       // One request at a time: the service moves an item and rewrites its
       // group, and a failure halfway through should leave the ones that
       // worked where they were sent rather than rolling the lot back.
       const results = [];
-      for (const id of itemIds) results.push(await services.booking.allocate(id, boardId, user.id, { groupId }));
+      for (const id of itemIds) results.push(await services.booking.allocate(id, boardId, user.id));
       return { target: results[0]!.board, count: results.length };
     },
     onSuccess: async ({ target, count }) => {
@@ -124,27 +117,5 @@ export function useAllocation() {
    */
   const empty = targets.length === 0;
 
-  // Each target board's groups, so a request can be sent to one in particular.
-  // Read once the queue is open for allocating, and kept a minute.
-  const boardIds = React.useMemo(() => targets.flatMap((t) => t.boards.map((b) => b.id)), [targets]);
-  const groups = useQuery({
-    queryKey: ["allocation-groups", ws.workspace.id, boardIds],
-    queryFn: async () => {
-      const lists = await Promise.all(boardIds.map((id) => services.repos.boards.listGroups(id)));
-      return new Map(boardIds.map((id, index) => [id, lists[index]!.filter((g) => g.role !== "INTAKE").sort((a, b) => a.position - b.position)]));
-    },
-    enabled: available && boardIds.length > 0,
-    staleTime: 60_000,
-  });
-  /** A target board's groups, landing group marked; null until they are read. */
-  const groupsFor = React.useCallback(
-    (target: Board): TargetGroups | null => {
-      const list = groups.data?.get(target.id);
-      if (!list) return null;
-      return { groups: list, landingId: landingGroupOf(target, list)?.id ?? null };
-    },
-    [groups.data],
-  );
-
-  return { available, empty, targets, allocate, pending: allocate.isPending, groupsFor };
+  return { available, empty, targets, allocate, pending: allocate.isPending };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowRight, ArrowRightLeft, CheckSquare, ChevronDown, Copy, LayoutList, MoreHorizontal, Plus, SearchX, Table2, Trash2, X } from "lucide-react";
+import { Archive, ArrowRight, ArrowRightLeft, CheckSquare, ChevronDown, Copy, LayoutList, MoreHorizontal, Plus, SearchX, SquareKanban, Table2, Trash2, X } from "lucide-react";
 import * as React from "react";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
@@ -20,7 +20,6 @@ import { cn, pluralize } from "@/lib/utils";
 import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
 import { BookViaFormButton, useBookingFormOpen } from "@/features/booking/book-via-form-dialog";
 import { useAllocation } from "@/features/booking/use-allocation";
-import { allocationTargetAction } from "@/features/booking/allocation-menu";
 
 /** One shared empty array, so a group with no items keeps a stable identity. */
 const NO_OVERRIDES: string[] = [];
@@ -438,7 +437,7 @@ function MobileBulkBar({ onDone }: { onDone: () => void }) {
         actions={allocation.targets.map(({ team, boards }) => ({
           type: "sub" as const,
           label: team ? team.name : "No team",
-          items: boards.map((target) => allocationTargetAction(target, allocation.groupsFor(target), (groupId) => after(() => allocation.allocate.mutate({ itemIds: ids, boardId: target.id, groupId })))),
+          items: boards.map((target) => ({ type: "item" as const, label: target.name, icon: <SquareKanban />, onSelect: () => after(() => allocation.allocate.mutate({ itemIds: ids, boardId: target.id })) })),
         }))}
       />
       <ConfirmDialog

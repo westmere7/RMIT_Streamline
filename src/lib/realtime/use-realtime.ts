@@ -76,6 +76,14 @@ interface OpenChannel {
   closing: ReturnType<typeof setTimeout> | null;
 }
 const open = new Map<string, OpenChannel>();
+/**
+ * Each opening gets a Supabase channel name of its own. Closing is asynchronous:
+ * `removeChannel` keeps the old channel listed until it has unsubscribed, and a
+ * caller that opened the same topic in that gap (a page swapped, a workspace
+ * switched) was handed the old, already-subscribed channel and threw on its
+ * first listener.
+ */
+let openings = 0;
 
 /** Short, stable digest of the bindings, so one topic always means one set of listeners. */
 function digest(signature: string): string {
@@ -150,7 +158,8 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
       timer = setTimeout(flush, wait);
     };
 
-    const subscription = supabase.channel(topic);
+    openings += 1;
+    const subscription = supabase.channel(`${topic}~${openings}`);
     // Tables whose deletions a filter would hide, and everything those
     // bindings wanted refreshed. See the DELETE listener below.
     const deletes = new Map<string, Map<string, readonly unknown[]>>();

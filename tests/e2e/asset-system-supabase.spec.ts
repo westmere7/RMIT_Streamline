@@ -111,7 +111,8 @@ test("two people, one task: lines, assignment, ticking, a linked sheet and its e
   await expect(dialog.getByTestId("map-pic")).toContainText("PIC");
   await expectWrite(sheetPage, "tracker_sheets", () => dialog.getByTestId("task-assets-save").click());
   await expect(sheetPage.getByTestId("linked-sheet-bar")).toContainText(TASK, { timeout: 30_000 });
-  await expect(sheetPage.locator("thead th").filter({ hasText: /^PIC/ })).toHaveCount(1);
+  // The sheet is the stack's own and outlives a run, so earlier runs' PIC columns may be there too.
+  await expect(sheetPage.locator("thead th").filter({ hasText: /^PIC/ }).first()).toBeVisible();
 
   // Emily's task panel grows a sheet card, live.
   const emilySheet = panel(emily).getByTestId("tracker-sheet-section");
@@ -149,5 +150,7 @@ test("two people, one task: lines, assignment, ticking, a linked sheet and its e
 
   // Leave the sheet unlinked again.
   await sheetPage.getByTestId("linked-sheet-settings").click();
-  await expectWrite(sheetPage, "tracker_sheets", () => sheetPage.getByTestId("task-assets-unlink").click());
+  await sheetPage.getByTestId("task-assets-unlink").click();
+  // Unlinking asks first (v0.136.5); the write is the confirm.
+  await expectWrite(sheetPage, "tracker_sheets", () => sheetPage.getByRole("alertdialog").getByRole("button", { name: "Unlink" }).click());
 });

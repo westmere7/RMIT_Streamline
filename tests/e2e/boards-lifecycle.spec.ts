@@ -8,7 +8,8 @@ async function createBoard(page: import("@playwright/test").Page, name: string) 
   await page.getByLabel("Board name").fill(name);
   await expect(page.getByTestId("board-template")).toContainText("Blank");
   await page.getByRole("button", { name: /create board/i }).click();
-  await expect(page.getByRole("heading", { level: 1, name })).toBeVisible({ timeout: 15000 });
+  // The title is a button inside the h1 ("Edit board name"), so the heading is found by its text.
+  await expect(page.getByRole("heading", { level: 1 }).filter({ hasText: name })).toBeVisible({ timeout: 15000 });
 }
 
 test.describe("board lifecycle", () => {
@@ -78,7 +79,7 @@ test.describe("board lifecycle", () => {
     await page.getByRole("button", { name: /restore board/i }).click();
     await expect(page.getByText(/archived/i)).toHaveCount(0, { timeout: 15000 });
     await page.reload();
-    await expect(page.getByRole("heading", { level: 1, name: "Archive me" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 }).filter({ hasText: "Archive me" })).toBeVisible();
   });
 
   test("deleting a board removes it and its URL stops working", async ({ page }) => {

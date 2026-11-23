@@ -131,7 +131,8 @@ test.describe("column types", () => {
     await cell(page, "Reference").click();
     await page.getByLabel("URL").fill("https://example.com/brief.pdf");
     await page.getByLabel("Link text").fill("The brief");
-    await page.getByRole("button", { name: "Save" }).click();
+    // Exact: "Saved views" is a button on the toolbar too.
+    await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(cell(page, "Reference")).toContainText("The brief");
     await page.reload();
     // The address opens from the icon; the cell itself belongs to the editor.
@@ -180,8 +181,11 @@ test.describe("column types", () => {
     const timeline = cell(page, "Timeline");
     await timeline.click();
     const picker = page.locator("[data-radix-popper-content-wrapper]").last();
-    await picker.getByRole("button", { name: /September 15th/ }).click();
-    await picker.getByRole("button", { name: /September 18th/ }).click();
+    // Whatever month the calendar opens on (it follows today and the seed): the 15th, then the 18th of that month.
+    const fifteenth = picker.getByRole("button", { name: /15th/ }).first();
+    const month = (await fifteenth.getAttribute("aria-label") ?? (await fifteenth.textContent()) ?? "").match(/(January|February|March|April|May|June|July|August|September|October|November|December)/)?.[1] ?? "";
+    await fifteenth.click();
+    await picker.getByRole("button", { name: new RegExp(`${month} 18th`) }).first().click();
     await page.keyboard.press("Escape");
     const label = await cell(page, "Timeline").getAttribute("aria-label");
     expect(label).toMatch(/Timeline: .*\d/);

@@ -20,6 +20,34 @@ function readLocal(storageKey: string): Record<string, unknown> {
   }
 }
 
+/**
+ * A change this browser has made but not yet saved to the database (the save
+ * waits 600 ms for more). Until it is saved, this browser's copy is the newer
+ * one: a reload in that gap must not let the database's older copy win.
+ */
+const PENDING_KEY = "streamline.view-settings.pending";
+
+function pendingKeys(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    return new Set(JSON.parse(window.localStorage.getItem(PENDING_KEY) ?? "[]") as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function setPending(storageKey: string, pending: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys = pendingKeys();
+    if (pending) keys.add(storageKey);
+    else keys.delete(storageKey);
+    window.localStorage.setItem(PENDING_KEY, JSON.stringify([...keys]));
+  } catch {
+    // ignore storage failures
+  }
+}
+
 function writeLocal(storageKey: string, value: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
@@ -80,6 +108,17 @@ export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: s
   React.useEffect(() => {
     touched.current = false;
     let cancelled = false;
+    // A change made here and not saved yet (the page was left inside the save's
+    // 600 ms): this browser's copy is the newer one, so it is saved now and wins.
+    if (pendingKeys().has(storageKey)) {
+      void services.repos.admin
+        .saveBoardViewSettings(user.id, board.id, view, readLocal(storageKey))
+        .then(() => setPending(storageKey, false))
+        .catch(() => undefined);
+      return () => {
+        cancelled = true;
+      };
+    }
     void services.repos.admin
       .getBoardViewSettings(user.id, board.id)
       .then((all) => {
@@ -102,8 +141,16 @@ export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: s
       setState((prev) => {
         const next = { ...prev, ...patch };
         writeLocal(storageKey, next);
+        setPending(storageKey, true);
         if (timer.current) window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => void services.repos.admin.saveBoardViewSettings(user.id, board.id, view, next).catch(() => undefined), 600);
+        timer.current = window.setTimeout(
+          () =>
+            void services.repos.admin
+              .saveBoardViewSettings(user.id, board.id, view, next)
+              .then(() => setPending(storageKey, false))
+              .catch(() => undefined),
+          600,
+        );
         return next;
       });
     },

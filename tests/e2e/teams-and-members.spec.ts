@@ -28,6 +28,9 @@ test.describe("teams and members", () => {
     await page.getByRole("button", { name: "Edit" }).click();
     await page.getByLabel("Team name").fill(LONG);
     await page.getByRole("button", { name: "Save changes" }).click();
+    // The tabbed settings stay open once saved (v0.116): Save greys out, and the dialog is closed by hand.
+    await expect(page.getByRole("button", { name: "Save changes" })).toBeDisabled({ timeout: 10000 });
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Brand, Campaigns", { timeout: 10000 });
 
     // Long names must not blow the layout out horizontally.

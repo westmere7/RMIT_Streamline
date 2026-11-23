@@ -22,6 +22,12 @@ async function openSettings(page: Page) {
   await expect(page.getByTestId("notification-settings")).toBeVisible({ timeout: 20_000 });
 }
 
+/** The board list is on its own tab of the settings (v0.138.2). */
+async function openFollowing(page: Page) {
+  await openSettings(page);
+  await page.getByTestId("notification-tab-following").click();
+}
+
 async function switchTo(page: Page, name: string) {
   await page.goto("/workspace/rmit");
   await switchAccount(page, name.split(" ")[0]!);
@@ -169,7 +175,7 @@ test.describe("notifications and updates", () => {
     await page.keyboard.press("Escape");
 
     // The settings screen shows the same thing.
-    await openSettings(page);
+    await openFollowing(page);
     const boardRow = page.getByTestId("board-subscription").filter({ hasText: "RMITinerary 2026" });
     await expect(boardRow).toContainText("Unsubscribed");
     await page.keyboard.press("Escape");
@@ -182,7 +188,7 @@ test.describe("notifications and updates", () => {
     await expect(page.getByText("muted board mention")).toHaveCount(0);
 
     // Resubscribe from the settings screen, and it does again.
-    await openSettings(page);
+    await openFollowing(page);
     await page.getByTestId("board-subscription").filter({ hasText: "RMITinerary 2026" }).getByRole("switch").click();
     await expect(page.getByTestId("board-subscription").filter({ hasText: "RMITinerary 2026" })).toContainText(/^(?!.*Unsubscribed).*Subscribed/s);
     await page.keyboard.press("Escape");
@@ -283,10 +289,15 @@ test.describe("operating-system notifications", () => {
         open.onerror = () => reject(open.error);
       });
       const me = "00000001-0000-4000-8000-000000000001";
+      // A task that exists: the inbox leaves out a notification about one it cannot find.
+      const task: { id: string; boardId: string } = await new Promise((resolve) => {
+        const read = db.transaction("items").objectStore("items").getAll();
+        read.onsuccess = () => resolve((read.result as Array<{ id: string; boardId: string; parentItemId: string | null; archivedAt: string | null }>).find((i) => !i.parentItemId && !i.archivedAt)!);
+      });
       const now = new Date().toISOString();
       const rows = [
-        { id: crypto.randomUUID(), userId: me, type: "MENTION", delivery: "NOTIFICATION", title: "Emily mentioned you in the incoming test", body: "please look", entityType: "ITEM", entityId: crypto.randomUUID(), boardId: null, actorId: null, readAt: null, createdAt: now },
-        { id: crypto.randomUUID(), userId: me, type: "STATUS_CHANGED", delivery: "UPDATE", title: "A quiet update that must stay quiet", body: null, entityType: "ITEM", entityId: crypto.randomUUID(), boardId: null, actorId: null, readAt: null, createdAt: now },
+        { id: crypto.randomUUID(), userId: me, type: "MENTION", delivery: "NOTIFICATION", title: "Emily mentioned you in the incoming test", body: "please look", entityType: "ITEM", entityId: task.id, boardId: task.boardId, actorId: null, readAt: null, createdAt: now },
+        { id: crypto.randomUUID(), userId: me, type: "STATUS_CHANGED", delivery: "UPDATE", title: "A quiet update that must stay quiet", body: null, entityType: "ITEM", entityId: task.id, boardId: task.boardId, actorId: null, readAt: null, createdAt: now },
       ];
       await new Promise<void>((resolve) => {
         const tx = db.transaction("notifications", "readwrite");
@@ -325,6 +336,11 @@ test.describe("operating-system notifications", () => {
         open.onerror = () => reject(open.error);
       });
       const me = "00000001-0000-4000-8000-000000000001";
+      // A task that exists: the inbox leaves out a notification about one it cannot find.
+      const task: { id: string; boardId: string } = await new Promise((resolve) => {
+        const read = db.transaction("items").objectStore("items").getAll();
+        read.onsuccess = () => resolve((read.result as Array<{ id: string; boardId: string; parentItemId: string | null; archivedAt: string | null }>).find((i) => !i.parentItemId && !i.archivedAt)!);
+      });
       await new Promise<void>((resolve) => {
         const tx = db.transaction("notifications", "readwrite");
         tx.objectStore("notifications").put({
@@ -335,8 +351,8 @@ test.describe("operating-system notifications", () => {
           title: "Should not reach the operating system",
           body: null,
           entityType: "ITEM",
-          entityId: crypto.randomUUID(),
-          boardId: null,
+          entityId: task.id,
+          boardId: task.boardId,
           actorId: null,
           readAt: null,
           createdAt: new Date().toISOString(),

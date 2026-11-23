@@ -167,6 +167,13 @@ describe("buildFacts", () => {
     expect(shouted.requests.find((r) => r.id === "in1")!.request!.department).toBe("School of Business");
   });
 
+  it("counts a task on a board with no columns instead of failing", () => {
+    const base = snapshot();
+    const bare = { ...base, boards: [...base.boards, board("b-bare", "t-a", "Bare board")], groups: [...base.groups, group("g-bare", "b-bare", "Work")], items: [...base.items, item("bare-1", "b-bare", "g-bare", "2026-03-01T00:00:00.000Z")] };
+    const fact = buildFacts(bare).tasks.find((t) => t.id === "bare-1");
+    expect(fact?.status).toBe("none");
+  });
+
   it("keeps asset lines of delivery tasks only", () => {
     const facts = buildFacts(snapshot());
     // as4 sits on b2, the allocated copy of a2. The copy is dropped so tasks

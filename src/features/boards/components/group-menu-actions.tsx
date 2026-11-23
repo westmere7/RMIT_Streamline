@@ -21,7 +21,7 @@ export function useGroupMenuActions(group: BoardGroup, handlers: { onRename: () 
   const boardActions = useBoardActions(board);
   if (!canEdit) return [];
   const intake = group.id === model.intakeGroupId;
-  const landing = isLandingGroup(board, group.id);
+  const landing = isLandingGroup(board, model.groups, group.id);
   return [
     { type: "item", label: "Rename group", icon: <Pencil />, onSelect: handlers.onRename },
     {
@@ -31,8 +31,8 @@ export function useGroupMenuActions(group: BoardGroup, handlers: { onRename: () 
       content: <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />,
     },
     { type: "item", label: "Duplicate group", icon: <Copy />, onSelect: () => void mutations.duplicateGroup(group.id) },
-    ...(canManage && !board.system && !intake
-      ? [{ type: "item", label: landing ? "Stop landing tasks here" : "Land tasks here", icon: <ArrowDownToLine />, onSelect: () => boardActions.updateBoard.mutate({ landingGroupId: landing ? null : group.id }) } satisfies MenuAction]
+    ...(canManage && !board.system && !intake && !landing
+      ? [{ type: "item", label: "Land tasks here", icon: <ArrowDownToLine />, onSelect: () => boardActions.updateBoard.mutate({ landingGroupId: group.id }) } satisfies MenuAction]
       : []),
     { type: "separator" },
     intake

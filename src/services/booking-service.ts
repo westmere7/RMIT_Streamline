@@ -65,7 +65,7 @@ export interface BookingTransport {
    * Allocating a request: the server's, since the person allocating need not
    * be able to edit the board it goes to (src/server/allocation.ts).
    */
-  allocate?(input: { itemId: EntityId; boardId: EntityId; groupId?: EntityId | null }): Promise<{ item: Item; board: Board }>;
+  allocate?(input: { itemId: EntityId; boardId: EntityId }): Promise<{ item: Item; board: Board }>;
   /** The bookings made with this email, when the published form lists them on its receipt. */
   pastBookings?(input: { workspaceSlug: string; key: string | null; email: string }): Promise<BookingPastSummary[]>;
 }
@@ -821,8 +821,8 @@ export class BookingService {
    * a date lands in the column that means the same thing on the team's board,
    * and a value with nowhere to go is dropped rather than stranded.
    */
-  async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId, options: { groupId?: EntityId | null } = {}): Promise<{ item: Item; board: Board }> {
-    if (this.transport?.allocate) return this.transport.allocate({ itemId, boardId: targetBoardId, groupId: options.groupId ?? null });
+  async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId): Promise<{ item: Item; board: Board }> {
+    if (this.transport?.allocate) return this.transport.allocate({ itemId, boardId: targetBoardId });
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
     const [source, target] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(targetBoardId)]);
@@ -839,10 +839,8 @@ export class BookingService {
       this.repos.items.listValuesByItem(item.id),
       this.repos.items.listByBoard(target.id),
     ]);
-    // The group the allocator picked, else the board's landing group, else its top group.
-    const picked = options.groupId ? groups.find((g) => g.id === options.groupId && g.role !== "INTAKE") : undefined;
-    if (options.groupId && !picked) throw new RefusedError(`That group is not on ${target.name}. Pick one of its groups.`);
-    const group = picked ?? landingGroupOf(target, groups);
+    // Always the board's landing group (its first group when none is chosen): allocating picks a board, not a group.
+    const group = landingGroupOf(target, groups);
     if (!group) throw new RefusedError(`${target.name} has no group to receive the task.`);
 
     // Worked out before the move, while the values still have their columns.

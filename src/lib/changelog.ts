@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.156.1",
+    date: "2026-11-23",
+    title: "Allocation lands in the landing group",
+    changes: [
+      "Allocating picks a board only: the task lands in that board's landing group. Moving a task still lets you pick the group.",
+      "Every board has a landing group: the one chosen, else its first group, marked on the board.",
+      "The dashboard no longer fails on a board with no columns.",
+      "Fixed live updates sometimes failing to reopen after moving between pages.",
+      "A view setting changed just before a reload is kept.",
+      "Read-only boards no longer offer Add subitem."
+    ],
+  },
+  {
     version: "0.156.0",
     date: "2026-11-23",
     title: "Two booking forms, short links, landing groups",

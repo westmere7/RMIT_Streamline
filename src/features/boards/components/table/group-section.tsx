@@ -85,10 +85,11 @@ export function GroupSection({
   const collapsed = canEdit ? group.collapsed : overrides.includes(group.id) !== group.collapsed;
   // Task Allocation's intake group: bookings arrive here, so it can be renamed but not deleted.
   const intake = board.system === "TASK_ALLOCATION" && intakeGroupOf(model.groups)?.id === group.id;
-  // Where tasks from other boards land: one group per board, set by whoever manages it, never on a built-in board.
-  const landing = isLandingGroup(board, group.id);
-  const canSetLanding = canManage && !board.system && !intake;
-  const toggleLanding = () => boardActions.updateBoard.mutate({ landingGroupId: landing ? null : group.id });
+  // Where tasks from other boards land: always one group per board (the chosen one, else the first),
+  // moved by whoever manages it, never on a built-in board. The landing group itself has nothing to undo.
+  const landing = isLandingGroup(board, model.groups, group.id);
+  const canSetLanding = canManage && !board.system && !intake && !landing;
+  const landHere = () => boardActions.updateBoard.mutate({ landingGroupId: group.id });
   const toggleCollapsed = () => (canEdit ? void mutations.updateGroup(group.id, { collapsed: !collapsed }) : toggleLocally(board.id, group.id));
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
@@ -201,8 +202,8 @@ export function GroupSection({
                   <Copy /> Duplicate group
                 </DropdownMenuItem>
                 {canSetLanding && (
-                  <DropdownMenuItem onSelect={toggleLanding} data-testid="group-landing-toggle">
-                    <ArrowDownToLine /> {landing ? "Stop landing tasks here" : "Land tasks here"}
+                  <DropdownMenuItem onSelect={landHere} data-testid="group-landing-toggle">
+                    <ArrowDownToLine /> Land tasks here
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -236,8 +237,8 @@ export function GroupSection({
           <Copy /> Duplicate group
         </ContextMenuItem>
         {canSetLanding && (
-          <ContextMenuItem onSelect={toggleLanding}>
-            <ArrowDownToLine /> {landing ? "Stop landing tasks here" : "Land tasks here"}
+          <ContextMenuItem onSelect={landHere}>
+            <ArrowDownToLine /> Land tasks here
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />

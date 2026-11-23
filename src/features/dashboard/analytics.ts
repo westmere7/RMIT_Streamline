@@ -276,6 +276,7 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
   // asked of the board rather than guessed from column names.
   const rolesByBoard = new Map<string, ColumnRoleMap>();
   for (const [boardId, list] of columnsByBoard) rolesByBoard.set(boardId, resolveColumnRoles(list));
+  const NO_ROLES = resolveColumnRoles([]);
   const groupsById = new Map(snapshot.groups.map((g) => [g.id, g]));
   // The registry, keyed the way a cell is written: trimmed and case-folded.
   // Only the groups on the list today (Settings -> Lists). A name that is not
@@ -337,7 +338,8 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
     const lines = (kept.has(item.id) ? sharedAssets.get(item.id) : assetsByItem.get(item.id)) ?? [];
 
     // Status: the first STATUS column with a value (or its default label).
-    const roles = rolesByBoard.get(board.id)!;
+    // A board with no columns has no roles; it still counts, with nothing to read from.
+    const roles = rolesByBoard.get(board.id) ?? NO_ROLES;
 
     let status: StatusBucket = "none";
     let statusLabel: string | null = null;

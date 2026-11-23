@@ -43,6 +43,8 @@ function fakeChannel() {
 let provider: "supabase" | "local" = "supabase";
 let live = fakeChannel();
 const removeChannel = vi.fn();
+/** The Supabase channel names asked for, in order. */
+const opened: string[] = [];
 
 vi.mock("@/features/data/data-context", () => ({
   useDataContext: () => ({ providerKind: provider }),
@@ -50,7 +52,10 @@ vi.mock("@/features/data/data-context", () => ({
 
 vi.mock("@/lib/supabase/client", () => ({
   getSupabaseClient: () => ({
-    channel: () => live.channel,
+    channel: (name: string) => {
+      opened.push(name);
+      return live.channel;
+    },
     removeChannel: (...args: unknown[]) => removeChannel(...args),
   }),
 }));
@@ -209,5 +214,24 @@ describe("a realtime subscription", () => {
     first.unmount();
     act(() => void vi.advanceTimersByTime(1));
     expect(removeChannel).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Removing a channel is asynchronous, and Supabase keeps handing the old one
+   * back until it is gone: reopening the same subscription in that gap threw
+   * ("cannot add postgres_changes callbacks after subscribe()"). Each opening
+   * asks for a channel name of its own.
+   */
+  it("reopens under a new channel name while the old one may still be closing", () => {
+    const bindings: RealtimeBinding[] = [{ table: "automation_events", keys: [["automation-activity"]] }];
+    const first = subscribe(bindings);
+    first.unmount();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(removeChannel).toHaveBeenCalledTimes(1);
+    const before = opened.length;
+    subscribe(bindings, undefined, first.name);
+    expect(opened).toHaveLength(before + 1);
+    expect(opened.at(-1)).not.toBe(opened.at(-2));
+    expect(opened.at(-1)!.startsWith(`${first.name}#`)).toBe(true);
   });
 });

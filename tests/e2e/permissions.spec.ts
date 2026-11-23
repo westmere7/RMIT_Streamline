@@ -29,7 +29,9 @@ test.describe("permissions", () => {
     await expect(page.getByTestId("new-item-button")).toHaveCount(0);
     await expect(page.getByTestId("add-group")).toHaveCount(0);
     await expect(page.getByTestId("add-column")).toHaveCount(0);
-    await expect(first.getByRole("checkbox")).toBeDisabled();
+    // Nothing to select a row for, and nothing to add under it.
+    await expect(first.getByRole("checkbox")).toHaveCount(0);
+    await expect(first.getByRole("button", { name: "Add subitem" })).toHaveCount(0);
 
     // The cell is a plain gridcell, not a button — but it keeps its label so a
     // screen reader still hears which column and item the value belongs to.
@@ -53,7 +55,7 @@ test.describe("permissions", () => {
     await page.getByLabel("Visibility").click();
     await page.getByRole("option", { name: /private/i }).click();
     await page.getByRole("button", { name: /create board/i }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Danh private notes" })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("heading", { level: 1 }).filter({ hasText: "Danh private notes" })).toBeVisible({ timeout: 15000 });
     const url = page.url();
 
     // Jun is a plain member and not on the board.
