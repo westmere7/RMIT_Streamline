@@ -36,6 +36,8 @@ type StateKey = (typeof STATES)[number]["key"];
 
 /** The measure's column: a tint from header to last row, no outline. */
 const AMOUNT_CELL = "w-24 bg-accent-soft/70 px-3 text-center tabular";
+/** The row's hover laid over the tint (an inset shadow paints above a cell's background), so the whole row lights up. */
+const AMOUNT_HOVER = "group-hover/row:shadow-[inset_0_0_0_100vmax_color-mix(in_oklab,var(--accent)_50%,transparent)] group-focus-visible/row:shadow-[inset_0_0_0_100vmax_color-mix(in_oklab,var(--accent)_50%,transparent)]";
 
 /** The colour a status's meaning wears, whatever each board calls it. */
 const STATUS_DOT: Record<string, string> = { done: "bg-emerald-500", progress: "bg-orange-500", stuck: "bg-red-500", other: "bg-sky-500", none: "bg-muted-foreground/40" };
@@ -204,7 +206,7 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                       onClick={open}
                       onKeyDown={open ? (e) => (e.key === "Enter" ? open() : undefined) : undefined}
                       tabIndex={open ? 0 : undefined}
-                      className={cn("border-b border-border/40", open && "cursor-pointer hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none")}
+                      className={cn("group/row border-b border-border/40", open && "cursor-pointer hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none")}
                       data-testid="dashboard-task-list-row"
                     >
                       <td className="py-2 pr-2 pl-5 font-mono text-2xs text-muted-foreground">{task.ticket ?? "—"}</td>
@@ -218,7 +220,7 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                         </p>
                       </td>
                       {amount && (
-                        <td className={cn(AMOUNT_CELL, "py-2 font-semibold")} data-testid="dashboard-task-list-amount">
+                        <td className={cn(AMOUNT_CELL, "py-2 font-semibold", open && AMOUNT_HOVER)} data-testid="dashboard-task-list-amount">
                           {formatAmount(amountOf(task))}
                         </td>
                       )}

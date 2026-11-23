@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.155.3",
+    date: "2026-11-23",
+    title: "Row highlight over the tinted column",
+    changes: [
+      "In the dashboard's task list, pointing at a row lights up its hours or units cell too."
+    ],
+  },
+  {
     version: "0.155.2",
     date: "2026-11-23",
     title: "A running schedule leads the form panel",
