@@ -1,6 +1,6 @@
 import type { ISODate } from "@/domain";
 import type { DashboardFacts, TaskFact, TeamRef } from "./analytics";
-import { addDays } from "./metrics";
+import { addDays, localDateOf } from "./metrics";
 
 /**
  * The year as a calendar of days, the way a code host draws a year of
@@ -58,7 +58,7 @@ export interface ActivityCalendar {
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const dayOf = (iso: string): ISODate => iso.slice(0, 10);
+const dayOf = (iso: string): ISODate => localDateOf(iso);
 const inTeams = (team: TeamRef, teamIds: string[] | null) => teamIds === null || teamIds.includes(team.id);
 
 /** Monday is 0. */

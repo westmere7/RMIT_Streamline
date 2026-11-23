@@ -2,6 +2,7 @@ import type { AssetRates, WorkType, WorkTypes } from "@/domain";
 import { effortHours, workTypesOf } from "@/domain";
 import type { AssetFact } from "@/features/dashboard/analytics";
 import type { MeasureKind } from "@/features/dashboard/metrics";
+import { localDateOf } from "@/features/dashboard/local-date";
 
 /**
  * The team's output read as a profile across work types.
@@ -46,7 +47,7 @@ function lineValue(asset: AssetFact, measure: MeasureKind, rates: AssetRates): n
 
 function tally(assets: readonly AssetFact[], workTypes: WorkTypes, measure: MeasureKind, rates: AssetRates, personId: string | null) {
   const byWorkType = new Map<string, { value: number; units: number; done: number; tasks: Set<string>; types: Map<string, number>; people: Map<string, number>; overdue: number; lines: number }>();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateOf(new Date().toISOString());
   let unassigned = 0;
   const unassignedTypes = new Set<string>();
   for (const asset of assets) {

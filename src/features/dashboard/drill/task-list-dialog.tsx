@@ -1,5 +1,6 @@
 "use client";
 
+import { localDateOf } from "@/features/dashboard/local-date";
 import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import * as React from "react";
 import { AvatarStack } from "@/components/shared/user-avatar";
@@ -197,8 +198,8 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
               <tbody>
                 {rows.map((task) => {
                   const owners = task.owners.map((id) => users.get(id)).filter((u): u is User => !!u);
-                  const finished = task.flow.finishedAt?.slice(0, 10) ?? task.completedAt;
-                  const late = !task.isDone && task.dueDate !== null && task.dueDate < new Date().toISOString().slice(0, 10);
+                  const finished = task.flow.finishedAt ? localDateOf(task.flow.finishedAt) : task.completedAt;
+                  const late = !task.isDone && task.dueDate !== null && task.dueDate < localDateOf(new Date().toISOString());
                   // Opens the task in a new tab; the list stays open here.
                   const open = onOpenTask ? () => onOpenTask(task.id, task.boardId) : undefined;
                   return (

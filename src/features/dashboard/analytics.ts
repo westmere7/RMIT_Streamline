@@ -1,4 +1,5 @@
 import type { AssetRates, Board, BoardColumn, ColorToken, ColumnRoleMap, ColumnValue, DashboardSnapshot, ISODate, ISODateTime, ItemAsset, StatusChange, StatusColumnSettings, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
+import { localDateOf } from "./local-date";
 import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, resolveColumnRoles, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 
@@ -253,8 +254,9 @@ export interface DashboardFacts {
 
 export const UNTYPED = "Untyped";
 
+/** A stored timestamp's day where the team is, not in UTC. */
 function dateOf(iso: string): ISODate {
-  return iso.slice(0, 10);
+  return localDateOf(iso);
 }
 
 export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {

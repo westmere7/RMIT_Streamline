@@ -1,7 +1,7 @@
 import type { ISODate } from "@/domain";
 import { MONTH_LABELS } from "./charts/chart-utils";
 import { NO_TEAM, teamHex, type DashboardFacts, type NamedCount, type TaskFact, type TeamRef } from "./analytics";
-import { addDays, covered, departmentHex, inRange, type DateRange, type ResolvedPeriod } from "./metrics";
+import { addDays, covered, departmentHex, inRange, localDateOf, type DateRange, type ResolvedPeriod } from "./metrics";
 
 /**
  * How work moves, rather than how much of it there is: how long it takes, how
@@ -17,7 +17,7 @@ import { addDays, covered, departmentHex, inRange, type DateRange, type Resolved
 const DAY_MS = 86_400_000;
 
 const inTeams = (team: TeamRef, teamIds: string[] | null) => teamIds === null || teamIds.includes(team.id);
-const dayOf = (iso: string): ISODate => iso.slice(0, 10);
+const dayOf = (iso: string): ISODate => localDateOf(iso);
 
 export function median(values: number[]): number | null {
   if (values.length === 0) return null;

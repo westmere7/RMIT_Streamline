@@ -36,7 +36,7 @@ import { NO_TEAM } from "./analytics";
  * they mean rather than a conversion — but it is stated, and shown to the
  * reader, because "overdue" is a claim about somebody's Tuesday.
  */
-export const BUSINESS_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
+export { BUSINESS_TIMEZONE, localDateOf } from "./local-date";
 
 export interface DateRange {
   from: ISODate;

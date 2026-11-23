@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.159.2",
+    date: "2026-11-23",
+    title: "Dashboard days in your timezone",
+    changes: ["The dashboard reads when work was created, finished or ticked off on your own clock, so something done between midnight and 7am in Vietnam no longer counts for the day (or month) before."],
+  },
+  {
     version: "0.159.1",
     date: "2026-11-23",
     title: "The days count started work",
