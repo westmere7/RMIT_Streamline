@@ -145,8 +145,8 @@ export function usePrefersReducedMotion(): boolean {
  * treemap, where the last row of tiles sits on the edge — passes `height` and
  * gets a readout that opens upwards there instead of being cut in half.
  */
-export function ChartTooltip({ x, y, width, height, children }: { x: number; y: number; width: number; height?: number; children: React.ReactNode }) {
-  const flip = x > width * 0.62;
+export function ChartTooltip({ x, y, width, height, side, children }: { x: number; y: number; width: number; height?: number; /** Which side of x the card goes, when the chart knows better than the default. */ side?: "left" | "right"; children: React.ReactNode }) {
+  const flip = side ? side === "left" : x > width * 0.62;
   const flipUp = height !== undefined && height > 0 && y > height * 0.62;
   return (
     <div

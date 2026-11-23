@@ -2,21 +2,21 @@
 
 import * as React from "react";
 import { effortHours, formatHours, hasAnyRate } from "@/domain";
-import { assetEffortMix, assetMix, priorityMix, teamHex } from "@/features/dashboard/analytics";
+import { assetEffortMix, assetMix, priorityMix, sizeMix, teamHex } from "@/features/dashboard/analytics";
 import { MEASURE_LABELS, MEASURE_UNITS, operationsDetails } from "@/features/dashboard/metrics";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import { RankedBars } from "@/features/dashboard/charts/ranked-bars";
 import { TreemapChart } from "@/features/dashboard/charts/treemap";
 import { CoverageNote, HeadlineFigure, OperationsStrip } from "@/features/dashboard/components/figures";
-import { YearComparisonChart } from "@/features/dashboard/components/year-comparison";
+import { YearComparisonChart, type ChartGeometry } from "@/features/dashboard/components/year-comparison";
 import { departmentHex } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { amountOfLines, amountOfTasks, assetTypeTasks, monthTasks, useDrill } from "@/features/dashboard/drill/drill";
 import { FlowSection } from "./flow-section";
-import { ServiceSection } from "./service-section";
 import { WorkTypeProfilePanel } from "./work-types-section";
 import type { DashboardViewProps } from "./types";
+import { ActivityCalendar } from "./activity-panel";
 import { WorkloadSection } from "./workload-section";
 
 /**
@@ -57,6 +57,16 @@ export function DashboardBody(props: DashboardViewProps) {
   const scoped = report.current.tasks;
   const scopedAssets = report.current.assets;
   const priority = React.useMemo(() => priorityMix(scoped), [scoped]);
+  const sizes = React.useMemo(() => sizeMix(scoped), [scoped]);
+  // The month the chart's mouse is on, which the activity calendar under it lights,
+  // and where the chart's month columns sit, which the calendar lines up with.
+  const [hoverMonth, setHoverMonth] = React.useState<number | null>(null);
+  const [geometry, setGeometry] = React.useState<ChartGeometry | null>(null);
+  const keepGeometry = React.useCallback(
+    (next: ChartGeometry) =>
+      setGeometry((current) => (current && current.padLeft === next.padLeft && current.padRight === next.padRight && current.months.join() === next.months.join() ? current : next)),
+    [],
+  );
   const mix = React.useMemo(() => assetMix(scopedAssets), [scopedAssets]);
   const mixUnits = React.useMemo(() => mix.reduce((sum, row) => sum + row.value, 0), [mix]);
   // The same deliverables weighed into hours, for when the page is read in
@@ -170,14 +180,21 @@ export function DashboardBody(props: DashboardViewProps) {
           read down the right-hand side they answer "and of what?" about the
           chart they sit next to, which is the question the chart raises. */}
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        {/* The year in one panel, twice and month under month: the totals by
+            month, then the days they were made of, the month labels between. */}
         <Panel
-          title={`${MEASURE_LABELS[measure]} by month`}
-          subtitle={`${report.period.label} against ${report.period.comparisonLabel}`}
-          className="p-4"
+          title={`${MEASURE_LABELS[measure]} by month and day`}
+          subtitle={`${report.period.label} against ${report.period.comparisonLabel} by month, then day by day`}
           help="byMonth"
           testId="dashboard-year-comparison"
+          className="min-h-[30rem] min-w-0 p-4"
         >
+          {/* The chart takes the height the four splits beside it leave over the days. */}
+          <div className="flex min-h-[14rem] flex-1 flex-col">
           <YearComparisonChart
+            onHoverMonth={setHoverMonth}
+            onGeometry={keepGeometry}
+            labelBand
             rows={monthly}
             currentLabel={report.period.label}
             comparisonLabel={report.period.comparisonLabel}
@@ -191,12 +208,13 @@ export function DashboardBody(props: DashboardViewProps) {
                 : undefined
             }
           />
+          </div>
+          {/* The year day by day, the way a code host draws a year of contributions, lined up with the months above. */}
+          <ActivityCalendar {...props} geometry={geometry} highlightMonth={hoverMonth} />
         </Panel>
 
-        {/* Three ranked splits, and only three: the column sets the height of
-            the row, so every panel added here is height the chart beside it has
-            to grow into. The two share-of-whole splits sit on their own line
-            underneath for that reason. */}
+        {/* What the period is made of, in four splits beside the year: by team,
+            by department, by priority and by T-shirt size. */}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1" data-testid="dashboard-composition">
           <Panel title="By team" subtitle={unitWord} help="byTeam" className="p-4" testId="dashboard-by-team">
             <RankedBars
@@ -235,6 +253,14 @@ export function DashboardBody(props: DashboardViewProps) {
               compact
               emptyMessage="Nothing to split yet."
               onSelect={drill ? (row) => drill({ title: `${row.name} priority`, subtitle: basisLine, tasks: scoped.filter((t) => (t.priority ?? "No priority") === row.name) }) : undefined}
+            />
+          </Panel>
+          <Panel title="T-shirt size" subtitle="tasks" help="size" className="p-4" testId="dashboard-size-mix">
+            <RankedBars
+              data={sizes}
+              compact
+              emptyMessage="No task has a size yet."
+              onSelect={drill ? (row) => drill({ title: row.name === "No size" ? "No size" : `Size ${row.name}`, subtitle: basisLine, tasks: scoped.filter((t) => (t.size ?? "No size") === row.name) }) : undefined}
             />
           </Panel>
         </div>
@@ -318,9 +344,6 @@ export function DashboardBody(props: DashboardViewProps) {
 
       {/* How the work moves: speed, punctuality, rework, backlog and waits. */}
       <FlowSection {...props} />
-
-      {/* Where open work sits, and how each department is served. */}
-      <ServiceSection {...props} />
 
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1">
         <CoverageNote lines={coverageLines} />

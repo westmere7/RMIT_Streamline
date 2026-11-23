@@ -18,6 +18,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.159.0",
+    date: "2026-11-23",
+    title: "The year day by day",
+    changes: [
+      "The by-month chart now has the year day by day under it, in the same panel and lined up month under month: each day shaded by the tasks finished (green) or started (red) on it.",
+      "Hover a month on the chart to light its days; click a day for its tasks.",
+      "A T-shirt size split joins By team, By department and Priority.",
+      "Aging work and Departments are gone from the dashboard.",
+      "The PDF report has the days and the sizes too.",
+      "The month chart's hover card sits beside the month, not over its bars.",
+      "The stakeholders' portal is now the Guest portal. Home offers three links: the Guest portal, the Internal portal and the booking form.",
+      "The Internal portal no longer depends on the Guest portal's settings: admins and allocators have it on Portal and Booking and on Home even with the Guest portal off or Portal and Booking out of the menu.",
+    ],
+  },
+  {
     version: "0.158.2",
     date: "2026-11-23",
     title: "Dashboard tasks open in a new tab",

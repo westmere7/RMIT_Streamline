@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 // Frame
 
 /** The card every panel sits in: a title, a line under it, an optional control on the right. */
-export function Panel({ title, subtitle, action, info, help, children, className, bodyClassName, testId }: { title: React.ReactNode; subtitle?: React.ReactNode; action?: React.ReactNode; info?: string; help?: HelpTopic; children: React.ReactNode; className?: string; bodyClassName?: string; testId?: string }) {
+export function Panel({ title, helpTitle, subtitle, action, info, help, children, className, bodyClassName, testId }: { title: React.ReactNode; /** The panel's name for its help, when the title is more than words. */ helpTitle?: string; subtitle?: React.ReactNode; action?: React.ReactNode; info?: string; help?: HelpTopic; children: React.ReactNode; className?: string; bodyClassName?: string; testId?: string }) {
   return (
     // h-full: a panel wrapped in a column-span div would otherwise stop at its content
     // and leave the canvas showing under it while its neighbour ran on.
@@ -37,7 +37,7 @@ export function Panel({ title, subtitle, action, info, help, children, className
         <div className="min-w-[min(100%,12rem)] flex-1">
           <h2 className="flex items-center gap-1.5 text-[14px] font-semibold tracking-tight">
             <span className="min-w-0 break-words">{title}</span>
-            {help && <PanelHelp topic={help} title={typeof title === "string" ? title : "this panel"} />}
+            {help && <PanelHelp topic={help} title={helpTitle ?? (typeof title === "string" ? title : "this panel")} />}
             {!help && info && (
               <SimpleTooltip label={info} side="top">
                 <span className="text-muted-foreground/70 hover:text-foreground">

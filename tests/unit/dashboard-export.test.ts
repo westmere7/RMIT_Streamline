@@ -77,7 +77,7 @@ describe("the dashboard report", () => {
     const titles = reportSections(await seededView()).map((s) => s.title);
     // Work types sit after the asset types they are made of.
     expect(titles.indexOf("Work types")).toBe(titles.indexOf("Asset types") + 1);
-    expect(titles.slice(0, 3)).toEqual(["Tasks", "Asset units", "Tasks by month"]);
+    expect(titles.slice(0, 4)).toEqual(["Tasks", "Asset units", "Tasks by month", "Activity"]);
     for (const title of ["By team", "By department", "Priority", "Current operations", "Asset types", "Work types", "Who is carrying what", "Turnaround", "On time", "Sent back", "In and out"]) expect(titles).toContain(title);
   });
 

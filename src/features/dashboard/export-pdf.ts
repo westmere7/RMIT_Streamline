@@ -1,6 +1,6 @@
 import type { jsPDF as JsPdf } from "jspdf";
 import { formatHours, hasAnyRate } from "@/domain";
-import { assetEffortMix, assetMix, priorityMix, teamHex, type NamedCount } from "@/features/dashboard/analytics";
+import { assetEffortMix, assetMix, priorityMix, sizeMix, teamHex, type NamedCount } from "@/features/dashboard/analytics";
 import { formatCount, niceScale } from "@/features/dashboard/charts/chart-utils";
 import { treemapLayout } from "@/features/dashboard/charts/treemap";
 import { formatDays, formatPercent, inAndOut, onTime, sentBack, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
@@ -18,6 +18,7 @@ import {
   type WorkloadRow,
 } from "@/features/dashboard/metrics";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
+import { ACTIVITY_HEX, ACTIVITY_SHADES, activityCalendar, activityCount, activityLevel, activityRange, type ActivityCalendar } from "@/features/dashboard/activity";
 import { workTypeContributors, workTypeProfile, type WorkTypeProfile } from "@/features/dashboard/work-types";
 import { colorClasses } from "@/lib/colors";
 
@@ -534,6 +535,54 @@ function inOutColumns(buckets: FlowBucket[]): Figure {
 }
 
 /**
+ * The year day by day, as on the dashboard: a column per week, Monday at the
+ * top, each day in a deeper shade the busier it was (quarters of the active
+ * days), months above and the figures with the scale underneath.
+ */
+function activityFigure(calendar: ActivityCalendar): Figure {
+  const LABEL_W = 8;
+  const step = (w: number) => (w - LABEL_W) / Math.max(1, calendar.weeks.length);
+  return {
+    height: (w) => 5 + 7 * step(w) + 9,
+    draw: (pen, x, y, w) => {
+      const s = step(w);
+      const cell = s * 0.82;
+      const hex = ACTIVITY_HEX[calendar.kind];
+      const top = y + 5;
+      for (const month of calendar.months) pen.text(month.label, x + LABEL_W + month.week * s, y, 6.4, { colour: MUTED });
+      ["Mon", "", "Wed", "", "Fri", "", ""].forEach((label, row) => {
+        if (label) pen.text(label, x, top + row * s + cell / 2, 6, { colour: FAINT, baseline: "middle" });
+      });
+      calendar.weeks.forEach((week, column) => {
+        week.forEach((day, row) => {
+          if (day.outside) return;
+          const level = activityLevel(activityCount(day, calendar.kind), calendar.thresholds);
+          const colour = day.future ? SURFACE : level === 0 ? TRACK : tint(hex, 1 - ACTIVITY_SHADES[level]);
+          pen.fill(x + LABEL_W + column * s, top + row * s, cell, cell, colour, Math.min(0.7, cell / 4));
+        });
+      });
+      const below = top + 7 * s + 2.5;
+      const facts = [
+        `${formatCount(calendar.total)} ${calendar.total === 1 ? "task" : "tasks"} ${calendar.kind}`,
+        `${formatCount(calendar.activeDays)} active ${calendar.activeDays === 1 ? "day" : "days"}`,
+        ...(calendar.busiest ? [`busiest ${calendar.busiest.date.slice(8, 10)}/${calendar.busiest.date.slice(5, 7)} (${formatCount(calendar.busiest.count)})`] : []),
+        `longest run ${formatCount(calendar.longestStreak)} ${calendar.longestStreak === 1 ? "day" : "days"}`,
+      ];
+      pen.text(facts.join("  ·  "), x, below, 7.2, { weight: "bold" });
+      // The scale, right-aligned: Less, the five shades, More.
+      const swatch = 2.4;
+      let kx = x + w - pen.width("More", 6.6);
+      pen.text("More", kx, below + 0.2, 6.6, { colour: MUTED });
+      for (let level = ACTIVITY_SHADES.length - 1; level >= 0; level--) {
+        kx -= swatch + 1;
+        pen.fill(kx, below + 0.3, swatch, swatch, level === 0 ? TRACK : tint(hex, 1 - ACTIVITY_SHADES[level]!), 0.5);
+      }
+      pen.text("Less", kx - 1.2, below + 0.2, 6.6, { colour: MUTED, align: "right" });
+    },
+  };
+}
+
+/**
  * Work types: the radar on the left — rings, spokes, last year dashed, this
  * period filled in a light tint of the brand red, each point in its work
  * type's colour — and on the right a table of each work type in figures, then
@@ -726,6 +775,9 @@ export function reportSections(props: DashboardViewProps): Section[] {
   const returned = sentBack(facts, period, prefs.teamIds);
   const flow = inAndOut(facts, period, prefs.teamIds, today);
   const basisLine = `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${period.label}`;
+  // The year day by day, counted as the panel counts it, over the months the chart draws.
+  const activityWindow = activityRange(Number(period.current.from.slice(0, 4)), monthly.length ? monthly.map((row) => row.month) : [1, 12]);
+  const activity = activityCalendar(facts, { ...activityWindow, today, teamIds: prefs.teamIds, kind: prefs.activityKind ?? "finished" });
 
   // Work types: the team's profile, and each of the busiest people split across it.
   const workTypeSections: Section[] = [];
@@ -755,9 +807,11 @@ export function reportSections(props: DashboardViewProps): Section[] {
     { topic: "tasks", title: "Tasks", subtitle: basisLine, figure: headline(report.tasks, "tasks", formatCount, monthlyTasks, period.comparisonLabel) },
     { topic: "assets", title: "Asset units", subtitle: basisLine, figure: headline(report.assetUnits, "units", formatCount, monthlyAssets, period.comparisonLabel) },
     { topic: "byMonth", title: `${MEASURE_LABELS[measure]} by month`, subtitle: `${period.label} against ${period.comparisonLabel}`, figure: monthColumns(monthly, format, period.label, period.comparisonLabel) },
+    { topic: "activity", title: "Activity", subtitle: `${activity.label} · tasks ${activity.kind} per day${prefs.teamIds ? " · selected teams" : ""}`, figure: activityFigure(activity), wide: true },
     { topic: "byTeam", title: "By team", subtitle: unitWord, figure: rankedBars(byTeam.slice(0, 5), format, { empty: "No work in this period." }) },
     { topic: "byDepartment", title: "By department", subtitle: unitWord, figure: rankedBars(byDepartment.slice(0, 5), format, { empty: "Nothing carries a department." }) },
     { topic: "priority", title: "Priority", subtitle: "tasks", figure: rankedBars(priorityMix(scoped), formatCount, { empty: "Nothing to split yet." }) },
+    { topic: "size", title: "T-shirt size", subtitle: "tasks", figure: rankedBars(sizeMix(scoped), formatCount, { empty: "No task has a size yet." }) },
     {
       topic: "operations",
       title: "Current operations",

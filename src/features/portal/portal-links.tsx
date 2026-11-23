@@ -30,17 +30,24 @@ export function usePortalLinks() {
 }
 
 /**
- * The portal and the booking form, to open or copy without going to Portal and
- * Booking, and the internal portal for admins and allocators. Nothing for a
- * guest or where the workspace has the portal menu off; before there is a
- * portal, only the internal portal.
+ * The guest portal, the internal portal and the booking form, to open (or copy)
+ * without going to Portal and Booking. The guest portal and the form follow the
+ * guest portal's settings: nothing for a guest, where the workspace has the
+ * portal menu off, or before there is a portal. The internal portal follows
+ * none of them: admins and allocators always have it.
  */
 export function PortalLinks({ heading, className, variant = "rows" }: { heading?: React.ReactNode; className?: string; variant?: "rows" | "cards" }) {
   const ws = useWorkspace();
   const links = usePortalLinks();
-  if (ws.permissions.workspaceRole === "GUEST" || ws.workspace.showPortalMenu === false) return null;
+  const guestSide = ws.permissions.workspaceRole !== "GUEST" && ws.workspace.showPortalMenu !== false;
+  // A page in the app, not a link to hand out: opened here, nothing to copy.
+  const internal =
+    ws.permissions.workspaceRole !== "GUEST" && canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION"))
+      ? { icon: Binoculars, label: "Internal portal", lead: "Every team's work in one place.", href: routes.internalPortal(ws.slug), url: null, serving: true, testId: "home-internal-portal-link" }
+      : null;
+  if (!guestSide && !internal) return null;
   const cards = variant === "cards";
-  if (links.isLoading) {
+  if (guestSide && links.isLoading) {
     return (
       <section>
         {heading}
@@ -51,14 +58,11 @@ export function PortalLinks({ heading, className, variant = "rows" }: { heading?
       </section>
     );
   }
-  // A page in the app, not a link to hand out: opened here, nothing to copy.
-  const internal = canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION"))
-    ? { icon: Binoculars, label: "Internal portal", lead: "Every team's work in one place.", href: routes.internalPortal(ws.slug), url: null, serving: true, testId: "home-internal-portal-link" }
-    : null;
-  if (!links.data && !internal) return null;
+  const guest = guestSide ? links.data : null;
+  if (!guest && !internal) return null;
   const urls = workspaceLinkUrls(ws.slug);
-  const portal = links.data ? { icon: Globe, label: "Portal", lead: "Departments see their work.", href: routes.workspacePortal(ws.slug), url: urls.portal, serving: links.data.enabled, testId: "home-portal-link" } : null;
-  const booking = links.data ? { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: routes.workspaceBooking(ws.slug), url: urls.booking, serving: links.data.allowBooking, testId: "home-booking-link" } : null;
+  const portal = guest ? { icon: Globe, label: "Guest portal", lead: "Departments see their work.", href: routes.workspacePortal(ws.slug), url: urls.portal, serving: guest.enabled, testId: "home-portal-link" } : null;
+  const booking = guest ? { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: routes.workspaceBooking(ws.slug), url: urls.booking, serving: guest.allowBooking, testId: "home-booking-link" } : null;
   return (
     <section>
       {heading}
@@ -66,14 +70,14 @@ export function PortalLinks({ heading, className, variant = "rows" }: { heading?
         // Side by side while each has room for its name, else one above the other.
         <ul className={cn("grid grid-cols-[repeat(auto-fill,minmax(min(18rem,100%),1fr))] gap-3", className)} data-testid="home-portal-links">
           {portal && <LinkCard {...portal} />}
-          {booking && <LinkCard {...booking} />}
           {internal && <LinkCard {...internal} />}
+          {booking && <LinkCard {...booking} />}
         </ul>
       ) : (
         <ul className={cn("space-y-1", className)} data-testid="home-portal-links">
           {portal && <LinkRow {...portal} />}
-          {booking && <LinkRow {...booking} />}
           {internal && <LinkRow {...internal} />}
+          {booking && <LinkRow {...booking} />}
         </ul>
       )}
     </section>

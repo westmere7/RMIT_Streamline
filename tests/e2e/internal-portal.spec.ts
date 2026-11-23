@@ -168,6 +168,37 @@ test.describe("internal portal", () => {
     await expect(board.getByTestId("item-row")).toHaveCount(0, { timeout: 20_000 });
   });
 
+  test("the guest portal's settings do not reach it: with Portal and Booking out of the menu, Home still offers it", async ({ page }) => {
+    await signInAs(page, "Danh");
+    // The guest portal exists once an admin has opened Portal and Booking; before that Home offers only the internal portal.
+    await expect(page.getByTestId("home-internal-portal-link").first()).toBeAttached({ timeout: 20_000 });
+    await expect(page.getByTestId("home-portal-link")).toHaveCount(0);
+    await openPortalAndBooking(page);
+    await expect(page.getByTestId("portal-link-block")).toBeVisible({ timeout: 20_000 });
+    await page.goto("/workspace/rmit");
+    // Home: the guest portal, the internal portal, then the form.
+    const links = page.getByTestId("home-portal-links").first();
+    await expect(links.locator("li")).toHaveCount(3, { timeout: 20_000 });
+    await expect(links.locator("li").nth(0)).toContainText("Guest portal");
+    await expect(links.locator("li").nth(1)).toContainText("Internal portal");
+    await expect(links.locator("li").nth(2)).toContainText("Booking form");
+
+    await page.goto("/workspace/rmit/settings");
+    const menuSwitch = page.getByTestId("setting-portal-menu");
+    await expect(menuSwitch).toHaveAttribute("aria-checked", "true", { timeout: 20_000 });
+    await menuSwitch.click();
+    await expect(menuSwitch).toHaveAttribute("aria-checked", "false");
+
+    await page.goto("/workspace/rmit");
+    await expect(nav(page).getByRole("link", { name: "Portal and Booking" })).toHaveCount(0);
+    await expect(page.getByTestId("home-internal-portal-link").first()).toBeAttached({ timeout: 20_000 });
+    await expect(page.getByTestId("home-portal-link")).toHaveCount(0);
+    await expect(page.getByTestId("home-booking-link")).toHaveCount(0);
+    await page.getByTestId("home-internal-portal-link").first().click();
+    await expect(page).toHaveURL(/\/workspace\/rmit\/internal-portal$/);
+    await expect(page.getByTestId("internal-portal-board").getByTestId("item-row").first()).toBeVisible({ timeout: 30_000 });
+  });
+
   test("a guest gets neither the card nor the page", async ({ page }) => {
     await signInAs(page, "Jane");
     await openPortalAndBooking(page);

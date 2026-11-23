@@ -43,7 +43,16 @@ export function YearComparisonChart({
   comparisonLabel,
   unitWord,
   onSelectMonth,
+  onHoverMonth,
+  onGeometry,
+  labelBand = false,
 }: {
+  /** The month labels on a faint band of their own, for a drawing that lines up under them. */
+  labelBand?: boolean;
+  /** The month under the mouse (1–12), or null: what the activity calendar below lights up. */
+  onHoverMonth?: (month: number | null) => void;
+  /** Where the month columns sit, so a drawing below can line up with them. */
+  onGeometry?: (geometry: ChartGeometry) => void;
   rows: MonthlyComparisonRow[];
   currentLabel: string;
   comparisonLabel: string;
@@ -52,7 +61,11 @@ export function YearComparisonChart({
   onSelectMonth?: (month: number, series: "current" | "comparison" | "outlook") => void;
 }) {
   const [ref, size] = useSize<HTMLDivElement>();
-  const [hover, setHover] = React.useState<number | null>(null);
+  const [hover, setHoverState] = React.useState<number | null>(null);
+  const setHover = (month: number | null) => {
+    setHoverState(month);
+    onHoverMonth?.(month);
+  };
 
   // The rest of last year counts towards the scale: a bar drawn off the top
   // of the plot would be worse than not drawing it.
@@ -81,12 +94,17 @@ export function YearComparisonChart({
   const padLeft = Math.max(38, 14 + compactCount(top).length * 6);
   const padRight = 6;
   const padTop = roomy ? 22 : 10;
-  const padBottom = 22;
+  const padBottom = labelBand ? 26 : 22;
   const plot = height - padBottom;
   const slot = (width - padLeft - padRight) / rows.length;
   const barWidth = Math.max(4, Math.min(generous ? 22 : 14, slot / 2.6));
   const y = (value: number) => plot - (value / top) * (plot - padTop);
   const centreOf = (index: number) => padLeft + index * slot + slot / 2;
+  // Reported once the box has been measured, and whenever the columns move.
+  const monthsKey = rows.map((r) => r.month).join(",");
+  React.useEffect(() => {
+    if (size.width > 0) onGeometry?.({ padLeft, padRight, months: monthsKey.split(",").map(Number) });
+  }, [onGeometry, padLeft, padRight, monthsKey, size.width]);
 
   const hovered = hover === null ? null : rows.findIndex((r) => r.month === hover);
   // Nothing in either year: say so over the plot, rather than drawing an empty axis.
@@ -123,6 +141,9 @@ export function YearComparisonChart({
           {roomy && lastAnswered >= 0 && lastAnswered < rows.length - 1 && (
             <rect x={padLeft + (lastAnswered + 1) * slot} y={0} width={(rows.length - 1 - lastAnswered) * slot} height={plot} className="fill-foreground/[0.025]" />
           )}
+
+          {/* The months' band: a faint strip the labels sit on, between the bars and whatever lines up below. */}
+          {labelBand && <rect x={padLeft} y={plot + 8} width={Math.max(0, width - padLeft - padRight)} height={18} rx={5} className="fill-foreground/[0.045]" data-testid="year-month-band" />}
 
           {ticks.map((tick) => (
             <g key={tick}>
@@ -217,11 +238,13 @@ export function YearComparisonChart({
                   </text>
                 )}
 
+                {/* The hovered month's own piece of the band, a shade deeper. */}
+                {labelBand && on && <rect x={padLeft + index * slot + 1} y={plot + 8} width={Math.max(0, slot - 2)} height={18} rx={5} className="fill-foreground/[0.08]" data-testid="year-month-band-lit" />}
                 <text
                   x={centre}
-                  y={plot + 14}
+                  y={labelBand ? plot + 20 : plot + 14}
                   textAnchor="middle"
-                  className={cn("text-[9px]", on ? "fill-foreground" : future ? "fill-muted-foreground/40" : "fill-muted-foreground")}
+                  className={cn("text-[9px]", on ? "fill-foreground font-semibold" : future ? "fill-muted-foreground/40" : "fill-muted-foreground")}
                 >
                   {row.label}
                 </text>
@@ -266,7 +289,13 @@ export function YearComparisonChart({
 
         {/* The readout the sibling charts have had all along. */}
         {hovered !== null && hovered >= 0 && rows[hovered] && (
-          <ChartTooltip x={centreOf(hovered)} y={rows[hovered]!.current === null ? plot / 2 : y(rows[hovered]!.current!)} width={width}>
+          // Beside the month's column, never on it: right of it early in the year, left of it later.
+          <ChartTooltip
+            x={hovered < rows.length / 2 ? padLeft + (hovered + 1) * slot : padLeft + hovered * slot}
+            side={hovered < rows.length / 2 ? "right" : "left"}
+            y={rows[hovered]!.current === null ? plot / 2 : y(rows[hovered]!.current!)}
+            width={width}
+          >
             <p className="font-semibold">{rows[hovered]!.label}</p>
             {rows[hovered]!.current === null ? (
               <p className="mt-0.5 text-muted-foreground">Not reached yet</p>
@@ -305,6 +334,13 @@ export function YearComparisonChart({
       </div>
     </div>
   );
+}
+
+/** The chart's month columns: the space before the first, after the last, and which months they are. */
+export interface ChartGeometry {
+  padLeft: number;
+  padRight: number;
+  months: number[];
 }
 
 function Key({ style, label, dashed }: { style?: React.CSSProperties; label: string; dashed?: boolean }) {

@@ -35,4 +35,35 @@ test.describe("dashboard task lists", () => {
     await expect(second).toHaveURL(/\?item=/, { timeout: 20_000 });
     await expect(rows).toHaveCount(listed);
   });
+
+  test("the year's activity: a day opens the tasks finished on it, and Started counts new work", async ({ page }) => {
+    const panel = page.getByTestId("dashboard-activity");
+    await panel.scrollIntoViewIfNeeded({ timeout: 30_000 });
+    await expect(panel.getByTestId("dashboard-activity-day").first()).toBeAttached();
+    const busy = panel.locator('[data-testid="dashboard-activity-day"]:not([data-count="0"])').last();
+    const count = Number(await busy.getAttribute("data-count"));
+    expect(count).toBeGreaterThan(0);
+    await busy.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(`${count} ${count === 1 ? "task" : "tasks"} finished`);
+    await expect(dialog.getByTestId("dashboard-task-list-row")).toHaveCount(count);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+
+    // A month hovered on the chart above lights the same month here, in the same column.
+    const chartMonth = page.getByTestId("year-month").nth(6);
+    await chartMonth.hover();
+    const july = panel.locator('[data-testid="dashboard-activity-month"][data-month="7"]');
+    await expect(july).toHaveAttribute("data-lit", "true");
+    await expect(panel.locator('[data-testid="dashboard-activity-month"][data-lit]')).toHaveCount(1);
+    const [chartBox, heatBox] = await Promise.all([chartMonth.locator("rect").first().boundingBox(), july.locator("rect").first().boundingBox()]);
+    expect(Math.abs(chartBox!.x - heatBox!.x)).toBeLessThan(1.5);
+    expect(Math.abs(chartBox!.width - heatBox!.width)).toBeLessThan(1.5);
+    await page.mouse.move(0, 0);
+
+    // Started: the same calendar counting the tasks made each day.
+    await panel.getByTestId("dashboard-activity-started").click();
+    await expect(panel.getByTestId("dashboard-activity-started")).toHaveAttribute("aria-checked", "true");
+    await expect(panel).toContainText("started");
+  });
 });

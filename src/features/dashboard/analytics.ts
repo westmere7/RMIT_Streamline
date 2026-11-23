@@ -873,10 +873,16 @@ export function priorityMix(tasks: TaskFact[]): NamedCount[] {
 
 const SIZE_COLORS: Record<TShirtSize, ColorToken> = { XS: "sky", S: "green", M: "blue", L: "orange", XL: "rose" };
 
+/** Tasks per T-shirt size, smallest first, then the tasks with none. */
 export function sizeMix(tasks: TaskFact[]): NamedCount[] {
   const counts = new Map<TShirtSize, number>();
-  for (const t of tasks) if (t.size) counts.set(t.size, (counts.get(t.size) ?? 0) + 1);
-  return T_SHIRT_SIZES.filter((s) => counts.has(s)).map((s) => ({ name: s, value: counts.get(s)!, color: colorClasses(SIZE_COLORS[s]).hex }));
+  let unsized = 0;
+  for (const t of tasks) {
+    if (t.size) counts.set(t.size, (counts.get(t.size) ?? 0) + 1);
+    else unsized += 1;
+  }
+  const rows = T_SHIRT_SIZES.filter((s) => counts.has(s)).map((s) => ({ name: s, value: counts.get(s)!, color: colorClasses(SIZE_COLORS[s]).hex }));
+  return unsized > 0 && rows.length > 0 ? [...rows, { name: "No size", value: unsized, color: colorClasses("gray").hex }] : rows;
 }
 
 /** Tasks (and asset units) per person, biggest first. Unassigned work is not a person and is left out. */

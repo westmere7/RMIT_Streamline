@@ -132,7 +132,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
       <div className="grid gap-4 sm:grid-cols-2">
         <LinkTile
           icon={Globe}
-          label="Portal"
+          label="Guest portal"
           lead={<>Departments see their work{hasPassword ? ", behind the password" : ""}.</>}
           figure={rows.length}
           figureLabel={rows.length === 1 ? "department" : "departments"}
@@ -140,7 +140,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
           readOnly={readOnly}
           url={url}
           href={routes.workspacePortal(ws.slug)}
-          openLabel="Open Portal"
+          openLabel="Open Guest Portal"
           testId="portal-link"
           copyTestId="portal-copy"
           onCopy={() => void copyToClipboard(url, "Link copied")}
@@ -165,7 +165,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
             on: open,
             pending: setEnabled.isPending,
             onChange: (next) => setEnabled.mutate(next),
-            label: open ? "Close the portal" : "Open the portal",
+            label: open ? "Close the guest portal" : "Open the guest portal",
             testId: "portal-toggle",
           }}
         >
@@ -646,7 +646,7 @@ function SettingsDialog({ kind, portal, columns, open, onOpenChange }: { kind: k
           <DialogHeader className="border-b border-border/60 px-6 pt-5 pb-4">
             <DialogTitle className="flex items-center gap-2.5">
               {kind === "portal" ? <Globe className="size-4 text-primary" aria-hidden /> : <ClipboardPen className="size-4 text-accent-soft-foreground" aria-hidden />}
-              {kind === "portal" ? "Portal settings" : "Booking form settings"}
+              {kind === "portal" ? "Guest portal settings" : "Booking form settings"}
             </DialogTitle>
             <DialogDescription>{kind === "portal" ? "How the portal looks to departments." : "How the booking form looks, and whether it takes requests."}</DialogDescription>
           </DialogHeader>
