@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.160.0",
+    date: "2026-11-23",
+    title: "Sheets work like Excel",
+    changes: [
+      "Drag across cells to select a block; Delete clears it.",
+      "Drag the small square at a selection's corner up, down, left or right to fill. Two numbers or more continue the run.",
+      "Click a column letter or row number to pick it, drag to pick more, and drag a picked block to move it.",
+      "Bold, italic, underline, a link and four text sizes, from the toolbar or Ctrl+B, I, U and K. They export to Excel too.",
+      "Sheets save after a short pause instead of after every edit, and changes from others wait until yours are saved, so quick edits no longer jump back.",
+    ],
+  },
+  {
     version: "0.159.2",
     date: "2026-11-23",
     title: "Dashboard days in your timezone",

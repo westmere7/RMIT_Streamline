@@ -1,5 +1,5 @@
-import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { NEW_ASSET_COLUMN, assetPeopleOf, assignAssetRole, coercePeople, newNotesColumnName, notesColumnFor, partsToWrite, planLineMove, excelSerialToDate, fitTypeFor, readDate, readQuantity, roleMismatch, toIsoDate, type AssetPerson, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
+import type { EntityId, Item, ItemAsset, ItemAssetPatch, Tracker, TrackerAssetMapping, TrackerCellFormat, TrackerCellValue, TrackerColumn, TrackerColumnType, TrackerRow, TrackerRowKind, TrackerSheet, TrackerSheetInput } from "@/domain";
+import { cleanCellFormat, NEW_ASSET_COLUMN, assetPeopleOf, assignAssetRole, coercePeople, newNotesColumnName, notesColumnFor, partsToWrite, planLineMove, excelSerialToDate, fitTypeFor, readDate, readQuantity, roleMismatch, toIsoDate, type AssetPerson, freeColumnName, isFreshSheet, isMappingUsable, normalizeAssetMapping, personNames, sheetLineCells, suggestAssetMapping, type AssetRole, type SheetLinePatch } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import type { ItemAssetService, SheetSyncResult } from "@/services/item-asset-service";
@@ -680,6 +680,35 @@ export class TrackerService {
     };
   }
 
+  /**
+   * Sets formatting on cells, as Excel's Home ribbon does: each cell gets the
+   * patch merged into what it has (a key set to undefined or false comes off;
+   * size "md" is the normal size and comes off too). Data rows and the sheet's
+   * columns only; a cell left plain carries nothing.
+   */
+  static setFormats(sheet: TrackerSheet, cells: ReadonlyArray<{ rowId: EntityId; columnId: EntityId }>, patch: Partial<TrackerCellFormat> | ((current: TrackerCellFormat) => TrackerCellFormat | null)): TrackerSheet {
+    const byRow = new Map<EntityId, EntityId[]>();
+    for (const cell of cells) byRow.set(cell.rowId, [...(byRow.get(cell.rowId) ?? []), cell.columnId]);
+    const columnIds = new Set(sheet.columns.map((c) => c.id));
+    return {
+      ...sheet,
+      rows: sheet.rows.map((row) => {
+        const targets = byRow.get(row.id)?.filter((id) => columnIds.has(id));
+        if (!targets?.length || row.kind !== "data") return row;
+        const formats: Record<EntityId, TrackerCellFormat> = { ...(row.formats ?? {}) };
+        for (const columnId of targets) {
+          const current = formats[columnId] ?? {};
+          const next = cleanCellFormat(typeof patch === "function" ? patch(current) : { ...current, ...patch });
+          if (next) formats[columnId] = next;
+          else delete formats[columnId];
+        }
+        const out: TrackerRow = { ...row, formats };
+        if (Object.keys(formats).length === 0) delete out.formats;
+        return out;
+      }),
+    };
+  }
+
   static insertRows(sheet: TrackerSheet, index: number, count = 1, kind: TrackerRowKind = "data"): TrackerSheet {
     const fresh: TrackerRow[] = Array.from({ length: count }, () => ({ id: newId(), kind, cells: {}, ...(kind !== "data" ? { label: "" } : {}) }));
     const rows = [...sheet.rows];
@@ -699,7 +728,7 @@ export class TrackerService {
     const rows: TrackerRow[] = [];
     for (const row of sheet.rows) {
       rows.push(row);
-      if (ids.has(row.id)) rows.push({ ...row, id: newId(), cells: { ...row.cells } });
+      if (ids.has(row.id)) rows.push({ ...row, id: newId(), cells: { ...row.cells }, ...(row.formats ? { formats: { ...row.formats } } : {}) });
     }
     return { ...sheet, rows };
   }
@@ -710,7 +739,7 @@ export class TrackerService {
       ...sheet,
       rows: sheet.rows.map((row) => {
         if (!ids.has(row.id)) return row;
-        if (kind === "data") return { id: row.id, kind, cells: row.cells };
+        if (kind === "data") return { id: row.id, kind, cells: row.cells, ...(row.formats ? { formats: row.formats } : {}) };
         // Promote the leftmost filled cell to the band label so nothing typed is lost.
         const firstValue = sheet.columns.map((c) => row.cells[c.id]).find((v) => typeof v === "string" && v.trim()) as string | undefined;
         return { id: row.id, kind, label: row.label ?? firstValue ?? "", cells: {} };
@@ -804,12 +833,32 @@ export class TrackerService {
       ...(sheet.assetMapping ? { assetMapping: normalizeAssetMapping(sheet.assetMapping, columns) } : {}),
       frozenColumns: Math.min(sheet.frozenColumns, columns.length),
       rows: sheet.rows.map((r) => {
-        if (!(columnId in r.cells)) return r;
+        if (!(columnId in r.cells) && !(r.formats && columnId in r.formats)) return r;
         const cells = { ...r.cells };
         delete cells[columnId];
-        return { ...r, cells };
+        const out: TrackerRow = { ...r, cells };
+        if (r.formats) {
+          const formats = { ...r.formats };
+          delete formats[columnId];
+          if (Object.keys(formats).length) out.formats = formats;
+          else delete out.formats;
+        }
+        return out;
       }),
     };
+  }
+
+  /**
+   * Moves several columns together, in their order, so the first of them lands
+   * at `toIndex` among the columns that are not moving (as moveRows does rows).
+   */
+  static moveColumns(sheet: TrackerSheet, columnIds: EntityId[], toIndex: number): TrackerSheet {
+    const ids = new Set(columnIds);
+    const moving = sheet.columns.filter((c) => ids.has(c.id));
+    if (moving.length === 0) return sheet;
+    const rest = sheet.columns.filter((c) => !ids.has(c.id));
+    rest.splice(Math.max(0, Math.min(toIndex, rest.length)), 0, ...moving);
+    return { ...sheet, columns: rest };
   }
 
   static moveColumn(sheet: TrackerSheet, columnId: EntityId, toIndex: number): TrackerSheet {

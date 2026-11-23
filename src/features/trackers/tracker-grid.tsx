@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownAZ, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpAZ, Check, ChevronDown, Columns3, Copy, Eraser, ExternalLink, Filter, Hash, ListPlus, MoveHorizontal, Package, PanelTop, Pencil, PencilLine, Plus, Redo2, Rows3, Sigma, SlidersHorizontal, Snowflake, Trash2, Type, Undo2, WrapText } from "lucide-react";
+import { ALargeSmall, ArrowDownAZ, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpAZ, Bold, Check, ChevronDown, Columns3, Copy, Eraser, ExternalLink, Filter, Hash, Italic, Link2, ListPlus, MoveHorizontal, Package, PanelTop, Pencil, PencilLine, Plus, Redo2, Rows3, Sigma, SlidersHorizontal, Snowflake, Trash2, Type, Underline, Undo2, WrapText } from "lucide-react";
 import { toast } from "sonner";
 import * as React from "react";
 import { flushSync } from "react-dom";
@@ -38,27 +38,33 @@ import {
   TRACKER_NUMBER_FORMATS,
   TRACKER_NUMBER_FORMAT_LABELS,
   TRACKER_SUMMARY_LABELS,
+  TRACKER_TEXT_SIZES,
+  TRACKER_TEXT_SIZE_LABELS,
+  TRACKER_TEXT_SIZE_PX,
   ASSET_ROLES,
   columnLetter,
   type TrackerNumberFormat,
   type TrackerSummaryKind,
+  type TrackerCellFormat,
   type TrackerCellValue,
   type TrackerColumn,
   type TrackerColumnType,
   type TrackerRow,
   type TrackerRowKind,
   type TrackerSheet,
+  type TrackerTextSize,
   type User,
 } from "@/domain";
 import { ASSET_ROLE_LABELS, PeopleCellView, PeopleEditor, assetFallbacks, assetRoles, type AssetRole } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { type CellAddress, type CellRange, clampAddress, formatCell, frozenOffsets, inRange, parseTsv, rangeBetween, rangeToTsv } from "@/features/trackers/grid-model";
-import { EMPTY_VIEW, clearVisible, effectiveSummary, fillDown, formatNumber, isViewFiltering, jumpTarget, pasteVisible, projectSheet, selectionStats, summaryKindsFor, type SheetView } from "@/features/trackers/sheet-view";
+import { EMPTY_VIEW, clearVisible, effectiveSummary, fillDown, fillRange, formatNumber, isViewActive, isViewFiltering, jumpTarget, pasteVisible, projectSheet, selectionStats, summaryKindsFor, type SheetView } from "@/features/trackers/sheet-view";
 import { FilterValuesDialog, HeaderViewMarks, SheetViewBar, SummaryCell } from "@/features/trackers/tracker-grid-extras";
 import { Chip, ChipColorPicker } from "@/features/trackers/chip";
 import { STATUS_COLORS, TEMPLATE_STYLE, chipColor, nextChipColor, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { cn } from "@/lib/utils";
+import { normalizeLinkHref } from "@/lib/rich-text";
 import { MobileRowEditor } from "@/features/trackers/mobile-row-editor";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { TrackerService } from "@/services/tracker-service";
@@ -80,6 +86,48 @@ export interface TrackerGridProps {
   /** Gives a column a part in the sheet's assets (or none), from its header menu. */
   onAssetRole?: (column: TrackerColumn, role: AssetRole | null) => void;
 }
+
+/**
+ * What a held mouse button is doing: stretching the selection, pulling the
+ * fill handle, picking whole columns or rows, or carrying a block of them.
+ */
+type Drag =
+  | { kind: "cells"; moves: "anchor" | "active"; row: number; col: number }
+  | { kind: "fill"; source: CellRange; target: CellRange }
+  | { kind: "cols" }
+  | { kind: "rows" }
+  | { kind: "moveCols"; left: number; right: number; clicked: number; to: number | null; moved: boolean; x: number }
+  | { kind: "moveRows"; top: number; bottom: number; clicked: number; to: number | null; moved: boolean; y: number };
+
+const sameRange = (a: CellRange, b: CellRange) => a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.right === b.right;
+
+/** Where the fill handle reaches: along whichever axis the pointer has gone further, as in Excel. */
+function fillTargetOf(source: CellRange, row: number, col: number): CellRange {
+  const dr = row < source.top ? row - source.top : row > source.bottom ? row - source.bottom : 0;
+  const dc = col < source.left ? col - source.left : col > source.right ? col - source.right : 0;
+  if (dr === 0 && dc === 0) return source;
+  if (Math.abs(dr) >= Math.abs(dc)) return { ...source, top: Math.min(source.top, row), bottom: Math.max(source.bottom, row) };
+  return { ...source, left: Math.min(source.left, col), right: Math.max(source.right, col) };
+}
+
+/** Which sides of a range a cell sits on: 1 top, 2 right, 4 bottom, 8 left. */
+function edgesOf(range: CellRange | null, row: number, col: number): number {
+  if (!range || !inRange(range, row, col)) return 0;
+  return (row === range.top ? 1 : 0) | (col === range.right ? 2 : 0) | (row === range.bottom ? 4 : 0) | (col === range.left ? 8 : 0);
+}
+
+function edgeShadows(edges: number, width: number, color: string): string[] {
+  const out: string[] = [];
+  if (edges & 1) out.push(`inset 0 ${width}px 0 0 ${color}`);
+  if (edges & 2) out.push(`inset -${width}px 0 0 0 ${color}`);
+  if (edges & 4) out.push(`inset 0 -${width}px 0 0 ${color}`);
+  if (edges & 8) out.push(`inset ${width}px 0 0 0 ${color}`);
+  return out;
+}
+
+/** A cell's link, when it is one that may be opened. */
+const safeLink = (format: TrackerCellFormat | undefined) => (format?.link ? normalizeLinkHref(format.link) : null);
+const openLink = (href: string) => void window.open(href, "_blank", "noopener,noreferrer");
 
 interface EditingState {
   row: number;
@@ -103,7 +151,13 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
   const [editing, setEditing] = React.useState<EditingState | null>(null);
   const [widthOverrides, setWidthOverrides] = React.useState<Record<string, number>>({});
   const [hoverCol, setHoverCol] = React.useState<number | null>(null);
-  const dragging = React.useRef(false);
+  const drag = React.useRef<Drag | null>(null);
+  const pointer = React.useRef<{ x: number; y: number } | null>(null);
+  const scrollFrame = React.useRef<number | null>(null);
+  const stopDrag = React.useRef<(() => void) | null>(null);
+  const [fillPreview, setFillPreview] = React.useState<CellRange | null>(null);
+  const [dropLine, setDropLine] = React.useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [linkDraft, setLinkDraft] = React.useState<string | null>(null);
   const view = useUiStore((s) => s.trackerView);
   const setView = useUiStore((s) => s.setTrackerView);
   const rowHeight = ROW_HEIGHTS[view.density];
@@ -158,6 +212,275 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
     const row = rows[address.row];
     const column = columns[address.col];
     return row && column ? { row, column } : null;
+  };
+  const selectColumns = (from: number, to: number) => {
+    setActive({ row: 0, col: from });
+    setAnchor({ row: Math.max(0, rows.length - 1), col: to });
+  };
+  const selectRows = (from: number, to: number) => {
+    setActive({ row: from, col: 0 });
+    setAnchor({ row: to, col: Math.max(0, columns.length - 1) });
+  };
+
+  // ---- dragging --------------------------------------------------------------
+
+  /** The row and column under a point, held inside the body so a drag past the edge keeps to the edge. */
+  const hitAt = (x: number, y: number) => {
+    const container = containerRef.current;
+    if (!container) return { row: null, col: null, x, y };
+    const box = container.getBoundingClientRect();
+    const px = Math.min(Math.max(x, box.left + GUTTER + 2), box.right - 14);
+    const py = Math.min(Math.max(y, box.top + HEADER_HEIGHT + 2), box.bottom - 34);
+    const rowEl = document.elementFromPoint(px, py)?.closest<HTMLElement>("[data-r]");
+    let row = rowEl ? Number(rowEl.dataset.r) : null;
+    // Below the last row of a short sheet: the last row.
+    if (row === null && rows.length > 0) {
+      const last = container.querySelector<HTMLElement>(`tbody tr[data-r="${rows.length - 1}"]`);
+      if (last && py > last.getBoundingClientRect().bottom) row = rows.length - 1;
+    }
+    // The column from the headers, which every column has (a band row spans them all).
+    // Frozen headers come first, so one sitting over a scrolled column wins.
+    let col: number | null = null;
+    for (const th of container.querySelectorAll<HTMLElement>("[data-hc]")) {
+      const rect = th.getBoundingClientRect();
+      if (px >= rect.left && px < rect.right) {
+        col = Number(th.dataset.hc);
+        break;
+      }
+    }
+    return { row, col, x: px, y: py };
+  };
+
+  const track = () => {
+    const d = drag.current;
+    const p = pointer.current;
+    const container = containerRef.current;
+    if (!d || !p || !container) return;
+    const hit = hitAt(p.x, p.y);
+    switch (d.kind) {
+      case "cells": {
+        const row = hit.row ?? d.row;
+        const col = hit.col ?? d.col;
+        if (row === d.row && col === d.col) return;
+        d.row = row;
+        d.col = col;
+        if (d.moves === "anchor") setAnchor({ row, col });
+        else setActive({ row, col });
+        return;
+      }
+      case "fill": {
+        if (hit.row === null && hit.col === null) return;
+        const next = fillTargetOf(d.source, hit.row ?? d.source.bottom, hit.col ?? d.source.right);
+        if (sameRange(next, d.target)) return;
+        d.target = next;
+        setFillPreview(sameRange(next, d.source) ? null : next);
+        return;
+      }
+      case "cols":
+        if (hit.col !== null) setAnchor({ row: Math.max(0, rows.length - 1), col: hit.col });
+        return;
+      case "rows":
+        if (hit.row !== null) setAnchor({ row: hit.row, col: Math.max(0, columns.length - 1) });
+        return;
+      case "moveCols": {
+        if (!d.moved && Math.abs(p.x - d.x) < 4) return;
+        d.moved = true;
+        if (hit.col === null) return;
+        const th = container.querySelector<HTMLElement>(`[data-hc="${hit.col}"]`);
+        if (!th) return;
+        const rect = th.getBoundingClientRect();
+        const to = hit.x < rect.left + rect.width / 2 ? hit.col : hit.col + 1;
+        d.to = to >= d.left && to <= d.right + 1 ? null : to;
+        if (d.to === null) return setDropLine(null);
+        const edge = d.to < columns.length ? container.querySelector<HTMLElement>(`[data-hc="${d.to}"]`)?.getBoundingClientRect().left : rect.right;
+        if (edge === undefined) return;
+        const box = container.getBoundingClientRect();
+        setDropLine({ left: edge - box.left + container.scrollLeft - 1.5, top: container.scrollTop, width: 3, height: container.clientHeight });
+        return;
+      }
+      case "moveRows": {
+        if (!d.moved && Math.abs(p.y - d.y) < 4) return;
+        d.moved = true;
+        // Rows keep their place while a sort or filter is on.
+        if (hit.row === null || isViewActive(sheetView)) return;
+        const tr = container.querySelector<HTMLElement>(`tbody tr[data-r="${hit.row}"]`);
+        if (!tr) return;
+        const rect = tr.getBoundingClientRect();
+        const to = hit.y < rect.top + rect.height / 2 ? hit.row : hit.row + 1;
+        d.to = to >= d.top && to <= d.bottom + 1 ? null : to;
+        if (d.to === null) return setDropLine(null);
+        const edge = d.to < rows.length ? container.querySelector<HTMLElement>(`tbody tr[data-r="${d.to}"]`)?.getBoundingClientRect().top : rect.bottom;
+        if (edge === undefined) return;
+        const box = container.getBoundingClientRect();
+        setDropLine({ left: container.scrollLeft, top: edge - box.top + container.scrollTop - 1.5, width: container.clientWidth, height: 3 });
+        return;
+      }
+    }
+  };
+
+  /** Scrolls while a drag holds the pointer near (or past) an edge of the body. */
+  const autoScroll = () => {
+    scrollFrame.current = null;
+    const container = containerRef.current;
+    const d = drag.current;
+    const p = pointer.current;
+    if (!container || !d || !p) return;
+    const box = container.getBoundingClientRect();
+    const edge = 24;
+    const speed = (over: number) => Math.min(28, Math.ceil(over / 3));
+    const frozenWidth = GUTTER + columns.slice(0, frozen).reduce((sum, c) => sum + c.width, 0);
+    let dx = 0;
+    let dy = 0;
+    if (d.kind !== "cols" && d.kind !== "moveCols") {
+      if (p.y > box.bottom - 30 - edge) dy = speed(p.y - (box.bottom - 30 - edge));
+      else if (p.y < box.top + HEADER_HEIGHT + edge) dy = -speed(box.top + HEADER_HEIGHT + edge - p.y);
+    }
+    if (d.kind !== "rows" && d.kind !== "moveRows") {
+      if (p.x > box.right - edge) dx = speed(p.x - (box.right - edge));
+      else if (p.x < box.left + frozenWidth + edge) dx = -speed(box.left + frozenWidth + edge - p.x);
+    }
+    if (!dx && !dy) return;
+    const left = container.scrollLeft;
+    const top = container.scrollTop;
+    container.scrollLeft += dx;
+    container.scrollTop += dy;
+    if (container.scrollLeft === left && container.scrollTop === top) return;
+    track();
+    scrollFrame.current = requestAnimationFrame(() => live.current.autoScroll());
+  };
+
+  const finishDrag = () => {
+    const d = drag.current;
+    drag.current = null;
+    pointer.current = null;
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+    setDropLine(null);
+    setFillPreview(null);
+    if (!d) return;
+    if (d.kind === "fill") {
+      if (sameRange(d.source, d.target)) return;
+      const { source, target } = d;
+      commit((s) => fillRange(s, visibleRowsOf(s), source, target));
+      setActive({ row: target.top, col: target.left });
+      setAnchor({ row: target.bottom, col: target.right });
+    } else if (d.kind === "moveCols") {
+      if (!d.moved) return selectColumns(d.clicked, d.clicked);
+      if (d.to === null) return;
+      const ids = columns.slice(d.left, d.right + 1).map((c) => c.id);
+      const at = d.to > d.right ? d.to - ids.length : d.to;
+      commit((s) => TrackerService.moveColumns(s, ids, at));
+      selectColumns(at, at + ids.length - 1);
+    } else if (d.kind === "moveRows") {
+      if (!d.moved) return selectRows(d.clicked, d.clicked);
+      if (isViewActive(sheetView)) {
+        toast.info("Clear the sort, search and filters to move rows.");
+        return;
+      }
+      if (d.to === null) return;
+      const ids = rows.slice(d.top, d.bottom + 1).map((r) => r.id);
+      const at = d.to > d.bottom ? d.to - ids.length : d.to;
+      commit((s) => TrackerService.moveRows(s, ids, at));
+      selectRows(at, at + ids.length - 1);
+    }
+  };
+
+  // Window listeners outlive a render, so they call the latest of these.
+  const live = React.useRef({ track, autoScroll, finishDrag });
+  React.useLayoutEffect(() => {
+    live.current = { track, autoScroll, finishDrag };
+  });
+
+  const beginDrag = (d: Drag, e: React.MouseEvent) => {
+    stopDrag.current?.();
+    drag.current = d;
+    pointer.current = { x: e.clientX, y: e.clientY };
+    const move = (ev: MouseEvent) => {
+      pointer.current = { x: ev.clientX, y: ev.clientY };
+      live.current.track();
+      if (scrollFrame.current === null) scrollFrame.current = requestAnimationFrame(() => live.current.autoScroll());
+    };
+    const stop = () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      stopDrag.current = null;
+    };
+    const up = () => {
+      stop();
+      live.current.finishDrag();
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    stopDrag.current = stop;
+  };
+  // A drag still running when the grid goes stops with it.
+  React.useEffect(() => () => stopDrag.current?.(), []);
+
+  const onCellMouseDown = (r: number, c: number, e: React.MouseEvent) => {
+    if (editing && editing.row === r && editing.col === c) return;
+    if (e.button !== 0) {
+      if (!range || !inRange(range, r, c)) select({ row: r, col: c });
+      return;
+    }
+    // No text selection while dragging across cells.
+    e.preventDefault();
+    focusGrid();
+    if (canEdit && range && (e.target as HTMLElement).closest("[data-fill-handle]")) return beginDrag({ kind: "fill", source: range, target: range }, e);
+    const link = e.ctrlKey || e.metaKey ? safeLink(rows[r]?.formats?.[columns[c]?.id ?? ""]) : null;
+    if (link) return openLink(link);
+    select({ row: r, col: c }, e.shiftKey);
+    beginDrag({ kind: "cells", moves: e.shiftKey ? "active" : "anchor", row: r, col: c }, e);
+  };
+
+  const columnBlock = (index: number) => (range && range.top === 0 && range.bottom === rows.length - 1 && range.left <= index && index <= range.right ? range : null);
+  const rowBlock = (index: number) => (range && range.left === 0 && range.right === columns.length - 1 && range.top <= index && index <= range.bottom ? range : null);
+
+  /** A header: a click picks the column (Shift stretches), a drag picks more, and a drag from a picked block moves it. */
+  const onColumnMouseDown = (index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    focusGrid();
+    const block = columnBlock(index);
+    if (block && canEdit && !e.shiftKey) return beginDrag({ kind: "moveCols", left: block.left, right: block.right, clicked: index, to: null, moved: false, x: e.clientX }, e);
+    selectColumns(e.shiftKey && active ? active.col : index, index);
+    beginDrag({ kind: "cols" }, e);
+  };
+  const onRowMouseDown = (index: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    focusGrid();
+    const block = rowBlock(index);
+    if (block && canEdit && !e.shiftKey) return beginDrag({ kind: "moveRows", top: block.top, bottom: block.bottom, clicked: index, to: null, moved: false, y: e.clientY }, e);
+    selectRows(e.shiftKey && active ? active.row : index, index);
+    beginDrag({ kind: "rows" }, e);
+  };
+
+  // ---- formatting ------------------------------------------------------------
+
+  const activeFormat: TrackerCellFormat = (active && rows[active.row]?.formats?.[columns[active.col]?.id ?? ""]) || {};
+  const formatTargets = () =>
+    range
+      ? rows
+          .slice(range.top, range.bottom + 1)
+          .filter((r) => r.kind === "data")
+          .flatMap((r) => columns.slice(range.left, range.right + 1).map((c) => ({ rowId: r.id, columnId: c.id })))
+      : [];
+  const applyFormat = (patch: Partial<TrackerCellFormat>) => {
+    if (!canEdit) return;
+    const cells = formatTargets();
+    if (cells.length) commit((s) => TrackerService.setFormats(s, cells, patch));
+  };
+  // The grid keeps the keys after a toolbar button, so Delete or typing still lands on the cells.
+  const formatting = {
+    toggle: (key: "bold" | "italic" | "underline") => {
+      applyFormat({ [key]: !activeFormat[key] });
+      focusGrid();
+    },
+    size: (size: TrackerTextSize) => {
+      applyFormat({ size: size === "md" ? undefined : size });
+      focusGrid();
+    },
+    link: () => {
+      if (range) setLinkDraft(activeFormat.link ?? "");
+    },
   };
 
   // ---- editing ---------------------------------------------------------------
@@ -257,6 +580,16 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
     if (mod && e.key.toLowerCase() === "d") {
       e.preventDefault();
       fillSelection();
+      return;
+    }
+    if (mod && !e.shiftKey && !e.altKey && ["b", "i", "u", "k"].includes(e.key.toLowerCase())) {
+      // The sheet's own: Ctrl+K is not the app's search here.
+      e.preventDefault();
+      e.stopPropagation();
+      if (!canEdit || !range) return;
+      const key = e.key.toLowerCase();
+      if (key === "k") formatting.link();
+      else formatting.toggle(key === "b" ? "bold" : key === "i" ? "italic" : "underline");
       return;
     }
     if (mod && e.key.toLowerCase() === "c") {
@@ -430,14 +763,6 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
     window.addEventListener("pointerup", onUp);
   };
 
-  React.useEffect(() => {
-    const stop = () => {
-      dragging.current = false;
-    };
-    window.addEventListener("mouseup", stop);
-    return () => window.removeEventListener("mouseup", stop);
-  }, []);
-
   // The touch alternative to editing in the grid: the selected data row as a
   // stack of labelled fields. Only offered below md, and only for a data row —
   // a section or total row has nothing to fill in.
@@ -455,6 +780,8 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
         onUndo={onUndo}
         onRedo={onRedo}
         actions={toolbar}
+        format={activeFormat}
+        formatting={formatting}
         onEditRow={canEdit && activeDataRow ? () => setRowEditorOpen(true) : null}
       />
       <SheetViewBar sheet={sheet} view={sheetView} hidden={projection.hiddenDataRows} visibleDataRows={dataRowCount(rows)} onChange={setSheetView} searchRef={searchRef} />
@@ -467,7 +794,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
         aria-rowcount={rows.length + 2}
         aria-colcount={columns.length + 1}
         data-testid="tracker-grid"
-        className="scrollbar-thin flex-1 overflow-auto outline-none focus-visible:[&_[data-active=true]]:ring-2"
+        className="scrollbar-thin relative flex-1 overflow-auto outline-none"
         onKeyDown={onKeyDown}
         onMouseLeave={() => setHoverCol(null)}
         onCopy={(e) => copySelection(e)}
@@ -502,15 +829,12 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
                   left={offsets[index]}
                   canEdit={canEdit}
                   selected={(!!range && range.left <= index && index <= range.right) || hoverCol === index}
+                  movable={canEdit && !!columnBlock(index)}
                   sort={sheetView.sort?.columnId === column.id ? sheetView.sort.direction : null}
                   filtered={column.id in sheetView.filters}
                   onSort={(direction) => setSheetView((v) => ({ ...v, sort: direction ? { columnId: column.id, direction } : null }))}
                   onFilter={() => setFilterColumnId(column.id)}
-                  onSelectColumn={(extend) => {
-                    setActive({ row: 0, col: index });
-                    setAnchor(extend && anchor ? { row: rows.length - 1, col: anchor.col } : { row: rows.length - 1, col: index });
-                    focusGrid();
-                  }}
+                  onHeaderMouseDown={(e) => onColumnMouseDown(index, e)}
                   onResize={(e) => resizeColumn(column, e)}
                   onAutoFit={() => autoFit(column)}
                   role={roles.get(column.id) ?? null}
@@ -548,35 +872,20 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
                 frozen={frozen}
                 offsets={offsets}
                 range={range}
+                fillPreview={fillPreview}
                 active={active}
                 editing={editing?.row === r ? editing : null}
                 canEdit={canEdit}
-                onMouseDownCell={(c, e) => {
-                  if (e.button !== 0) {
-                    if (!range || !inRange(range, r, c)) select({ row: r, col: c });
-                    return;
-                  }
-                  dragging.current = true;
-                  select({ row: r, col: c }, e.shiftKey);
-                  focusGrid();
-                }}
-                onMouseEnterCell={(c) => {
-                  setHoverCol(c);
-                  if (dragging.current && active) {
-                    setAnchor({ row: r, col: c });
-                  }
-                }}
+                onMouseDownCell={(c, e) => onCellMouseDown(r, c, e)}
+                onMouseEnterCell={setHoverCol}
                 view={view}
                 rowHeight={rowHeight}
                 users={users}
                 fallbacks={fallbacks}
                 striped={view.stripes && r % 2 === 1}
                 onDoubleClickCell={(c) => startEdit({ row: r, col: c })}
-                onSelectRow={(extend) => {
-                  setActive({ row: r, col: 0 });
-                  setAnchor(extend && anchor ? { row: anchor.row, col: columns.length - 1 } : { row: r, col: columns.length - 1 });
-                  focusGrid();
-                }}
+                onGutterMouseDown={(e) => onRowMouseDown(r, e)}
+                movable={canEdit && !!rowBlock(r)}
                 sourceIndex={sourceOf(r) ?? r}
                 onCommitEdit={(c, raw, move) => commitEdit({ row: r, col: c }, raw, move)}
                 onCancelEdit={cancelEdit}
@@ -629,6 +938,7 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
             </tr>
           </tfoot>
         </table>
+        {dropLine && <div aria-hidden className="pointer-events-none absolute z-40 rounded-full bg-ring" style={dropLine} data-testid="grid-drop-line" />}
         {canEdit && (
           <div className="sticky left-0 px-3 py-2">
             <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => commit((s) => TrackerService.insertRows(s, s.rows.length, 5))} data-testid="add-rows">
@@ -649,8 +959,16 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
           </span>
         )}
         {range && (range.top !== range.bottom || range.left !== range.right) && <SelectionStats sheet={sheet} rows={rows.slice(range.top, range.bottom + 1)} left={range.left} right={range.right} />}
-        {canEdit && <span className="ml-auto hidden lg:inline">Type to edit · Enter/Tab to move · Ctrl+D fills down · Ctrl+Arrow jumps · Right-click for rows and columns</span>}
+        {canEdit && <span className="ml-auto hidden lg:inline">Type to edit · Drag the corner to fill · Drag picked headers to move · Right-click for more</span>}
       </div>
+      <LinkDialog
+        value={linkDraft}
+        onClose={() => {
+          setLinkDraft(null);
+          focusGrid();
+        }}
+        onApply={(link) => applyFormat({ link: link ?? undefined })}
+      />
       {filterColumnId && sheet.columns.some((c) => c.id === filterColumnId) && (
         <FilterValuesDialog
           sheet={sheet}
@@ -697,11 +1015,13 @@ interface ColumnHeaderProps {
   left: number | undefined;
   canEdit: boolean;
   selected: boolean;
+  /** Part of a picked block of whole columns, so a drag from here moves them. */
+  movable: boolean;
   sort: "asc" | "desc" | null;
   filtered: boolean;
   onSort: (direction: "asc" | "desc" | null) => void;
   onFilter: () => void;
-  onSelectColumn: (extend: boolean) => void;
+  onHeaderMouseDown: (e: React.MouseEvent) => void;
   onResize: (e: React.PointerEvent) => void;
   onAutoFit: () => void;
   /** The part the column plays in the sheet's assets, when it plays one. */
@@ -716,7 +1036,7 @@ interface ColumnHeaderProps {
   onFreeze: () => void;
 }
 
-function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, sort, filtered, onSort, onFilter, onSelectColumn, onResize, onAutoFit, role, onAssetRole, roleHolders, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
+function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdit, selected, movable, sort, filtered, onSort, onFilter, onHeaderMouseDown, onResize, onAutoFit, role, onAssetRole, roleHolders, onChange, onInsert, onMove, onDelete, onFreeze }: ColumnHeaderProps) {
   const [renaming, setRenaming] = React.useState(false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(column.name);
@@ -872,13 +1192,14 @@ function ColumnHeader({ column, index, count, frozen, isFrozenEdge, left, canEdi
       )}
       style={{ backgroundColor: selected ? "#1a1d78" : `#${TEMPLATE_STYLE.headerFill}`, left: frozen ? left : undefined }}
       aria-colindex={index + 2}
+      data-hc={index}
     >
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
-            className="flex h-full items-center gap-1 pr-6 pl-2"
+            className={cn("flex h-full items-center gap-1 pr-6 pl-2 select-none", movable && "cursor-grab active:cursor-grabbing")}
             style={{ height: HEADER_HEIGHT }}
-            onMouseDown={(e) => e.button === 0 && !renaming && onSelectColumn(e.shiftKey)}
+            onMouseDown={(e) => e.button === 0 && !renaming && onHeaderMouseDown(e)}
             onDoubleClick={(e) => {
               if (renaming) return;
               e.preventDefault();
@@ -1118,13 +1439,17 @@ interface GridRowProps {
   frozen: number;
   offsets: number[];
   range: CellRange | null;
+  /** Where the fill handle is being pulled to. */
+  fillPreview: CellRange | null;
   active: CellAddress | null;
   editing: EditingState | null;
   canEdit: boolean;
   onMouseDownCell: (col: number, e: React.MouseEvent) => void;
   onMouseEnterCell: (col: number) => void;
   onDoubleClickCell: (col: number) => void;
-  onSelectRow: (extend: boolean) => void;
+  onGutterMouseDown: (e: React.MouseEvent) => void;
+  /** Part of a picked block of whole rows, so a drag from the number moves them. */
+  movable: boolean;
   /** Position in the real sheet, shown in the gutter (visible index differs under a filter or sort). */
   sourceIndex: number;
   onCommitEdit: (col: number, raw: string, move: EditMove) => void;
@@ -1149,13 +1474,15 @@ const GridRow = React.memo(function GridRow({
   frozen,
   offsets,
   range,
+  fillPreview,
   active,
   editing,
   canEdit,
   onMouseDownCell,
   onMouseEnterCell,
   onDoubleClickCell,
-  onSelectRow,
+  onGutterMouseDown,
+  movable,
   sourceIndex,
   onCommitEdit,
   onCancelEdit,
@@ -1176,9 +1503,10 @@ const GridRow = React.memo(function GridRow({
       className={cn(
         "sticky left-0 z-20 border-r border-b bg-surface text-center text-2xs text-muted-foreground tabular select-none transition-colors group-hover/row:bg-accent group-hover/row:text-foreground",
         (rowSelected || inActiveRow) && "bg-accent text-foreground",
+        movable && "cursor-grab active:cursor-grabbing",
       )}
       style={{ width: GUTTER }}
-      onMouseDown={(e) => e.button === 0 && onSelectRow(e.shiftKey)}
+      onMouseDown={(e) => e.button === 0 && onGutterMouseDown(e)}
       role="rowheader"
     >
       {sourceIndex + 1}
@@ -1187,22 +1515,27 @@ const GridRow = React.memo(function GridRow({
 
   const content =
     row.kind !== "data" ? (
-      <tr style={{ height: rowHeight }} aria-rowindex={index + 2} className="group/row" data-testid="grid-section-row">
+      <tr style={{ height: rowHeight }} aria-rowindex={index + 2} className="group/row" data-testid="grid-section-row" data-r={index}>
         {gutter}
         <SectionCell row={row} span={columns.length + 1} canEdit={canEdit} selected={rowSelected} onChange={onLabelChange} onMouseDown={(e) => onMouseDownCell(0, e)} />
       </tr>
     ) : (
-      <tr style={{ height: view.wrap ? undefined : rowHeight, minHeight: rowHeight }} aria-rowindex={index + 2} className="group/row">
+      <tr style={{ height: view.wrap ? undefined : rowHeight, minHeight: rowHeight }} aria-rowindex={index + 2} className="group/row" data-r={index}>
         {gutter}
         {columns.map((column, c) => (
           <GridCell
             key={column.id}
             column={column}
+            col={c}
             value={row.cells[column.id]}
+            format={row.formats?.[column.id]}
             frozen={c < frozen}
             isFrozenEdge={c === frozen - 1}
             left={offsets[c]}
             selected={!!range && inRange(range, index, c)}
+            edges={edgesOf(range, index, c)}
+            fillEdges={edgesOf(fillPreview, index, c)}
+            handle={canEdit && !!range && range.bottom === index && range.right === c && !editing}
             active={!!active && active.row === index && active.col === c}
             crosshair={view.crosshair && !!active && (active.row === index || active.col === c)}
             gridLines={view.gridLines}
@@ -1338,11 +1671,20 @@ function SectionCell({
 
 interface GridCellProps {
   column: TrackerColumn;
+  /** The column's place, read back by a drag. */
+  col: number;
   value: TrackerCellValue | undefined;
+  format: TrackerCellFormat | undefined;
   frozen: boolean;
   isFrozenEdge: boolean;
   left: number | undefined;
   selected: boolean;
+  /** The selection's sides this cell sits on (see edgesOf). */
+  edges: number;
+  /** The same for the fill handle's reach. */
+  fillEdges: number;
+  /** The fill handle: the selection's bottom-right corner. */
+  handle: boolean;
   active: boolean;
   editing: EditingState | null;
   canEdit: boolean;
@@ -1365,11 +1707,16 @@ interface GridCellProps {
 
 const GridCell = React.memo(function GridCell({
   column,
+  col,
   value,
+  format,
   frozen,
   isFrozenEdge,
   left,
   selected,
+  edges,
+  fillEdges,
+  handle,
   active,
   editing,
   canEdit,
@@ -1391,11 +1738,19 @@ const GridCell = React.memo(function GridCell({
   const text = column.type === "number" && typeof value === "number" && column.numberFormat && column.numberFormat !== "plain" ? formatNumber(value, column.numberFormat) : formatCell(column, value);
   const isChip = column.type === "list" && typeof value === "string" && value !== "";
   const tint: string | undefined = undefined;
+  const link = safeLink(format);
+  // The selection's outline and the fill handle's reach are drawn inside the
+  // cells on the range's edges; the active cell stays clear, as in Excel.
+  const shadows = [...edgeShadows(edges, 2, "var(--ring)"), ...edgeShadows(fillEdges, 2, "color-mix(in srgb, var(--ring) 55%, transparent)")];
+  if (isFrozenEdge) shadows.push("2px 0 0 0 var(--border)");
+  const shaded = selected && !active;
   return (
     <td
       role="gridcell"
       aria-label={text ? `${column.name}: ${text}` : `${column.name}: empty`}
+      aria-selected={selected || undefined}
       data-active={active || undefined}
+      data-c={col}
       data-testid="grid-cell"
       className={cn(
         "p-0 align-middle transition-colors",
@@ -1404,14 +1759,16 @@ const GridCell = React.memo(function GridCell({
         // An open editor (dropdown list, long-text box) spills over neighbouring
         // cells, which paint later and would otherwise draw their borders across it.
         editing && "z-50",
-        isFrozenEdge && "shadow-[2px_0_0_0_var(--border)]",
         !tint && striped && "bg-foreground/[0.03]",
         !tint && crosshair && "bg-ring/[0.06]",
-        !tint && "hover:bg-accent",
-        selected && !tint && "bg-ring/10",
-        active && "ring-2 ring-inset ring-ring",
+        !tint && !shaded && "hover:bg-accent",
       )}
-      style={{ left: frozen ? left : undefined, ...(tint ? { backgroundColor: `#${tint}`, color: "#1c1d2b" } : {}) }}
+      style={{
+        left: frozen ? left : undefined,
+        boxShadow: shadows.length ? shadows.join(", ") : undefined,
+        ...(shaded ? { backgroundColor: "color-mix(in srgb, var(--ring) 13%, var(--background))" } : {}),
+        ...(tint ? { backgroundColor: `#${tint}`, color: "#1c1d2b" } : {}),
+      }}
       onMouseDown={onMouseDown}
       onMouseEnter={onMouseEnter}
       onDoubleClick={onDoubleClick}
@@ -1425,8 +1782,11 @@ const GridCell = React.memo(function GridCell({
             wrap && column.type === "longText" ? "py-1.5 leading-snug whitespace-normal" : "whitespace-nowrap",
             column.type === "number" && "justify-end tabular",
             selected && tint && "brightness-95",
+            format?.bold && "font-bold",
+            format?.italic && "italic",
+            format?.underline && "underline underline-offset-2",
           )}
-          style={{ minHeight: rowHeight - 2, height: wrap && column.type === "longText" ? undefined : rowHeight - 2 }}
+          style={{ minHeight: rowHeight - 2, height: wrap && column.type === "longText" ? undefined : rowHeight - 2, fontSize: format?.size ? TRACKER_TEXT_SIZE_PX[format.size] : undefined }}
         >
           {column.type === "list" ? (
             <span className="group/chip flex min-w-0 flex-1 items-center justify-between gap-1">
@@ -1478,11 +1838,31 @@ const GridCell = React.memo(function GridCell({
                 {text.replace(/^https?:\/\//i, "")}
               </a>
             </>
+          ) : link ? (
+            <>
+              <span className={cn("text-blue-700 dark:text-blue-300", wrap && column.type === "longText" ? "line-clamp-3" : "truncate")} title={link}>
+                {text}
+              </span>
+              {active && (
+                <button
+                  type="button"
+                  aria-label="Open link"
+                  title={link}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={() => openLink(link)}
+                  className="ml-auto flex size-5 shrink-0 items-center justify-center rounded text-blue-700 hover:bg-foreground/10 dark:text-blue-300"
+                  data-testid="cell-open-link"
+                >
+                  <ExternalLink className="size-3.5" />
+                </button>
+              )}
+            </>
           ) : (
             <span className={cn(wrap && column.type === "longText" ? "line-clamp-3" : "truncate")}>{text}</span>
           )}
         </div>
       )}
+      {handle && <span data-fill-handle aria-hidden className="absolute -right-[4px] -bottom-[4px] z-[15] size-[8px] cursor-crosshair rounded-[1px] border border-background bg-ring after:absolute after:-inset-1.5 after:content-['']" data-testid="fill-handle" />}
     </td>
   );
 });
@@ -1507,12 +1887,19 @@ interface GridToolbarProps {
     setKind: (kind: TrackerRowKind) => void;
     freeze: () => void;
   };
+  /** The active cell's formatting, shown as pressed buttons. */
+  format: TrackerCellFormat;
+  formatting: {
+    toggle: (key: "bold" | "italic" | "underline") => void;
+    size: (size: TrackerTextSize) => void;
+    link: () => void;
+  };
   /** Opens the row editor; null when there is no data row selected or no phone. */
   onEditRow?: (() => void) | null;
 }
 
 /** Editing actions and view settings, Excel-ribbon style but small. */
-function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, onUndo, onRedo, actions, onEditRow }: GridToolbarProps) {
+function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, onUndo, onRedo, actions, format, formatting, onEditRow }: GridToolbarProps) {
   const frozenHere = activeCol !== null && frozen === activeCol + 1;
   const isMobile = useIsMobile();
   return (
@@ -1530,6 +1917,35 @@ function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, o
           <ToolButton label="Redo (Ctrl+Y)" onClick={onRedo}>
             <Redo2 />
           </ToolButton>
+          <Divider />
+          <ToolButton label="Bold (Ctrl+B)" onClick={() => formatting.toggle("bold")} disabled={!hasSelection} pressed={!!format.bold}>
+            <Bold />
+          </ToolButton>
+          <ToolButton label="Italic (Ctrl+I)" onClick={() => formatting.toggle("italic")} disabled={!hasSelection} pressed={!!format.italic}>
+            <Italic />
+          </ToolButton>
+          <ToolButton label="Underline (Ctrl+U)" onClick={() => formatting.toggle("underline")} disabled={!hasSelection} pressed={!!format.underline}>
+            <Underline />
+          </ToolButton>
+          <ToolButton label="Link (Ctrl+K)" onClick={formatting.link} disabled={!hasSelection} pressed={!!format.link}>
+            <Link2 />
+          </ToolButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" disabled={!hasSelection} title="Text size" data-testid="toolbar-text-size">
+                <ALargeSmall /> {TRACKER_TEXT_SIZE_LABELS[format.size ?? "md"]} <ChevronDown className="size-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-36" onCloseAutoFocus={(e) => e.preventDefault()}>
+              <DropdownMenuRadioGroup value={format.size ?? "md"} onValueChange={(size) => formatting.size(size as TrackerTextSize)}>
+                {TRACKER_TEXT_SIZES.map((size) => (
+                  <DropdownMenuRadioItem key={size} value={size}>
+                    <span style={{ fontSize: TRACKER_TEXT_SIZE_PX[size] }}>{TRACKER_TEXT_SIZE_LABELS[size]}</span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Divider />
           <Button variant="ghost" size="sm" onClick={actions.insertRow} data-testid="toolbar-insert-row">
             <Rows3 /> Insert row
@@ -1636,6 +2052,73 @@ function ToolButton({
 
 function Divider() {
   return <span aria-hidden className="mx-1 h-5 w-px bg-border" />;
+}
+
+/** A link on the selected cells: the text stays, the link opens from the cell. */
+function LinkDialog({ value, onClose, onApply }: { value: string | null; onClose: () => void; onApply: (link: string | null) => void }) {
+  return (
+    <Dialog open={value !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="sm">{value !== null && <LinkForm initial={value} onClose={onClose} onApply={onApply} />}</DialogContent>
+    </Dialog>
+  );
+}
+
+function LinkForm({ initial, onClose, onApply }: { initial: string; onClose: () => void; onApply: (link: string | null) => void }) {
+  const [draft, setDraft] = React.useState(initial);
+  const [invalid, setInvalid] = React.useState(false);
+  const apply = () => {
+    const href = normalizeLinkHref(draft);
+    if (!href) return setInvalid(true);
+    onApply(href);
+    onClose();
+  };
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Link</DialogTitle>
+        <DialogDescription>Opens from the cell.</DialogDescription>
+      </DialogHeader>
+      <Input
+        autoFocus
+        value={draft}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setInvalid(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            apply();
+          }
+        }}
+        placeholder="https://…"
+        aria-label="Link address"
+        aria-invalid={invalid || undefined}
+        data-testid="cell-link-input"
+      />
+      {invalid && <p className="text-xs text-destructive">Not a web address.</p>}
+      <DialogFooter>
+        {initial && (
+          <Button
+            variant="ghost"
+            className="mr-auto"
+            onClick={() => {
+              onApply(null);
+              onClose();
+            }}
+          >
+            Remove link
+          </Button>
+        )}
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={apply} disabled={!draft.trim()}>
+          Apply
+        </Button>
+      </DialogFooter>
+    </>
+  );
 }
 
 function CellEditor({

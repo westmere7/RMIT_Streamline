@@ -8,7 +8,7 @@ import { useSheetEditor } from "@/features/trackers/hooks";
 /**
  * F-004 — a tracker edit made just before leaving must still be saved.
  *
- * `useSheetEditor` debounces its writes by 600 ms. Its unmount cleanup used to
+ * `useSheetEditor` debounces its writes (600 ms then, 2 s since v0.160). Its unmount cleanup used to
  * call `clearTimeout` and nothing else, under a comment claiming it flushed, so
  * typing into a cell and switching sheet inside that window discarded the edit
  * silently — and `SheetEditorProvider` is mounted with `key={sheet.id}`, so a
@@ -108,7 +108,7 @@ describe("a tracker edit survives leaving the sheet", () => {
       commit()((current) => ({ ...current, rows: [{ ...current.rows[0]!, cells: { c1: "typed" } }] }) as TrackerSheet);
     });
     await act(async () => {
-      vi.advanceTimersByTime(700);
+      vi.advanceTimersByTime(2_100);
     });
     expect(saveSheet).toHaveBeenCalledTimes(1);
   });
@@ -117,5 +117,95 @@ describe("a tracker edit survives leaving the sheet", () => {
     const { view } = renderEditor();
     act(() => view.unmount());
     expect(saveSheet).not.toHaveBeenCalled();
+  });
+});
+
+/** A sheet editor whose server version the test changes, as realtime would. */
+function Live({ source, onReady, onDraft }: { source: TrackerSheet; onReady: (commit: Commit) => void; onDraft: (draft: TrackerSheet | undefined) => void }) {
+  const editor = useSheetEditor(source, true);
+  React.useEffect(() => {
+    onReady(editor.commit);
+  }, [editor.commit, onReady]);
+  React.useEffect(() => {
+    onDraft(editor.sheet);
+  }, [editor.sheet, onDraft]);
+  return null;
+}
+
+/**
+ * v0.160: saves wait for editing to pause, and a version from elsewhere is not
+ * put on screen while there are unsaved edits (the next save merges it), so
+ * cells deleted in quick succession stay deleted.
+ */
+describe("saving a sheet in batches", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    saveSheet.mockClear();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const typed = (value: string) => (current: TrackerSheet) => ({ ...current, rows: [{ ...current.rows[0]!, cells: { c1: value } }] }) as TrackerSheet;
+
+  it("saves once for a burst of edits, and at least every ten seconds in a long run", async () => {
+    const { commit } = renderEditor();
+    for (let i = 0; i < 5; i++) {
+      act(() => commit()(typed(`v${i}`)));
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+    }
+    expect(saveSheet).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(2_100);
+    });
+    expect(saveSheet).toHaveBeenCalledTimes(1);
+
+    saveSheet.mockClear();
+    // An edit every second for twelve seconds never pauses long enough, but still saves.
+    for (let i = 0; i < 12; i++) {
+      act(() => commit()(typed(`w${i}`)));
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+      });
+    }
+    expect(saveSheet.mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("keeps a deleted cell deleted when another version arrives before the save", async () => {
+    let commit: Commit | null = null;
+    let draft: TrackerSheet | undefined;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (source: TrackerSheet) => (
+      <QueryClientProvider client={client}>
+        <Live source={source} onReady={(next) => (commit = next)} onDraft={(next) => (draft = next)} />
+      </QueryClientProvider>
+    );
+    const base = sheet();
+    const view = render(tree(base));
+    act(() => commit!((current) => ({ ...current, rows: [{ ...current.rows[0]!, cells: {} }] }) as TrackerSheet));
+    // Somebody else's save lands, still holding the old value.
+    view.rerender(tree({ ...base, updatedAt: "2026-01-01T00:00:00.500Z" }));
+    expect(draft!.rows[0]!.cells.c1).toBeUndefined();
+    await act(async () => {
+      vi.advanceTimersByTime(2_100);
+    });
+    const [, patch] = saveSheet.mock.calls[0]!;
+    expect((patch.rows as Array<{ cells: Record<string, unknown> }>)[0]!.cells.c1).toBeUndefined();
+  });
+
+  it("shows another version straight away when nothing here is unsaved", () => {
+    let draft: TrackerSheet | undefined;
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = (source: TrackerSheet) => (
+      <QueryClientProvider client={client}>
+        <Live source={source} onReady={() => undefined} onDraft={(next) => (draft = next)} />
+      </QueryClientProvider>
+    );
+    const base = sheet();
+    const view = render(tree(base));
+    view.rerender(tree({ ...base, rows: [{ ...base.rows[0]!, cells: { c1: "theirs" } }], updatedAt: "2026-01-01T00:00:05.000Z" }));
+    expect(draft!.rows[0]!.cells.c1).toBe("theirs");
   });
 });

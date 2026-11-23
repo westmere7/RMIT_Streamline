@@ -74,6 +74,28 @@ export interface TrackerColumn {
 
 export type TrackerRowKind = "data" | "section" | "subsection";
 
+/** The four text sizes a cell can take; "md" is the sheet's own and is never stored. */
+export const TRACKER_TEXT_SIZES = ["sm", "md", "lg", "xl"] as const;
+export type TrackerTextSize = (typeof TRACKER_TEXT_SIZES)[number];
+export const TRACKER_TEXT_SIZE_LABELS: Record<TrackerTextSize, string> = { sm: "Small", md: "Normal", lg: "Large", xl: "Huge" };
+/** Pixels in the grid and points in Excel, per size. */
+export const TRACKER_TEXT_SIZE_PX: Record<TrackerTextSize, number> = { sm: 11, md: 13, lg: 16, xl: 20 };
+export const TRACKER_TEXT_SIZE_PT: Record<TrackerTextSize, number> = { sm: 9, md: 11, lg: 14, xl: 18 };
+
+/**
+ * How one cell's text is shown, as in Excel's Home ribbon: bold, italic,
+ * underline, a link and a size. Only what differs from plain is stored.
+ */
+export interface TrackerCellFormat {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  /** Absent for the normal size. */
+  size?: Exclude<TrackerTextSize, "md">;
+  /** An address the cell's text opens, http(s) or mailto. */
+  link?: string;
+}
+
 export interface TrackerRow {
   id: EntityId;
   /** "section"/"subsection" rows are full-width bands (phase, channel) like the merged rows in the template. */
@@ -82,6 +104,20 @@ export interface TrackerRow {
   label?: string;
   /** Values keyed by column id; missing keys are empty cells. */
   cells: Record<EntityId, TrackerCellValue>;
+  /** Formatting keyed by column id, data rows only; missing keys are plain cells. Kept when a value is cleared, as in Excel. */
+  formats?: Record<EntityId, TrackerCellFormat>;
+}
+
+/** A format with only what differs from plain, or null when nothing does. */
+export function cleanCellFormat(format: TrackerCellFormat | null | undefined): TrackerCellFormat | null {
+  if (!format) return null;
+  const out: TrackerCellFormat = {};
+  if (format.bold) out.bold = true;
+  if (format.italic) out.italic = true;
+  if (format.underline) out.underline = true;
+  if (format.size && format.size !== ("md" as string) && (TRACKER_TEXT_SIZES as readonly string[]).includes(format.size)) out.size = format.size;
+  if (typeof format.link === "string" && format.link.trim()) out.link = format.link.trim();
+  return Object.keys(out).length ? out : null;
 }
 
 export interface TrackerSheet extends Timestamps {

@@ -1,8 +1,9 @@
-import type { TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput } from "@/domain";
-import { columnLetter, personNames } from "@/domain";
+import type { TrackerCellFormat, TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet, TrackerSheetInput, TrackerTextSize } from "@/domain";
+import { TRACKER_TEXT_SIZE_PT, cleanCellFormat, columnLetter, personNames } from "@/domain";
 import { effectiveSummary, excelNumberFormat } from "@/features/trackers/sheet-view";
 import { STATUS_COLORS, TEMPLATE_STYLE, YES_NO_COLORS, resolveOptionColors } from "@/features/trackers/tracker-template";
 import { newId } from "@/lib/ids";
+import { normalizeLinkHref } from "@/lib/rich-text";
 import { TrackerService } from "./tracker-service";
 
 /**
@@ -27,6 +28,31 @@ async function loadExcel(): Promise<ExcelJS> {
 const FONT = "Arial";
 
 // ---- Export --------------------------------------------------------------------
+
+/** A cell's bold, italic, underline, size and link, the Excel way. */
+function applyCellFormat(cell: import("exceljs").Cell, format: TrackerCellFormat | undefined) {
+  if (!format) return;
+  const font: Partial<import("exceljs").Font> = { ...(cell.font ?? {}), name: FONT };
+  if (format.bold) font.bold = true;
+  if (format.italic) font.italic = true;
+  if (format.underline) font.underline = true;
+  if (format.size) font.size = TRACKER_TEXT_SIZE_PT[format.size];
+  const href = format.link ? normalizeLinkHref(format.link) : null;
+  const plain = cell.value !== null && cell.value !== undefined && (typeof cell.value === "string" || typeof cell.value === "number");
+  if (href && plain) {
+    cell.value = { text: String(cell.value), hyperlink: href };
+    font.color = { argb: "FF0563C1" };
+  }
+  cell.font = font;
+}
+
+/** A font size read against the sheet's usual one. */
+function sizeFromRatio(ratio: number): Exclude<TrackerTextSize, "md"> | undefined {
+  if (ratio < 0.9) return "sm";
+  if (ratio >= 1.45) return "xl";
+  if (ratio > 1.15) return "lg";
+  return undefined;
+}
 
 export async function sheetsToWorkbook(name: string, sheets: TrackerSheet[]): Promise<Uint8Array<ArrayBuffer>> {
   const Excel = await loadExcel();
@@ -73,7 +99,11 @@ function writeSheet(workbook: import("exceljs").Workbook, sheet: TrackerSheet): 
       cell.font = { name: FONT };
       cell.alignment = { vertical: "top", wrapText: column.type === "longText" };
       const value = row.cells[column.id];
-      if (value === undefined || value === null || value === "") return;
+      const format = row.formats?.[column.id];
+      if (value === undefined || value === null || value === "") {
+        applyCellFormat(cell, format);
+        return;
+      }
       switch (column.type) {
         case "date": {
           const d = typeof value === "string" ? new Date(`${value}T00:00:00Z`) : null;
@@ -105,6 +135,7 @@ function writeSheet(workbook: import("exceljs").Workbook, sheet: TrackerSheet): 
         default:
           cell.value = typeof value === "boolean" ? (value ? "Y" : "N") : value;
       }
+      applyCellFormat(cell, format);
     });
   });
 
@@ -266,6 +297,7 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
   const urlHits = new Map<number, number>();
   const numberHits = new Map<number, number>();
   const filled = new Map<number, number>();
+  const styled: Array<{ row: TrackerRow; columnId: string; font: Partial<import("exceljs").Font> | undefined; linked: boolean }> = [];
   for (let r = headerRowNumber + 1; r <= rowCount; r++) {
     const excelRow = ws.getRow(r);
     const values = collectRow(ws, r, lastColumn, true);
@@ -296,6 +328,7 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
       continue;
     }
     const cells: TrackerRow["cells"] = {};
+    const dataRow: TrackerRow = { id: newId(), kind: "data", cells };
     values.forEach((value, i) => {
       if (value === null || value === "") return;
       const column = columns[i]!;
@@ -305,8 +338,10 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
       if (cell.type === 4 || cell.value instanceof Date) dateHits.set(i, (dateHits.get(i) ?? 0) + 1);
       if (typeof value === "string" && /^https?:\/\//i.test(value)) urlHits.set(i, (urlHits.get(i) ?? 0) + 1);
       if (typeof value === "number" && !(cell.value instanceof Date)) numberHits.set(i, (numberHits.get(i) ?? 0) + 1);
+      const linked = !!cell.value && typeof cell.value === "object" && "hyperlink" in (cell.value as object);
+      styled.push({ row: dataRow, columnId: column.id, font: cell.font, linked });
     });
-    rows.push({ id: newId(), kind: "data", cells });
+    rows.push(dataRow);
   }
 
   // Infer types from what the column actually holds.
@@ -329,6 +364,17 @@ function readSheet(ws: import("exceljs").Worksheet): Omit<TrackerSheetInput, "tr
       if (coerced === null) delete row.cells[columnId];
       else row.cells[columnId] = coerced;
     }
+  }
+
+  // Bold, italic and underline as they are; sizes against the sheet's usual
+  // one. A link's own underline is the link's, not the cell's.
+  const sizes = new Map<number, number>();
+  for (const s of styled) sizes.set(s.font?.size ?? 11, (sizes.get(s.font?.size ?? 11) ?? 0) + 1);
+  const baseSize = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 11;
+  for (const { row, columnId, font, linked } of styled) {
+    if (!(columnId in row.cells)) continue;
+    const format = cleanCellFormat({ bold: !!font?.bold, italic: !!font?.italic, underline: !linked && !!font?.underline, size: sizeFromRatio((font?.size ?? 11) / baseSize) });
+    if (format) row.formats = { ...row.formats, [columnId]: format };
   }
 
   // Trim trailing blank rows but keep a few for typing.

@@ -69,8 +69,8 @@ export function useTrackerRealtime(trackerId: string | null): void {
       { table: "tracker_sheets", filter: `tracker_id=eq.${trackerId}`, keys: [queryKeys.trackerSheets(trackerId)] },
     ];
   }, [trackerId]);
-  // A sheet is saved as one row, and a long edit saves every second or so;
-  // wait out the run rather than re-reading the sheet between keystrokes.
+  // A sheet is saved as one row, and a long edit saves every few seconds;
+  // wait out the run rather than re-reading the sheet between saves.
   useRealtime(trackerId ? `tracker:${trackerId}` : null, bindings, { coalesceMs: 1_000, minIntervalMs: 5_000 });
 }
 
@@ -268,18 +268,25 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 /**
  * Local editing state for one sheet: edits apply instantly, history supports
- * undo/redo, and the document is saved shortly after typing stops.
+ * undo/redo, and the document is saved once editing pauses (SAVE_IDLE_MS), or
+ * every SAVE_MAX_WAIT_MS during a long run of edits.
  *
  * Saving is careful because several people can have one sheet open. Each save
  * is written only if the sheet is still the version this editor started from
  * (`base`); when somebody else saved in between, their version is merged with
  * this one, cell by cell (mergeSheets), and saved again. A version arriving
- * over realtime is merged the same way while anything here is unsaved, and
- * simply shown when nothing is. Nobody's typing is lost to somebody else's.
+ * over realtime while anything here is unsaved is held, not shown: the next
+ * save meets it and merges it, so the screen never changes under the person
+ * editing. Nothing unsaved, it is shown as it is. Nobody's typing is lost.
  *
  * Mount the caller with `key={sheet.id}` (see SheetEditorProvider): the hook
  * assumes it lives for exactly one sheet.
  */
+/** How long editing must pause before the sheet saves. */
+const SAVE_IDLE_MS = 2_000;
+/** The longest a run of edits waits for a save. */
+const SAVE_MAX_WAIT_MS = 10_000;
+
 export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean) {
   const services = useServices();
   const queryClient = useQueryClient();
@@ -300,6 +307,10 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
     again: false,
     settled: null as (() => void) | null,
     failed: false,
+    /** When the oldest unsaved edit was made. */
+    pendingSince: null as number | null,
+    /** A version from elsewhere that arrived while this had unsaved edits. */
+    held: null as TrackerSheet | null,
   });
   const [saving, setSaving] = React.useState<"idle" | "pending" | "saving" | "error">("idle");
 
@@ -312,21 +323,26 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
     [],
   );
 
-  // A version from elsewhere: shown as it is when nothing here is unsaved,
-  // merged with what is when something is.
+  /** Shows a newer version from elsewhere, once nothing here is unsaved or on its way. */
+  const takeRemote = React.useCallback(
+    (remote: TrackerSheet) => {
+      const store = storeRef.current;
+      if (!store.base || remote.updatedAt <= store.base.updatedAt) return;
+      if (store.dirty || store.running || store.timer) {
+        // Held for the save, which merges it: nothing moves while someone is editing.
+        if (!store.held || remote.updatedAt > store.held.updatedAt) store.held = remote;
+        return;
+      }
+      store.held = null;
+      store.base = remote;
+      show(remote);
+    },
+    [show],
+  );
+
   React.useEffect(() => {
-    const store = storeRef.current;
-    if (!sheet || !store.base || sheet.updatedAt === store.base.updatedAt) return;
-    if (sheet.updatedAt < store.base.updatedAt) return;
-    if (!store.dirty) {
-      store.base = sheet;
-      show(sheet);
-      return;
-    }
-    const merged = mergeSheets(store.base, store.current ?? sheet, sheet);
-    store.base = sheet;
-    show({ ...merged, updatedAt: sheet.updatedAt, name: sheet.name, itemId: sheet.itemId, assetMapping: sheet.assetMapping });
-  }, [sheet, show]);
+    if (sheet) takeRemote(sheet);
+  }, [sheet, takeRemote]);
 
   const run = React.useCallback(async () => {
       const store = storeRef.current;
@@ -336,6 +352,7 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
       return;
     }
     store.running = true;
+    store.pendingSince = null;
     setSaving("saving");
     try {
       for (let attempt = 0; attempt < 6; attempt++) {
@@ -382,18 +399,26 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
       if (!store.running && !store.timer && !store.dirty) {
         store.settled?.();
         store.settled = null;
+        // What arrived from elsewhere meanwhile, if the save did not already take it in.
+        const held = store.held;
+        store.held = null;
+        if (held) takeRemote(held);
       }
     }
-  }, [services, queryClient, show, user.id]);
+  }, [services, queryClient, show, takeRemote, user.id]);
 
   const schedule = React.useCallback(() => {
       const store = storeRef.current;
     if (store.timer) window.clearTimeout(store.timer);
     setSaving("pending");
-    // The sheet waits for typing to stop before it saves, so an edit is only
-    // in memory for up to a second: hold the unload guard for that whole time.
+    // The sheet waits for editing to pause before it saves (and no longer than
+    // SAVE_MAX_WAIT_MS in a long run), so an edit lives in memory for a few
+    // seconds: hold the unload guard for that whole time.
     store.settled ??= beginUnsavedWork();
-    store.timer = window.setTimeout(() => void run(), 600);
+    const now = Date.now();
+    store.pendingSince ??= now;
+    const wait = Math.max(0, Math.min(SAVE_IDLE_MS, store.pendingSince + SAVE_MAX_WAIT_MS - now));
+    store.timer = window.setTimeout(() => void run(), wait);
   }, [run]);
 
   React.useEffect(
@@ -450,7 +475,7 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
 
   /**
    * Finish a pending save when the editor goes away (a sheet switch, closing
-   * the page): an edit made in the last 600 ms is written, not dropped.
+   * the page): an edit still waiting for its save is written, not dropped.
    * (Audit F-004.) Fire and forget: the component is going, the write is not.
    */
   const latestRun = React.useRef(run);

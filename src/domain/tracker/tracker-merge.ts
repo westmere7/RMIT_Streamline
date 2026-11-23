@@ -1,4 +1,4 @@
-import type { TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet } from "@/domain/tracker/tracker";
+import type { TrackerCellFormat, TrackerCellValue, TrackerColumn, TrackerRow, TrackerSheet } from "@/domain/tracker/tracker";
 
 /**
  * Two people editing one sheet, merged instead of overwritten.
@@ -85,9 +85,19 @@ function mergeRow(b: TrackerRow, m: TrackerRow, t: TrackerRow): TrackerRow {
     const value = pick(b.cells[id], m.cells[id], t.cells[id]);
     if (value !== undefined && value !== null && value !== "") cells[id] = value;
   }
+  // Formatting the same way, cell by cell: one side bolding a cell and the other typing into it both stand.
+  const formats: Record<string, TrackerCellFormat> = {};
+  const bf = b.formats ?? {};
+  const mf = m.formats ?? {};
+  const tf = t.formats ?? {};
+  for (const id of new Set([...Object.keys(bf), ...Object.keys(mf), ...Object.keys(tf)])) {
+    const value = pick(bf[id], mf[id], tf[id]);
+    if (value && Object.keys(value).length) formats[id] = value;
+  }
   const kind = pick(b.kind, m.kind, t.kind);
   // A band holds a label and no cells, whichever side typed into it.
   const row: TrackerRow = { id: m.id, kind, cells: kind === "data" ? cells : {} };
+  if (kind === "data" && Object.keys(formats).length) row.formats = formats;
   const label = pick(b.label, m.label, t.label);
   if (label !== undefined) row.label = label;
   return row;
@@ -97,9 +107,17 @@ export function mergeSheets<S extends Grid>(base: Grid, mine: S, theirs: Grid): 
   const columns = mergeEntities(base.columns, mine.columns, theirs.columns, mergeColumn);
   const columnIds = new Set(columns.map((c) => c.id));
   const rows = mergeEntities(base.rows, mine.rows, theirs.rows, mergeRow).map((row) => {
-    // A cell whose column was deleted on the other side goes with it.
-    if (Object.keys(row.cells).every((id) => columnIds.has(id))) return row;
-    return { ...row, cells: Object.fromEntries(Object.entries(row.cells).filter(([id]) => columnIds.has(id))) };
+    // A cell whose column was deleted on the other side goes with it, and its formatting too.
+    const cellsOk = Object.keys(row.cells).every((id) => columnIds.has(id));
+    const formatsOk = !row.formats || Object.keys(row.formats).every((id) => columnIds.has(id));
+    if (cellsOk && formatsOk) return row;
+    const out: TrackerRow = { ...row, cells: Object.fromEntries(Object.entries(row.cells).filter(([id]) => columnIds.has(id))) };
+    if (row.formats) {
+      const formats = Object.fromEntries(Object.entries(row.formats).filter(([id]) => columnIds.has(id)));
+      if (Object.keys(formats).length) out.formats = formats;
+      else delete out.formats;
+    }
+    return out;
   });
   return {
     ...mine,

@@ -1,5 +1,5 @@
-import type { TrackerCellValue, TrackerColumn, TrackerNumberFormat, TrackerRow, TrackerSheet, TrackerSummaryKind } from "@/domain";
-import { isBlankCell, personNames } from "@/domain";
+import type { EntityId, TrackerCellFormat, TrackerCellValue, TrackerColumn, TrackerNumberFormat, TrackerRow, TrackerSheet, TrackerSummaryKind } from "@/domain";
+import { cleanCellFormat, isBlankCell, personNames } from "@/domain";
 import { formatCell, type CellAddress, type CellRange } from "@/features/trackers/grid-model";
 import { TrackerService, type CellEdit } from "@/services/tracker-service";
 
@@ -317,6 +317,106 @@ export function fillDownEdits(sheet: TrackerSheet, rows: TrackerRow[], range: { 
 export function fillDown(sheet: TrackerSheet, rows: TrackerRow[], range: { top: number; bottom: number; left: number; right: number }): TrackerSheet {
   const edits = fillDownEdits(sheet, rows, range);
   return edits.length ? TrackerService.applyEdits(sheet, edits) : sheet;
+}
+
+/**
+ * The fill handle: the selection dragged out by its corner to `target` (the
+ * selection plus the cells it was dragged over, in one direction). As in Excel
+ * and Google Sheets the selection repeats over the new cells, and a run of two
+ * or more numbers that rise or fall by the same step continues instead
+ * (1, 2, 3 then 4, 5…; dragged up, 0, -1…). Formatting comes along with the
+ * values. Bands are skipped, both in what is copied and where it lands.
+ */
+export function fillRangeEdits(
+  sheet: Pick<TrackerSheet, "columns">,
+  rows: TrackerRow[],
+  source: CellRange,
+  target: CellRange,
+): { edits: CellEdit[]; formats: Array<{ rowId: EntityId; columnId: EntityId; format: TrackerCellFormat | null }> } {
+  const edits: CellEdit[] = [];
+  const formats: Array<{ rowId: EntityId; columnId: EntityId; format: TrackerCellFormat | null }> = [];
+  const put = (row: TrackerRow, column: TrackerColumn, value: TrackerCellValue | undefined, format: TrackerCellFormat | undefined) => {
+    edits.push({ rowId: row.id, columnId: column.id, value: value === undefined || value === null ? null : TrackerService.coerce(column, value) });
+    formats.push({ rowId: row.id, columnId: column.id, format: format ?? null });
+  };
+  // The next value of a run, k cells past its end (k = 0 is the first new cell); backwards when filling up or left.
+  const next = (values: Array<TrackerCellValue | undefined>, k: number, backwards: boolean): TrackerCellValue | undefined => {
+    const n = values.length;
+    const numbers = values.every((v) => typeof v === "number") ? (values as number[]) : null;
+    if (numbers && n >= 2) {
+      const step = numbers[1]! - numbers[0]!;
+      if (numbers.every((v, i) => i === 0 || Math.abs(v - numbers[i - 1]! - step) < 1e-9)) {
+        const value = backwards ? numbers[0]! - step * (k + 1) : numbers[n - 1]! + step * (k + 1);
+        return Math.round(value * 1e9) / 1e9;
+      }
+    }
+    return backwards ? values[n - 1 - (k % n)] : values[k % n];
+  };
+  const cycle = <T,>(items: T[], k: number, backwards: boolean): T => (backwards ? items[items.length - 1 - (k % items.length)]! : items[k % items.length]!);
+
+  const vertical = target.top < source.top || target.bottom > source.bottom;
+  if (vertical) {
+    const sourceRows = rows.slice(source.top, source.bottom + 1).filter((r) => r.kind === "data");
+    if (!sourceRows.length) return { edits, formats };
+    const down = target.bottom > source.bottom;
+    const landing = (down ? rows.slice(source.bottom + 1, target.bottom + 1) : rows.slice(target.top, source.top).reverse()).filter((r) => r.kind === "data");
+    for (let c = source.left; c <= source.right; c++) {
+      const column = sheet.columns[c];
+      if (!column) continue;
+      const values = sourceRows.map((r) => r.cells[column.id]);
+      const styles = sourceRows.map((r) => r.formats?.[column.id]);
+      landing.forEach((row, k) => put(row, column, next(values, k, !down), cycle(styles, k, !down)));
+    }
+    return { edits, formats };
+  }
+  const right = target.right > source.right;
+  const landingCols = right ? range(source.right + 1, target.right) : range(target.left, source.left - 1).reverse();
+  for (let r = source.top; r <= source.bottom; r++) {
+    const row = rows[r];
+    if (!row || row.kind !== "data") continue;
+    const sourceCols = range(source.left, source.right).map((c) => sheet.columns[c]).filter((c): c is TrackerColumn => !!c);
+    const values = sourceCols.map((c) => row.cells[c.id]);
+    const styles = sourceCols.map((c) => row.formats?.[c.id]);
+    landingCols.forEach((c, k) => {
+      const column = sheet.columns[c];
+      if (column) put(row, column, next(values, k, !right), cycle(styles, k, !right));
+    });
+  }
+  return { edits, formats };
+}
+
+function range(from: number, to: number): number[] {
+  const out: number[] = [];
+  for (let i = from; i <= to; i++) out.push(i);
+  return out;
+}
+
+/** Applies a fill-handle drag to the real sheet given the rows as displayed. */
+export function fillRange(sheet: TrackerSheet, rows: TrackerRow[], source: CellRange, target: CellRange): TrackerSheet {
+  const { edits, formats } = fillRangeEdits(sheet, rows, source, target);
+  if (!edits.length) return sheet;
+  const next = TrackerService.applyEdits(sheet, edits);
+  // The formats in one pass: each landing cell takes its source's formatting, or none.
+  const byRow = new Map<EntityId, Map<EntityId, TrackerCellFormat | null>>();
+  for (const { rowId, columnId, format } of formats) {
+    if (!byRow.has(rowId)) byRow.set(rowId, new Map());
+    byRow.get(rowId)!.set(columnId, cleanCellFormat(format));
+  }
+  return {
+    ...next,
+    rows: next.rows.map((row) => {
+      const updates = byRow.get(row.id);
+      if (!updates || row.kind !== "data") return row;
+      const merged: Record<EntityId, TrackerCellFormat> = { ...(row.formats ?? {}) };
+      for (const [columnId, format] of updates) {
+        if (format) merged[columnId] = format;
+        else delete merged[columnId];
+      }
+      const out: TrackerRow = { ...row, formats: merged };
+      if (Object.keys(merged).length === 0) delete out.formats;
+      return out;
+    }),
+  };
 }
 
 // ---- editing through a view --------------------------------------------------------
