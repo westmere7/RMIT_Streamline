@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.155.1",
+    date: "2026-11-23",
+    title: "Formatting on questions too",
+    changes: [
+      "In the form editor, questions take bold, italic, underline and links too, follow-ups included; choices and dropdown items stay plain.",
+      "The formatting buttons appear once the mouse is released and close as soon as you click away."
+    ],
+  },
+  {
     version: "0.155.0",
     date: "2026-11-23",
     title: "Formatting in the form editor",

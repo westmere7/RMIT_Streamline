@@ -2,7 +2,7 @@ import type { jsPDF as JsPdf } from "jspdf";
 import type { BookingFormTemplate, BookingReceipt, BookingRequest } from "@/domain";
 import { formatAssetLine, serviceById } from "@/domain";
 import { loadPng, pdfSafe } from "@/features/dashboard/export-pdf";
-import { parseRichText, plainInline, type BlockNode, type InlineNode } from "@/lib/rich-text";
+import { parseRichText, plainInline, plainLabel, type BlockNode, type InlineNode } from "@/lib/rich-text";
 import { composeBrief } from "@/services/booking";
 
 /**
@@ -198,7 +198,7 @@ class BookingPdf {
     if (request.requesterEmail) facts.push(["Email", plain(request.requesterEmail)]);
     if (request.department?.trim()) facts.push(["Department", plain(request.department.trim())]);
     if (service) facts.push(["Service", plain(service.name)]);
-    if (request.subServices.length) facts.push([service?.subServiceLabel?.trim() || "Work types", plain(request.subServices.join(", "))]);
+    if (request.subServices.length) facts.push([plainLabel(service?.subServiceLabel ?? "") || "Work types", plain(request.subServices.join(", "))]);
     if (request.priority) facts.push(["Urgency", plain(request.priority)]);
     if (request.dueDate) facts.push(["Needed by", plain(formatDay(request.dueDate))]);
     facts.push(["Going to", plain(receipt.teamName ? `${receipt.teamName} (${receipt.boardName})` : "The allocation queue")]);

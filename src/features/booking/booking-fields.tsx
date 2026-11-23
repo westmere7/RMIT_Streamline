@@ -21,6 +21,7 @@ import { MAX_OWN_CHOICES, MAX_OWN_CHOICE_LENGTH, allowsOwnChoices, emptyAnswerFo
 import { todayISO } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
+import { plainLabel } from "@/lib/rich-text";
 
 /**
  * The controls of the booking wizard, one per kind of question, shared by the
@@ -89,7 +90,7 @@ export function Field({ id, label, required, description, error, number, hideLab
     <>
       {number && <NumberBadge n={number} />}
       <span className="min-w-0">
-        {label}
+        {typeof label === "string" ? <InlineRichText text={label} /> : label}
         {required && (
           <span aria-hidden className="ml-0.5 text-primary">
             *
@@ -223,7 +224,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
         return (
           <Field id={id("booking-department")} {...shell}>
             <Select value="" disabled>
-              <SelectTrigger id={id("booking-department")} aria-label={field.label} aria-invalid className="h-11 border-dashed text-[13px]" data-testid={tid("booking-department")}>
+              <SelectTrigger id={id("booking-department")} aria-label={plainLabel(field.label)} aria-invalid className="h-11 border-dashed text-[13px]" data-testid={tid("booking-department")}>
                 <SelectValue placeholder="No departments set up yet" />
               </SelectTrigger>
             </Select>
@@ -240,7 +241,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
           <Select value={listed?.name ?? ""} onValueChange={(v) => onChange({ department: v })} disabled={preview}>
             <SelectTrigger
               id={id("booking-department")}
-              aria-label={field.label}
+              aria-label={plainLabel(field.label)}
               aria-invalid={!!error}
               className={cn("text-[13px] font-semibold", tall ? "h-[58px] rounded-xl px-4" : "h-11", tint ? cn(tint.soft, "border-transparent hover:border-transparent") : "border-dashed")}
               data-testid={tid("booking-department")}
@@ -288,7 +289,7 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
               rising bars say "critical" before the eye reaches the word, so a
               stakeholder choosing one here sees what the team will see. */}
           <Select value={draft.priority ?? NO_PRIORITY} onValueChange={(v) => onChange({ priority: v === NO_PRIORITY ? null : v })} disabled={preview}>
-            <SelectTrigger id={id("booking-priority")} aria-label={field.label} className="h-11" data-testid={tid("booking-priority")}>
+            <SelectTrigger id={id("booking-priority")} aria-label={plainLabel(field.label)} className="h-11" data-testid={tid("booking-priority")}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -353,7 +354,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
             onChange={(next) => onChange({ kind: "text", text: next })}
             people={NO_PEOPLE}
             rows={block.kind === "long" ? 5 : 2}
-            ariaLabel={block.label}
+            ariaLabel={plainLabel(block.label)}
             testId={testId ? `${testId}-rich` : undefined}
           />
         </div>
@@ -378,7 +379,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
       const own = values.filter((v) => !offered.has(v));
       return (
         <Field {...shell}>
-          <ChipGroup ariaLabel={block.label}>
+          <ChipGroup ariaLabel={plainLabel(block.label)}>
             {block.options.map((option) => (
               <Chip
                 key={option.name}
@@ -421,7 +422,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
         return (
           <Field id={id} {...shell}>
             <Select value={chosen} onValueChange={(v) => onChange({ kind: "choice", values: v === NO_CHOICE ? [] : [v] })} disabled={preview}>
-              <SelectTrigger id={id} aria-label={block.label} aria-invalid={!!error} className="h-11" data-testid={testId}>
+              <SelectTrigger id={id} aria-label={plainLabel(block.label)} aria-invalid={!!error} className="h-11" data-testid={testId}>
                 <SelectValue placeholder="Pick one" />
               </SelectTrigger>
               <SelectContent>
@@ -441,7 +442,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
       }
       return (
         <Field {...shell}>
-          <ChipGroup ariaLabel={block.label}>
+          <ChipGroup ariaLabel={plainLabel(block.label)}>
             {block.options.map((option) => (
               <Chip
                 key={option.name}
@@ -486,7 +487,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
               <span className="flex items-start gap-1.5 font-medium">
                 {number && <NumberBadge n={number} />}
                 <span className="min-w-0">
-                  {block.label}
+                  {plainLabel(block.label)}
                   <span aria-hidden className="ml-0.5 text-primary">
                     *
                   </span>
@@ -527,7 +528,7 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
               data-testid={testId}
             />
             <Input
-              aria-label={`What to call the link for “${block.label}”`}
+              aria-label={`What to call the link for “${plainLabel(block.label)}”`}
               placeholder="What to call it (optional)"
               value={link.label}
               onChange={(e) => onChange({ kind: "link", url: link.url, label: e.target.value })}

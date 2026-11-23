@@ -40,7 +40,7 @@ import {
   visibleBlocks,
 } from "@/domain";
 import { BOOKED_BY_LABEL, briefForVisitors } from "@/domain/booking/brief-source";
-import { MAX_INDENT, richTextToPlain } from "@/lib/rich-text";
+import { MAX_INDENT, plainLabel, richTextToPlain } from "@/lib/rich-text";
 
 /**
  * The booking form's rules, with nothing async in them so they can be tested
@@ -296,7 +296,7 @@ export const bookingFormTemplateSchema = z
   .superRefine((template, ctx) => {
     const keys = new Set<string>();
     for (const field of template.basics.fields) {
-      if (keys.has(field.key)) ctx.addIssue({ code: "custom", message: `“${field.label}” asks the same thing twice` });
+      if (keys.has(field.key)) ctx.addIssue({ code: "custom", message: `“${plainLabel(field.label)}” asks the same thing twice` });
       keys.add(field.key);
     }
     for (const key of BOOKING_LOCKED_KEYS) if (!keys.has(key)) ctx.addIssue({ code: "custom", message: `Step one has to ask for the ${LOCKED_KEY_NAMES[key]}` });
@@ -510,7 +510,7 @@ export function validateBookingStep(step: BookingStep, request: BookingRequest, 
       // A question the caller does not ask cannot be required of anybody: the
       // portal takes the department from the link, so there is no box to fill.
       if (omit.includes(field.key)) continue;
-      if (field.required && isStandardAnswerEmpty(request, field.key)) errors[field.id] = `${field.label} is required`;
+      if (field.required && isStandardAnswerEmpty(request, field.key)) errors[field.id] = `${plainLabel(field.label)} is required`;
     }
     if (!service) errors[SERVICE_ERROR_KEY] = "Pick the kind of work this is";
     // A service that offers sub-services is asking a question, and "none of
@@ -529,7 +529,7 @@ export function validateBookingStep(step: BookingStep, request: BookingRequest, 
       if (!isQuestionBlock(block)) continue;
       // An answer of another shape (the question changed kind since) counts as none.
       const answer = usableAnswer(block, request.answers[block.id]);
-      if (block.required && isAnswerEmpty(answer)) errors[block.id] = block.kind === "ack" ? `Tick “${block.label}” to go on` : `${block.label} is required`;
+      if (block.required && isAnswerEmpty(answer)) errors[block.id] = block.kind === "ack" ? `Tick “${plainLabel(block.label)}” to go on` : `${plainLabel(block.label)} is required`;
     }
     return errors;
   }
@@ -627,7 +627,7 @@ export function composeBrief(request: BookingRequest, template: BookingFormTempl
         // starts a new one, where a bold line and the line after it are one
         // paragraph and the question runs into its own answer.
         const number = numbers.get(block.id);
-        lines.push("", `${pad(depth)}## ${number ? `${number}. ` : ""}${plain(block.label)}`);
+        lines.push("", `${pad(depth)}## ${number ? `${number}. ` : ""}${plain(plainLabel(block.label))}`);
         lines.push(...(isRichTextQuestion(block) && answer!.kind === "text" ? richAnswerLines(answer!.text, depth) : answerLines(answer!, depth)));
       }
       // Under its own question, and a step further in. A follow-up whose

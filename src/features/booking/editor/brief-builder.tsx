@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { NumberBadge, slug } from "../booking-fields";
 import { ChoiceChips } from "./choice-chips";
 import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, Segmented, TextBox } from "./editor-controls";
+import { plainLabel } from "@/lib/rich-text";
 
 /**
  * The builder for one service's brief: step two, block by block.
@@ -176,7 +177,7 @@ function BlockEditor({
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
   const question = isQuestionBlock(block);
-  const name = question ? block.label || "this question" : BOOKING_BLOCK_LABELS[block.kind];
+  const name = question ? plainLabel(block.label) || "this question" : BOOKING_BLOCK_LABELS[block.kind];
 
   return (
     // The sortable node is the wrapper, so the insert lines in its margins move with the card.
@@ -347,7 +348,7 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
 
   return (
     <>
-      <TextBox
+      <TextBox formatting={block.kind !== "ack"}
         value={block.label}
         onChange={(v) => onPatch({ label: v } as Partial<BookingBlock>)}
         ariaLabel={block.kind === "ack" ? "Statement" : "Question"}
@@ -739,8 +740,8 @@ function RequiredSwitch({ block, onPatch }: { block: BookingQuestionBlock; onPat
 
 /** What a saved block is called on the menu: its question, or its first words. */
 function describeBlock(block: BookingBlock): string {
-  if (isQuestionBlock(block)) return block.label;
-  if (block.kind === "text") return block.text;
+  if (isQuestionBlock(block)) return plainLabel(block.label);
+  if (block.kind === "text") return plainLabel(block.text);
   return BOOKING_BLOCK_LABELS.separator;
 }
 

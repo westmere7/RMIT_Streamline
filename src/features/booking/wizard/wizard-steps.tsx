@@ -14,6 +14,7 @@ import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
 import { SERVICE_ERROR_KEY, SUBSERVICE_ERROR_KEY, composeBrief } from "@/services/booking";
 import { AssetList, AssetTypePicker, BlockField, Chip, ChipGroup, Field, SeparatorBlockView, ServiceCardShell, StandardField, TextBlockView, slug, toggle, type AssetRow, type EmailCheck } from "../booking-fields";
+import { plainLabel } from "@/lib/rich-text";
 
 /**
  * The four steps of the booking wizard, each one a plain function of the
@@ -107,7 +108,7 @@ export function StepBasics({
               what the rest of the form asks, so it is worth the room. As many
               to a row as fit at a width that holds the name, then another row:
               the form is a fixed card, so the window's width says nothing. */}
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-2" role="radiogroup" aria-label={template.basics.serviceLabel} data-testid="booking-services">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(17rem,100%),1fr))] gap-2" role="radiogroup" aria-label={plainLabel(template.basics.serviceLabel)} data-testid="booking-services">
             {template.services.map((option) => (
               <ServiceCard
                 key={option.id}

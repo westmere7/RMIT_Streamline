@@ -136,16 +136,76 @@ export function FormattingTextBox({
     editor.chain().focus().setTextSelection({ from: base + start, to: base + end }).run();
   };
 
+  const boxRef = React.useRef<HTMLDivElement>(null);
   return (
-    <div className="form-text-box relative min-w-0 flex-1" onContextMenu={onContextMenu}>
+    <div ref={boxRef} className="form-text-box relative min-w-0 flex-1" onContextMenu={onContextMenu}>
       <EditorContent editor={editor} />
-      {editor && <FormatBubble editor={editor} />}
+      {editor && <FormatBubble editor={editor} boxRef={boxRef} />}
     </div>
   );
 }
 
-function FormatBubble({ editor }: { editor: Editor }) {
+/**
+ * The four buttons over a selection. Open only while there is a selection and
+ * the box (or the buttons themselves) has focus, and only once the mouse
+ * button is up — not while words are still being dragged over. Clicking
+ * anywhere else, or focus moving on, shuts it at once, and Escape does too.
+ */
+function FormatBubble({ editor, boxRef }: { editor: Editor; boxRef: React.RefObject<HTMLDivElement | null> }) {
   const [linking, setLinking] = React.useState(false);
+  const [open, setOpen] = React.useState(false);
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    const inMenu = (node: EventTarget | Node | null) => !!node && !!menuRef.current?.contains(node as Node);
+    const close = () => {
+      setOpen(false);
+      setLinking(false);
+    };
+    // Still dragging out a selection: wait for the button to come up.
+    let pressing = false;
+    const sync = () => setOpen(!pressing && !editor.state.selection.empty && (!!boxRef.current?.contains(document.activeElement) || inMenu(document.activeElement)));
+    const onBoxPointerDown = (event: PointerEvent) => {
+      // A press on the buttons themselves is using them, not starting a new selection.
+      if (inMenu(event.target)) return;
+      pressing = true;
+      setOpen(false);
+    };
+    const onPointerUp = () => {
+      if (!pressing) return;
+      pressing = false;
+      // After the browser has settled the selection the release made.
+      setTimeout(sync, 0);
+    };
+    const onBlur = ({ event }: { event: FocusEvent }) => {
+      if (inMenu(event.relatedTarget)) return;
+      close();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (inMenu(event.target) || boxRef.current?.contains(event.target as Node)) return;
+      close();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    editor.on("selectionUpdate", sync);
+    editor.on("focus", sync);
+    editor.on("blur", onBlur);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    // On the box around the editor: the editor's own view may not be mounted yet.
+    const box = boxRef.current;
+    box?.addEventListener("keydown", onKeyDown);
+    box?.addEventListener("pointerdown", onBoxPointerDown);
+    document.addEventListener("pointerup", onPointerUp, true);
+    return () => {
+      editor.off("selectionUpdate", sync);
+      editor.off("focus", sync);
+      editor.off("blur", onBlur);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      box?.removeEventListener("keydown", onKeyDown);
+      box?.removeEventListener("pointerdown", onBoxPointerDown);
+      document.removeEventListener("pointerup", onPointerUp, true);
+    };
+  }, [editor, boxRef]);
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -157,12 +217,9 @@ function FormatBubble({ editor }: { editor: Editor }) {
     }),
   });
   return (
-    <BubbleMenu
-      editor={editor}
-      options={{ placement: "top", offset: 6 }}
-      className="z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 text-popover-foreground shadow-md"
-      data-testid="format-bubble"
-    >
+    <BubbleMenu ref={menuRef} editor={editor} options={{ placement: "top", offset: 6 }} className="z-50">
+      {open && (
+        <div className="flex items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 text-popover-foreground shadow-md" data-testid="format-bubble">
       {linking ? (
         <LinkField editor={editor} existing={state.href} onDone={() => setLinking(false)} />
       ) : (
@@ -180,6 +237,8 @@ function FormatBubble({ editor }: { editor: Editor }) {
             <Link2 className="size-3.5" />
           </BubbleButton>
         </>
+      )}
+        </div>
       )}
     </BubbleMenu>
   );
@@ -217,6 +276,11 @@ function LinkField({ editor, existing, onDone }: { editor: Editor; existing: str
             onDone();
             editor.commands.focus();
           }
+        }}
+        onBlur={(event) => {
+          // Focus going to the Apply or Remove button stays; anywhere else closes the box.
+          if (event.relatedTarget && event.currentTarget.parentElement?.contains(event.relatedTarget as Node)) return;
+          onDone();
         }}
         placeholder="https://"
         aria-label="Link address"

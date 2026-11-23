@@ -728,7 +728,7 @@ function BasicsPane({
           <div className="grid gap-3 sm:grid-cols-3">
             {requester.map((field) => (
               <div key={field.id} className="min-w-0 grid gap-1.5">
-                <TextBox value={field.label} onChange={(v) => patchField(field.id, { label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
+                <TextBox formatting value={field.label} onChange={(v) => patchField(field.id, { label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
                 <FieldHintBox field={field} onPatch={(patch) => patchField(field.id, patch)} />
                 <div className="pointer-events-none" aria-hidden>
                   <StandardField field={{ ...field, description: null }} form={form} draft={previewRequest} onChange={() => {}} preview hideLabel />
@@ -793,7 +793,7 @@ function BasicsPane({
         }
         testId="editor-service-question"
       >
-        <TextBox value={draft.basics.serviceLabel} onChange={(v) => update((t) => (t.basics.serviceLabel = v))} ariaLabel="Service question" placeholder="What kind of work is this?" className="text-[13px] font-medium" testId="editor-service-label" />
+        <TextBox formatting value={draft.basics.serviceLabel} onChange={(v) => update((t) => (t.basics.serviceLabel = v))} ariaLabel="Service question" placeholder="What kind of work is this?" className="text-[13px] font-medium" testId="editor-service-label" />
         <TextBox formatting value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" testId="editor-service-hint" />
 
         {/* The chooser as the form shows it. Pick a card and its settings open underneath. */}
@@ -836,7 +836,7 @@ function StandardFieldEditor({ field, form, previewRequest, onPatch }: { field: 
   return (
     <div className={cn("col-span-6 grid min-w-0 gap-1.5", SPAN[field.width])} data-testid={`editor-field-${field.id}`}>
       <span className="flex items-center gap-1">
-        <TextBox value={field.label} onChange={(v) => onPatch({ label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="min-w-0 flex-1 text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
+        <TextBox formatting value={field.label} onChange={(v) => onPatch({ label: v })} ariaLabel={`Label for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`} placeholder="Question" className="min-w-0 flex-1 text-[13px] font-medium" testId={`editor-field-label-${field.id}`} />
         {field.required && (
           <span aria-hidden className="text-primary">
             *
@@ -1010,7 +1010,7 @@ function ServicePanel({
 
       <div className="grid gap-1.5 border-t border-border/60 pt-2.5">
         <span className="label-quiet">Work types, asked once this card is picked</span>
-        <TextBox value={service.subServiceLabel} onChange={(v) => onPatch({ subServiceLabel: v })} ariaLabel="Work types question" placeholder="Work types" className="text-[13px] font-medium" testId={`editor-service-sublabel-${key}`} />
+        <TextBox formatting value={service.subServiceLabel} onChange={(v) => onPatch({ subServiceLabel: v })} ariaLabel="Work types question" placeholder="Work types" className="text-[13px] font-medium" testId={`editor-service-sublabel-${key}`} />
         <TextBox formatting value={service.subServiceHint ?? ""} onChange={(v) => onPatch({ subServiceHint: v || null })} ariaLabel="Work types hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
         <WorkTypeToggles selected={service.subServices} onChange={(subServices) => onPatch({ subServices })} testIdPrefix={`editor-service-worktypes-${key}`} />
       </div>

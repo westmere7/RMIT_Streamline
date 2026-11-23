@@ -481,3 +481,17 @@ export function splitBriefFacts(blocks: BlockNode[]): { facts: BriefFacts | null
   if (blocks[index]?.type === "rule") index++;
   return { facts, rest: blocks.slice(index) };
 }
+
+/**
+ * A short piece of form text as plain words: a question's label in a brief, an
+ * error message or an aria-label. Inline markup only — a label that starts
+ * "1." keeps its number, unlike richTextToPlain, which reads a document.
+ */
+export function plainLabel(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => plainInline(parseInline(line)))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}

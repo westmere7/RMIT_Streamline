@@ -19,3 +19,11 @@ describe("the form editor's formatting boxes", () => {
     expect(docToInlineText(inlineTextToDoc("First line\nSecond line\n\n"))).toBe("First line\nSecond line");
   });
 });
+
+describe("a formatted question label", () => {
+  it("reads as plain words in a brief, an error or an aria-label, number kept", async () => {
+    const { plainLabel } = await import("@/lib/rich-text");
+    expect(plainLabel("Who is the **audience**? See [our guide](https://rmit.edu.vn/guide)")).toBe("Who is the audience? See our guide");
+    expect(plainLabel("1. __Sizes__ and *dimensions*")).toBe("1. Sizes and dimensions");
+  });
+});
