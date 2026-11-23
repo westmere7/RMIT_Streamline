@@ -1,6 +1,6 @@
 "use client";
 
-import { Bug, Building2, Check, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Plus, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
+import { Binoculars, Bug, Building2, Check, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Plus, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -13,7 +13,7 @@ import { AutomationOrbit } from "@/features/automations/activity-indicator";
 import { useAutomationActivity } from "@/features/automations/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, useNewWorkspaceDialog, WorkspaceRowPlaceholder } from "@/features/workspace/workspaces";
-import { canManageMembers, canManageWorkspaces } from "@/lib/permissions/permissions";
+import { canManageMembers, canManageWorkspaces, canUseInternalPortal } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { useThemePreference, THEME_PREFERENCES, type ThemePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
@@ -60,6 +60,7 @@ export function MorePage() {
           {/* This page is never a board, so anything running is running out of sight. */}
           <Row href={routes.automations(ws.slug)} icon={Zap} label="Automations" busy={automationsRunning} testId="more-automations" />
           {ws.workspace.showPortalMenu !== false && <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Portal and Booking" />}
+          {canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION")) && <Row href={routes.internalPortal(ws.slug)} icon={Binoculars} label="Internal portal" testId="more-internal-portal" />}
           <Row href={routes.messages(ws.slug)} icon={MessageSquare} label="Messages" />
         </Group>
 

@@ -64,7 +64,16 @@ export function PortalBoardScreen({
   refreshing = false,
   loadJourney,
   onShowAll,
+  taskPanel = "own",
+  linksStayHere = true,
 }: {
+  /**
+   * Who draws an opened task. "own" is the portal's read-only panel; "outside"
+   * leaves it to the page, which opens the app's real one (the internal portal).
+   */
+  taskPanel?: "own" | "outside";
+  /** Off inside the app, where links out of the board are the app's own. */
+  linksStayHere?: boolean;
   /** Widens the read to every request, offered when the period on screen holds none; absent when it is already everything. */
   onShowAll?: () => void;
   /** One request's journey events, fetched when its Task journey is opened. */
@@ -80,8 +89,8 @@ export function PortalBoardScreen({
    * status and a link asking for "board" is read as status too.
    */
   showItemGroups: boolean;
-  /** Where booking happens, or null when the link has been set to reading only. */
-  bookHref: string | null;
+  /** Where booking happens, null when the link has been set to reading only, false for no booking at all (the internal portal). */
+  bookHref: string | null | false;
   /** How far back the board reads, placed on the toolbar before the view. */
   rangePicker?: React.ReactNode;
   /** The view a bare link lands on, chosen by the team. */
@@ -118,8 +127,8 @@ export function PortalBoardScreen({
   }, [payload, statusOrder]);
 
   return (
-    <ShareGuestProviders payload={shown} path={home ?? `/portal/${encodeURIComponent(token)}`} activityFor={loadJourney}>
-      <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
+    <ShareGuestProviders payload={shown} path={home ?? `/portal/${encodeURIComponent(token)}`} activityFor={loadJourney} linksStayHere={linksStayHere}>
+      <PortalBoard payload={shown} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
     </ShareGuestProviders>
   );
 }
@@ -163,6 +172,7 @@ function isGrouping(value: string | null): value is PortalGrouping {
 
 function PortalBoard({
   payload,
+  ownPanel,
   bookHref,
   rangePicker,
   statusOrder,
@@ -177,10 +187,12 @@ function PortalBoard({
 }: {
   onShowAll?: () => void;
   payload: PortalBoardPayload;
+  /** False when the page draws the opened task itself. */
+  ownPanel: boolean;
   refreshing: boolean;
   /** The requests still waiting on Task Allocation, and the team holding them. */
   awaiting: PortalBoardPayload["awaiting"] | undefined;
-  bookHref: string | null;
+  bookHref: string | null | false;
   rangePicker?: React.ReactNode;
   /** The status groups in their current order and where a new order goes; null when not grouped by status. */
   statusOrder: { labels: ColumnLabel[]; onApply: (names: string[]) => void } | null;
@@ -279,7 +291,7 @@ function PortalBoard({
   const pending = !!openTaskId && refreshing && !model?.itemById.has(openTaskId);
   // Nothing to show: a blank table says nothing, so it says why and what to do.
   const shownCount = model ? [...model.itemsByGroup.values()].reduce((sum, items) => sum + items.length, 0) : 0;
-  const empty = model && shownCount === 0 ? <PortalEmpty search={ui.search} filtered={activeFilterCount(ui.filters) > 0} onShowAll={onShowAll} bookHref={bookHref} /> : null;
+  const empty = model && shownCount === 0 ? <PortalEmpty search={ui.search} filtered={activeFilterCount(ui.filters) > 0} onShowAll={onShowAll} bookHref={bookHref || null} /> : null;
   const notice = openTaskId && awaiting?.ids.includes(openTaskId) ? <AwaitingAllocation teamName={awaiting.teamName} /> : undefined;
 
   return (
@@ -295,7 +307,7 @@ function PortalBoard({
               {rangePicker}
               <AllYearsMark on={searchingAllYears} />
               <span className="ml-auto">
-                <BookButton href={bookHref} />
+                {bookHref !== false && <BookButton href={bookHref} />}
               </span>
             </div>
             <MobileBoardTools
@@ -318,7 +330,7 @@ function PortalBoard({
               <OtherView view={view} />
             </div>
           ))}
-          {openTaskId && (pending ? <ItemPanelSkeleton onClose={() => openItem(null)} /> : <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} hideMenu notice={notice} />)}
+          {ownPanel && openTaskId && (pending ? <ItemPanelSkeleton onClose={() => openItem(null)} /> : <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} hideMenu notice={notice} />)}
         </>
       ) : (
         <>
@@ -328,7 +340,7 @@ function PortalBoard({
             searchAlways
             leading={
               <>
-                <BookButton href={bookHref} />
+                {bookHref !== false && <BookButton href={bookHref} />}
                 {rangePicker}
               </>
             }
@@ -350,7 +362,8 @@ function PortalBoard({
                 </>
               )}
             </div>
-            {openTaskId &&
+            {ownPanel &&
+              openTaskId &&
               (pending ? (
                 <ItemPanelSkeleton onClose={() => openItem(null)} overlay={view === "kanban"} />
               ) : (

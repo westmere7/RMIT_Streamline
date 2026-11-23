@@ -163,7 +163,7 @@ export type { SearchResults } from "./search-service";
 export type { SystemEntities, WorkspaceContext } from "./workspace-service";
 export type { ListOptionUsage, RemoveListOption } from "./workspace-list-service";
 export { PortalAccessError, portalAccessMessage, PortalSubmissionError } from "./stakeholder-portal-service";
-export type { DepartmentOverview, PortalGrant, PortalTransport, PortalViewer, ResolvedPortal } from "./stakeholder-portal-service";
+export type { DepartmentOverview, InternalPortalPayload, PortalGrant, PortalTransport, PortalViewer, ResolvedPortal } from "./stakeholder-portal-service";
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";
 export type { PublicItemTransport } from "./item-share-service";

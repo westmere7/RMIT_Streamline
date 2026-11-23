@@ -55,6 +55,8 @@ export const routes = {
   dashboard: (slug: string) => `/workspace/${slug}/dashboard`,
   /** Every rule on every board the reader can see, and what they have been doing. */
   automations: (slug: string) => `/workspace/${slug}/automations`,
+  /** Every task on every team board, as the portal shows it, for admins and allocators. */
+  internalPortal: (slug: string) => `/workspace/${slug}/internal-portal`,
   /** The dashboard someone shared by link. Read-only, needs no session, just the token. */
   dashboardShare: (token: string) => `/dashboard/${encodeURIComponent(token)}`,
   /** Booking from inside the app, for members. */

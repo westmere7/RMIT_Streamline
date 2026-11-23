@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, Binoculars, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -40,7 +40,7 @@ import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTeamAccess, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTeamAccess, canEditTrackers, canManageMembers, canManageTeam, canUseInternalPortal, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { IconPicker } from "@/components/shared/icon-picker";
@@ -275,6 +275,10 @@ function SidebarBody({ variant, onNavigate }: { variant?: "drawer"; onNavigate?:
               </Link>
             </SimpleTooltip>
           </li>
+          )}
+          {/* Every team's work in one board, for admins and allocators. */}
+          {canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION")) && (
+            <NavItem href={routes.internalPortal(ws.slug)} icon={Binoculars} label="Internal portal" active={isActivePath(routes.internalPortal(ws.slug))} collapsed={collapsed} />
           )}
         </ul>
 

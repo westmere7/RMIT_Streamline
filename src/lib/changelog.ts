@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.157.0",
+    date: "2026-11-23",
+    title: "Internal portal",
+    changes: [
+      "New Internal portal for admins and allocators: every task on the team boards you can see, on one board, with the portal's views, groupings and filters.",
+      "Opening a task there shows its full panel, editable as on its board.",
+    ],
+  },
+  {
     version: "0.156.1",
     date: "2026-11-23",
     title: "Allocation lands in the landing group",

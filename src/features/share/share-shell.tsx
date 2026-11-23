@@ -149,10 +149,13 @@ export function ShareGuestProviders({
   payload,
   path,
   activityFor,
+  linksStayHere = true,
   children,
 }: {
   payload: PublicBoardPayload;
   path: string;
+  /** Off inside the app (the internal portal), where the page around the board is the app's own. */
+  linksStayHere?: boolean;
   /** Fetches one item's activity on demand, for a payload that does not carry it (the portal). */
   activityFor?: (itemId: string) => Promise<Activity[]>;
   children: React.ReactNode;
@@ -171,7 +174,7 @@ export function ShareGuestProviders({
   const auth = React.useMemo<AuthContextValue>(() => guestAuthContext(guest), [guest]);
   const workspace = React.useMemo<WorkspaceContextValue>(() => guestWorkspace(payload, guest, path), [payload, guest, path]);
 
-  useLinksStayHere();
+  useLinksStayHere(linksStayHere);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -194,8 +197,9 @@ export function ShareGuestProviders({
  * Links to other sites are left alone: a reference URL on a task is the visitor's
  * to follow.
  */
-export function useLinksStayHere(): void {
+export function useLinksStayHere(on = true): void {
   React.useEffect(() => {
+    if (!on) return;
     const onClick = (event: MouseEvent) => {
       const anchor = (event.target as HTMLElement | null)?.closest?.("a[href]");
       if (!(anchor instanceof HTMLAnchorElement)) return;
@@ -211,7 +215,7 @@ export function useLinksStayHere(): void {
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, []);
+  }, [on]);
 }
 
 /** A session that exists only so the app's hooks have somebody to render for. */

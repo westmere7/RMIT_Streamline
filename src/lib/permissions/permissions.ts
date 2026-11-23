@@ -98,6 +98,16 @@ export function isWorkspaceAdmin(ctx: PermissionContext): boolean {
   return ctx.workspaceRole !== null && WORKSPACE_ADMIN_ROLES.has(ctx.workspaceRole);
 }
 
+/**
+ * Who gets the internal portal: admins, and the allocators (whoever may edit
+ * Task Allocation). What it shows is still each reader's own boards; this only
+ * decides who is offered the page.
+ */
+export function canUseInternalPortal(ctx: PermissionContext, taskAllocation: BoardAccessInput | null | undefined): boolean {
+  if (isWorkspaceAdmin(ctx)) return true;
+  return !!taskAllocation && canEditBoard(ctx, taskAllocation);
+}
+
 export function canManageWorkspace(ctx: PermissionContext): boolean {
   return isWorkspaceAdmin(ctx);
 }

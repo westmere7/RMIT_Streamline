@@ -341,12 +341,18 @@ export function PortalHeader({
   onTeam,
   rangePicker,
   scale,
+  internal = false,
 }: {
+  /**
+   * Inside the app (the internal portal): the page's name leads, and the
+   * visitor's tools (logo, freshness, theme and size, sign-in) stay out.
+   */
+  internal?: boolean;
   token: string;
   /** The portal's own address, where staff come back to after signing in. */
   home?: string;
   /** The visitor's size, held by the page that zooms with it. */
-  scale: ViewScaleControl;
+  scale?: ViewScaleControl;
   portalName: string;
   viewerName: string | null;
   servedAt: string | null;
@@ -365,6 +371,7 @@ export function PortalHeader({
   /** How far back to read: on the top row with the other two. */
   rangePicker?: React.ReactNode;
 }) {
+  const themeControl = usePortalThemeControl();
   const selected = stakeholders?.find((row) => row.id === stakeholderId) ?? null;
   const selectedTeam = teams?.find((row) => row.id === teamId) ?? null;
   return (
@@ -374,7 +381,7 @@ export function PortalHeader({
           here explains itself in small print. */}
       <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:px-6">
         {/* RMIT's logo leads: the portal is the RMIT team's. Streamline signs off at the far end. */}
-        <RmitLogo className="h-8" />
+        {internal ? <h1 className="text-[15px] font-semibold tracking-tight">{portalName}</h1> : <RmitLogo className="h-8" />}
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           {onStakeholder ? (
             <DropdownMenu>
@@ -448,10 +455,11 @@ export function PortalHeader({
 
         {totals && <PortalRecap totals={totals} />}
 
+        {!internal && (
         <div className="flex flex-1 items-center justify-end gap-3">
           <FreshnessMark stale={stale} servedAt={servedAt} />
 
-        <ViewControls theme={usePortalThemeControl()} scale={scale} />
+        <ViewControls theme={themeControl} scale={scale ?? null} />
 
         {viewerName ? (
           <span className="shrink-0 rounded-full bg-surface-strong/70 px-2.5 py-1 text-2xs font-medium" data-testid="portal-viewer">
@@ -470,6 +478,7 @@ export function PortalHeader({
           <BrandMark className="size-7 rounded-lg shadow-none" />
         </span>
         </div>
+        )}
       </div>
     </header>
   );

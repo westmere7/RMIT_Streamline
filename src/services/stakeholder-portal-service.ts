@@ -9,6 +9,7 @@ import type {
   Comment,
   BookingReceipt,
   BookingRequest,
+  ColumnValue,
   StakeholderPortal,
   DepartmentStatus,
   EntityId,
@@ -153,6 +154,17 @@ export interface PortalViewer {
 export interface ResolvedPortal {
   portal: StakeholderPortal;
   workspaceId: EntityId;
+}
+
+/**
+ * The internal portal's board: every task on the boards the reader can see, as
+ * the portal arranges it, with the board each row really lives on so the app's
+ * own task panel can open it.
+ */
+export interface InternalPortalPayload extends PortalBoardPayload {
+  context: PortalContext;
+  /** Each row's real board, by item id: the synthetic board's rows all claim the portal's. */
+  boardOfItem: Record<EntityId, EntityId>;
 }
 
 /**
@@ -579,6 +591,195 @@ export class StakeholderPortalService {
       types.size,
     );
     return { ...payload, totals, awaiting: { ids: awaitingIds, teamName: intakeTeam?.name ?? null }, servedAt: new Date().toISOString() };
+  }
+
+  /**
+   * The internal portal: every task on the team boards the reader can see, in
+   * one board, for managers who need to see where all the work is.
+   *
+   * Signed in, so it reads through the reader's own session: the boards are the
+   * ones the app already lets them open (`boards`, decided by the caller with the
+   * app's permissions, and under Supabase row-level security says the same
+   * again). Built-in boards stay out: Task Allocation is waiting work, the bug
+   * board is nobody's request. Nothing is trimmed for visitors and no updates
+   * travel, because a row opens the app's own task panel, not the portal's.
+   *
+   * Read board by board (items, values, assets) and the links once for the
+   * workspace: listing by id across a whole workspace runs past the URL limit.
+   */
+  async internalBoard(input: { workspaceId: EntityId; boards: readonly Board[]; scope: PortalScope; viewerName: string | null }): Promise<InternalPortalPayload> {
+    const { workspaceId, scope } = input;
+    const boards = input.boards.filter((board) => board.workspaceId === workspaceId && board.archivedAt === null && !board.system);
+    const [perBoard, links, users, departments, teams, workspace, members] = await Promise.all([
+      Promise.all(
+        boards.map(async (board) => {
+          const [columns, items, values, assets] = await Promise.all([
+            this.repos.boards.listColumns(board.id),
+            this.repos.items.listByBoard(board.id),
+            this.repos.items.listValuesByBoard(board.id),
+            this.repos.itemAssets.listByBoard(board.id),
+          ]);
+          return { board, columns, items: items.filter((item) => item.archivedAt === null), values, assets };
+        }),
+      ),
+      boards.length > 0 ? this.repos.links.listByWorkspace(workspaceId) : Promise.resolve([] as ItemLink[]),
+      this.repos.users.list(),
+      this.repos.stakeholderPortals.listDepartments(workspaceId),
+      this.repos.teams.listByWorkspace(workspaceId),
+      this.repos.workspaces.getById(workspaceId),
+      this.repos.workspaces.listMembers(workspaceId),
+    ]);
+
+    const usersById = new Map<string, User>(users.map((user) => [user.id, user]));
+    const teamById = new Map(teams.filter((team) => !team.system).map((team) => [team.id, team]));
+    const departmentByKey = new Map(departments.filter((row) => row.status === "ACTIVE").map((row) => [departmentKey(row.name), row]));
+
+    const contexts = new Map<string, BoardContext>();
+    const assetsByItem = new Map<string, ItemAsset[]>();
+    const subitemsByParent = new Map<string, Item[]>();
+    const topLevel: Item[] = [];
+    // Who each task is for, by the word in its stakeholder cell.
+    const departmentOf = new Map<EntityId, StakeholderDepartment | null>();
+    for (const entry of perBoard) {
+      const values = new Map<string, Map<string, ColumnValue>>();
+      const stakeholderColumns = new Set(entry.columns.filter((column) => column.type === "STAKEHOLDER").map((column) => column.id));
+      for (const value of entry.values) {
+        let bucket = values.get(value.itemId);
+        if (!bucket) {
+          bucket = new Map();
+          values.set(value.itemId, bucket);
+        }
+        bucket.set(value.columnId, value.value);
+        if (stakeholderColumns.has(value.columnId) && value.value.type === "STAKEHOLDER" && value.value.group && !departmentOf.get(value.itemId)) {
+          departmentOf.set(value.itemId, departmentByKey.get(departmentKey(value.value.group)) ?? null);
+        }
+      }
+      contexts.set(entry.board.id, { board: entry.board, columns: entry.columns, values });
+      for (const item of entry.items) {
+        if (item.parentItemId) subitemsByParent.set(item.parentItemId, [...(subitemsByParent.get(item.parentItemId) ?? []), item]);
+        else topLevel.push(item);
+      }
+      for (const asset of entry.assets) assetsByItem.set(asset.itemId, [...(assetsByItem.get(asset.itemId) ?? []), asset]);
+    }
+
+    // A task mirrored on two boards is one piece of work: shown once, as the portal does.
+    const byId = new Map(topLevel.map((item) => [item.id, item]));
+    const kept = collapseLinked([...byId.keys()], links, (id) => ({ booked: false, createdAt: byId.get(id)!.createdAt }));
+    const keptSet = new Set(kept);
+    const linkCountByItem = new Map<string, number>();
+    for (const link of links) {
+      for (const id of [link.itemAId, link.itemBId]) {
+        if (keptSet.has(id)) linkCountByItem.set(id, (linkCountByItem.get(id) ?? 0) + 1);
+      }
+    }
+
+    const teamOf = (item: Item): PortalTeamOption | null => {
+      const team = contexts.get(item.boardId)?.board.teamId ? teamById.get(contexts.get(item.boardId)!.board.teamId!) : undefined;
+      return team ? { id: team.id, name: team.name, color: team.color, count: 0 } : null;
+    };
+
+    // The selectors count over everything, as the portal's do; the board shows the scope.
+    const now = new Date();
+    const stakeholderCounts = new Map<EntityId, PortalStakeholderOption>();
+    const teamCounts = new Map<EntityId, PortalTeamOption>();
+    const years = new Set<number>();
+    const inScope: Item[] = [];
+    for (const id of kept) {
+      const item = byId.get(id)!;
+      const department = departmentOf.get(id) ?? null;
+      const team = teamOf(item);
+      years.add(new Date(item.createdAt).getUTCFullYear());
+      if (department) {
+        const found = stakeholderCounts.get(department.id);
+        if (found) found.count += 1;
+        else stakeholderCounts.set(department.id, { id: department.id, name: department.name, color: department.color, count: 1 });
+      }
+      if (team) {
+        const found = teamCounts.get(team.id);
+        if (found) found.count += 1;
+        else teamCounts.set(team.id, { ...team, count: 1 });
+      }
+      if (scope.stakeholderId !== null && department?.id !== scope.stakeholderId) continue;
+      if (scope.teamId && team?.id !== scope.teamId) continue;
+      if (!withinPortalRange(item.createdAt, scope.range, now)) continue;
+      inScope.push(item);
+    }
+    inScope.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+
+    const projection: ProjectionContext = {
+      boards: contexts,
+      usersById,
+      assetsByItem,
+      subitemsByParent,
+      linkCountByItem,
+      bookedAtByItem: new Map(),
+      publishSourceName: true,
+      today: todayISO(),
+    };
+    const tasks: PortalBoardTask[] = inScope.map((item) => {
+      const department = departmentOf.get(item.id) ?? null;
+      return {
+        task: projectTask(item, projection, department ? { id: department.id, name: department.name, color: department.color } : null),
+        brief: projectBrief(item, projection),
+        deliverables: (assetsByItem.get(item.id) ?? []).map((asset) => projectDeliverable(asset, usersById)),
+        subitems: (subitemsByParent.get(item.id) ?? []).map((subitem) => projectSubitem(subitem, projection)),
+      };
+    });
+
+    const portalId = `internal-${workspaceId}`;
+    const candidates = portalColumnCandidates(perBoard.flatMap((entry) => entry.columns));
+    const layout = resolvePortalColumnLayout(null, [], candidates);
+    const teamName = workspace?.creativeTeamName?.trim() || workspace?.name || "";
+    const payload = buildPortalBoard({
+      portalId,
+      workspaceId,
+      showStakeholder: scope.stakeholderId === null,
+      hiddenColumns: [],
+      layout,
+      extras: projectPortalExtras(layout, contexts, inScope, usersById),
+      tasks,
+      links: links.filter((link) => keptSet.has(link.itemAId) && keptSet.has(link.itemBId)),
+      comments: [],
+      commentAuthors: [],
+      team: members
+        .filter((member) => member.status === "ACTIVE" && member.role !== "GUEST")
+        .map((member) => usersById.get(member.userId))
+        .filter((user): user is User => !!user && !user.deactivatedAt)
+        .map(toPortalPerson),
+      workspaceName: teamName,
+      now: now.toISOString(),
+    });
+    const types = new Set(tasks.flatMap((entry) => [...entry.task.assetTypes, ...entry.deliverables.map((d) => d.assetType)]).filter(Boolean));
+    const totals = summarise(
+      tasks.map((entry) => entry.task),
+      projection.today,
+      types.size,
+    );
+    return {
+      ...payload,
+      totals,
+      awaiting: { ids: [], teamName: null },
+      servedAt: now.toISOString(),
+      boardOfItem: Object.fromEntries(inScope.map((item) => [item.id, item.boardId])),
+      context: {
+        portalName: "Internal portal",
+        creativeTeamName: teamName,
+        stakeholders: [...stakeholderCounts.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        stakeholderId: scope.stakeholderId,
+        teams: [...teamCounts.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        teamId: scope.teamId ?? null,
+        years: [...years].sort((a, b) => b - a),
+        range: formatPortalRange(scope.range),
+        defaultTheme: "system",
+        signedIn: true,
+        viewerName: input.viewerName,
+        description: null,
+        defaultView: "table",
+        allowBooking: false,
+        showRecap: true,
+        showItemGroups: true,
+      },
+    };
   }
 
   /** The columns of every board whose work can reach the portal: all but the bug board. */
