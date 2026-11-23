@@ -474,10 +474,9 @@ export function TrackerGrid({ sheet, canEdit, commit, onUndo, onRedo, onAssetRol
       applyFormat({ [key]: !activeFormat[key] });
       focusGrid();
     },
-    size: (size: TrackerTextSize) => {
-      applyFormat({ size: size === "md" ? undefined : size });
-      focusGrid();
-    },
+    size: (size: TrackerTextSize) => applyFormat({ size: size === "md" ? undefined : size }),
+    /** Back to the grid once a toolbar menu has closed (an open menu holds the focus itself). */
+    refocus: focusGrid,
     link: () => {
       if (range) setLinkDraft(activeFormat.link ?? "");
     },
@@ -1838,27 +1837,24 @@ const GridCell = React.memo(function GridCell({
                 {text.replace(/^https?:\/\//i, "")}
               </a>
             </>
-          ) : link ? (
-            <>
-              <span className={cn("text-blue-700 dark:text-blue-300", wrap && column.type === "longText" ? "line-clamp-3" : "truncate")} title={link}>
-                {text}
-              </span>
-              {active && (
-                <button
-                  type="button"
-                  aria-label="Open link"
-                  title={link}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={() => openLink(link)}
-                  className="ml-auto flex size-5 shrink-0 items-center justify-center rounded text-blue-700 hover:bg-foreground/10 dark:text-blue-300"
-                  data-testid="cell-open-link"
-                >
-                  <ExternalLink className="size-3.5" />
-                </button>
-              )}
-            </>
           ) : (
-            <span className={cn(wrap && column.type === "longText" ? "line-clamp-3" : "truncate")}>{text}</span>
+            <span className={cn(wrap && column.type === "longText" ? "line-clamp-3" : "truncate", link && "text-blue-700 dark:text-blue-300")} title={link ?? undefined}>
+              {text}
+            </span>
+          )}
+          {/* A cell's link opens from here, whatever the cell holds. */}
+          {link && active && (
+            <button
+              type="button"
+              aria-label="Open link"
+              title={link}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => openLink(link)}
+              className="ml-auto flex size-5 shrink-0 items-center justify-center rounded text-blue-700 hover:bg-foreground/10 dark:text-blue-300"
+              data-testid="cell-open-link"
+            >
+              <ExternalLink className="size-3.5" />
+            </button>
           )}
         </div>
       )}
@@ -1893,6 +1889,7 @@ interface GridToolbarProps {
     toggle: (key: "bold" | "italic" | "underline") => void;
     size: (size: TrackerTextSize) => void;
     link: () => void;
+    refocus: () => void;
   };
   /** Opens the row editor; null when there is no data row selected or no phone. */
   onEditRow?: (() => void) | null;
@@ -1936,7 +1933,14 @@ function GridToolbar({ canEdit, hasSelection, activeCol, frozen, view, onView, o
                 <ALargeSmall /> {TRACKER_TEXT_SIZE_LABELS[format.size ?? "md"]} <ChevronDown className="size-3 opacity-60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-36" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DropdownMenuContent
+              align="start"
+              className="w-36"
+              onCloseAutoFocus={(e) => {
+                e.preventDefault();
+                formatting.refocus();
+              }}
+            >
               <DropdownMenuRadioGroup value={format.size ?? "md"} onValueChange={(size) => formatting.size(size as TrackerTextSize)}>
                 {TRACKER_TEXT_SIZES.map((size) => (
                   <DropdownMenuRadioItem key={size} value={size}>

@@ -115,6 +115,9 @@ test.describe("sheet operations", () => {
     await expect(page.getByRole("button", { name: "Bold (Ctrl+B)" })).toHaveAttribute("aria-pressed", "true");
     await page.getByTestId("toolbar-text-size").click();
     await page.getByRole("menuitemradio", { name: "Large" }).click();
+    // The menu hands the keys back to the grid once it has closed.
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(page.getByTestId("tracker-grid")).toBeFocused();
     await page.keyboard.press("Control+k");
     await page.getByTestId("cell-link-input").fill("rmit.edu.au");
     await page.getByRole("button", { name: "Apply" }).click();

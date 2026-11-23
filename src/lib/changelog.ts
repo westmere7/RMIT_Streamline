@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.160.1",
+    date: "2026-11-23",
+    title: "Sheet links and text size",
+    changes: ["A link on any cell, dropdowns included, opens from the cell. After choosing a text size, the keyboard goes straight back to the sheet."],
+  },
+  {
     version: "0.160.0",
     date: "2026-11-23",
     title: "Sheets work like Excel",
