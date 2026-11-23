@@ -10,6 +10,7 @@ import { useServices } from "@/features/data/data-context";
 import { newId, nowIso } from "@/lib/ids";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
+import { useBatchedWrites } from "@/lib/query/use-batched-writes";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 
@@ -130,10 +131,35 @@ export function copyOfAssetLine(row: AssetComposerRow): NewAssetLine {
   };
 }
 
+/** How long a line's changes wait for more before they are saved. */
+export const ASSET_SAVE_DELAY_MS = 600;
+
+/** A line's changes waiting to be saved, with what each field was before the first of them. */
+type LineWrite = { patch: ItemAssetPatch; was: Record<string, unknown> | null };
+
+/** Ticked is ticked whatever the moment; anything else compares as it is. */
+const sameField = (field: string, a: unknown, b: unknown) => (field === "completedAt" ? !!a === !!b : JSON.stringify(a ?? null) === JSON.stringify(b ?? null));
+
+/**
+ * What is left of a line's changes once those that ended where they started
+ * are dropped (ticked and unticked again). With no record of where they
+ * started (`was` null), everything is saved.
+ */
+export function netLinePatch({ patch, was }: LineWrite): ItemAssetPatch | null {
+  if (!was) return patch;
+  const changed = Object.entries(patch).filter(([field, value]) => !sameField(field, value, was[field]));
+  return changed.length ? (Object.fromEntries(changed) as ItemAssetPatch) : null;
+}
+
 /**
  * Add, change and remove lines with the list updated on screen at once. Every
  * write also refreshes the board snapshot, because the recap column's value
  * changes with the lines.
+ *
+ * Changes to lines (ticking them off, a quantity, a date) are the quick ones:
+ * they are saved in batches (useBatchedWrites), folded per line, and the
+ * reading back — the list, every board, My Work, sheets — happens once the
+ * burst has landed, not once per tick.
  */
 export function useAssetMutations(item: Item) {
   const services = useServices();
@@ -141,7 +167,7 @@ export function useAssetMutations(item: Item) {
   const user = useCurrentUser();
   const key = queryKeys.itemAssets(item.id);
 
-  const settle = async () => {
+  const readBack = async () => {
     await queryClient.invalidateQueries({ queryKey: ["item-assets"] });
     // Every asset change is written to the feed, so the tab and the board's activity follow it.
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
@@ -158,6 +184,26 @@ export function useAssetMutations(item: Item) {
     void queryClient.invalidateQueries({ queryKey: ["tracker-sheets"] });
     const linked = await services.links.connectedItemIds(item.id).catch(() => []);
     publishDataChange({ itemIds: [item.id, ...linked], boardIds: [item.boardId], kinds: ["assets", "board", "trackers"] });
+  };
+  const lineWrites = useBatchedWrites<LineWrite>({
+    queryKey: key,
+    delayMs: ASSET_SAVE_DELAY_MS,
+    merge: (earlier, later) => ({ patch: { ...earlier.patch, ...later.patch }, was: earlier.was && later.was ? { ...later.was, ...earlier.was } : null }),
+    send: (id, write) => {
+      const patch = netLinePatch(write);
+      return patch ? services.assets.update(id, patch, user.id) : Promise.resolve();
+    },
+    onDrained: (failed) => {
+      // The read back puts the server's copy on screen, so a change that did not save shows as not made.
+      if (failed) toast.error(failed === 1 ? "Could not save a change to an asset" : `Could not save ${failed} changes to assets`);
+      void readBack();
+    },
+  });
+  // Adding and removing read back as they always did, unless line changes are
+  // still on their way: then the read waits for them (the batch reads back when it lands).
+  const settle = async () => {
+    if (lineWrites.busy()) return;
+    await readBack();
   };
   const rollback = (previous: ItemAsset[] | undefined, error: unknown, fallback: string) => {
     if (previous) queryClient.setQueryData(key, previous);
@@ -286,17 +332,16 @@ export function useAssetMutations(item: Item) {
     onSettled: settle,
   });
 
-  const update = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: ItemAssetPatch }) => services.assets.update(id, patch, user.id),
-    onMutate: async ({ id, patch }) => {
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<ItemAsset[]>(key);
+  /** A change to a line: on screen now, saved with the rest of the burst. */
+  const update = {
+    mutate: ({ id, patch }: { id: string; patch: ItemAssetPatch }) => {
+      void queryClient.cancelQueries({ queryKey: key });
+      const line = queryClient.getQueryData<ItemAsset[]>(key)?.find((a) => a.id === id) as Record<string, unknown> | undefined;
+      const was = line ? Object.fromEntries(Object.keys(patch).map((field) => [field, line[field]])) : null;
       queryClient.setQueryData<ItemAsset[]>(key, (old = []) => old.map((a) => (a.id === id ? { ...a, ...patch, updatedAt: nowIso() } : a)));
-      return { previous };
+      lineWrites.enqueue(id, { patch, was });
     },
-    onError: (error, _v, ctx) => rollback(ctx?.previous, error, "Could not change the asset"),
-    onSettled: settle,
-  });
+  };
 
   const remove = useMutation({
     mutationFn: (id: string) => services.assets.remove(id, item.id, item.boardId, user.id),

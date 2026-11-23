@@ -13,16 +13,38 @@ import { newId, nowIso } from "@/lib/ids";
 import { useAutomationNudge } from "@/features/automations/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
-import { beginUnsavedWork } from "@/lib/unsaved-work";
+import { holdQuery } from "@/lib/query/write-holds";
+import { beginUnsavedWork, pauseUnlessLeaving } from "@/lib/unsaved-work";
 import type { BoardSnapshot, CreateItemInput, MoveItemInput } from "@/services";
 import { clearUndo, offerUndo } from "@/stores/undo-store";
 
 type Updater = (snapshot: BoardSnapshot) => BoardSnapshot;
 
 /**
+ * How long a cell's save waits for another change to the same cell. Ticking a
+ * box on and off, or stepping through a status, sends the last value only.
+ */
+export const CELL_SAVE_DELAY_MS = 400;
+
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/** A cell's save, waiting out CELL_SAVE_DELAY_MS for more changes to the same cell. */
+interface CellWrite {
+  value: ColumnValue;
+  reverted?: boolean;
+  /** Set once the save has gone; a change after that is a save of its own. */
+  sent: boolean;
+  promise: Promise<unknown>;
+}
+
+/**
  * Optimistic mutations for a single board. Every action patches the cached
- * snapshot immediately, runs the service call, then reconciles by refetching.
- * Errors roll back to the previous snapshot and surface a toast.
+ * snapshot immediately, runs the service call, then reconciles by refetching
+ * once nothing is left to save. While anything is, the board is held
+ * (write-holds): a realtime re-read waits rather than painting the server's
+ * older copy over the edits still on their way. A failed save rolls back to
+ * the snapshot before it when it was the only one; with others in flight, the
+ * read at the end puts back what the server has, so their edits stay.
  */
 export function useBoardMutations(boardId: string) {
   const services = useServices();
@@ -31,6 +53,9 @@ export function useBoardMutations(boardId: string) {
   const ws = useWorkspace();
   const key = useMemo(() => queryKeys.boardSnapshot(boardId), [boardId]);
   const pending = useRef(0);
+  const cellWrites = useRef(new Map<string, CellWrite>());
+  /** Each cell's last save sent: the next one for that cell goes after it, so they land in order. */
+  const cellTails = useRef(new Map<string, Promise<unknown>>());
   const nudgeAutomations = useAutomationNudge();
 
   const invalidateRelated = useCallback(async () => {
@@ -86,6 +111,7 @@ export function useBoardMutations(boardId: string) {
       // actions with an inverse make a fresh one once they have succeeded.
       clearUndo();
       pending.current += 1;
+      const release = holdQuery(key);
       // Leaving now would cancel the write and lose the change silently.
       const settled = beginUnsavedWork();
       try {
@@ -97,11 +123,15 @@ export function useBoardMutations(boardId: string) {
         return result;
       } catch (error) {
         console.error(`[board] ${errorMessage}`, error);
-        if (previous) queryClient.setQueryData(key, previous);
+        // Alone, the snapshot from before is exactly what the server has. With
+        // other saves on their way it would undo theirs as well; the read when
+        // they have landed puts this one back instead.
+        if (previous && pending.current === 1) queryClient.setQueryData(key, previous);
         toast.error(errorMessage, { description: error instanceof Error ? error.message : undefined });
         return undefined;
       } finally {
         settled();
+        release();
         pending.current -= 1;
         if (pending.current === 0) void invalidateRelated();
       }
@@ -149,16 +179,50 @@ export function useBoardMutations(boardId: string) {
    * Writes a cell. No offer to undo: a value is put back by setting it again,
    * in the same cell, and a toast after every edit was noise.
    */
+  /**
+   * A cell's value: on screen at once, saved after CELL_SAVE_DELAY_MS. More
+   * changes to the same cell in that time ride on the same save, and a cell
+   * put back the way it was (ticked and unticked) is not saved at all. A
+   * cell's saves go one after another: a slow first one cannot land after
+   * the second and leave the older value stored.
+   */
   const setValue = useCallback(
     (item: Item, column: BoardColumn, value: ColumnValue, options?: { reverted?: boolean }) => {
       if (completesTask(item, column, value)) celebrate();
-      return run(
+      const id = `${item.id}:${column.id}`;
+      const waiting = cellWrites.current.get(id);
+      if (waiting && !waiting.sent) {
+        waiting.value = value;
+        waiting.reverted = options?.reverted;
+        queryClient.setQueryData<BoardSnapshot>(key, (s) => (s ? upsertValue(s, item.id, column.id, value) : s));
+        return waiting.promise;
+      }
+      const original = queryClient.getQueryData<BoardSnapshot>(key)?.values.find((v) => v.itemId === item.id && v.columnId === column.id)?.value;
+      const write: CellWrite = { value, reverted: options?.reverted, sent: false, promise: Promise.resolve() };
+      cellWrites.current.set(id, write);
+      const before = cellTails.current.get(id) ?? Promise.resolve();
+      write.promise = run(
         (s) => upsertValue(s, item.id, column.id, value),
-        () => services.items.setValue(item.id, column.id, value, { column, item, board: ws.boardById(boardId)!, users: ws.users, reverted: options?.reverted }, user.id),
+        async () => {
+          // The pause ends early if the page is closed, reloaded or hidden.
+          await pauseUnlessLeaving(CELL_SAVE_DELAY_MS);
+          write.sent = true;
+          if (cellWrites.current.get(id) === write) cellWrites.current.delete(id);
+          // The cell's previous save first, however it ended.
+          await before.catch(() => undefined);
+          if (sameValue(write.value, original)) return undefined;
+          return services.items.setValue(item.id, column.id, write.value, { column, item, board: ws.boardById(boardId)!, users: ws.users, reverted: write.reverted }, user.id);
+        },
         "Could not save the change",
       );
+      const tail = write.promise.catch(() => undefined);
+      cellTails.current.set(id, tail);
+      void tail.then(() => {
+        if (cellTails.current.get(id) === tail) cellTails.current.delete(id);
+      });
+      return write.promise;
     },
-    [run, services, ws, boardId, user.id, completesTask],
+    [run, services, ws, boardId, user.id, completesTask, queryClient, key],
   );
 
 

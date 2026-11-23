@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { holdQuery } from "@/lib/query/write-holds";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 
 /**
@@ -233,5 +234,30 @@ describe("a realtime subscription", () => {
     expect(opened).toHaveLength(before + 1);
     expect(opened.at(-1)).not.toBe(opened.at(-2));
     expect(opened.at(-1)!.startsWith(`${first.name}#`)).toBe(true);
+  });
+
+  it("waits for this browser's own saves before re-reading what they change (v0.161)", () => {
+    const { invalidate } = subscribe([{ table: "items", keys: [["board-snapshot", "b1"], ["activity"]] }]);
+    const release = holdQuery(["board-snapshot", "b1"]);
+    act(() => live.emit("items"));
+    act(() => void vi.advanceTimersByTime(500));
+    // What is not being saved is read at once; the board waits.
+    expect(refetched(invalidate)).toEqual(['["activity"]']);
+
+    invalidate.mockClear();
+    act(() => release());
+    act(() => void vi.advanceTimersByTime(500));
+    expect(refetched(invalidate)).toEqual(['["board-snapshot","b1"]']);
+  });
+
+  it("holds back a broad key while a narrower one under it is being saved", () => {
+    const { invalidate } = subscribe([{ table: "item_assets", keys: [["item-assets"]] }]);
+    const release = holdQuery(["item-assets", "task-1"]);
+    act(() => live.emit("item_assets"));
+    act(() => void vi.advanceTimersByTime(500));
+    expect(invalidate).not.toHaveBeenCalled();
+    act(() => release());
+    act(() => void vi.advanceTimersByTime(500));
+    expect(refetched(invalidate)).toEqual(['["item-assets"]']);
   });
 });

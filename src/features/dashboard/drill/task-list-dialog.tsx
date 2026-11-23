@@ -7,6 +7,8 @@ import { AvatarStack } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { SimpleTooltip } from "@/components/ui/tooltip";
 import { formatHours, type User } from "@/domain";
 import { formatCount } from "@/features/dashboard/charts/chart-utils";
 import type { TaskFact } from "@/features/dashboard/analytics";
@@ -51,7 +53,38 @@ const STATUS_DOT: Record<string, string> = { done: "bg-emerald-500", progress: "
  * and those filters belong to this list alone; the dashboard underneath is
  * not touched by them. A row opens its task on its board.
  */
-export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTask }: { request: DrillRequest | null; users: Map<string, User>; onOpenChange: (open: boolean) => void; onOpenTask?: (taskId: string, boardId: string) => void }) {
+/** Where a task clicked in the list opens; remembered in this browser. */
+export type OpenTaskIn = "tab" | "here";
+const OPEN_IN_KEY = "dashboard.task-list.open-in";
+
+function readOpenIn(): OpenTaskIn {
+  try {
+    return window.localStorage.getItem(OPEN_IN_KEY) === "here" ? "here" : "tab";
+  } catch {
+    return "tab";
+  }
+}
+
+export function DashboardTaskListDialog({
+  request,
+  users,
+  onOpenChange,
+  onOpenTask,
+}: {
+  request: DrillRequest | null;
+  users: Map<string, User>;
+  onOpenChange: (open: boolean) => void;
+  onOpenTask?: (taskId: string, boardId: string, where: OpenTaskIn) => void;
+}) {
+  const [openIn, setOpenIn] = React.useState<OpenTaskIn>(readOpenIn);
+  const chooseOpenIn = (next: OpenTaskIn) => {
+    setOpenIn(next);
+    try {
+      window.localStorage.setItem(OPEN_IN_KEY, next);
+    } catch {
+      // Private window: the choice lasts as long as the page.
+    }
+  };
   const [query, setQuery] = React.useState("");
   const [state, setState] = React.useState<StateKey>("all");
   const [team, setTeam] = React.useState<string>("all");
@@ -166,6 +199,14 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
               ))}
             </select>
           </label>
+          {onOpenTask && (
+            <SimpleTooltip label={openIn === "tab" ? "A task opens in a new tab; this list stays open" : "A task opens on its board, in this tab"}>
+              <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground">
+                <Switch size="sm" checked={openIn === "tab"} onCheckedChange={(on) => chooseOpenIn(on ? "tab" : "here")} aria-label="Open tasks in a new tab" data-testid="dashboard-task-list-new-tab" />
+                Open in new tab
+              </label>
+            </SimpleTooltip>
+          )}
           {narrowed && (
             <Button variant="ghost" size="sm" className="h-8 px-2 text-2xs" onClick={() => (setQuery(""), setState("all"), setTeam("all"), setPage(0))}>
               <X className="size-3.5" /> Clear
@@ -200,8 +241,8 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                   const owners = task.owners.map((id) => users.get(id)).filter((u): u is User => !!u);
                   const finished = task.flow.finishedAt ? localDateOf(task.flow.finishedAt) : task.completedAt;
                   const late = !task.isDone && task.dueDate !== null && task.dueDate < localDateOf(new Date().toISOString());
-                  // Opens the task in a new tab; the list stays open here.
-                  const open = onOpenTask ? () => onOpenTask(task.id, task.boardId) : undefined;
+                  // A new tab leaves this list open; "here" goes to the task on its board.
+                  const open = onOpenTask ? () => onOpenTask(task.id, task.boardId, openIn) : undefined;
                   return (
                     <tr
                       key={task.id}

@@ -4,7 +4,8 @@ import { resetLocalData, signInAs } from "./helpers";
 /**
  * The dashboard's task lists (v0.158.2): a task clicked in a list opens on its
  * board in a new browser tab, and the dashboard, with the list still open on
- * it, stays exactly as it was.
+ * it, stays exactly as it was. Switched off "New tab" (v0.161), it opens here,
+ * on its board.
  */
 test.describe("dashboard task lists", () => {
   test.beforeEach(async ({ page }) => {
@@ -34,6 +35,33 @@ test.describe("dashboard task lists", () => {
     const [second] = await Promise.all([context.waitForEvent("page"), rows.nth(1).click()]);
     await expect(second).toHaveURL(/\?item=/, { timeout: 20_000 });
     await expect(rows).toHaveCount(listed);
+  });
+
+  test("switched off New tab, a task opens here on its board, and the choice is remembered", async ({ page, context }) => {
+    const person = page.getByTestId("dashboard-workload-row").first();
+    await person.scrollIntoViewIfNeeded({ timeout: 30_000 });
+    await person.click();
+    const rows = page.getByTestId("dashboard-task-list-row");
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    const toggle = page.getByTestId("dashboard-task-list-new-tab");
+    // New tab is the default.
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    let opened = false;
+    context.on("page", () => (opened = true));
+    await rows.first().click();
+    await expect(page).toHaveURL(/\/workspace\/rmit\/boards\/[^/?]+\?item=/, { timeout: 20_000 });
+    await expect(page.getByTestId("item-panel")).toBeVisible({ timeout: 30_000 });
+    expect(opened).toBe(false);
+
+    // Back on the dashboard, the list remembers where tasks open.
+    await page.goto("/workspace/rmit/dashboard");
+    const again = page.getByTestId("dashboard-workload-row").first();
+    await again.scrollIntoViewIfNeeded({ timeout: 30_000 });
+    await again.click();
+    await expect(page.getByTestId("dashboard-task-list-new-tab")).toHaveAttribute("aria-checked", "false");
   });
 
   test("the year's days: a day opens the tasks started on it, and a month on the chart lights its days", async ({ page }) => {

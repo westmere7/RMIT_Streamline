@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.161.0",
+    date: "2026-11-23",
+    title: "Quick edits stay put",
+    changes: [
+      "Ticking boxes, changing statuses, ticking off assets and checklist items in quick succession no longer flicks back while saving.",
+      "Quick changes are saved together after a short pause; a box ticked and unticked again saves nothing.",
+      "Closing or reloading the tab while a change is still saving asks first, and the change is sent straight away.",
+      "Dashboard task lists: an Open in new tab switch. Off, a task opens on its board in the same tab.",
+    ],
+  },
+  {
     version: "0.160.1",
     date: "2026-11-23",
     title: "Sheet links and text size",

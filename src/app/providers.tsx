@@ -10,9 +10,10 @@ import { AuthProviderContext } from "@/features/auth/auth-context";
 import { DataProviderContext } from "@/features/data/data-context";
 import { LocalRealtimeSync } from "@/features/data/local-realtime-sync";
 import { useSystemThemeSync } from "@/lib/theme";
+import { guardMutations } from "@/lib/unsaved-work";
 
 function makeQueryClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: {
       queries: {
         // Local data is cheap to re-read; keep it fresh but avoid refetch storms.
@@ -34,6 +35,9 @@ function makeQueryClient(): QueryClient {
       },
     },
   });
+  // Every save the app makes asks before the tab closes while it is on its way.
+  guardMutations(client.getMutationCache());
+  return client;
 }
 
 export function AppProviders({ children }: { children: React.ReactNode }) {

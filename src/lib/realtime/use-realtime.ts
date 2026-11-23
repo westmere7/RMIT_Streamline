@@ -3,7 +3,8 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useDataContext } from "@/features/data/data-context";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@/lib/supabase/client";
+import { isQueryHeld, onHoldReleased } from "@/lib/query/write-holds";
 
 /**
  * One Supabase Realtime channel, expressed as tables and the queries they feed.
@@ -139,13 +140,26 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
     // The first `SUBSCRIBED` is the subscription opening; a later one is it
     // coming back, and the gap in between is events nobody heard.
     let everSubscribed = false;
+    // Set while a re-read waits for this browser's own saves to land (write-holds).
+    let awaitingRelease: (() => void) | null = null;
 
     const flush = () => {
       timer = null;
       lastRead = Date.now();
-      const keys = [...pending.values()];
-      pending.clear();
-      for (const key of keys) void queryClient.invalidateQueries({ queryKey: key });
+      // A query with saves still on their way is read once they have landed:
+      // read now, the server's copy would paint over the edits not yet saved.
+      for (const [id, key] of [...pending.entries()]) {
+        if (isQueryHeld(key)) continue;
+        pending.delete(id);
+        void queryClient.invalidateQueries({ queryKey: key });
+      }
+      if (pending.size === 0 || awaitingRelease) return;
+      awaitingRelease = onHoldReleased(() => {
+        if ([...pending.values()].some(isQueryHeld)) return;
+        awaitingRelease?.();
+        awaitingRelease = null;
+        if (!timer && pending.size) timer = setTimeout(flush, coalesceMs);
+      });
     };
 
     const schedule = (keys: ReadonlyArray<readonly unknown[]>) => {
@@ -224,6 +238,8 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
       closing: null,
       close: () => {
         if (timer) clearTimeout(timer);
+        awaitingRelease?.();
+        awaitingRelease = null;
         pending.clear();
         void supabase.removeChannel(subscription);
       },

@@ -13,7 +13,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { onServerRecovered } from "@/lib/server-status";
-import { beginUnsavedWork } from "@/lib/unsaved-work";
+import { beginUnsavedWork, onLeaving } from "@/lib/unsaved-work";
 import type { CreateDocInput } from "@/services";
 
 export function useDocs() {
@@ -144,6 +144,8 @@ export function useDocSaver(docId: string) {
   );
 
   React.useEffect(() => () => flush.current?.(), []);
+  // Closing, reloading or hiding the page sends the waiting save at once.
+  React.useEffect(() => onLeaving(() => flush.current?.()), []);
 
   React.useEffect(
     () =>

@@ -22,7 +22,7 @@ export interface DashboardScreenProps {
   snapshot: DashboardSnapshot;
   /** Who is reading, so preferences belong to them rather than to the browser. */
   viewerId: string;
-  onOpenTask?: (taskId: string, boardId: string) => void;
+  onOpenTask?: (taskId: string, boardId: string, where?: "tab" | "here") => void;
   onOpenBoard?: (boardId: string) => void;
   /** Where a person's or a team's name leads. Left out on the public link. */
   links?: DashboardLinks;

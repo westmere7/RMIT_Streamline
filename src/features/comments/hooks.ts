@@ -9,6 +9,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
+import { useBatchedWrites } from "@/lib/query/use-batched-writes";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 
 export function useComments(itemId: string | null) {
@@ -21,6 +22,11 @@ export function useComments(itemId: string | null) {
   });
 }
 
+/** How long a checklist tick waits for more ticks before they are saved. */
+export const CHECK_SAVE_DELAY_MS = 600;
+
+type CheckWrite = { comment: Pick<Comment, "id" | "itemId" | "sharedId" | "authorId">; box: string; on: boolean; was: boolean };
+
 export function useCommentMutations(itemId: string) {
   const services = useServices();
   const queryClient = useQueryClient();
@@ -29,14 +35,19 @@ export function useCommentMutations(itemId: string) {
   const key = queryKeys.comments(itemId);
   const nudgeAutomations = useAutomationNudge();
 
+  // The thread is read back after an action, unless ticks are still being
+  // saved: their batch reads it back once they have landed, and a read now
+  // would show the boxes as they were before.
+  const readThread = () => (checks.busy() ? Promise.resolve() : queryClient.invalidateQueries({ queryKey: key }));
+
   const settle = async () => {
     // A comment is a trigger too ("when an update is posted"), so the runner
     // is asked to look now rather than at its next tick — and before the
     // refetch below is awaited, because nothing about the nudge depends on it.
     nudgeAutomations();
-    await queryClient.invalidateQueries({ queryKey: key });
+    await readThread();
     // A comment sent to linked items changes their threads as well.
-    void queryClient.invalidateQueries({ queryKey: ["comments"] });
+    if (!checks.busy()) void queryClient.invalidateQueries({ queryKey: ["comments"] });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
     void queryClient.invalidateQueries({ queryKey: ["last-updated"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
@@ -119,30 +130,34 @@ export function useCommentMutations(itemId: string) {
       toast.error(error instanceof Error ? error.message : "Could not save the reaction");
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: key });
+      await readThread();
       publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
     },
   });
 
-  // Like a reaction: shown at once, settled quietly, on every copy the service reaches.
-  const check = useMutation({
-    mutationFn: ({ comment, key: box, on }: { comment: Pick<Comment, "id" | "itemId" | "sharedId" | "authorId">; key: string; on: boolean }) => services.comments.setCheck(comment, box, user.id, on),
-    onMutate: async ({ comment, key: box, on }) => {
-      await queryClient.cancelQueries({ queryKey: key });
-      const previous = queryClient.getQueryData<Comment[]>(key);
-      queryClient.setQueryData<Comment[]>(key, (old) => old?.map((c) => (c.id === comment.id ? { ...c, checks: withCheck(c.checks, box, user.id, on, nowIso()) } : c)));
-      return { previous };
-    },
-    onError: (error, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
-      toast.error(error instanceof Error ? error.message : "Could not save the tick");
-    },
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: key });
+  // Ticks are shown at once and saved in batches: ticking down a list sends
+  // one save per box that changed (none for a box ticked and unticked again)
+  // and reads the thread back once, after the last has landed.
+  const checks = useBatchedWrites<CheckWrite>({
+    queryKey: key,
+    delayMs: CHECK_SAVE_DELAY_MS,
+    merge: (earlier, later) => ({ ...later, was: earlier.was }),
+    send: (_id, write) => (write.on === write.was ? Promise.resolve() : services.comments.setCheck(write.comment, write.box, user.id, write.on)),
+    onDrained: (failed) => {
+      if (failed) toast.error(failed === 1 ? "Could not save a tick" : `Could not save ${failed} ticks`);
+      void queryClient.invalidateQueries({ queryKey: key });
       void queryClient.invalidateQueries({ queryKey: ["comments"] });
       publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
     },
   });
+  const check = {
+    mutate: ({ comment, key: box, on }: { comment: Pick<Comment, "id" | "itemId" | "sharedId" | "authorId">; key: string; on: boolean }) => {
+      void queryClient.cancelQueries({ queryKey: key });
+      const was = !!queryClient.getQueryData<Comment[]>(key)?.find((c) => c.id === comment.id)?.checks?.some((c) => c.key === box);
+      queryClient.setQueryData<Comment[]>(key, (old) => old?.map((c) => (c.id === comment.id ? { ...c, checks: withCheck(c.checks, box, user.id, on, nowIso()) } : c)));
+      checks.enqueue(`${comment.id}:${box}`, { comment, box, on, was });
+    },
+  };
 
   // Shown at once; the overview pin moves off whichever update had it.
   const pin = useMutation({
@@ -167,7 +182,7 @@ export function useCommentMutations(itemId: string) {
       toast.success(state === "none" ? "Unpinned" : state === "overview" ? "Pinned to overview" : "Pinned");
     },
     onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: key });
+      await readThread();
       publishDataChange({ itemIds: [itemId], kinds: ["comments"] });
     },
   });

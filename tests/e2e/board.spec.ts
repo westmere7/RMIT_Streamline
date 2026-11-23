@@ -183,12 +183,19 @@ test.describe("board interactions", () => {
 
     const slot = page.getByTestId("group-Design").getByTestId("drop-slot");
     await expect(slot).toHaveCount(1, { timeout: 5_000 });
-    const painted = await slot.evaluate((el) => {
-      const bar = el.firstElementChild as HTMLElement;
-      const header = el.closest('[role="grid"]')!.querySelector('[role="row"]') as HTMLElement;
-      const layer = (node: Element) => Number(getComputedStyle(node).zIndex) || 0;
-      return { barHeight: Math.round(bar.getBoundingClientRect().height), line: layer(el), header: layer(header) };
-    });
+    // The line is redrawn as the pointer moves; one caught between two draws
+    // has no table around it yet, so read it again until it is in place.
+    const measure = () =>
+      slot.evaluate((el) => {
+        const header = el.closest('[role="grid"]')?.querySelector('[role="row"]');
+        const bar = el.firstElementChild;
+        if (!header || !bar) return null;
+        const layer = (node: Element) => Number(getComputedStyle(node).zIndex) || 0;
+        return { barHeight: Math.round(bar.getBoundingClientRect().height), line: layer(el), header: layer(header) };
+      });
+    let painted: Awaited<ReturnType<typeof measure>> = null;
+    await expect.poll(async () => (painted = await measure()), { timeout: 5_000 }).not.toBeNull();
+    painted = painted!;
     expect(painted.barHeight).toBeGreaterThanOrEqual(3);
     expect(painted.line).toBeGreaterThan(painted.header);
 

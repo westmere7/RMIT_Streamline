@@ -67,16 +67,22 @@ export class LocalCommentRepository implements CommentRepository {
   // Kept on the comment record itself: nothing here needs them apart.
   async setReaction(comment: Pick<Comment, "id" | "itemId">, userId: string, emoji: string, on: boolean): Promise<void> {
     const db = await this.conn.getDb();
-    const existing = await db.get("comments", comment.id);
+    const tx = db.transaction("comments", "readwrite");
+    const existing = await tx.store.get(comment.id);
     if (!existing) throw new NotFoundError("Comment", comment.id);
-    await db.put("comments", { ...existing, reactions: withReaction(existing.reactions, userId, emoji, on, nowIso()) });
+    await tx.store.put({ ...existing, reactions: withReaction(existing.reactions, userId, emoji, on, nowIso()) });
+    await tx.done;
   }
 
   async setCheck(comment: Pick<Comment, "id" | "itemId">, key: string, userId: string, on: boolean): Promise<void> {
+    // Read and written in one transaction: ticks saved close together each
+    // rewrite the whole update, and apart the later write could undo the earlier tick.
     const db = await this.conn.getDb();
-    const existing = await db.get("comments", comment.id);
+    const tx = db.transaction("comments", "readwrite");
+    const existing = await tx.store.get(comment.id);
     if (!existing) throw new NotFoundError("Comment", comment.id);
-    await db.put("comments", { ...existing, checks: withCheck(existing.checks, key, userId, on, nowIso()) });
+    await tx.store.put({ ...existing, checks: withCheck(existing.checks, key, userId, on, nowIso()) });
+    await tx.done;
   }
 
   async setPin(comment: Pick<Comment, "id" | "itemId">, userId: string, state: CommentPinState): Promise<void> {

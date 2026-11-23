@@ -142,7 +142,11 @@ test("two people, one task: lines, assignment, ticking, a linked sheet and its e
   // Emily's To-do now counts the sheet line too.
   await panel(emily).getByTestId("asset-mine").click();
   await expect(panel(emily).getByTestId("asset-mine-strip")).toBeVisible();
-  await expect(emilySheet.getByTestId("tracker-sheet-line")).toHaveCount(1, { timeout: 30_000 });
+  // This run's line is there, and only Emily's lines are: earlier runs leave
+  // lines on her in the stack's sheet, so the list is not counted.
+  await expect(emilySheet.getByTestId("tracker-sheet-line").filter({ hasText: `SB sheet line ${RUN}` })).toHaveCount(1, { timeout: 30_000 });
+  const shown = emilySheet.getByTestId("tracker-sheet-line");
+  for (let i = 0; i < (await shown.count()); i++) await expect(shown.nth(i).getByRole("img", { name: "Emily Carter" })).toBeVisible();
 
   // The dashboard reads the asset units without error.
   await admin.goto("/workspace/rmit/dashboard");

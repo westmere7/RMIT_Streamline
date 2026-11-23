@@ -13,7 +13,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { onServerRecovered } from "@/lib/server-status";
-import { beginUnsavedWork } from "@/lib/unsaved-work";
+import { beginUnsavedWork, onLeaving } from "@/lib/unsaved-work";
 import type { CreateTrackerInput } from "@/services";
 
 export function useTrackers() {
@@ -428,6 +428,18 @@ export function useSheetEditor(sheet: TrackerSheet | undefined, canEdit: boolean
         if (store.failed && store.dirty) schedule();
       }),
     [schedule],
+  );
+
+  // Closing, reloading or hiding the page sends the waiting save at once.
+  React.useEffect(
+    () =>
+      onLeaving(() => {
+        const store = storeRef.current;
+        if (!store.timer) return;
+        window.clearTimeout(store.timer);
+        void run();
+      }),
+    [run],
   );
 
   const apply = React.useCallback(
