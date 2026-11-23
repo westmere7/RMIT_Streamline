@@ -199,7 +199,8 @@ export function DashboardTaskListDialog({ request, users, onOpenChange, onOpenTa
                   const owners = task.owners.map((id) => users.get(id)).filter((u): u is User => !!u);
                   const finished = task.flow.finishedAt?.slice(0, 10) ?? task.completedAt;
                   const late = !task.isDone && task.dueDate !== null && task.dueDate < new Date().toISOString().slice(0, 10);
-                  const open = onOpenTask ? () => (onOpenTask(task.id, task.boardId), onOpenChange(false)) : undefined;
+                  // Opens the task in a new tab; the list stays open here.
+                  const open = onOpenTask ? () => onOpenTask(task.id, task.boardId) : undefined;
                   return (
                     <tr
                       key={task.id}

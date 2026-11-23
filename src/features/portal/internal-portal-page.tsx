@@ -12,24 +12,16 @@ import { LoadingSweep } from "@/components/shared/loading-sweep";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
-import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
-import { buildBoardModel } from "@/features/boards/board-model";
-import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
-import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
-import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
-import { useBoardUpdates } from "@/features/comments/updates";
 import { useServices } from "@/features/data/data-context";
-import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
+import { TaskPanelHost } from "@/features/items/task-panel-host";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalBoardSkeleton } from "@/features/portal/portal-board-skeleton";
 import { PortalHeader, PortalRangePicker } from "@/features/portal/portal-shell";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { canEditBoard, canManageBoard, canUseInternalPortal, canViewBoard } from "@/lib/permissions/permissions";
+import { canUseInternalPortal, canViewBoard } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-
-const NO_FILTERS = { personIds: [], statusIds: [], priorityIds: [], groupIds: [], tags: [], date: null };
 
 /**
  * The internal portal: the portal's board over every task on the team boards
@@ -166,80 +158,11 @@ export function InternalPortalPage() {
               itemMenu={itemMenu}
             />
           </div>
-          {openTaskId && boardOfOpen && <InternalTaskPanel key={boardOfOpen} boardId={boardOfOpen} itemId={openTaskId} onOpen={(id) => replaceParams({ task: id })} onClose={closeTask} />}
+          {openTaskId && boardOfOpen && <TaskPanelHost key={boardOfOpen} boardId={boardOfOpen} itemId={openTaskId} onOpen={(id) => replaceParams({ task: id })} onClose={closeTask} />}
         </div>
       ) : (
         <PortalBoardSkeleton />
       )}
     </div>
-  );
-}
-
-/**
- * The app's own task panel for a task on the internal portal, over the board it
- * really lives on: the board is read as its page reads it, and the panel edits
- * it exactly as it would there.
- */
-function InternalTaskPanel({ boardId, itemId, onOpen, onClose }: { boardId: string; itemId: string; onOpen: (id: string) => void; onClose: () => void }) {
-  const ws = useWorkspace();
-  const board = ws.boardById(boardId);
-  const snapshot = useBoardSnapshot(boardId);
-  const mutations = useBoardMutations(boardId);
-  useBoardRealtime(boardId);
-  const [now] = React.useState(() => new Date());
-
-  const model = React.useMemo(
-    () => (snapshot.data ? buildBoardModel(snapshot.data, { search: "", filters: NO_FILTERS, sort: null, now, userName: (id) => ws.userById(id)?.displayName }) : null),
-    [snapshot.data, now, ws],
-  );
-  const itemIds = React.useMemo(() => (snapshot.data ? snapshot.data.items.map((item) => item.id) : []), [snapshot.data]);
-  const updates = useBoardUpdates(boardId, itemIds);
-
-  const openItem = React.useCallback((id: string | null) => (id ? onOpen(id) : onClose()), [onOpen, onClose]);
-  const contextValue = React.useMemo<BoardContextValue | null>(
-    () =>
-      board && model
-        ? {
-            board,
-            model,
-            mutations,
-            users: ws.activeUsers,
-            people: ws.users,
-            canEdit: canEditBoard(ws.permissions, board),
-            canManage: canManageBoard(ws.permissions, board),
-            openItem,
-            openItemUpdates: openItem,
-            openEditLabels: () => undefined,
-            now,
-            showTicket: true,
-            setShowTicket: () => undefined,
-            updates,
-          }
-        : null,
-    [board, model, mutations, ws.activeUsers, ws.users, ws.permissions, openItem, now, updates],
-  );
-
-  if (!contextValue || !board) return <ItemPanelSkeleton onClose={onClose} />;
-  return (
-    <BoardContextProvider value={contextValue}>
-      <ItemDetailPanel
-        itemId={itemId}
-        onClose={onClose}
-        notice={
-          // The board the task is on, opened with the task open there.
-          <div className="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-surface px-3 py-2 text-[13px]" data-testid="internal-portal-board-notice">
-            <SquareKanban className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <span className="min-w-0 flex-1 truncate">
-              On <span className="font-medium">{board.name}</span>
-            </span>
-            <Button variant="outline" size="sm" className="shrink-0" asChild>
-              <Link href={ws.boardPath(board, { itemId })} data-testid="internal-portal-open-board">
-                Open board
-              </Link>
-            </Button>
-          </div>
-        }
-      />
-    </BoardContextProvider>
   );
 }

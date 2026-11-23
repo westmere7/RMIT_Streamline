@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.158.2",
+    date: "2026-11-23",
+    title: "Dashboard tasks open in a new tab",
+    changes: ["A task clicked in a dashboard list opens on its board in a new tab; the dashboard and the list stay as they were."],
+  },
+  {
     version: "0.158.1",
     date: "2026-11-23",
     title: "Per person, per department opens its tasks",

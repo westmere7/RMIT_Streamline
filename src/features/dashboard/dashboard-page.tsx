@@ -41,9 +41,10 @@ export function DashboardPage() {
     else void rootRef.current?.requestFullscreen?.();
   };
 
+  // A task opens on its board in a new tab: the dashboard, and any list open on it, stay as they are.
   const openTask = (taskId: string, boardId: string) => {
     const board = ws.boardById(boardId);
-    if (board) router.push(ws.boardPath(board, { itemId: taskId }));
+    if (board) window.open(ws.boardPath(board, { itemId: taskId }), "_blank", "noopener");
   };
   const openBoard = (boardId: string) => {
     const board = ws.boardById(boardId);
