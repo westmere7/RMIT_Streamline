@@ -9,7 +9,8 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
-import { routes } from "@/lib/routes";
+import { routes } from "@/lib/routes";
+import { lastSave, quickSave } from "@/lib/query/quick-saves";
 
 /** Board-level actions (rename, favourite, archive, delete, duplicate, members). */
 export function useBoardActions(board: Board) {
@@ -20,12 +21,17 @@ export function useBoardActions(board: Board) {
   const router = useRouter();
   const boardsKey = queryKeys.boards(ws.workspace.id);
 
+  const favouritesKey = queryKeys.favourites(user.id);
+
   const invalidateBoards = async () => {
+    // Read back once the last board change has landed (quickSave).
+    if (!lastSave(queryClient, boardsKey)) return;
     await queryClient.invalidateQueries({ queryKey: boardsKey });
     await queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(board.id) });
   };
 
   const updateBoard = useMutation({
+    ...quickSave(boardsKey),
     mutationFn: (patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction" | "viewOnly" | "landingGroupId">>) =>
       services.boards.updateBoard(board.id, patch, user.id),
     onMutate: async (patch) => {
@@ -35,7 +41,7 @@ export function useBoardActions(board: Board) {
       return { previous };
     },
     onError: (error, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(boardsKey, ctx.previous);
+      if (ctx?.previous && lastSave(queryClient, boardsKey)) queryClient.setQueryData(boardsKey, ctx.previous);
       toast.error(error instanceof Error ? error.message : "Could not update the board");
     },
     onSuccess: (updated, patch) => {
@@ -46,9 +52,10 @@ export function useBoardActions(board: Board) {
   });
 
   const toggleFavourite = useMutation({
+    ...quickSave(favouritesKey),
     mutationFn: (next: boolean) => services.boards.setFavourite(board.id, user.id, next),
     onMutate: async (next) => {
-      const key = queryKeys.favourites(user.id);
+      const key = favouritesKey;
       await queryClient.cancelQueries({ queryKey: key });
       const previous = queryClient.getQueryData<BoardFavourite[]>(key);
       queryClient.setQueryData<BoardFavourite[]>(key, (old = []) =>
@@ -57,9 +64,9 @@ export function useBoardActions(board: Board) {
       return { previous };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(queryKeys.favourites(user.id), ctx.previous);
+      if (ctx?.previous && lastSave(queryClient, favouritesKey)) queryClient.setQueryData(favouritesKey, ctx.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.favourites(user.id) }),
+    onSettled: () => (lastSave(queryClient, favouritesKey) ? queryClient.invalidateQueries({ queryKey: favouritesKey }) : undefined),
   });
 
   const archiveBoard = useMutation({

@@ -8,12 +8,60 @@ import { resetLocalData, signInAs } from "./helpers";
  * back to an older state, and after a reload it must show exactly what was
  * last clicked.
  */
-const TASK = "/workspace/rmit/boards/dooh-production?item=000000f1-0000-4000-8000-000000000232";
-const LINES = ["Portrait loop", "Landscape loop", "Static slide", "Large format"];
+const BOARD = "/workspace/rmit/boards/dooh-production";
+
+/** A task on the board with four task-own asset lines of different names, picked from the demo data. */
+interface Task {
+  id: string;
+  name: string;
+  lines: string[];
+}
+let TASK: Task;
+let LINES: string[];
+
+/**
+ * The demo seed is laid out around today's date, so a task's id is not the
+ * same from one day to the next: the task is looked up in the browser's demo
+ * store rather than named here.
+ */
+async function pickTask(page: Page): Promise<Task> {
+  await page.goto(BOARD);
+  await expect(page.getByTestId("board-table").first()).toBeVisible({ timeout: 30_000 });
+  const task = await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const open = indexedDB.open("rmit-streamline");
+      open.onsuccess = () => resolve(open.result);
+      open.onerror = () => reject(open.error);
+    });
+    const all = <T,>(store: string) =>
+      new Promise<T[]>((resolve, reject) => {
+        const read = db.transaction(store).objectStore(store).getAll();
+        read.onsuccess = () => resolve(read.result as T[]);
+        read.onerror = () => reject(read.error);
+      });
+    const boards = await all<{ id: string; slug: string }>("boards");
+    const board = boards.find((b) => b.slug === "dooh-production")!;
+    const items = (await all<{ id: string; boardId: string; name: string; archivedAt?: string | null; parentItemId?: string | null }>("items")).filter(
+      (i) => i.boardId === board.id && !i.archivedAt && !i.parentItemId,
+    );
+    const lines = (await all<{ itemId: string; name: string; trackerSheetId?: string | null; position: number }>("itemAssets")).filter((a) => !a.trackerSheetId);
+    for (const item of items) {
+      const names = lines
+        .filter((a) => a.itemId === item.id)
+        .sort((a, b) => a.position - b.position)
+        .map((a) => a.name);
+      if (names.length >= 4 && new Set(names.slice(0, 4)).size === 4) return { id: item.id, name: item.name, lines: names.slice(0, 4) };
+    }
+    return null;
+  });
+  expect(task, "a DOOH task with four asset lines of different names").not.toBeNull();
+  return task!;
+}
 
 async function openTask(page: Page) {
-  await page.goto(TASK);
+  await page.goto(`${BOARD}?item=${TASK.id}`);
   await expect(page.getByTestId("item-panel")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("item-panel")).toContainText(TASK.name, { timeout: 20_000 });
 }
 
 /** Waits until nothing is left to save (the leave-page guard is off). */
@@ -86,6 +134,8 @@ test.describe("quick successive edits", () => {
   test.beforeEach(async ({ page }) => {
     await resetLocalData(page);
     await signInAs(page, "Admin");
+    TASK = await pickTask(page);
+    LINES = TASK.lines;
   });
 
   test("asset lines ticked in overlapping bursts end exactly as last clicked, on screen and after a reload", async ({ page }) => {
@@ -150,12 +200,12 @@ test.describe("quick successive edits", () => {
 
   test("a board checkbox flicked on and off at every speed keeps the last value", async ({ page }) => {
     await openTask(page);
-    const cell = panel(page).getByLabel("Specs confirmed for Colour calibration test card");
+    const cell = panel(page).getByLabel(`Specs confirmed for ${TASK.name}`);
     await expect(cell).toBeVisible();
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async (label) => {
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const button = () => {
-        const el = document.querySelector('[aria-label="Specs confirmed for Colour calibration test card"]') as HTMLElement;
+        const el = [...document.querySelectorAll("[aria-label]")].find((e) => e.getAttribute("aria-label") === label) as HTMLElement;
         return (el.matches("button") ? el : el.querySelector("button")) as HTMLElement;
       };
       const on = () => button().getAttribute("aria-checked") === "true";
@@ -177,7 +227,7 @@ test.describe("quick successive edits", () => {
       await wait(2000);
       stop = true;
       return { want, final: on(), wrong: seen.filter(([t, v]) => t > last + 60 && v !== want).length };
-    });
+    }, `Specs confirmed for ${TASK.name}`);
     expect(result.final).toBe(result.want);
     expect(result.wrong).toBe(0);
     await allSaved(page);

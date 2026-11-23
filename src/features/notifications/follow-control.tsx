@@ -14,6 +14,7 @@ import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
+import { lastSave, quickSave } from "@/lib/query/quick-saves";
 
 /** Everything the reader follows in this workspace. */
 export function useMySubscriptions() {
@@ -33,6 +34,7 @@ export function useFollow() {
   const queryClient = useQueryClient();
   const key = queryKeys.subscriptions(ws.workspace.id, ws.currentUser.id);
   return useMutation({
+    ...quickSave(key),
     mutationFn: ({ target, events }: { target: SubscriptionTarget; events: SubscriptionEvent[] }) => services.subscriptions.follow(ws.currentUser.id, ws.workspace.id, target, events),
     onMutate: async ({ target, events }) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -47,10 +49,11 @@ export function useFollow() {
       return { previous };
     },
     onError: (error, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(key, context.previous);
+      if (context?.previous && lastSave(queryClient, key)) queryClient.setQueryData(key, context.previous);
       toast.error(error instanceof Error ? error.message : "Could not change what you follow");
     },
     onSettled: () => {
+      if (!lastSave(queryClient, key)) return;
       void queryClient.invalidateQueries({ queryKey: key });
       void queryClient.invalidateQueries({ queryKey: queryKeys.notificationPreferences(ws.currentUser.id) });
     },

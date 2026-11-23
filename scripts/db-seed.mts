@@ -223,9 +223,13 @@ async function main(): Promise<void> {
 
       await tx`insert into public.workspaces ${tx(seed.workspaces.map((w) => ({ id: w.id, name: w.name, slug: w.slug, logo_url: w.logoUrl, booking_key: w.bookingKey ?? null, ticket_prefix: w.ticketPrefix ?? null, ticket_counter: w.ticketCounter ?? 0 })))}`;
 
+      // Creating the workspace has already seated every app owner in it
+      // (trigger workspace_seats_owners), so a seed member who is one is
+      // already there: take the seed's id and join date, keep them an owner.
       await tx`insert into public.workspace_members ${tx(
         seed.workspaceMembers.map((m) => ({ id: m.id, workspace_id: m.workspaceId, user_id: m.userId, role: m.role, status: m.status, joined_at: m.joinedAt })),
-      )}`;
+      )}
+        on conflict (workspace_id, user_id) do update set id = excluded.id, joined_at = excluded.joined_at`;
 
       // Invitation links for the pending members. Fresh random tokens every seed;
       // the browser store keeps the fixed ones from seed-data.ts.
@@ -254,7 +258,8 @@ async function main(): Promise<void> {
             status: m.status,
             joined_at: m.joined_at,
           })),
-        )}`;
+        )}
+          on conflict (workspace_id, user_id) do nothing`;
         console.log(`  kept ${outsiders.length} member(s) who are not part of the seed`);
       }
 

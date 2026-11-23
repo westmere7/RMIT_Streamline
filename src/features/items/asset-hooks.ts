@@ -10,6 +10,7 @@ import { useServices } from "@/features/data/data-context";
 import { newId, nowIso } from "@/lib/ids";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
+import { lastSave, quickSave, savesPending } from "@/lib/query/quick-saves";
 import { useBatchedWrites } from "@/lib/query/use-batched-writes";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
@@ -196,17 +197,20 @@ export function useAssetMutations(item: Item) {
     onDrained: (failed) => {
       // The read back puts the server's copy on screen, so a change that did not save shows as not made.
       if (failed) toast.error(failed === 1 ? "Could not save a change to an asset" : `Could not save ${failed} changes to assets`);
+      // A line still being added or removed reads back when it lands.
+      if (savesPending(queryClient, key)) return;
       void readBack();
     },
   });
-  // Adding and removing read back as they always did, unless line changes are
-  // still on their way: then the read waits for them (the batch reads back when it lands).
+  // Adding and removing read back once the last of them has landed, and not
+  // while line changes are still on their way (the batch reads back then).
   const settle = async () => {
-    if (lineWrites.busy()) return;
+    if (lineWrites.busy() || !lastSave(queryClient, key)) return;
     await readBack();
   };
+  // A failure puts the list back only when nothing else is saving; otherwise the last read back does.
   const rollback = (previous: ItemAsset[] | undefined, error: unknown, fallback: string) => {
-    if (previous) queryClient.setQueryData(key, previous);
+    if (previous && lastSave(queryClient, key) && !lineWrites.busy()) queryClient.setQueryData(key, previous);
     toast.error(error instanceof Error ? error.message : fallback);
   };
 
@@ -241,6 +245,7 @@ export function useAssetMutations(item: Item) {
   const nextPosition = (previous: ItemAsset[] | undefined) => (previous?.length ? Math.max(...previous.map((a) => a.position)) : -1) + 1;
 
   const addLine = useMutation({
+    ...quickSave(key),
     mutationFn: (line: NewAssetLine) => services.assets.add({ ...line, itemId: item.id, boardId: item.boardId }, user.id),
     onMutate: async (line) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -254,6 +259,7 @@ export function useAssetMutations(item: Item) {
 
   /** A new block: its lines, all under one name and the same people. Ids are given up front, as for one line. */
   const addBlockLines = useMutation({
+    ...quickSave(key),
     mutationFn: ({ name, assigneeIds, links, lines, blockId }: { name: string; assigneeIds: string[]; links: AssetLink[]; lines: NewAssetLine[]; blockId: string }) =>
       services.assets.addMany(
         lines.map((line) => ({ ...line, itemId: item.id, boardId: item.boardId, assigneeIds, blockId, blockName: name.trim(), blockLinks: links })),
@@ -272,6 +278,7 @@ export function useAssetMutations(item: Item) {
 
   /** Rename a block, change who is on all of it, or take its lines out of it. */
   const updateBlock = useMutation({
+    ...quickSave(key),
     mutationFn: ({ blockId, patch }: { blockId: string; patch: { name?: string; assigneeIds?: string[]; links?: AssetLink[]; ungroup?: boolean } }) => services.assets.updateBlock(item.id, blockId, patch, user.id),
     onMutate: async ({ blockId, patch }) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -297,6 +304,7 @@ export function useAssetMutations(item: Item) {
 
   /** Everything the block dialog changed, at once. */
   const saveBlock = useMutation({
+    ...quickSave(key),
     mutationFn: ({ blockId, form }: { blockId: string; form: SavedBlock }) => services.assets.saveBlock(item.id, blockId, form, user.id),
     onMutate: async ({ blockId, form }) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -321,6 +329,7 @@ export function useAssetMutations(item: Item) {
   });
 
   const removeBlock = useMutation({
+    ...quickSave(key),
     mutationFn: (blockId: string) => services.assets.removeBlock(item.id, blockId, user.id),
     onMutate: async (blockId) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -344,6 +353,7 @@ export function useAssetMutations(item: Item) {
   };
 
   const remove = useMutation({
+    ...quickSave(key),
     mutationFn: (id: string) => services.assets.remove(id, item.id, item.boardId, user.id),
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: key });

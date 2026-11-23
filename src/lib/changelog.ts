@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.161.1",
+    date: "2026-11-23",
+    title: "Every quick click stays put",
+    changes: [
+      "Reactions, pins, stars, favourites, follows, read and unread, new updates, asset lines added or removed, messages and automation switches no longer flick back when clicked quickly, and a quick on-off lands in the right order.",
+    ],
+  },
+  {
     version: "0.161.0",
     date: "2026-11-23",
     title: "Quick edits stay put",

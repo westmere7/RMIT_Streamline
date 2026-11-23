@@ -4,6 +4,7 @@ import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TrackerSheet } from "@/domain";
 import { useSheetEditor } from "@/features/trackers/hooks";
+import { resetUnsavedWork } from "@/lib/unsaved-work";
 
 /**
  * F-004 — a tracker edit made just before leaving must still be saved.
@@ -28,7 +29,6 @@ vi.mock("@/features/data/data-context", () => ({
 vi.mock("@/features/auth/auth-context", () => ({ useCurrentUser: () => ({ id: "user-1" }) }));
 
 vi.mock("@/lib/sync/broadcast", () => ({ publishDataChange: () => undefined }));
-vi.mock("@/features/unsaved/unsaved-work", () => ({ beginUnsavedWork: () => () => undefined }));
 
 function sheet(): TrackerSheet {
   return {
@@ -80,6 +80,7 @@ describe("a tracker edit survives leaving the sheet", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    resetUnsavedWork();
   });
 
   it("saves when the editor unmounts inside the debounce window", async () => {
@@ -113,6 +114,20 @@ describe("a tracker edit survives leaving the sheet", () => {
     expect(saveSheet).toHaveBeenCalledTimes(1);
   });
 
+  it("writes at once when the page is hidden or closed inside the pause", async () => {
+    const { commit } = renderEditor();
+    act(() => {
+      commit()((current) => ({ ...current, rows: [{ ...current.rows[0]!, cells: { c1: "leaving" } }] }) as TrackerSheet);
+    });
+    expect(saveSheet).not.toHaveBeenCalled();
+    await act(async () => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(saveSheet).toHaveBeenCalledTimes(1);
+    const [, patch] = saveSheet.mock.calls[0]!;
+    expect((patch.rows as Array<{ cells: Record<string, unknown> }>)[0]!.cells.c1).toBe("leaving");
+  });
+
   it("does not write when nothing was edited", () => {
     const { view } = renderEditor();
     act(() => view.unmount());
@@ -144,6 +159,7 @@ describe("saving a sheet in batches", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+    resetUnsavedWork();
   });
 
   const typed = (value: string) => (current: TrackerSheet) => ({ ...current, rows: [{ ...current.rows[0]!, cells: { c1: value } }] }) as TrackerSheet;

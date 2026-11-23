@@ -7,7 +7,8 @@ import type { Item } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
-import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
+import { lastSave, quickSave } from "@/lib/query/quick-saves";
 
 /** A safety net under realtime: even a silent channel re-reads this often. */
 const REFRESH_MS = 30_000;
@@ -111,6 +112,7 @@ export function useStar(userId: string) {
   const queryClient = useQueryClient();
   const key = queryKeys.itemFavourites(userId);
   return useMutation({
+    ...quickSave(key),
     mutationFn: async ({ items, on }: { items: Array<Pick<Item, "id" | "boardId">>; on: boolean }) => {
       if (on) for (const item of items) await services.myWork.star(userId, item);
       else await services.myWork.unstar(userId, items.map((i) => i.id));
@@ -127,10 +129,11 @@ export function useStar(userId: string) {
       return { previous };
     },
     onError: (error, _vars, context) => {
-      if (context?.previous) queryClient.setQueryData(key, context.previous);
+      if (context?.previous && lastSave(queryClient, key)) queryClient.setQueryData(key, context.previous);
       toast.error(error instanceof Error ? error.message : "Could not change the star");
     },
     onSettled: () => {
+      if (!lastSave(queryClient, key)) return;
       void queryClient.invalidateQueries({ queryKey: key });
       void queryClient.invalidateQueries({ queryKey: ["my-starred"] });
     },

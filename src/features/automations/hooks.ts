@@ -11,6 +11,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import type { RuleVocabulary } from "@/services";
+import { lastSave, quickSave } from "@/lib/query/quick-saves";
 
 /** The rules on a board, and the log of what they have done. */
 export function useAutomations(boardId: EntityId) {
@@ -271,7 +272,8 @@ export function useAutomationMutations(boardId: EntityId, vocabulary: RuleVocabu
   const services = useServices();
   const queryClient = useQueryClient();
   const key = queryKeys.automations(boardId);
-  const settled = { onSettled: () => queryClient.invalidateQueries({ queryKey: key }) };
+  // Read back once the last save on the rules has landed (quickSave).
+  const settled = { onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined) };
   const failed = (fallback: string) => (error: unknown) => toast.error(error instanceof Error ? error.message : fallback);
 
   const create = useMutation({
@@ -289,6 +291,7 @@ export function useAutomationMutations(boardId: EntityId, vocabulary: RuleVocabu
   });
 
   const setEnabled = useMutation({
+    ...quickSave(key),
     mutationFn: ({ id, enabled }: { id: EntityId; enabled: boolean }) => services.automations.setEnabled(id, enabled),
     // Answered in place: a switch that waits for a round trip feels broken.
     onMutate: async ({ id, enabled }) => {
@@ -298,7 +301,7 @@ export function useAutomationMutations(boardId: EntityId, vocabulary: RuleVocabu
       return { previous };
     },
     onError: (error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(key, context.previous);
+      if (context?.previous && lastSave(queryClient, key)) queryClient.setQueryData(key, context.previous);
       failed("Could not change the automation")(error);
     },
     ...settled,

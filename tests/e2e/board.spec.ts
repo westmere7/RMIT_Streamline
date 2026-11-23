@@ -158,6 +158,14 @@ test.describe("board interactions", () => {
 
     expect(await offsetInGroup()).toBe(offsetBefore);
 
+    // Held near the window's edge, the board scrolls itself while the line is
+    // measured; point at the target again where it is now, as a person would,
+    // before letting go.
+    await target.scrollIntoViewIfNeeded();
+    const now = await target.boundingBox();
+    if (!now) throw new Error("target not visible");
+    await page.mouse.move(now.x + 100, now.y + now.height / 2, { steps: 5 });
+    await expect(page.getByTestId("group-Design").getByTestId("drop-slot")).toHaveCount(1);
     await page.mouse.up();
     await expect(page.getByTestId("drop-slot")).toHaveCount(0);
     await expect(page.getByTestId("group-Design").locator('[data-item-name="Accessibility review of PDF export"]')).toBeVisible();
@@ -207,20 +215,30 @@ test.describe("board interactions", () => {
     await page.getByTestId("add-group").click();
     const empty = page.getByTestId("group-New group");
     await expect(empty).toBeVisible({ timeout: 20_000 });
-    await empty.scrollIntoViewIfNeeded();
 
-    // Drag a row from the group above onto the empty one. Only rows on screen
-    // are drawn, so take the first one of Completed once its group is in view.
-    const completed = page.getByTestId("group-Completed");
-    await completed.scrollIntoViewIfNeeded();
-    const source = completed.getByTestId("item-row").first();
-    await expect(source).toBeVisible({ timeout: 20_000 });
-    await source.scrollIntoViewIfNeeded();
+    // Drag a row from the group above onto the empty one, both on screen at
+    // once: the empty group at the foot of the window and the last row of
+    // Completed just above it. Completed grows with the demo's dates, so its
+    // first row can be a screen or more away from the new group.
+    await empty.evaluate((el) => el.scrollIntoView({ block: "end" }));
+    const viewport = page.viewportSize()!;
+    const rows = page.getByTestId("group-Completed").getByTestId("item-row");
+    await expect(rows.first()).toBeAttached({ timeout: 20_000 });
+    let source = rows.last();
+    for (const row of (await rows.all()).reverse()) {
+      const box = await row.boundingBox();
+      if (box && box.y > 0 && box.y + box.height < viewport.height) {
+        source = row;
+        break;
+      }
+    }
     await source.hover();
     const handle = source.getByTestId("item-drag-area");
     const from = await handle.boundingBox();
     const to = await empty.boundingBox();
     if (!from || !to) throw new Error("rows not visible");
+    expect(from.y, "the row dragged is on screen").toBeGreaterThan(0);
+    expect(to.y + to.height, "the empty group is on screen").toBeLessThanOrEqual(viewport.height + 1);
 
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
     await page.mouse.down();

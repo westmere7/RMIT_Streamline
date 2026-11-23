@@ -1,4 +1,5 @@
 import type { MutationCache } from "@tanstack/react-query";
+import { holdQuery } from "@/lib/query/write-holds";
 
 /**
  * Guards the gap between "the screen says it is saved" and "the database has it".
@@ -111,7 +112,9 @@ export function resetUnsavedWork(): void {
 
 /**
  * Holds the guard for every mutation while it runs: posting an update, a
- * reaction, a follow — any save that is not one of the batched editors.
+ * reaction, a follow — any save that is not one of the batched editors. A
+ * mutation that names a query in `meta.holdQuery` (quickSave) also holds that
+ * query for as long, so realtime re-reads of it wait until it has landed.
  */
 export function guardMutations(cache: MutationCache): () => void {
   const running = new WeakMap<object, () => void>();
@@ -120,7 +123,15 @@ export function guardMutations(cache: MutationCache): () => void {
     if (!mutation) return;
     const pending = event.type !== "removed" && mutation.state.status === "pending";
     const held = running.get(mutation);
-    if (pending && !held) running.set(mutation, beginUnsavedWork());
+    if (pending && !held) {
+      const settled = beginUnsavedWork();
+      const key = (mutation.options.meta as { holdQuery?: readonly unknown[] } | undefined)?.holdQuery;
+      const release = key ? holdQuery(key) : null;
+      running.set(mutation, () => {
+        settled();
+        release?.();
+      });
+    }
     else if (!pending && held) {
       held();
       running.delete(mutation);

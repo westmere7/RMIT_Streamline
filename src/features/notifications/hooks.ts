@@ -7,7 +7,8 @@ import type { Board, Notification, NotificationPreferences, NotificationPreferen
 import { countUnread, defaultNotificationPreferences } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspaceOptional, type WorkspaceContextValue } from "@/features/workspace/workspace-context";
-import { queryKeys } from "@/lib/query/keys";
+import { queryKeys } from "@/lib/query/keys";
+import { lastSave, quickSave } from "@/lib/query/quick-saves";
 
 /** Whether a notification belongs in this workspace's inbox. One that names no workspace shows in every one. */
 export function inWorkspace(notification: Pick<Notification, "workspaceId">, workspaceId: string | null | undefined): boolean {
@@ -170,6 +171,7 @@ export function useNotificationPreferenceMutations(userId: string) {
   const key = queryKeys.notificationPreferences(userId);
 
   const save = useMutation({
+    ...quickSave(key),
     mutationFn: (patch: NotificationPreferencesInput) => services.notifications.savePreferences(userId, patch),
     onMutate: async (patch) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -183,13 +185,15 @@ export function useNotificationPreferenceMutations(userId: string) {
       return { previous };
     },
     onError: (error, _patch, ctx) => {
-      queryClient.setQueryData(key, ctx?.previous);
+      if (lastSave(queryClient, key)) queryClient.setQueryData(key, ctx?.previous);
       toast.error("Could not save your notification settings", { description: error instanceof Error ? error.message : undefined });
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // Read back once the last save on the list has landed (quickSave).
+    onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined),
   });
 
   const setBoardSubscribed = useMutation({
+    ...quickSave(key),
     mutationFn: ({ boardId, subscribed }: { boardId: string; subscribed: boolean }) =>
       services.notifications.setBoardSubscribed(userId, boardId, subscribed),
     onMutate: async ({ boardId, subscribed }) => {
@@ -203,10 +207,11 @@ export function useNotificationPreferenceMutations(userId: string) {
       return { previous };
     },
     onError: (error, _vars, ctx) => {
-      queryClient.setQueryData(key, ctx?.previous);
+      if (lastSave(queryClient, key)) queryClient.setQueryData(key, ctx?.previous);
       toast.error("Could not change your subscription", { description: error instanceof Error ? error.message : undefined });
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // Read back once the last save on the list has landed (quickSave).
+    onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined),
   });
 
   return { save, setBoardSubscribed };
@@ -219,6 +224,7 @@ export function useNotificationMutations(userId: string) {
   const workspaceId = useWorkspaceOptional()?.workspace.id ?? undefined;
 
   const markRead = useMutation({
+    ...quickSave(key),
     mutationFn: ({ id, read }: { id: string; read: boolean }) => services.repos.notifications.markRead(id, read),
     onMutate: async ({ id, read }) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -229,13 +235,15 @@ export function useNotificationMutations(userId: string) {
       return { previous };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      if (ctx?.previous && lastSave(queryClient, key)) queryClient.setQueryData(key, ctx.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // Read back once the last save on the list has landed (quickSave).
+    onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined),
   });
 
   /** Without a delivery this clears both badges; with one it clears just that badge. */
   const markAllRead = useMutation({
+    ...quickSave(key),
     mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.markAllRead(userId, delivery, workspaceId),
     onMutate: async (delivery) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -247,9 +255,10 @@ export function useNotificationMutations(userId: string) {
       return { previous };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      if (ctx?.previous && lastSave(queryClient, key)) queryClient.setQueryData(key, ctx.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // Read back once the last save on the list has landed (quickSave).
+    onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined),
   });
 
   /**
@@ -261,6 +270,7 @@ export function useNotificationMutations(userId: string) {
    * clearing the loud list leaves the quiet updates alone.
    */
   const clearAll = useMutation({
+    ...quickSave(key),
     mutationFn: (delivery?: StoredDelivery) => services.repos.notifications.deleteAll(userId, delivery, workspaceId),
     onMutate: async (delivery) => {
       await queryClient.cancelQueries({ queryKey: key });
@@ -269,9 +279,10 @@ export function useNotificationMutations(userId: string) {
       return { previous };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(key, ctx.previous);
+      if (ctx?.previous && lastSave(queryClient, key)) queryClient.setQueryData(key, ctx.previous);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
+    // Read back once the last save on the list has landed (quickSave).
+    onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined),
   });
 
   return { markRead, markAllRead, clearAll };

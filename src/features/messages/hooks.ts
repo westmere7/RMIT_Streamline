@@ -9,6 +9,7 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { newId, nowIso } from "@/lib/ids";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
+import { lastSave, quickSave } from "@/lib/query/quick-saves";
 
 export function useMessageThreads() {
   const services = useServices();
@@ -53,6 +54,8 @@ export function useMessageMutations(otherUserId: string | null) {
   const threadKey = queryKeys.messageThread(ws.workspace.id, user.id, otherUserId ?? "");
 
   const settle = async () => {
+    // Only the last save on the thread reads it back (quickSave).
+    if (!lastSave(queryClient, threadKey)) return;
     await queryClient.invalidateQueries({ queryKey: threadKey });
     void queryClient.invalidateQueries({ queryKey: queryKeys.messageThreads(ws.workspace.id, user.id) });
     void queryClient.invalidateQueries({ queryKey: queryKeys.unreadMessages(ws.workspace.id, user.id) });
@@ -60,6 +63,7 @@ export function useMessageMutations(otherUserId: string | null) {
   };
 
   const send = useMutation({
+    ...quickSave(threadKey),
     mutationFn: (body: string) => services.messages.send(ws.workspace.id, user.id, otherUserId!, body),
     onMutate: async (body) => {
       await queryClient.cancelQueries({ queryKey: threadKey });
@@ -77,18 +81,20 @@ export function useMessageMutations(otherUserId: string | null) {
       return { previous };
     },
     onError: (error, _body, context) => {
-      if (context?.previous) queryClient.setQueryData(threadKey, context.previous);
+      if (context?.previous && lastSave(queryClient, threadKey)) queryClient.setQueryData(threadKey, context.previous);
       toast.error("Could not send the message", { description: error instanceof Error ? error.message : undefined });
     },
     onSettled: settle,
   });
 
   const markRead = useMutation({
+    ...quickSave(threadKey),
     mutationFn: () => services.messages.markRead(ws.workspace.id, user.id, otherUserId!),
     onSettled: settle,
   });
 
   const remove = useMutation({
+    ...quickSave(threadKey),
     mutationFn: (id: string) => services.messages.deleteMessage(id),
     onError: (error) => toast.error("Could not delete the message", { description: error instanceof Error ? error.message : undefined }),
     onSettled: settle,

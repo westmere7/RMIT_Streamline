@@ -27,6 +27,9 @@ async function signedIn(browser: Browser, email: string, password: string): Prom
   await page.getByLabel("Email").fill(email);
   await page.getByTestId("login-password").fill(password);
   await page.getByRole("button", { name: "Continue" }).click();
+  // Signing in lands on the workspace last used, which after a reseed may be another one.
+  await expect(page).toHaveURL(/\/workspace\/[^/]+$/, { timeout: 60_000 });
+  if (!/\/workspace\/rmit$/.test(page.url())) await page.goto("/workspace/rmit");
   await expect(page).toHaveURL(/\/workspace\/rmit$/, { timeout: 60_000 });
   return page;
 }
