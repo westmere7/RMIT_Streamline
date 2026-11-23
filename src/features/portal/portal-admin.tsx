@@ -6,7 +6,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, FileText, Globe, GripVertical, Loader2, Lock, Pencil, Settings2, Users } from "lucide-react";
+import { Binoculars, Check, ClipboardPen, Copy, ExternalLink, EyeOff, FileText, Globe, GripVertical, Loader2, Lock, Pencil, Settings2, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import * as React from "react";
@@ -57,6 +57,7 @@ import { PersonChip } from "@/features/members/person-chip";
 import { usePortalMutations, usePortalOverview, workspaceLinkUrls } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
+import { canUseInternalPortal } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -77,12 +78,20 @@ import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
 export function PortalAdmin() {
   const ws = useWorkspace();
   const overview = usePortalOverview();
+  const internal = canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION"));
 
   if (ws.permissions.workspaceRole === "GUEST") {
     return <EmptyState icon={Lock} title="The portal is managed by workspace admins" description="You can still book a task from the booking page." />;
   }
   if (overview.data === null) {
-    return <EmptyState icon={Globe} title="No portal yet" description="An admin sets it up here." />;
+    return (
+      <EmptyState
+        icon={Globe}
+        title="No portal yet"
+        description="An admin sets it up here."
+        action={internal ? <InternalPortalButton slug={ws.slug} /> : undefined}
+      />
+    );
   }
 
   return (
@@ -108,6 +117,8 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
   const { portal: url, booking: bookingUrl } = workspaceLinkUrls(ws.slug);
   const booked = rows.reduce((sum, row) => sum + row.requests, 0);
   const active = rows.filter((row) => row.requests > 0).length;
+  // Every team's work on the portal's board, for admins and allocators; a page in the app, not a link to hand out.
+  const internal = canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION"));
 
   return (
     // No box of its own: a heading row over the two link cards, so each card is
@@ -137,10 +148,15 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
           settings={portalSettingsRows(portal, columns)}
           // Passwords are no longer set here; one set before then can still be taken off.
           action={
-            portal.passwordHash && !readOnly ? (
-              <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={setPassword.isPending} onClick={() => setPassword.mutate({ password: null })} data-testid="portal-password-remove">
-                <Lock /> Remove password
-              </Button>
+            internal || (portal.passwordHash && !readOnly) ? (
+              <>
+                {internal && <InternalPortalButton slug={ws.slug} />}
+                {portal.passwordHash && !readOnly && (
+                  <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={setPassword.isPending} onClick={() => setPassword.mutate({ password: null })} data-testid="portal-password-remove">
+                    <Lock /> Remove password
+                  </Button>
+                )}
+              </>
             ) : undefined
           }
           open={open}
@@ -200,6 +216,17 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
         </>
       )}
     </section>
+  );
+}
+
+/** The way into the internal portal: a page in the app, opened in the same tab. */
+function InternalPortalButton({ slug }: { slug: string }) {
+  return (
+    <Button variant="outline" size="sm" asChild>
+      <Link href={routes.internalPortal(slug)} data-testid="internal-portal-open">
+        <Binoculars /> Internal portal
+      </Link>
+    </Button>
   );
 }
 

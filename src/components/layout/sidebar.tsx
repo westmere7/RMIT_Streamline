@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Binoculars, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -40,7 +40,7 @@ import { useStarredIds } from "@/features/my-work/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMyWorkspaces, WorkspaceMenuItems } from "@/features/workspace/workspaces";
 import { colorClasses } from "@/lib/colors";
-import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTeamAccess, canEditTrackers, canManageMembers, canManageTeam, canUseInternalPortal, canViewBoard } from "@/lib/permissions/permissions";
+import { canCreateBoard, canCreateTeam, canDeleteTeam, canEditDocs, canEditTeamAccess, canEditTrackers, canManageMembers, canManageTeam, canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { IconPicker } from "@/components/shared/icon-picker";
@@ -169,6 +169,9 @@ function SidebarBody({ variant, onNavigate }: { variant?: "drawer"; onNavigate?:
   const automationActivity = useAutomationActivity();
   const automationsBusyElsewhere = [...automationActivity].some((boardId) => ws.boardById(boardId)?.slug !== activeBoardSlug);
 
+  // The internal portal opens from Portal and Booking, so that entry stays lit there.
+  const portalActive = isActivePath(routes.book(ws.slug)) || isActivePath(routes.internalPortal(ws.slug));
+
   return (
     <>
     {/* The sidebar rounds its corners and clips to them, so the edge you grab
@@ -267,18 +270,14 @@ function SidebarBody({ variant, onNavigate }: { variant?: "drawer"; onNavigate?:
                 href={routes.book(ws.slug)}
                 aria-label="Portal and Booking"
                 onClick={onNavigate}
-                className={cn("group", primaryNavClasses(isActivePath(routes.book(ws.slug))), collapsed && "justify-center px-0")}
+                className={cn("group", primaryNavClasses(portalActive), collapsed && "justify-center px-0")}
                 data-testid="sidebar-book-task"
               >
-                <PrimaryIcon icon={ClipboardPen} active={isActivePath(routes.book(ws.slug))} />
+                <PrimaryIcon icon={ClipboardPen} active={portalActive} />
                 {!collapsed && <span className="flex-1 text-left">Portal and Booking</span>}
               </Link>
             </SimpleTooltip>
           </li>
-          )}
-          {/* Every team's work in one board, for admins and allocators. */}
-          {canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION")) && (
-            <NavItem href={routes.internalPortal(ws.slug)} icon={Binoculars} label="Internal portal" active={isActivePath(routes.internalPortal(ws.slug))} collapsed={collapsed} />
           )}
         </ul>
 

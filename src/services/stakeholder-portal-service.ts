@@ -590,7 +590,17 @@ export class StakeholderPortalService {
       ctx.projection.today,
       types.size,
     );
-    return { ...payload, totals, awaiting: { ids: awaitingIds, teamName: intakeTeam?.name ?? null }, servedAt: new Date().toISOString() };
+    return {
+      ...payload,
+      totals,
+      awaiting: { ids: awaitingIds, teamName: intakeTeam?.name ?? null },
+      servedAt: new Date().toISOString(),
+      // Each request's team, for grouping by team: null while it waits on Task Allocation.
+      teamOfItem: Object.fromEntries(tasks.map((entry) => {
+        const team = entries.find((row) => row.itemId === entry.task.id)?.team ?? null;
+        return [entry.task.id, team ? { id: team.id, name: team.name, color: team.color } : null];
+      })),
+    };
   }
 
   /**
@@ -761,6 +771,12 @@ export class StakeholderPortalService {
       awaiting: { ids: [], teamName: null },
       servedAt: now.toISOString(),
       boardOfItem: Object.fromEntries(inScope.map((item) => [item.id, item.boardId])),
+      teamOfItem: Object.fromEntries(
+        inScope.map((item) => {
+          const team = teamOf(item);
+          return [item.id, team ? { id: team.id, name: team.name, color: team.color } : null];
+        }),
+      ),
       context: {
         portalName: "Internal portal",
         creativeTeamName: teamName,

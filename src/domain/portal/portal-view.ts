@@ -232,4 +232,16 @@ export interface PortalBoardPayload extends PublicBoardPayload {
   awaiting: { ids: EntityId[]; teamName: string | null };
   /** When the server assembled this. Shown so stale data is visible as stale. */
   servedAt: string;
+  /**
+   * Each row's team (the team its board belongs to), for grouping by team. Null
+   * for a row with no team yet: one still on Task Allocation, or a board with none.
+   */
+  teamOfItem?: Record<EntityId, PortalTeamRef | null>;
+}
+
+/** A row's team, as the portals group by it. */
+export interface PortalTeamRef {
+  id: EntityId;
+  name: string;
+  color: ColorToken;
 }

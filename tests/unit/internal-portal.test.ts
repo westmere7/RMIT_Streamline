@@ -39,6 +39,11 @@ describe("the internal portal", () => {
     // Each row names the board it really lives on.
     for (const [itemId, boardId] of Object.entries(payload.boardOfItem).slice(0, 5)) expect((await repos.items.getById(itemId))?.boardId).toBe(boardId);
     expect(payload.items.length).toBeGreaterThanOrEqual(shown.length);
+    // Each row's team is its board's, for grouping and Kanban lanes by team.
+    for (const [itemId, boardId] of Object.entries(payload.boardOfItem).slice(0, 10)) {
+      const board = boards.find((b) => b.id === boardId)!;
+      expect(payload.teamOfItem?.[itemId]?.id ?? null).toBe(board.teamId);
+    }
     expect(payload.context.teams.length).toBeGreaterThan(0);
   });
 

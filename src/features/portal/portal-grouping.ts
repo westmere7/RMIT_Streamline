@@ -1,4 +1,4 @@
-import type { BoardGroup, Item, PortalGrouping, PublicBoardPayload } from "@/domain";
+import type { BoardColumn, BoardGroup, Item, ItemColumnValue, PortalGrouping, PortalTeamRef, PublicBoardPayload } from "@/domain";
 import { slugify } from "@/lib/slug";
 
 /**
@@ -146,9 +146,82 @@ export function groupPortalBoardByStakeholder<T extends PublicBoardPayload>(payl
   return { ...payload, groups, items };
 }
 
+const NO_TEAM = "No team";
+
+/**
+ * Re-dividing the board by the team whose board each task is on. The team
+ * comes with the payload, keyed by task, so this is as cheap as the other
+ * arrangements: same items, new groupIds.
+ */
+export function groupPortalBoardByTeam<T extends PublicBoardPayload>(payload: T, teamOfItem: Readonly<Record<string, PortalTeamRef | null>>): T {
+  const boardId = payload.board.id;
+  const parents = payload.items.filter((item) => item.parentItemId === null);
+  const teams = new Map<string, PortalTeamRef>();
+  let teamless = false;
+  for (const item of parents) {
+    const team = teamOfItem[item.id] ?? null;
+    if (team) teams.set(team.id, team);
+    else teamless = true;
+  }
+  const named = [...teams.values()].sort((a, b) => a.name.localeCompare(b.name));
+  const groups: BoardGroup[] = [
+    ...named.map((team) => ({ id: `${boardId}:t-${team.id}`, name: team.name, color: team.color })),
+    ...(teamless ? [{ id: `${boardId}:t-none`, name: NO_TEAM, color: payload.board.color }] : []),
+  ].map((group, position) => ({ ...group, boardId, position, collapsed: false, createdAt: payload.board.createdAt }));
+
+  const groupOf = (id: string) => {
+    const team = teamOfItem[id] ?? null;
+    return team ? `${boardId}:t-${team.id}` : `${boardId}:t-none`;
+  };
+  // A subitem belongs with its task, wherever that task has gone.
+  const items = payload.items.map((item) => {
+    const groupId = groupOf(item.parentItemId ?? item.id);
+    return groupId !== item.groupId ? { ...item, groupId } : item;
+  });
+  return { ...payload, groups, items };
+}
+
+/**
+ * Each task's team as a list column of its own, hidden from the table and the
+ * task panel: what lets Kanban lay its lanes out by team (a lane per list
+ * column, "No team" for the rest), in both portals and on a phone. Built here
+ * from what the payload already carries, so nothing more is read or published.
+ */
+export function withTeamColumn<T extends PublicBoardPayload & { teamOfItem?: Readonly<Record<string, PortalTeamRef | null>> }>(payload: T): T {
+  const teamOfItem = payload.teamOfItem;
+  if (!teamOfItem) return payload;
+  const boardId = payload.board.id;
+  const columnId = `${boardId}:team`;
+  const teams = new Map<string, PortalTeamRef>();
+  for (const team of Object.values(teamOfItem)) if (team) teams.set(team.id, team);
+  if (teams.size === 0) return payload;
+  const column: BoardColumn = {
+    id: columnId,
+    boardId,
+    name: "Team",
+    type: "DROPDOWN",
+    settings: { kind: "dropdown", labels: [...teams.values()].sort((a, b) => a.name.localeCompare(b.name)).map((team) => ({ id: team.id, name: team.name, color: team.color })), defaultLabelId: null },
+    position: Math.max(0, ...payload.columns.map((c) => c.position)) + 1,
+    width: 140,
+    hidden: true,
+    hiddenInPanel: true,
+    createdAt: payload.board.createdAt,
+  };
+  const values: ItemColumnValue[] = payload.items
+    .filter((item) => item.parentItemId === null && teamOfItem[item.id])
+    .map((item) => ({ id: `${item.id}:team`, itemId: item.id, columnId, value: { type: "DROPDOWN", labelId: teamOfItem[item.id]!.id }, updatedAt: payload.board.createdAt }));
+  return { ...payload, columns: [...payload.columns, column], values: [...payload.values, ...values] };
+}
+
 /** Applies a visitor's choice. "board" is the payload exactly as it was built. */
-export function applyPortalGrouping<T extends PublicBoardPayload>(payload: T, grouping: PortalGrouping, statusOrder: readonly string[] = []): T {
+export function applyPortalGrouping<T extends PublicBoardPayload>(
+  payload: T,
+  grouping: PortalGrouping,
+  statusOrder: readonly string[] = [],
+  teamOfItem?: Readonly<Record<string, PortalTeamRef | null>>,
+): T {
   if (grouping === "status") return groupPortalBoardByStatus(payload, statusOrder);
   if (grouping === "stakeholder") return groupPortalBoardByStakeholder(payload);
+  if (grouping === "team" && teamOfItem) return groupPortalBoardByTeam(payload, teamOfItem);
   return payload;
 }

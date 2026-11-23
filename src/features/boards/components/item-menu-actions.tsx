@@ -36,7 +36,7 @@ export function useItemMenuActions(item: Item, group: BoardGroup, handlers: Item
 }
 
 function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandlers, options: { phone?: boolean; allocating?: readonly string[] }): { actions: MenuAction[]; dialogs: React.ReactNode } {
-  const { board, model, mutations, canEdit, canManage, openItem } = useBoardContext();
+  const { board, model, mutations, canEdit, canManage, openItem, itemMenu } = useBoardContext();
   const ws = useWorkspace();
   const setLinkDialogItem = useBoardUiStore((s) => s.setLinkDialogItem);
   const setMoveRequest = useBoardUiStore((s) => s.setMoveRequest);
@@ -47,6 +47,9 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
   const extras = useTaskMenuExtras(item, canEdit);
   const allocation = useAllocation();
   const phone = options.phone ?? false;
+
+  // A view over somewhere else: Open, then that page's own entries, and nothing that would act on the view's copy.
+  if (itemMenu) return { actions: [{ type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) }, ...itemMenu.extra(item)], dialogs: extras.dialogs };
 
   const open: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },

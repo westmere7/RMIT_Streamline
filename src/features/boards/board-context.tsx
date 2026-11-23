@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { Board, BoardColumn, User } from "@/domain";
+import type { MenuAction } from "@/components/layout/row-menu";
+import type { Board, BoardColumn, Item, User } from "@/domain";
 import type { BoardModel } from "@/features/boards/board-model";
 import type { BoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import type { ItemUpdatesSummary } from "@/features/comments/updates";
@@ -35,6 +36,13 @@ export interface BoardContextValue {
   setShowTicket: (show: boolean) => void;
   /** Update counts per item (subitems included), with how many are new to this person. */
   updates: Map<string, ItemUpdatesSummary>;
+  /**
+   * A task's menu where the board is a view over somewhere else (the internal
+   * portal): the page's own entries after Open, and only those. The journey,
+   * star, follow and pop-up entries would act on the view's copy, not the task,
+   * so they are left to the real panel the page opens.
+   */
+  itemMenu?: { extra: (item: Item) => MenuAction[] };
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null);

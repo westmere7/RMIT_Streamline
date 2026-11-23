@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Lock } from "lucide-react";
+import { ArrowLeft, Lock, SquareKanban } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import type { MenuAction } from "@/components/layout/row-menu";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePortalRange } from "@/domain";
 import { useAuth } from "@/features/auth/auth-context";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
@@ -19,6 +21,7 @@ import { useBoardUpdates } from "@/features/comments/updates";
 import { useServices } from "@/features/data/data-context";
 import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
+import { PortalBoardSkeleton } from "@/features/portal/portal-board-skeleton";
 import { PortalHeader, PortalRangePicker } from "@/features/portal/portal-shell";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -95,6 +98,18 @@ export function InternalPortalPage() {
     void queryClient.invalidateQueries({ queryKey: ["internal-portal", ws.workspace.id] });
   }, [replaceParams, queryClient, ws.workspace.id]);
 
+  // A task's menu here: Open, and the board it is on, opened with the task open there.
+  const boardOfItem = page.data?.boardOfItem;
+  const itemMenu = React.useMemo(
+    () => ({
+      extra: (item: { id: string; parentItemId: string | null }): MenuAction[] => {
+        const board = ws.boardById(boardOfItem?.[item.parentItemId ?? item.id]);
+        return board ? [{ type: "item", label: "Open task's board", icon: <SquareKanban />, onSelect: () => router.push(ws.boardPath(board, { itemId: item.id })), testId: "internal-portal-row-open-board" }] : [];
+      },
+    }),
+    [boardOfItem, ws, router],
+  );
+
   if (!allowed) {
     return <EmptyState icon={Lock} title="For admins and allocators" className="h-full" />;
   }
@@ -106,6 +121,14 @@ export function InternalPortalPage() {
     <div className="flex h-full min-h-0 flex-col bg-background" data-testid="internal-portal-page">
       <PortalHeader
         internal
+        back={
+          // Opened from Portal and Booking's Portal card, and back there.
+          <Button variant="ghost" size="icon-sm" className="-ml-2 text-muted-foreground" asChild>
+            <Link href={routes.book(ws.workspace.slug)} aria-label="Back to Portal and Booking" title="Portal and Booking" data-testid="internal-portal-back">
+              <ArrowLeft />
+            </Link>
+          </Button>
+        }
         token=""
         home={home}
         portalName="Internal portal"
@@ -140,15 +163,13 @@ export function InternalPortalPage() {
               onShowAll={range.kind === "all" ? undefined : () => replaceParams({ range: formatPortalRange(EVERY_PORTAL_RANGE) })}
               taskPanel="outside"
               linksStayHere={false}
+              itemMenu={itemMenu}
             />
           </div>
           {openTaskId && boardOfOpen && <InternalTaskPanel key={boardOfOpen} boardId={boardOfOpen} itemId={openTaskId} onOpen={(id) => replaceParams({ task: id })} onClose={closeTask} />}
         </div>
       ) : (
-        <div className="px-4 py-6 sm:px-6">
-          <Skeleton className="h-9 w-full" />
-          <Skeleton className="mt-3 h-64 w-full" />
-        </div>
+        <PortalBoardSkeleton />
       )}
     </div>
   );
@@ -198,10 +219,27 @@ function InternalTaskPanel({ boardId, itemId, onOpen, onClose }: { boardId: stri
     [board, model, mutations, ws.activeUsers, ws.users, ws.permissions, openItem, now, updates],
   );
 
-  if (!contextValue) return <ItemPanelSkeleton onClose={onClose} />;
+  if (!contextValue || !board) return <ItemPanelSkeleton onClose={onClose} />;
   return (
     <BoardContextProvider value={contextValue}>
-      <ItemDetailPanel itemId={itemId} onClose={onClose} />
+      <ItemDetailPanel
+        itemId={itemId}
+        onClose={onClose}
+        notice={
+          // The board the task is on, opened with the task open there.
+          <div className="mx-4 mt-3 flex shrink-0 items-center gap-2 rounded-xl border border-border/70 bg-surface px-3 py-2 text-[13px]" data-testid="internal-portal-board-notice">
+            <SquareKanban className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">
+              On <span className="font-medium">{board.name}</span>
+            </span>
+            <Button variant="outline" size="sm" className="shrink-0" asChild>
+              <Link href={ws.boardPath(board, { itemId })} data-testid="internal-portal-open-board">
+                Open board
+              </Link>
+            </Button>
+          </div>
+        }
+      />
     </BoardContextProvider>
   );
 }

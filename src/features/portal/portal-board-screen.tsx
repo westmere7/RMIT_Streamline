@@ -30,7 +30,7 @@ import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
-import { applyPortalGrouping, orderStatusLabels } from "@/features/portal/portal-grouping";
+import { applyPortalGrouping, orderStatusLabels, withTeamColumn } from "@/features/portal/portal-grouping";
 import { ShareGuestProviders } from "@/features/share/share-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -66,7 +66,10 @@ export function PortalBoardScreen({
   onShowAll,
   taskPanel = "own",
   linksStayHere = true,
+  itemMenu,
 }: {
+  /** The page's own entries on a task's menu, in place of the reading extras (the internal portal). */
+  itemMenu?: BoardContextValue["itemMenu"];
   /**
    * Who draws an opened task. "own" is the portal's read-only panel; "outside"
    * leaves it to the page, which opens the app's real one (the internal portal).
@@ -109,7 +112,8 @@ export function PortalBoardScreen({
   const searchParams = useSearchParams();
   const asked = searchParams.get("group");
   const fallback: PortalGrouping = showItemGroups ? "board" : "status";
-  const grouping = isGrouping(asked) && (asked !== "board" || showItemGroups) ? asked : fallback;
+  const groupings: readonly PortalGrouping[] = showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board");
+  const grouping = isGrouping(asked) && groupings.includes(asked) ? asked : fallback;
   // The order of the status groups is the visitor's own, kept in this browser
   // for this portal: a preference about reading, not a fact about the work.
   const [statusOrder, setStatusOrder] = React.useState<string[]>(() => readStatusOrder(token));
@@ -120,7 +124,7 @@ export function PortalBoardScreen({
   // Regrouped before the read-only data layer is built over it, so every
   // component below reads the arrangement through the ordinary hooks and none
   // of them needs to know the visitor chose it.
-  const shown = React.useMemo(() => applyPortalGrouping(payload, grouping, statusOrder), [payload, grouping, statusOrder]);
+  const shown = React.useMemo(() => withTeamColumn(applyPortalGrouping(payload, grouping, statusOrder, payload.teamOfItem)), [payload, grouping, statusOrder]);
   const statusLabels = React.useMemo(() => {
     const column = payload.columns.find((c) => c.type === "STATUS");
     return column && column.settings.kind === "status" ? orderStatusLabels(column.settings.labels, statusOrder) : [];
@@ -128,7 +132,7 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={home ?? `/portal/${encodeURIComponent(token)}`} activityFor={loadJourney} linksStayHere={linksStayHere}>
-      <PortalBoard payload={shown} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
+      <PortalBoard payload={shown} itemMenu={itemMenu} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={groupings} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
     </ShareGuestProviders>
   );
 }
@@ -172,6 +176,7 @@ function isGrouping(value: string | null): value is PortalGrouping {
 
 function PortalBoard({
   payload,
+  itemMenu,
   ownPanel,
   bookHref,
   rangePicker,
@@ -187,6 +192,7 @@ function PortalBoard({
 }: {
   onShowAll?: () => void;
   payload: PortalBoardPayload;
+  itemMenu?: BoardContextValue["itemMenu"];
   /** False when the page draws the opened task itself. */
   ownPanel: boolean;
   refreshing: boolean;
@@ -277,10 +283,11 @@ function PortalBoard({
             showTicket: tableSettings.showTicket,
             setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
             updates: new Map(),
+            itemMenu,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket],
+    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu],
   );
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;
@@ -384,7 +391,7 @@ function PortalBoard({
  * is the question most visitors arrive with. The choice is in the URL beside
  * the view, so a link a stakeholder forwards opens the same way it looked.
  */
-const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", status: "Status", stakeholder: "Department" };
+const GROUPING_LABELS: Record<PortalGrouping, string> = { board: "Board", team: "Team", status: "Status", stakeholder: "Department" };
 
 /**
  * Says that the search has left the year behind.

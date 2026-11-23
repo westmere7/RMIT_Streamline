@@ -228,7 +228,7 @@ export type PortalView = (typeof PORTAL_VIEWS)[number];
  * group per stakeholder, which only says anything while the filter is showing
  * more than one of them.
  */
-export const PORTAL_GROUPINGS = ["board", "status", "stakeholder"] as const;
+export const PORTAL_GROUPINGS = ["board", "team", "status", "stakeholder"] as const;
 export type PortalGrouping = (typeof PORTAL_GROUPINGS)[number];
 
 export function isPortalGrouping(value: unknown): value is PortalGrouping {

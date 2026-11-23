@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.158.0",
+    date: "2026-11-23",
+    title: "Internal portal on Portal and Booking; teams in both portals",
+    changes: [
+      "The internal portal opens from the Portal card on Portal and Booking and from Home's quick links, no longer from the sidebar.",
+      "Both portals group by team, and Kanban can lay its lanes out by team.",
+      "On the internal portal, a task's menu and its panel open the board it is on.",
+      "The figures sit at the right of the internal portal's header.",
+      "Both portals show the board's shape while loading.",
+    ],
+  },
+  {
     version: "0.157.0",
     date: "2026-11-23",
     title: "Internal portal",

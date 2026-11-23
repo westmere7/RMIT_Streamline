@@ -19,6 +19,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { PortalCredentials } from "@/features/portal/portal-client";
 import { PortalBookingScreen } from "@/features/portal/portal-booking";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
+import { PortalBoardSkeleton } from "@/features/portal/portal-board-skeleton";
 import { PortalHeader, PortalRangePicker, PortalShell, PortalThemeScope } from "@/features/portal/portal-shell";
 import { RichText } from "@/components/shared/rich-text";
 import { cn } from "@/lib/utils";
@@ -150,11 +151,17 @@ export function PortalPage({ token, startOnBooking = false, workspaceSlug = null
 
   if (gate.isPending) {
     return (
-      <PortalShell>
-        <div className="mx-auto w-full max-w-5xl px-4 py-10">
-          <Skeleton className="h-8 w-56" />
-          <Skeleton className="mt-4 h-40 w-full" />
+      <PortalShell fill>
+        {/* The header's row (logo, the three pickers, the figures), then the board's shape. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 px-4 py-2.5 sm:px-6" aria-hidden>
+          <Skeleton className="h-8 w-16" />
+          <Skeleton className="h-8 w-36 rounded-full" />
+          <Skeleton className="h-8 w-28 rounded-full" />
+          <Skeleton className="h-8 w-32 rounded-full" />
+          <Skeleton className="h-5 w-48 max-md:hidden" />
+          <Skeleton className="ml-auto size-7 rounded-lg" />
         </div>
+        <PortalBoardSkeleton />
       </PortalShell>
     );
   }
@@ -296,10 +303,7 @@ export function PortalPage({ token, startOnBooking = false, workspaceSlug = null
               />
           </div>
         ) : (
-          <div className="px-4 py-6 sm:px-6">
-            <Skeleton className="h-9 w-full" />
-            <Skeleton className="mt-3 h-64 w-full" />
-          </div>
+          <PortalBoardSkeleton />
         )}
       </PortalShell>
     </PortalThemeScope>

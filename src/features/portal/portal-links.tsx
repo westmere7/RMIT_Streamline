@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Check, ClipboardPen, Copy, ExternalLink, Globe } from "lucide-react";
+import { ArrowRight, Binoculars, Check, ClipboardPen, Copy, ExternalLink, Globe } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useServices } from "@/features/data/data-context";
 import { copyToClipboard } from "@/features/members/hooks";
 import { portalKeys, workspaceLinkUrls } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { canUseInternalPortal } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -29,8 +31,9 @@ export function usePortalLinks() {
 
 /**
  * The portal and the booking form, to open or copy without going to Portal and
- * Booking. Nothing when there is no portal yet, for a guest, or where the
- * workspace has the portal menu off.
+ * Booking, and the internal portal for admins and allocators. Nothing for a
+ * guest or where the workspace has the portal menu off; before there is a
+ * portal, only the internal portal.
  */
 export function PortalLinks({ heading, className, variant = "rows" }: { heading?: React.ReactNode; className?: string; variant?: "rows" | "cards" }) {
   const ws = useWorkspace();
@@ -48,24 +51,29 @@ export function PortalLinks({ heading, className, variant = "rows" }: { heading?
       </section>
     );
   }
-  if (!links.data) return null;
-  const { enabled, allowBooking } = links.data;
+  // A page in the app, not a link to hand out: opened here, nothing to copy.
+  const internal = canUseInternalPortal(ws.permissions, ws.boards.find((board) => board.system === "TASK_ALLOCATION"))
+    ? { icon: Binoculars, label: "Internal portal", lead: "Every team's work in one place.", href: routes.internalPortal(ws.slug), url: null, serving: true, testId: "home-internal-portal-link" }
+    : null;
+  if (!links.data && !internal) return null;
   const urls = workspaceLinkUrls(ws.slug);
-  const portal = { icon: Globe, label: "Portal", lead: "Departments see their work.", href: routes.workspacePortal(ws.slug), url: urls.portal, serving: enabled, testId: "home-portal-link" };
-  const booking = { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: routes.workspaceBooking(ws.slug), url: urls.booking, serving: allowBooking, testId: "home-booking-link" };
+  const portal = links.data ? { icon: Globe, label: "Portal", lead: "Departments see their work.", href: routes.workspacePortal(ws.slug), url: urls.portal, serving: links.data.enabled, testId: "home-portal-link" } : null;
+  const booking = links.data ? { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: routes.workspaceBooking(ws.slug), url: urls.booking, serving: links.data.allowBooking, testId: "home-booking-link" } : null;
   return (
     <section>
       {heading}
       {cards ? (
         // Side by side while each has room for its name, else one above the other.
         <ul className={cn("grid grid-cols-[repeat(auto-fill,minmax(min(18rem,100%),1fr))] gap-3", className)} data-testid="home-portal-links">
-          <LinkCard {...portal} />
-          <LinkCard {...booking} />
+          {portal && <LinkCard {...portal} />}
+          {booking && <LinkCard {...booking} />}
+          {internal && <LinkCard {...internal} />}
         </ul>
       ) : (
         <ul className={cn("space-y-1", className)} data-testid="home-portal-links">
-          <LinkRow {...portal} />
-          <LinkRow {...booking} />
+          {portal && <LinkRow {...portal} />}
+          {booking && <LinkRow {...booking} />}
+          {internal && <LinkRow {...internal} />}
         </ul>
       )}
     </section>
@@ -86,7 +94,8 @@ function LinkCard({
   label: string;
   lead: string;
   href: string;
-  url: string;
+  /** The address to copy; null for a page in the app, which opens here and has nothing to hand out. */
+  url: string | null;
   serving: boolean;
   testId: string;
 }) {
@@ -98,8 +107,12 @@ function LinkCard({
   }, [copied]);
   return (
     <li className="group relative flex min-h-[84px] items-center gap-3.5 rounded-xl border border-border/70 bg-card px-4 py-3 shadow-xs transition-[border-color,box-shadow] hover:shadow-md">
-      {/* The whole card opens the link, in a new tab; the copy button is its own. */}
-      <a href={href} target="_blank" rel="noopener noreferrer" className="absolute inset-0 rounded-xl" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={testId} />
+      {/* The whole card opens the link, in a new tab (a page in the app, here); the copy button is its own. */}
+      {url === null ? (
+        <Link href={href} className="absolute inset-0 rounded-xl" aria-label={`Open the ${label.toLowerCase()}`} data-testid={testId} />
+      ) : (
+        <a href={href} target="_blank" rel="noopener noreferrer" className="absolute inset-0 rounded-xl" aria-label={`Open the ${label.toLowerCase()} in a new tab`} data-testid={testId} />
+      )}
       <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", serving ? "bg-accent-soft text-accent-soft-foreground" : "bg-surface text-muted-foreground")}>
         <Icon className="size-5" />
       </span>
@@ -107,7 +120,12 @@ function LinkCard({
         <span className={cn("block truncate text-[15px] font-semibold tracking-tight", !serving && "text-muted-foreground")}>{label}</span>
         <span className="block truncate text-[13px] text-muted-foreground">{serving ? lead : "Not serving"}</span>
       </span>
-      <ExternalLink className="pointer-events-none size-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden />
+      {url === null ? (
+        <ArrowRight className="pointer-events-none size-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden />
+      ) : (
+        <ExternalLink className="pointer-events-none size-4 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-foreground" aria-hidden />
+      )}
+      {url !== null && (
       <button
         type="button"
         className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
@@ -121,6 +139,7 @@ function LinkCard({
       >
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </button>
+      )}
     </li>
   );
 }
@@ -136,7 +155,7 @@ function LinkRow({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   href: string;
-  url: string;
+  url: string | null;
   serving: boolean;
   testId: string;
 }) {
@@ -146,6 +165,17 @@ function LinkRow({
     const timer = setTimeout(() => setCopied(false), 1800);
     return () => clearTimeout(timer);
   }, [copied]);
+  if (url === null) {
+    return (
+      <li className="group flex h-11 items-center md:h-10 gap-1 rounded-md hover:bg-accent">
+        <Link href={href} className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-[13px]" data-testid={testId}>
+          <Icon className="size-4 shrink-0 text-foreground/80" />
+          <span className="truncate font-medium">{label}</span>
+          <ArrowRight className="ml-auto mr-2 size-3.5 shrink-0 text-muted-foreground/70" aria-hidden />
+        </Link>
+      </li>
+    );
+  }
   return (
     <li className="group flex h-11 items-center md:h-10 gap-1 rounded-md hover:bg-accent">
       <a href={href} target="_blank" rel="noopener noreferrer" className="flex h-full min-w-0 flex-1 items-center gap-2 px-2 text-[13px]" data-testid={testId}>
