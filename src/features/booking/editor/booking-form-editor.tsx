@@ -41,7 +41,7 @@ import { emptyBookingRequest } from "@/services/booking";
 import { BriefBuilder } from "./brief-builder";
 import { PreviewDialog } from "./preview-dialog";
 import { RoutingDialog } from "./routing-dialog";
-import { PastFormsButton, PublishDialog, PublishedFormCard, type PublishedFormInfo } from "./published-form";
+import { PastFormsButton, PublishDialog, PublishedFormCard, ScheduledFormCard, type PublishedFormInfo } from "./published-form";
 import { DragHandle, EDITOR_HOVER_OUTLINE, EditorSection, Handle, TextBox } from "./editor-controls";
 import { TemplatesPanel } from "./templates-menu";
 import { SavedFormsDialog, type SavedFormsActions } from "./saved-forms-dialog";
@@ -194,7 +194,7 @@ export function BookingFormEditor({
   const [removingService, setRemovingService] = React.useState<string | null>(null);
   const [confirmDrop, setConfirmDrop] = React.useState(false);
   // Which form the preview runs: the draft being edited, or the one people are booking through.
-  const [previewing, setPreviewing] = React.useState<"draft" | "live" | null>(null);
+  const [previewing, setPreviewing] = React.useState<"draft" | "live" | "scheduled" | null>(null);
   const [confirmPublish, setConfirmPublish] = React.useState(false);
   /** A saved template on its way to going live straight from the list. */
   /**
@@ -365,7 +365,9 @@ export function BookingFormEditor({
   const panel = (
     <div className="space-y-3">
       <section className="space-y-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-xs" data-testid="booking-editor-panel">
-        <PublishedFormCard info={{ ...published, template: live }} scheduled={running ? { name: running.name, endsOn: running.endsOn } : null} onOpen={() => setPreviewing("live")} />
+        {/* A scheduled form whose days are running is the one people book through: it leads, and the default waits under it. */}
+        {running && <ScheduledFormCard schedule={running} today={scheduleToday()} onOpen={() => setPreviewing("scheduled")} />}
+        <PublishedFormCard info={{ ...published, template: live }} waitingFor={running} onOpen={() => setPreviewing("live")} />
         {nextUp && (
           <div className="rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5" data-testid="booking-next-scheduled">
             <p className="flex items-center justify-between gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -594,10 +596,12 @@ export function BookingFormEditor({
         open={previewing !== null}
         onOpenChange={(open) => !open && setPreviewing(null)}
         form={form}
-        template={previewing === "live" ? live : draft}
+        template={previewing === "live" ? live : previewing === "scheduled" && running ? running.template : draft}
         label={
-          previewing === "live"
-            ? `the published form${published.name ? ` “${published.name}”` : ""}`
+          previewing === "scheduled" && running
+            ? `the scheduled form “${running.name}”`
+            : previewing === "live"
+              ? `the published form${published.name ? ` “${published.name}”` : ""}`
             : template
               ? `“${template.name}”${templateChanged ? " with your changes" : ""}, open in the editor`
               : "the form open in the editor"

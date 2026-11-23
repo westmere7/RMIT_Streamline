@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { addDays, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BrushCleaning, CalendarClock, ClipboardCheck, History, LayoutTemplate, ListChecks, LoaderCircle, MoreHorizontal, Rocket, Split, Trash2 } from "lucide-react";
 import * as React from "react";
@@ -17,9 +17,10 @@ import { useWorkspace } from "@/features/workspace/workspace-context";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { BookingFormPublication, BookingFormTemplate } from "@/domain";
+import type { BookingFormPublication, BookingFormSchedule, BookingFormTemplate } from "@/domain";
 import { MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, templateQuestionCount } from "@/domain";
 import { PersonChip } from "@/features/members/person-chip";
+import { cn } from "@/lib/utils";
 
 /** What is known about the form stakeholders are being served. */
 export interface PublishedFormInfo {
@@ -46,10 +47,40 @@ export function defaultPublishName(teamName: string, at: Date = new Date()): str
  * much it has been used. Clicking it opens that form. A div acting as the
  * button, since it holds a link of its own (who published it).
  */
-export function PublishedFormCard({ info, scheduled, onOpen }: { info: PublishedFormInfo; scheduled?: { name: string; endsOn: string } | null; onOpen: () => void }) {
-  const services = info.template.services.length;
-  const when = info.publishedAt ? new Date(info.publishedAt) : null;
-  const title = info.name ?? (info.builtIn ? "Built-in form" : "Published form");
+/** One line of a form card: an icon and what it says. */
+function CardRow({ icon: Icon, children }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+  return (
+    <li className="flex items-center gap-1.5">
+      <Icon className="size-3 shrink-0" aria-hidden />
+      {children}
+    </li>
+  );
+}
+
+/** The questions and services a form has, and where its services send bookings. */
+function FormShapeRows({ template }: { template: BookingFormTemplate }) {
+  const services = template.services.length;
+  return (
+    <>
+      <CardRow icon={ListChecks}>
+        <span data-testid="booking-published-fields">
+          {templateQuestionCount(template)} questions · {services === 1 ? "1 service" : `${services} services`}
+        </span>
+      </CardRow>
+      <CardRow icon={Split}>
+        {/* Each service and where it sends bookings, on hover. */}
+        <SimpleTooltip label={<AllocationDetails template={template} />}>
+          <span className="cursor-default truncate underline decoration-dotted underline-offset-2" data-testid="booking-published-allocation">
+            {allocationRecap(template)}
+          </span>
+        </SimpleTooltip>
+      </CardRow>
+    </>
+  );
+}
+
+/** A card that opens the form it describes in the preview. */
+function FormCardShell({ label, onOpen, className, testId, children }: { label: string; onOpen: () => void; className?: string; testId: string; children: React.ReactNode }) {
   return (
     <div
       role="button"
@@ -60,40 +91,38 @@ export function PublishedFormCard({ info, scheduled, onOpen }: { info: Published
         event.preventDefault();
         onOpen();
       }}
-      aria-label={`Open the published form, ${title}`}
-      className="block w-full cursor-pointer rounded-xl border border-border/70 bg-surface/50 px-3 py-2.5 text-left transition-colors hover:bg-surface focus-visible:outline-2 focus-visible:outline-ring"
-      data-testid="booking-published-form"
+      aria-label={label}
+      className={cn("block w-full cursor-pointer rounded-xl border px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-ring", className)}
+      data-testid={testId}
     >
-      {scheduled && (
-        <p className="mb-1.5 flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2 py-1 text-2xs text-emerald-700 dark:text-emerald-300" data-testid="booking-published-scheduled">
-          <CalendarClock className="size-3 shrink-0" aria-hidden />
-          <span className="min-w-0 truncate">
-            Live now: <span className="font-medium">{scheduled.name}</span>, until {format(new Date(`${scheduled.endsOn}T00:00:00`), "d MMM")}
-          </span>
-        </p>
-      )}
-      <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{scheduled ? "Default form, back after" : "Published form"}</p>
-      <p className="mt-0.5 truncate text-[13px] font-medium" title={title} data-testid="booking-published-name">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The form people are booking through. Normally the published (default) form;
+ * while a scheduled form's days are running, that one takes this place and the
+ * default waits under it (`waitingFor`), saying when it comes back.
+ */
+export function PublishedFormCard({ info, waitingFor, onOpen }: { info: PublishedFormInfo; waitingFor?: Pick<BookingFormSchedule, "name" | "endsOn"> | null; onOpen: () => void }) {
+  const when = info.publishedAt ? new Date(info.publishedAt) : null;
+  const title = info.name ?? (info.builtIn ? "Built-in form" : "Published form");
+  const waiting = !!waitingFor;
+  return (
+    <FormCardShell
+      label={`Open the ${waiting ? "default" : "published"} form, ${title}`}
+      onOpen={onOpen}
+      className={waiting ? "border-dashed border-border/70 bg-transparent hover:bg-surface/50" : "border-border/70 bg-surface/50 hover:bg-surface"}
+      testId="booking-published-form"
+    >
+      <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{waiting ? "Default form" : "Published form"}</p>
+      <p className={cn("mt-0.5 truncate font-medium", waiting ? "text-xs text-muted-foreground" : "text-[13px]")} title={title} data-testid="booking-published-name">
         {title}
       </p>
-      <ul className="mt-1.5 space-y-1 text-2xs text-muted-foreground">
-        <li className="flex items-center gap-1.5">
-          <ListChecks className="size-3 shrink-0" aria-hidden />
-          <span data-testid="booking-published-fields">
-            {templateQuestionCount(info.template)} questions · {services === 1 ? "1 service" : `${services} services`}
-          </span>
-        </li>
-        <li className="flex items-center gap-1.5">
-          <Split className="size-3 shrink-0" aria-hidden />
-          {/* Each service and where it sends bookings, on hover. */}
-          <SimpleTooltip label={<AllocationDetails template={info.template} />}>
-            <span className="cursor-default truncate underline decoration-dotted underline-offset-2" data-testid="booking-published-allocation">
-              {allocationRecap(info.template)}
-            </span>
-          </SimpleTooltip>
-        </li>
-        <li className="flex items-center gap-1.5">
-          <CalendarClock className="size-3 shrink-0" aria-hidden />
+      <ul className={cn("mt-1.5 space-y-1 text-2xs text-muted-foreground", waiting && "opacity-80")}>
+        <FormShapeRows template={info.template} />
+        <CardRow icon={CalendarClock}>
           <span className="flex min-w-0 flex-wrap items-center gap-x-1" data-testid="booking-published-at">
             {when && !Number.isNaN(when.getTime()) ? (
               <>
@@ -109,15 +138,55 @@ export function PublishedFormCard({ info, scheduled, onOpen }: { info: Published
               "Publish time not recorded"
             )}
           </span>
-        </li>
-        <li className="flex items-center gap-1.5">
-          <ClipboardCheck className="size-3 shrink-0" aria-hidden />
-          <span data-testid="booking-published-bookings">
-            <span className="font-medium text-foreground tabular">{info.bookings}</span> {info.bookings === 1 ? "task" : "tasks"} booked{when ? " since" : ""}
-          </span>
-        </li>
+        </CardRow>
+        {!waiting && (
+          <CardRow icon={ClipboardCheck}>
+            <span data-testid="booking-published-bookings">
+              <span className="font-medium text-foreground tabular">{info.bookings}</span> {info.bookings === 1 ? "task" : "tasks"} booked{when ? " since" : ""}
+            </span>
+          </CardRow>
+        )}
       </ul>
-    </div>
+      {waitingFor && (
+        <p className="mt-2 border-t border-border/60 pt-1.5 text-2xs text-muted-foreground" data-testid="booking-published-waiting">
+          In use again from <span className="font-medium text-foreground">{format(addDays(parseISO(waitingFor.endsOn), 1), "d MMM")}</span>, when “{waitingFor.name}” ends.
+        </p>
+      )}
+    </FormCardShell>
+  );
+}
+
+/** A scheduled form whose days are running: the form people book through right now, shown as the main one. */
+export function ScheduledFormCard({ schedule, today, onOpen }: { schedule: BookingFormSchedule; today: string; onOpen: () => void }) {
+  const left = differenceInCalendarDays(parseISO(schedule.endsOn), parseISO(today)) + 1;
+  const days =
+    schedule.startsOn === schedule.endsOn ? format(parseISO(schedule.startsOn), "d MMM") : `${format(parseISO(schedule.startsOn), "d MMM")} – ${format(parseISO(schedule.endsOn), "d MMM yyyy")}`;
+  return (
+    <FormCardShell label={`Open the scheduled form, ${schedule.name}`} onOpen={onOpen} className="border-border/70 bg-surface/50 hover:bg-surface" testId="booking-scheduled-form">
+      <p className="flex items-center justify-between gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
+        Published form
+        <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 font-medium tracking-normal normal-case text-emerald-700 dark:text-emerald-300" data-testid="booking-scheduled-badge">
+          Scheduled · {left === 1 ? "last day" : `${left} days left`}
+        </span>
+      </p>
+      <p className="mt-0.5 truncate text-[13px] font-medium" title={schedule.name} data-testid="booking-scheduled-name">
+        {schedule.name}
+      </p>
+      <ul className="mt-1.5 space-y-1 text-2xs text-muted-foreground">
+        <FormShapeRows template={schedule.template} />
+        <CardRow icon={CalendarClock}>
+          <span className="flex min-w-0 flex-wrap items-center gap-x-1" data-testid="booking-scheduled-days">
+            Live {days}
+            {schedule.createdBy && (
+              <>
+                {" "}
+                · scheduled by <PersonChip userId={schedule.createdBy} testId="booking-scheduled-by" plain />
+              </>
+            )}
+          </span>
+        </CardRow>
+      </ul>
+    </FormCardShell>
   );
 }
 

@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.155.2",
+    date: "2026-11-23",
+    title: "A running schedule leads the form panel",
+    changes: [
+      "While a scheduled form's days are running, it is the published form on the editor's panel, with its questions, where bookings go, its days and who scheduled it; the default form waits under it and says when it is back.",
+      "The dashboard's task list marks the hours or units column with a tint, not an outline."
+    ],
+  },
+  {
     version: "0.155.1",
     date: "2026-11-23",
     title: "Formatting on questions too",
