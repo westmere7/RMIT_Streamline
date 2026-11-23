@@ -35,6 +35,14 @@ export class HttpPortalTransport implements PortalTransport {
     return call<PortalGate>(`/api/portal/${encodeURIComponent(token)}`, { method: "GET" });
   }
 
+  async tokenForWorkspace(workspaceSlug: string): Promise<string | null> {
+    return (await call<{ token: string | null }>(`/api/portal-link/${encodeURIComponent(workspaceSlug)}`, { method: "GET" })).token;
+  }
+
+  async workspaceForToken(token: string): Promise<string | null> {
+    return (await call<{ workspace: string | null }>(`/api/portal/${encodeURIComponent(token)}/where`, { method: "GET" })).workspace;
+  }
+
   async board(grant: PortalGrant, scope: PortalScope): Promise<PortalBoardAnswer> {
     const key = JSON.stringify([grant.token, grant.credentialVersion ?? null, grant.password ?? null, wire(scope)]);
     const ask = (revision: string | null) =>

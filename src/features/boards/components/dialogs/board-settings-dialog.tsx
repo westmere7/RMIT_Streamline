@@ -25,6 +25,7 @@ import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { boardRoleFor, canDeleteBoard, canEditBoardSeat, canManageBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
+import { LandingGroupField } from "@/features/boards/landing-group";
 
 export type BoardSettingsSection = "general" | "access" | "members" | "share" | "columns" | "assets" | "permissions" | "archive" | "danger";
 
@@ -118,6 +119,7 @@ function GeneralSection({ board, manage }: { board: Board; manage: boolean }) {
             </SelectContent>
           </Select>
         </div>
+        <LandingGroupField board={board} manage={manage} />
       </div>
       <div className="border-t pt-4">
         <LookFields color={board.color} icon={board.icon} onColor={(color) => actions.updateBoard.mutate({ color })} onIcon={(icon) => actions.updateBoard.mutate({ icon })} disabled={!manage} />

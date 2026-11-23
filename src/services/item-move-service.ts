@@ -1,5 +1,5 @@
 import type { Board, BoardColumn, BoardGroup, ColumnValue, EntityId, Item, ItemColumnValue } from "@/domain";
-import { isEmptyValue, RefusedError } from "@/domain";
+import { isEmptyValue, RefusedError, landingGroupOf } from "@/domain";
 import { NotFoundError, type Repositories } from "@/data/repositories";
 import { richTextToPlain } from "@/lib/rich-text";
 import type { ItemAssetService } from "./item-asset-service";
@@ -121,7 +121,8 @@ export class ItemMoveService {
   async moveToBoard(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId, options: { groupId?: EntityId } = {}): Promise<{ item: Item; board: Board; plan: MovePlan }> {
     // Worked out again here, from the boards as they are now, not as the preview saw them.
     const { item, source, target, groups, plan, targetItems, movingIds, sourceColumnIds } = await this.prepare(itemId, targetBoardId);
-    const group = (options.groupId ? groups.find((g) => g.id === options.groupId) : undefined) ?? groups[0];
+    // The group picked in the dialog, else the board's landing group, else its top group.
+    const group = (options.groupId ? groups.find((g) => g.id === options.groupId) : undefined) ?? landingGroupOf(target, groups);
     if (!group) throw new RefusedError(`${target.name} has no group to take the task. Add one first.`);
 
     const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;

@@ -143,7 +143,7 @@ export function buildJourney(activities: readonly Activity[], ctx: JourneyContex
           kind: booked ? "booked" : "created",
           at: event.createdAt,
           actorId: event.actorId,
-          title: booked ? (meta.via === "portal" ? "Booked through the portal" : "Booked") : `Created on ${createdBoard ?? "the board"}`,
+          title: booked ? "Booked via booking form" : `Created on ${createdBoard ?? "the board"}`,
           detail: booked ? [meta.requesterName ? `by ${meta.requesterName}` : null, meta.department ? `for ${meta.department}` : null, createdBoard ? `into ${createdBoard}` : null].filter(Boolean).join(" · ") || undefined : meta.groupName ? `in ${meta.groupName}` : undefined,
         });
         break;

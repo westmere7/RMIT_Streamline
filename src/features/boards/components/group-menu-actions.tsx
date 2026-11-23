@@ -1,13 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Copy, Inbox, Palette, Pencil, Trash2 } from "lucide-react";
+import { ArrowDownToLine, Copy, Inbox, Palette, Pencil, Trash2 } from "lucide-react";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { ColorPicker } from "@/components/shared/color-picker";
 import type { BoardGroup } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { useServices } from "@/features/data/data-context";
 import { pluralize } from "@/lib/utils";
+import { isLandingGroup } from "@/features/boards/landing-group";
+import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 
 /**
  * A group's menu as a list, for the phone's group header: the same entries the
@@ -15,9 +17,11 @@ import { pluralize } from "@/lib/utils";
  * Booked by Form saying why it cannot be deleted.
  */
 export function useGroupMenuActions(group: BoardGroup, handlers: { onRename: () => void; onDelete: () => void }): MenuAction[] {
-  const { model, mutations, canEdit } = useBoardContext();
+  const { board, model, mutations, canEdit, canManage } = useBoardContext();
+  const boardActions = useBoardActions(board);
   if (!canEdit) return [];
   const intake = group.id === model.intakeGroupId;
+  const landing = isLandingGroup(board, group.id);
   return [
     { type: "item", label: "Rename group", icon: <Pencil />, onSelect: handlers.onRename },
     {
@@ -27,6 +31,9 @@ export function useGroupMenuActions(group: BoardGroup, handlers: { onRename: () 
       content: <ColorPicker value={group.color} onChange={(color) => void mutations.updateGroup(group.id, { color })} />,
     },
     { type: "item", label: "Duplicate group", icon: <Copy />, onSelect: () => void mutations.duplicateGroup(group.id) },
+    ...(canManage && !board.system && !intake
+      ? [{ type: "item", label: landing ? "Stop landing tasks here" : "Land tasks here", icon: <ArrowDownToLine />, onSelect: () => boardActions.updateBoard.mutate({ landingGroupId: landing ? null : group.id }) } satisfies MenuAction]
+      : []),
     { type: "separator" },
     intake
       ? { type: "item", label: "Bookings arrive here", icon: <Inbox />, disabled: true, onSelect: () => {} }

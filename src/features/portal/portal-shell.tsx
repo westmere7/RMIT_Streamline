@@ -327,6 +327,7 @@ export function PortalRangePicker({ range, onRange, years, rangeOverridden }: { 
 
 export function PortalHeader({
   token,
+  home,
   portalName,
   viewerName,
   servedAt,
@@ -342,6 +343,8 @@ export function PortalHeader({
   scale,
 }: {
   token: string;
+  /** The portal's own address, where staff come back to after signing in. */
+  home?: string;
   /** The visitor's size, held by the page that zooms with it. */
   scale: ViewScaleControl;
   portalName: string;
@@ -456,7 +459,7 @@ export function PortalHeader({
           </span>
         ) : (
           <a
-            href={`/login?next=${encodeURIComponent(`/portal/${token}`)}`}
+            href={`/login?next=${encodeURIComponent(home ?? `/portal/${token}`)}`}
             className="shrink-0 rounded-full border border-border/70 px-3 py-1.5 text-2xs font-medium text-muted-foreground hover:text-foreground"
             data-testid="portal-signin"
           >

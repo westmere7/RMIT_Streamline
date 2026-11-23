@@ -6,7 +6,7 @@ import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useServices } from "@/features/data/data-context";
 import { copyToClipboard } from "@/features/members/hooks";
-import { portalKeys, portalUrl } from "@/features/portal/hooks";
+import { portalKeys, workspaceLinkUrls } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -49,10 +49,10 @@ export function PortalLinks({ heading, className, variant = "rows" }: { heading?
     );
   }
   if (!links.data) return null;
-  const { token, enabled, allowBooking } = links.data;
-  const url = portalUrl(token);
-  const portal = { icon: Globe, label: "Portal", lead: "Departments see their work.", href: routes.portal(token), url, serving: enabled, testId: "home-portal-link" };
-  const booking = { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: `${routes.portal(token)}/book`, url: `${url}/book`, serving: allowBooking, testId: "home-booking-link" };
+  const { enabled, allowBooking } = links.data;
+  const urls = workspaceLinkUrls(ws.slug);
+  const portal = { icon: Globe, label: "Portal", lead: "Departments see their work.", href: routes.workspacePortal(ws.slug), url: urls.portal, serving: enabled, testId: "home-portal-link" };
+  const booking = { icon: ClipboardPen, label: "Booking form", lead: "Anyone books a task.", href: routes.workspaceBooking(ws.slug), url: urls.booking, serving: allowBooking, testId: "home-booking-link" };
   return (
     <section>
       {heading}

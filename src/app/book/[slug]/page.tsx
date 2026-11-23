@@ -1,15 +1,14 @@
-import type { Metadata } from "next";
-import { BookingScreen } from "@/features/booking/booking-screen";
+import { redirect } from "next/navigation";
+import { routes } from "@/lib/routes";
 
-export const metadata: Metadata = { title: "Book a task" };
+export const dynamic = "force-dynamic";
 
 /**
- * The booking page for somebody signed in: the same form the public link
- * serves, reached without a key because the session answers for them. Every
- * "book a task" inside the app lands here, so the form is one page wherever it
- * was opened from.
+ * The old members' booking page. Booking from inside the app is the pop-up
+ * form now; this address goes to the one external form, which still knows a
+ * signed-in member as the booker.
  */
 export default async function BookPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  return <BookingScreen workspaceSlug={decodeURIComponent(slug)} bookingKey={null} />;
+  redirect(routes.workspaceBooking(decodeURIComponent(slug)));
 }

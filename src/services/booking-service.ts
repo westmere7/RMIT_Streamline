@@ -22,7 +22,7 @@ import type {
   Team,
   WorkspaceMember,
 } from "@/domain";
-import { DEFAULT_FORM_VERSION, activeSchedule, formForSubmission, overlappingSchedule, scheduleDatesProblem, scheduleToday, windowOpensAt, type BookingFormSchedule, type LiveBookingForm, type Workspace } from "@/domain";
+import { DEFAULT_FORM_VERSION, activeSchedule, formForSubmission, overlappingSchedule, scheduleDatesProblem, scheduleToday, windowOpensAt, type BookingFormSchedule, type LiveBookingForm, type Workspace, landingGroupOf } from "@/domain";
 import { BOOKING_ASSET_TYPES, RefusedError, MAX_BOOKING_SAVED_BLOCK_NAME, MAX_BOOKING_TEMPLATE_DESCRIPTION, MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, flattenBlocks, intakeGroupOf, isEmptyValue, isQuestionBlock, routeBooking, serviceById, ticketPrefixOf, toTagOptions } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
@@ -65,7 +65,7 @@ export interface BookingTransport {
    * Allocating a request: the server's, since the person allocating need not
    * be able to edit the board it goes to (src/server/allocation.ts).
    */
-  allocate?(input: { itemId: EntityId; boardId: EntityId }): Promise<{ item: Item; board: Board }>;
+  allocate?(input: { itemId: EntityId; boardId: EntityId; groupId?: EntityId | null }): Promise<{ item: Item; board: Board }>;
   /** The bookings made with this email, when the published form lists them on its receipt. */
   pastBookings?(input: { workspaceSlug: string; key: string | null; email: string }): Promise<BookingPastSummary[]>;
 }
@@ -239,7 +239,7 @@ export class BookingService {
       // The workspace's portal opens each one; its own password still stands in front of it.
       this.repos.stakeholderPortals.getUnifiedPortal(workspaceId).catch(() => null),
     ]);
-    const portalPath = (itemId: EntityId) => (portal?.enabled ? `/portal/${encodeURIComponent(portal.token)}?task=${encodeURIComponent(itemId)}` : null);
+    const portalPath = (itemId: EntityId) => (portal?.enabled ? `/${encodeURIComponent(workspace.slug)}/portal?task=${encodeURIComponent(itemId)}` : null);
     const valuesByItem = new Map<EntityId, Map<string, ColumnValue>>();
     for (const row of values) {
       const map = valuesByItem.get(row.itemId) ?? new Map<string, ColumnValue>();
@@ -821,8 +821,8 @@ export class BookingService {
    * a date lands in the column that means the same thing on the team's board,
    * and a value with nowhere to go is dropped rather than stranded.
    */
-  async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId): Promise<{ item: Item; board: Board }> {
-    if (this.transport?.allocate) return this.transport.allocate({ itemId, boardId: targetBoardId });
+  async allocate(itemId: EntityId, targetBoardId: EntityId, actorId: EntityId, options: { groupId?: EntityId | null } = {}): Promise<{ item: Item; board: Board }> {
+    if (this.transport?.allocate) return this.transport.allocate({ itemId, boardId: targetBoardId, groupId: options.groupId ?? null });
     const item = await this.repos.items.getById(itemId);
     if (!item) throw new NotFoundError("Item", itemId);
     const [source, target] = await Promise.all([this.repos.boards.getById(item.boardId), this.repos.boards.getById(targetBoardId)]);
@@ -839,7 +839,10 @@ export class BookingService {
       this.repos.items.listValuesByItem(item.id),
       this.repos.items.listByBoard(target.id),
     ]);
-    const group = groups[0];
+    // The group the allocator picked, else the board's landing group, else its top group.
+    const picked = options.groupId ? groups.find((g) => g.id === options.groupId && g.role !== "INTAKE") : undefined;
+    if (options.groupId && !picked) throw new RefusedError(`That group is not on ${target.name}. Pick one of its groups.`);
+    const group = picked ?? landingGroupOf(target, groups);
     if (!group) throw new RefusedError(`${target.name} has no group to receive the task.`);
 
     // Worked out before the move, while the values still have their columns.
@@ -902,7 +905,7 @@ export class BookingService {
 
   /**
    * The group a booking lands in on a team's board: the one its rule picked, or
-   * with none picked the board's first group. A picked group that has since been
+   * with none picked the board's landing group (else its top group). A picked group that has since been
    * deleted (or a board with no groups at all) falls back to one called
    * "Allocated", made at the top of the board the first time it is needed and
    * used again after that.
@@ -912,7 +915,10 @@ export class BookingService {
     if (chosenGroupId) {
       const chosen = groups.find((g) => g.id === chosenGroupId);
       if (chosen) return chosen;
-    } else if (ordered[0]) return ordered[0];
+    } else {
+      const landing = landingGroupOf(board, ordered);
+      if (landing) return landing;
+    }
     const isAllocated = (g: BoardGroup) => g.name.trim().toLowerCase() === ALLOCATED_GROUP_NAME.toLowerCase();
     const existing = groups.find(isAllocated);
     if (existing) return existing;

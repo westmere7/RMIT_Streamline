@@ -3,7 +3,7 @@
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, ChevronRight, CircleHelp, Copy, GripVertical, MoreHorizontal, Palette, Pencil, Trash2 } from "lucide-react";
+import { ArrowDownToLine, ChevronDown, ChevronRight, CircleHelp, Copy, GripVertical, MoreHorizontal, Palette, Pencil, Trash2 } from "lucide-react";
 import * as React from "react";
 import { ColorPicker } from "@/components/shared/color-picker";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -37,6 +37,8 @@ import { GroupRows } from "./virtual-rows";
 import { AddItemRow } from "./add-item-row";
 import { ColumnHeaderRow } from "./column-header-row";
 import { GroupSummaryRow } from "./group-summary-row";
+import { isLandingGroup, LandingGroupMark } from "@/features/boards/landing-group";
+import { useBoardActions } from "@/features/boards/hooks/use-board-actions";
 
 export interface GroupSectionProps {
   group: BoardGroup;
@@ -72,7 +74,8 @@ export function GroupSection({
   dropIndex = null,
   columnDropIndex = null,
 }: GroupSectionProps) {
-  const { board, model, mutations, canEdit } = useBoardContext();
+  const { board, model, mutations, canEdit, canManage } = useBoardContext();
+  const boardActions = useBoardActions(board);
   const layout = useTableLayout();
   const showTicket = useShowTicket();
   // Folding a group is the board's setting when someone may change the board,
@@ -82,6 +85,10 @@ export function GroupSection({
   const collapsed = canEdit ? group.collapsed : overrides.includes(group.id) !== group.collapsed;
   // Task Allocation's intake group: bookings arrive here, so it can be renamed but not deleted.
   const intake = board.system === "TASK_ALLOCATION" && intakeGroupOf(model.groups)?.id === group.id;
+  // Where tasks from other boards land: one group per board, set by whoever manages it, never on a built-in board.
+  const landing = isLandingGroup(board, group.id);
+  const canSetLanding = canManage && !board.system && !intake;
+  const toggleLanding = () => boardActions.updateBoard.mutate({ landingGroupId: landing ? null : group.id });
   const toggleCollapsed = () => (canEdit ? void mutations.updateGroup(group.id, { collapsed: !collapsed }) : toggleLocally(board.id, group.id));
   const ui = useBoardUi(board.id);
   const setSelected = useBoardUiStore((s) => s.setSelected);
@@ -165,6 +172,7 @@ export function GroupSection({
             />
           </h2>
           {intake && <IntakeHelp />}
+          {landing && <LandingGroupMark />}
           <span className="ml-1.5 rounded-full bg-surface px-2 py-0.5 text-2xs text-muted-foreground tabular">{pluralize(items.length, "item")}</span>
           {canEdit && (
             <DropdownMenu>
@@ -192,6 +200,11 @@ export function GroupSection({
                 <DropdownMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
                   <Copy /> Duplicate group
                 </DropdownMenuItem>
+                {canSetLanding && (
+                  <DropdownMenuItem onSelect={toggleLanding} data-testid="group-landing-toggle">
+                    <ArrowDownToLine /> {landing ? "Stop landing tasks here" : "Land tasks here"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 {intake ? (
                   <DropdownMenuItem disabled data-testid="group-delete-intake">
@@ -222,6 +235,11 @@ export function GroupSection({
         <ContextMenuItem onSelect={() => void mutations.duplicateGroup(group.id)}>
           <Copy /> Duplicate group
         </ContextMenuItem>
+        {canSetLanding && (
+          <ContextMenuItem onSelect={toggleLanding}>
+            <ArrowDownToLine /> {landing ? "Stop landing tasks here" : "Land tasks here"}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         {intake ? (
           <ContextMenuItem disabled>

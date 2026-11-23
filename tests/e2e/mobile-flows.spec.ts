@@ -182,14 +182,14 @@ test.describe("on a phone", () => {
   test("a stakeholder books through all four steps on a phone", async ({ page }) => {
     await page.goto("/workspace/rmit/book/form");
     const link = page.getByTestId("booking-public-link");
-    await expect(link).toHaveAttribute("href", /\/book\/rmit\/[a-z0-9]{24}$/, { timeout: 15_000 });
+    await expect(link).toHaveAttribute("href", /\/rmit\/booking$/, { timeout: 15_000 });
     const publicUrl = (await link.getAttribute("href"))!;
     // A stakeholder has no account here: signed in, the session would answer for them.
     await page.goto("/workspace/rmit/more");
     await page.getByTestId("more-sign-out").click();
     await expect(page).toHaveURL(/\/login/, { timeout: 15_000 });
     await page.goto(publicUrl);
-    await expect(page.getByTestId("booking-card")).toBeVisible();
+    await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 20_000 });
     await noPageOverflow(page);
 
     await page.getByTestId("booking-name").fill("Mai Pham");

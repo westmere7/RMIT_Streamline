@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, ArrowRightLeft, Copy, CornerDownRight, Hash, Link2, Maximize2, Pencil, PictureInPicture2, Plus, Share2, SquareKanban, Trash2, Undo2 } from "lucide-react";
+import { Archive, ArrowRightLeft, Copy, CornerDownRight, Hash, Link2, Maximize2, Pencil, PictureInPicture2, Plus, Share2, Trash2, Undo2 } from "lucide-react";
 import type * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
@@ -14,6 +14,7 @@ import { colorClasses } from "@/lib/colors";
 import { canEditBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 import { useBoardUiStore } from "@/stores/board-ui-store";
+import { allocationTargetAction } from "@/features/booking/allocation-menu";
 
 /** What each surface does itself for the entries that open a field or a dialog. */
 export interface ItemMenuHandlers {
@@ -79,7 +80,7 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
               type: "sub" as const,
               label: team ? team.name : "No team",
               icon: team ? <DynamicIcon name={team.icon} className={cn("size-3.5", colorClasses(team.color).text)} /> : <CornerDownRight />,
-              items: boards.map((target) => ({ type: "item" as const, label: target.name, icon: <SquareKanban />, onSelect: () => allocation.allocate.mutate({ itemIds: allocating, boardId: target.id }) })),
+              items: boards.map((target) => allocationTargetAction(target, allocation.groupsFor(target), (groupId) => allocation.allocate.mutate({ itemIds: allocating, boardId: target.id, groupId }))),
             })),
           },
           { type: "separator" },

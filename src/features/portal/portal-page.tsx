@@ -7,6 +7,7 @@ import { ClipboardX, Lock } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
+import { routes } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -54,7 +55,7 @@ const PORTAL_REFRESH_MS = 4_000;
  * it can reach is a route handler that re-checks a board seat, and a visitor
  * has none.
  */
-export function PortalPage({ token, startOnBooking = false }: { token: string; startOnBooking?: boolean }) {
+export function PortalPage({ token, startOnBooking = false, workspaceSlug = null }: { token: string; startOnBooking?: boolean; /** Opened at the short address (/<workspace>/portal): every link it makes stays short. */ workspaceSlug?: string | null }) {
   const services = useServices();
   const auth = useAuth();
   const router = useRouter();
@@ -143,7 +144,9 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   // Booking is a page of its own (/portal/<token>/book), opened in a new tab
   // from the board so the board is still there when the booking is done. It
   // carries the stakeholder on show, so the form opens on them.
-  const bookHref = `/portal/${encodeURIComponent(token)}/book${stakeholderId ? `?for=${encodeURIComponent(stakeholderId)}` : ""}`;
+  const bookHref = workspaceSlug ? routes.workspaceBooking(workspaceSlug, { for: stakeholderId }) : `/portal/${encodeURIComponent(token)}/book${stakeholderId ? `?for=${encodeURIComponent(stakeholderId)}` : ""}`;
+  // The portal itself, and one request on it, at whichever address this page was opened on.
+  const portalHref = (task: string | null = null) => (workspaceSlug ? routes.workspacePortal(workspaceSlug, { task }) : routes.portal(token, { task }));
 
   if (gate.isPending) {
     return (
@@ -162,7 +165,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
     return (
       <PortalThemeScope token={token} {...themeFor(gate.data, true)}>
         <PortalShell>
-          <BookingClosed heading={gate.data.bookingClosedHeading} message={gate.data.bookingClosedMessage} teamName={gate.data.creativeTeamName} portalHref={gate.data.open ? `/portal/${encodeURIComponent(token)}` : null} />
+          <BookingClosed heading={gate.data.bookingClosedHeading} message={gate.data.bookingClosedMessage} teamName={gate.data.creativeTeamName} portalHref={gate.data.open ? portalHref() : null} />
         </PortalShell>
       </PortalThemeScope>
     );
@@ -219,7 +222,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
   // the app's own "book a task" open, so the form is one page everywhere. The
   // board comes back when the booking is done or given up on.
   if (startOnBooking) {
-    const leave = () => router.push(`/portal/${encodeURIComponent(token)}`);
+    const leave = () => router.push(portalHref());
     return (
       <PortalThemeScope token={token} {...themeFor(gate.data, startOnBooking)}>
         <PortalBookingScreen
@@ -237,7 +240,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           scale={gate.data.bookingScale ?? 100}
           scaleSwitch={gate.data.bookingScaleSwitch ?? true}
           // Nothing to go back to while the portal is closed.
-          onView={formOnly ? undefined : (itemId) => router.push(`/portal/${encodeURIComponent(token)}?task=${encodeURIComponent(itemId)}`)}
+          onView={formOnly ? undefined : (itemId) => router.push(portalHref(itemId))}
           onClose={formOnly ? undefined : leave}
         />
       </PortalThemeScope>
@@ -250,6 +253,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
       <PortalShell fill scale={boardScale.value}>
         <PortalHeader
           token={token}
+          home={portalHref()}
           scale={boardScale}
           portalName={context?.portalName ?? gate.data.portalName}
           viewerName={context?.viewerName ?? null}
@@ -279,6 +283,7 @@ export function PortalPage({ token, startOnBooking = false }: { token: string; s
           <div className={cn("flex min-h-0 flex-1 flex-col transition-opacity", page.isPlaceholderData && "pointer-events-none opacity-60")} data-testid="portal-board">
             <PortalBoardScreen
                 token={token}
+                home={portalHref()}
                 loadJourney={loadJourney}
                 payload={page.data}
                 bookHref={context?.allowBooking === false ? null : bookHref}

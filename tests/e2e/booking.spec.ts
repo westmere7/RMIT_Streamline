@@ -11,8 +11,9 @@ const TASK_ALLOCATION_URL = "/workspace/rmit/boards/task-allocation";
 
 /**
  * The destination is the Portal and Booking now, at the same URL. An
- * administrator lands on the portal, with the form editor one tab across; the
- * form itself lives on the booking page (/book/rmit) for everybody.
+ * administrator lands on the portal, with the form editor one tab across. Two
+ * booking forms since v0.156: the pop-up inside the app, signed in, and the one
+ * external link (/rmit/booking).
  */
 async function openBookPage(page: Page) {
   await page.getByTestId("sidebar-book-task").click();
@@ -21,10 +22,11 @@ async function openBookPage(page: Page) {
   await expect(page.getByTestId("booking-editor")).toBeVisible({ timeout: 15_000 });
 }
 
-/** The booking page as a signed-in member meets it: no key, the session answers. */
+/** The in-app booking form: Task Allocation's Book via form, a pop-up signed in as the member. */
 async function openBookingForm(page: Page) {
-  await page.goto("/book/rmit");
-  await expect(page.getByTestId("booking-card")).toBeVisible();
+  await page.goto(TASK_ALLOCATION_URL);
+  await page.getByTestId("book-via-form-button").click();
+  await expect(page.getByTestId("book-via-form")).toBeVisible();
   await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 15_000 });
 }
 
@@ -81,7 +83,7 @@ test.describe("task booking", () => {
     // Let the owner create them first, then look as a plain member.
     await signInAs(page, "Danh");
     await openBookPage(page);
-    await expect(page.getByTestId("booking-public-link")).toHaveAttribute("href", /\/book\/rmit\//, { timeout: 15_000 });
+    await expect(page.getByTestId("booking-public-link")).toHaveAttribute("href", /\/rmit\/booking$/, { timeout: 15_000 });
 
     await page.getByTestId("user-menu").click();
     await page.getByRole("menuitem", { name: /sign out/i }).click();
@@ -96,12 +98,13 @@ test.describe("task booking", () => {
     await signInAs(page, "Danh");
     await openBookPage(page);
     const link = page.getByTestId("booking-public-link");
-    await expect(link).toHaveAttribute("href", /\/book\/rmit\/[a-z0-9]{24}$/, { timeout: 15_000 });
+    // The one external form: the workspace's short address, no key.
+    await expect(link).toHaveAttribute("href", /\/rmit\/booking$/, { timeout: 15_000 });
     const publicUrl = (await link.getAttribute("href"))!;
 
     await signOut(page);
     await page.goto(publicUrl);
-    await expect(page.getByTestId("booking-card")).toBeVisible();
+    await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 20_000 });
 
     // Step one: who is asking, and what kind of work it is. Nothing moves on
     // until the questions the form insists on are answered.
@@ -210,18 +213,18 @@ test.describe("task booking", () => {
     await expect(page.getByTestId("booking-step-review")).toBeVisible();
   });
 
-  test("a stakeholder needs the right key", async ({ page }) => {
-    await signInAs(page, "Danh");
-    await openBookPage(page);
-    await expect(page.getByTestId("booking-public-link")).toHaveAttribute("href", /\/book\/rmit\//, { timeout: 15_000 });
-    await page.goto("/book/rmit/nottherightkeynottherightkey");
-    await expect(page.getByTestId("booking-unusable")).toBeVisible();
-    await expect(page.getByTestId("booking-wizard")).toHaveCount(0);
+  test("old booking links move to the one external form", async ({ page }) => {
+    // The keyed link and the members' page both land on /rmit/booking; the workspace was already in them.
+    await page.goto("/book/rmit/anyoldkeyanyoldkeyanyoldk");
+    await expect(page).toHaveURL(/\/rmit\/booking$/);
+    await expect(page.getByTestId("booking-wizard")).toBeVisible({ timeout: 20_000 });
+    await page.goto("/book/rmit");
+    await expect(page).toHaveURL(/\/rmit\/booking$/);
   });
 
   test("a member books from inside the app and a manager allocates it to a team board", async ({ page }) => {
     await signInAs(page, "Danh");
-    // "Book a task" inside the app is the booking page, filled in from the account.
+    // Booking inside the app is the pop-up, filled in from the account.
     await openBookingForm(page);
     await expect(page.getByTestId("booking-known-requester")).toContainText("Danh Nguyen");
     await expect(page.getByTestId("booking-name")).toHaveCount(0);
@@ -237,7 +240,10 @@ test.describe("task booking", () => {
     await page.getByTestId("booking-skip-assets").click();
     await page.getByTestId("booking-submit").click();
     await expect(page.getByTestId("booking-receipt")).toBeVisible();
-    await page.getByRole("link", { name: /Open on Task Allocation/ }).click();
+    // The pop-up closes on the board it was opened from, and the request is on it.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("book-via-form")).toHaveCount(0);
+    await clickRowButton(row(page, "Alumni magazine cover"), "Open Alumni magazine cover");
 
     await expect(page.getByTestId("item-panel")).toBeVisible();
     await expect(page.getByTestId("allocation-section")).toBeVisible();
@@ -267,14 +273,16 @@ test.describe("task booking", () => {
     await panel.getByTestId("editor-service-name-new-service").fill("Web");
     // A service's work types are switched on from the workspace's own list (v0.99);
     // the demo has none, so this service offers none.
-    await page.getByTestId("editor-service-brief-web").click();
+    // Its questions are on step two, which opens on the service just added (the per-card "Brief" button went in v0.121.1).
+    await page.getByTestId("editor-tab-brief").click();
     await expect(page.getByTestId("brief-builder")).toBeVisible();
     // Step two opens on Web's brief: the service picker names it.
     await expect(page.getByTestId("editor-brief-service-picker")).toContainText("Web");
     await page.getByTestId("brief-add-short").click();
     const block = page.locator('[data-testid^="editor-block-"]').first();
     await block.getByLabel("Question", { exact: true }).fill("Which page is it?");
-    await block.getByRole("switch").click();
+    // New questions start required (v0.104.2); the card has a rich-text switch too (v0.106).
+    await expect(block.getByRole("switch", { name: "Required" })).toHaveAttribute("aria-checked", "true");
 
     // Not served until published: the public link, in another tab, is still on the form it was on.
     const visitor = await page.context().newPage();

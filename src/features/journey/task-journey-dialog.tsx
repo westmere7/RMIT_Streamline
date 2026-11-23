@@ -123,7 +123,7 @@ function JourneyBody({ item }: { item: Item }) {
 
 function Header({ item, journey, loading }: { item: Item; journey: Journey; loading: boolean }) {
   const lead = journey.booking
-    ? [journey.booking.via === "portal" ? "Booked through the portal" : "Booked", journey.booking.requesterName ? `by ${journey.booking.requesterName}` : null, journey.booking.department ? `for ${journey.booking.department}` : null].filter(Boolean).join(" ")
+    ? ["Booked via booking form", journey.booking.requesterName ? `by ${journey.booking.requesterName}` : null, journey.booking.department ? `for ${journey.booking.department}` : null].filter(Boolean).join(" ")
     : "Created";
   return (
     <div className="flex shrink-0 flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-border/70 px-6 pt-5 pb-4 pr-14">

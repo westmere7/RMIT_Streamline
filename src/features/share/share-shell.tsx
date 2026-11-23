@@ -204,6 +204,8 @@ export function useLinksStayHere(): void {
       const url = new URL(href, window.location.href);
       if (url.origin !== window.location.origin) return;
       if (url.pathname.startsWith("/share/") || url.pathname.startsWith("/portal/") || url.pathname.startsWith("/login")) return;
+      // A workspace's short portal and booking addresses (/<workspace>/portal, /<workspace>/booking).
+      if (/^\/[^/]+\/(portal|booking)(\/|$)/.test(url.pathname)) return;
       event.preventDefault();
       event.stopPropagation();
     };

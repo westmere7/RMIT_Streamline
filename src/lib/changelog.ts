@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.156.0",
+    date: "2026-11-23",
+    title: "Two booking forms, short links, landing groups",
+    changes: [
+      "Two booking forms: the pop-up inside the app, signed in, and one link for everyone else.",
+      "The portal and booking links are short and keyless: app/<workspace>/portal and app/<workspace>/booking. Old links still work and move there.",
+      "Booked tasks say Via booking form, whichever way they came in.",
+      "A board can name its landing group, in its settings or from the group's menu: tasks from other boards land there.",
+      "Allocating or moving a task to another board lets you pick the group."
+    ],
+  },
+  {
     version: "0.155.3",
     date: "2026-11-23",
     title: "Row highlight over the tinted column",

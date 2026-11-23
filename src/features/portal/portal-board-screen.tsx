@@ -53,6 +53,7 @@ import { activeFilterCount, useBoardUi, useBoardUiStore } from "@/stores/board-u
  */
 export function PortalBoardScreen({
   token,
+  home,
   payload,
   bookHref,
   rangePicker,
@@ -69,6 +70,8 @@ export function PortalBoardScreen({
   /** One request's journey events, fetched when its Task journey is opened. */
   loadJourney?: (itemId: string) => Promise<Activity[]>;
   token: string;
+  /** The portal's own address (short or by token), for the links its board makes. */
+  home?: string;
   payload: PortalBoardPayload;
   /** True while a newer read of the board is on its way. */
   refreshing?: boolean;
@@ -115,7 +118,7 @@ export function PortalBoardScreen({
   }, [payload, statusOrder]);
 
   return (
-    <ShareGuestProviders payload={shown} path={`/portal/${encodeURIComponent(token)}`} activityFor={loadJourney}>
+    <ShareGuestProviders payload={shown} path={home ?? `/portal/${encodeURIComponent(token)}`} activityFor={loadJourney}>
       <PortalBoard payload={shown} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={showItemGroups ? PORTAL_GROUPINGS : PORTAL_GROUPINGS.filter((g) => g !== "board")} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
     </ShareGuestProviders>
   );

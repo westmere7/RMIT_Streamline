@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { Board } from "@/domain";
+import { landingGroupOf } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useBoardContext } from "@/features/boards/board-context";
 import { useServices } from "@/features/data/data-context";
@@ -79,7 +80,10 @@ export function MoveToBoardDialog() {
     queryFn: () => services.itemMoves.preview(itemId!, targetId!),
     enabled: !!itemId && !!targetId,
   });
-  const chosenGroup = groupId ?? preview.data?.groups[0]?.id ?? null;
+  // The target board's landing group to begin with (its top group when it has none).
+  const targetBoard = targetId ? ws.boardById(targetId) : undefined;
+  const landingId = targetBoard && preview.data ? (landingGroupOf(targetBoard, preview.data.groups)?.id ?? null) : null;
+  const chosenGroup = groupId ?? landingId ?? preview.data?.groups[0]?.id ?? null;
 
   const move = useMutation({
     mutationFn: () => services.itemMoves.moveToBoard(itemId!, targetId!, user.id, { groupId: chosenGroup ?? undefined }),
@@ -174,6 +178,7 @@ export function MoveToBoardDialog() {
                         {plan.groups.map((g) => (
                           <SelectItem key={g.id} value={g.id}>
                             {g.name}
+                            {g.id === landingId ? " · landing" : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>

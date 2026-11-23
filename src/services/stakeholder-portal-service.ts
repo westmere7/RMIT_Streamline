@@ -239,6 +239,10 @@ export interface PortalTransport {
   lookupRequester(grant: PortalGrant, email: string): Promise<string | null>;
   comment(grant: PortalGrant, itemId: EntityId, body: string): Promise<void>;
   setDeliverableDone(grant: PortalGrant, itemId: EntityId, assetId: EntityId, done: boolean): Promise<void>;
+  /** The link token of a workspace's portal, for its short addresses; null when it has none. */
+  tokenForWorkspace(workspaceSlug: string): Promise<string | null>;
+  /** The workspace an old token link belongs to, for the redirect to its short address; null for a link that is no longer current. */
+  workspaceForToken(token: string): Promise<string | null>;
 }
 
 /**
@@ -290,6 +294,51 @@ export class StakeholderPortalService {
    */
   async publicGate(token: string): Promise<PortalGate> {
     return this.transport ? this.transport.gate(token) : this.gate(token);
+  }
+
+  /** The short address's portal: `/<workspace>/portal` and `/<workspace>/booking` find their token here. */
+  async publicTokenForWorkspace(workspaceSlug: string): Promise<string | null> {
+    return this.transport ? this.transport.tokenForWorkspace(workspaceSlug) : this.tokenForWorkspace(workspaceSlug);
+  }
+
+  /** Where an old `/portal/<token>` link now lives. */
+  async publicWorkspaceForToken(token: string): Promise<string | null> {
+    return this.transport ? this.transport.workspaceForToken(token) : this.workspaceForToken(token);
+  }
+
+  /**
+   * A workspace's portal token, from its address alone. The short links carry
+   * no key, so this is open to anyone with the address; the token it hands back
+   * opens no more than the address already does. The gate, the switches and the
+   * password still decide what the visitor gets.
+   */
+  async tokenForWorkspace(workspaceSlug: string): Promise<string | null> {
+    const workspace = await this.repos.workspaces.getBySlug(workspaceSlug.trim().toLowerCase());
+    if (!workspace) return null;
+    const existing = await this.repos.stakeholderPortals.getUnifiedPortal(workspace.id);
+    if (existing) return existing.token;
+    // A workspace whose portal nobody has opened yet still has a booking form:
+    // the old keyed link worked from the day a workspace was made, and so does
+    // this one. Made as ensurePortal makes it — the portal itself off, booking on.
+    // Two first visits at once meet the one-per-workspace index; the second reads the first's.
+    try {
+      return (await this.ensurePortal(workspace.id)).token;
+    } catch {
+      return (await this.repos.stakeholderPortals.getUnifiedPortal(workspace.id))?.token ?? null;
+    }
+  }
+
+  /**
+   * The workspace behind an old token link, so the link can move to the short
+   * address. Only the current link of a workspace's one portal answers: a link
+   * that was replaced (New link) or a per-department one stays shut, as it was.
+   */
+  async workspaceForToken(token: string): Promise<string | null> {
+    if (!isPlausiblePortalToken(token)) return null;
+    const portal = await this.repos.stakeholderPortals.getPortalByToken(token);
+    if (!portal || portal.departmentId !== null) return null;
+    const workspace = await this.repos.workspaces.getById(portal.workspaceId);
+    return workspace?.slug ?? null;
   }
 
   async publicBoard(grant: PortalGrant, scope: PortalScope = EVERYTHING): Promise<PortalBoardPayload & { context: PortalContext }> {

@@ -92,10 +92,12 @@ describe("past bookings of the same email", { timeout: 20_000 }, () => {
   it("each row opens the workspace's portal on that task, and only while the portal is on", async () => {
     await publish((t) => (t.review.showPastBookings = true));
     const booked = await book();
-    const portal = await services.portals.ensurePortal(SEED_WORKSPACE_ID);
+    await services.portals.ensurePortal(SEED_WORKSPACE_ID);
+    const workspace = (await services.repos.workspaces.getById(SEED_WORKSPACE_ID))!;
     await services.portals.setEnabled(SEED_WORKSPACE_ID, true);
     const [row] = await past("priya.past@rmit.edu.au");
-    expect(row!.portalPath).toBe(`/portal/${encodeURIComponent(portal.token)}?task=${booked.itemId}`);
+    // The short address: the workspace, no key.
+    expect(row!.portalPath).toBe(`/${workspace.slug}/portal?task=${booked.itemId}`);
     await services.portals.setEnabled(SEED_WORKSPACE_ID, false);
     expect((await past("priya.past@rmit.edu.au"))[0]!.portalPath).toBeNull();
   });

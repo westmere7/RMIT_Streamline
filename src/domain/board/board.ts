@@ -61,6 +61,12 @@ export interface Board extends Timestamps {
   followsTeam?: boolean;
   /** The board's own "who can edit", while it does not follow a team. Absent reads as ADDED. */
   editScope?: BoardEditScope;
+  /**
+   * Where a task from another board lands (allocated, moved, booked straight
+   * here): one of this board's groups. Absent or null: the top group. Never set
+   * on a built-in board. Migration 0153.
+   */
+  landingGroupId?: EntityId | null;
 }
 
 /** Whether asset lines keep the PIC column up to date, and which way. */
@@ -140,6 +146,18 @@ export function intakeGroupOf<G extends Pick<BoardGroup, "name" | "position"> & 
   const ordered = groups.slice().sort((a, b) => a.position - b.position);
   const named = ordered.find((g) => ["new", INTAKE_GROUP_NAME.toLowerCase()].includes(g.name.trim().toLowerCase()));
   return named ?? ordered[0] ?? null;
+}
+
+/**
+ * The group a task arriving from another board lands in: the board's chosen
+ * landing group while it is still one of its groups, else its top group. Task
+ * Allocation's intake group is never a landing place (bookings reach it on
+ * their own); the built-in boards have no landing group.
+ */
+export function landingGroupOf<G extends Pick<BoardGroup, "id" | "position"> & { role?: BoardGroupRole | null }>(board: Pick<Board, "landingGroupId" | "system">, groups: readonly G[]): G | null {
+  const open = groups.filter((g) => g.role !== "INTAKE").sort((a, b) => a.position - b.position);
+  const chosen = !board.system && board.landingGroupId ? open.find((g) => g.id === board.landingGroupId) : undefined;
+  return chosen ?? open[0] ?? null;
 }
 
 export type BoardInput = Pick<

@@ -111,13 +111,17 @@ export function BookViaFormPlaceholder() {
   );
 }
 
-/** "Book via form" in place of New Item, on Task Allocation while the form takes requests. */
-export function BookViaFormButton({ size = "sm", className, testId = "book-via-form-button" }: { size?: "sm" | "default"; className?: string; testId?: string }) {
+/**
+ * The in-app booking form's button: "Book via form" in place of New Item on
+ * Task Allocation, and "Book a task" wherever else the app offers booking. It
+ * always opens the pop-up, signed in as the member.
+ */
+export function BookViaFormButton({ size = "sm", className, testId = "book-via-form-button", label = "Book via form" }: { size?: "sm" | "default"; className?: string; testId?: string; label?: string }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
       <Button size={size} className={className} onClick={() => setOpen(true)} data-testid={testId}>
-        <ClipboardPen /> Book via form
+        <ClipboardPen /> {label}
       </Button>
       <BookViaFormDialog open={open} onOpenChange={setOpen} />
     </>

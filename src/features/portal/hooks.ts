@@ -116,8 +116,8 @@ export function usePortalMutations() {
   return { setEnabled, setPresentation, saveSettings, regenerate, setPassword };
 }
 
-/** The address to hand out. Absolute, because it is going into an email. */
-export function portalUrl(token: string): string {
+/** The addresses to hand out: the workspace's short portal and booking links. Absolute, because they go into emails. */
+export function workspaceLinkUrls(workspaceSlug: string): { portal: string; booking: string } {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return `${origin}${routes.portal(token)}`;
+  return { portal: `${origin}${routes.workspacePortal(workspaceSlug)}`, booking: `${origin}${routes.workspaceBooking(workspaceSlug)}` };
 }

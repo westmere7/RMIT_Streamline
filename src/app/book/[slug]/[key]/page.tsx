@@ -1,10 +1,14 @@
-import type { Metadata } from "next";
-import { BookingScreen } from "@/features/booking/booking-screen";
+import { redirect } from "next/navigation";
+import { routes } from "@/lib/routes";
 
-export const metadata: Metadata = { title: "Book a task" };
+export const dynamic = "force-dynamic";
 
-/** The public booking page stakeholders open from the team's link. Works without a session. */
+/**
+ * The old public booking link with the workspace's key. The one external form
+ * is the short address now and needs no key; the workspace is already in this
+ * link, so moving it on tells nobody anything new.
+ */
 export default async function BookPage({ params }: { params: Promise<{ slug: string; key: string }> }) {
-  const { slug, key } = await params;
-  return <BookingScreen workspaceSlug={decodeURIComponent(slug)} bookingKey={decodeURIComponent(key)} />;
+  const { slug } = await params;
+  redirect(routes.workspaceBooking(decodeURIComponent(slug)));
 }

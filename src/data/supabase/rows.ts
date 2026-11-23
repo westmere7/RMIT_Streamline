@@ -273,11 +273,12 @@ export interface BoardRow {
   view_only: boolean | null;
   follows_team?: boolean | null;
   edit_scope?: BoardEditScope | null;
+  landing_group_id?: string | null;
   created_at: string;
   updated_at: string;
 }
 
-export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, primary_action, view_only, follows_team, edit_scope, created_at, updated_at";
+export const BOARD_COLUMNS = "id, workspace_id, team_id, name, slug, description, type, visibility, owner_id, color, icon, archived_at, system, assets_fill_pic, assets_clear_pic, primary_action, view_only, follows_team, edit_scope, landing_group_id, created_at, updated_at";
 
 export function toBoard(row: BoardRow): Board {
   return {
@@ -300,6 +301,7 @@ export function toBoard(row: BoardRow): Board {
     viewOnly: row.view_only ?? false,
     followsTeam: row.follows_team ?? true,
     editScope: row.edit_scope === "TEAM" || row.edit_scope === "VIEWERS" ? row.edit_scope : "ADDED",
+    landingGroupId: row.landing_group_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -325,6 +327,7 @@ export function fromBoardPatch(patch: Partial<Omit<Board, "id" | "createdAt">>):
     view_only: patch.viewOnly,
     follows_team: patch.followsTeam,
     edit_scope: patch.editScope,
+    landing_group_id: patch.landingGroupId,
   });
 }
 

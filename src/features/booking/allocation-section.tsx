@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightLeft, LoaderCircle, SquareKanban } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { cn } from "@/lib/utils";
 import { ALLOCATE_KEY } from "./use-allocation";
+import { landingGroupOf } from "@/domain";
 
 /**
  * On the Task Allocation board only: the manager's control for placing a
@@ -36,9 +37,20 @@ export function AllocationSection({ item }: { item: Item }) {
   const services = useServices();
   const queryClient = useQueryClient();
   const [targetId, setTargetId] = React.useState<string>("");
+  const [groupId, setGroupId] = React.useState<string | null>(null);
+  // The chosen board's groups, to land the request in one; its landing group to begin with.
+  const target = targetId ? ws.boardById(targetId) : undefined;
+  const targetGroups = useQuery({
+    queryKey: ["allocation-groups", "board", targetId],
+    queryFn: async () => (await services.repos.boards.listGroups(targetId)).filter((g) => g.role !== "INTAKE").sort((a, b) => a.position - b.position),
+    enabled: !!targetId,
+    staleTime: 60_000,
+  });
+  const landingId = target && targetGroups.data ? (landingGroupOf(target, targetGroups.data)?.id ?? null) : null;
+  const chosenGroup = groupId ?? landingId;
   const allocate = useMutation({
     mutationKey: ALLOCATE_KEY,
-    mutationFn: ({ itemIds, boardId }: { itemIds: string[]; boardId: string }) => services.booking.allocate(itemIds[0]!, boardId, user.id),
+    mutationFn: ({ itemIds, boardId, groupId: group }: { itemIds: string[]; boardId: string; groupId?: string | null }) => services.booking.allocate(itemIds[0]!, boardId, user.id, { groupId: group ?? null }),
     onSuccess: async ({ board: target }) => {
       // The item is no longer on this board, so the panel showing it has
       // nothing left to show.
@@ -50,6 +62,7 @@ export function AllocationSection({ item }: { item: Item }) {
       ]);
       toast.success(`Moved to ${target.name}`, { description: "It has left the allocation queue." });
       setTargetId("");
+      setGroupId(null);
     },
     onError: (error) => toast.error(error instanceof Error ? error.message : "Could not allocate the request"),
   });
@@ -74,7 +87,13 @@ export function AllocationSection({ item }: { item: Item }) {
         </p>
         {canEdit && !nowhere && (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Select value={targetId} onValueChange={setTargetId}>
+            <Select
+              value={targetId}
+              onValueChange={(next) => {
+                setTargetId(next);
+                setGroupId(null);
+              }}
+            >
               <SelectTrigger aria-label="Team board" className="h-9 flex-1" data-testid="allocation-target">
                 <SelectValue placeholder="Choose a team board…" />
               </SelectTrigger>
@@ -109,7 +128,22 @@ export function AllocationSection({ item }: { item: Item }) {
                 )}
               </SelectContent>
             </Select>
-            <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => allocate.mutate({ itemIds: [item.id], boardId: targetId })} data-testid="allocation-submit">
+            {targetId && (targetGroups.data?.length ?? 0) > 1 && (
+              <Select value={chosenGroup ?? undefined} onValueChange={setGroupId}>
+                <SelectTrigger aria-label="Group" className="h-9 sm:w-44" data-testid="allocation-group">
+                  <SelectValue placeholder="Group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(targetGroups.data ?? []).map((g) => (
+                    <SelectItem key={g.id} value={g.id} data-testid={`allocation-group-${g.id}`}>
+                      {g.name}
+                      {g.id === landingId ? " · landing" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => allocate.mutate({ itemIds: [item.id], boardId: targetId, groupId: chosenGroup })} data-testid="allocation-submit">
               {allocate.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRightLeft />} Allocate
             </Button>
           </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, ClipboardPen, Copy, ExternalLink, LoaderCircle } from "lucide-react";
+import { ArrowLeft, Check, Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -23,6 +23,7 @@ import { hasUnsavedWork } from "@/lib/unsaved-work";
 import { PortalAdmin } from "@/features/portal/portal-admin";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
+import { BookViaFormButton } from "@/features/booking/book-via-form-dialog";
 
 /**
  * The Portal and Booking destination, at the URL "Book a task" always had.
@@ -221,11 +222,8 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
                 </Link>
               </Button>
             ) : !manager ? (
-              <Button asChild>
-                <Link href={routes.bookForm(ws.slug)} data-testid="book-a-task">
-                  <ClipboardPen /> Book a task
-                </Link>
-              </Button>
+              // The pop-up form, signed in as them: staff book from inside the app.
+              <BookViaFormButton size="default" label="Book a task" testId="book-a-task" />
             ) : undefined
           }
         />
@@ -293,10 +291,9 @@ export function BookTaskPage({ view = "links" }: { view?: "links" | "editor" }) 
 function AdminAside({ editorSlot }: { editorSlot: (node: HTMLDivElement | null) => void }) {
   const ws = useWorkspace();
   const [copied, setCopied] = React.useState(false);
-  const key = ws.workspace.bookingKey ?? null;
-  // The origin is only known in the browser; until hydration the path alone is shown.
+  // The one external form, at its short address. The origin is only known in the browser.
   const origin = React.useSyncExternalStore(subscribeNever, () => window.location.origin, () => "");
-  const publicUrl = key ? `${origin}${routes.publicBooking(ws.slug, key)}` : "";
+  const publicUrl = origin ? `${origin}${routes.workspaceBooking(ws.slug)}` : "";
 
   const copy = async () => {
     try {

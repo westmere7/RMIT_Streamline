@@ -22,7 +22,8 @@ const WHEN = "d MMM yyyy, h:mm a";
 export function BookedChip({ item }: { item: Item }) {
   const [open, setOpen] = React.useState(false);
   if (!item.bookedVia) return null;
-  const via = item.bookedVia === "portal" ? "the portal" : "the form";
+  // The portal's form and the old keyed link are one booking form now, whichever one this came through.
+  const via = "the booking form";
   return (
     <HoverCard open={open} onOpenChange={setOpen} openDelay={150} closeDelay={100}>
       <HoverCardTrigger asChild>
@@ -33,7 +34,7 @@ export function BookedChip({ item }: { item: Item }) {
           className="inline-flex h-5 items-center gap-1 rounded-full bg-surface-strong/50 pr-2 pl-1.5 text-2xs font-medium text-foreground/80 transition-colors hover:bg-surface-strong focus-visible:outline-2 focus-visible:outline-ring"
           data-testid="panel-booked-chip"
         >
-          <ClipboardPen className="size-3" aria-hidden /> {item.bookedVia === "portal" ? "Via Portal" : "Via Form"}
+          <ClipboardPen className="size-3" aria-hidden /> Via booking form
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="w-64 p-3" data-testid="panel-booked-card">

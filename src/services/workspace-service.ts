@@ -51,6 +51,15 @@ export interface WorkspaceContext {
 /** What a workspace address may be: lower-case letters, digits and dashes, 2 to 40 of them. */
 export const WORKSPACE_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])$/;
 
+/**
+ * Addresses no workspace may take: the workspace's portal and booking form live
+ * at /<address>/portal and /<address>/booking, so an address must never be one
+ * of the app's own top-level paths.
+ */
+export const RESERVED_WORKSPACE_SLUGS: ReadonlySet<string> = new Set([
+  "api", "app", "admin", "book", "booking", "dashboard", "design-kit", "invite", "join", "login", "logout", "portal", "settings", "share", "static", "workspace", "workspaces",
+]);
+
 export interface NewWorkspaceInput {
   name: string;
   /** The address (/workspace/<slug>). Made from the name when left out. */
@@ -108,11 +117,12 @@ export class WorkspaceService {
     if (!name) throw new Error("Name the workspace");
     if (name.length > 60) throw new Error("Keep the name to 60 characters");
     const existing = await this.repos.workspaces.list();
-    const taken = new Set(existing.map((w) => w.slug));
+    const taken = new Set([...existing.map((w) => w.slug), ...RESERVED_WORKSPACE_SLUGS]);
     let slug: string;
     if (input.slug?.trim()) {
       slug = input.slug.trim().toLowerCase();
       if (!WORKSPACE_SLUG_PATTERN.test(slug)) throw new Error("The address takes 2 to 40 lower-case letters, digits and dashes");
+      if (RESERVED_WORKSPACE_SLUGS.has(slug)) throw new Error(`"${slug}" is one of the app's own addresses. Pick another.`);
       if (taken.has(slug) || (await this.repos.workspaces.getBySlug(slug))) throw new Error(`A workspace already uses the address "${slug}"`);
     } else {
       // Room for the "-2" a taken address gets, inside the 40 the address allows.

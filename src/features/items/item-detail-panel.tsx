@@ -691,7 +691,7 @@ function creatorRoleOf(item: Item, model: BoardModel): string {
   const requesterColumn = model.columns.find((c) => c.type === "REQUESTER");
   const requester = requesterColumn ? model.getValue(item.id, requesterColumn.id) : undefined;
   const bookedItThemselves = requester?.type === "REQUESTER" && requester.userIds[0] === item.createdBy;
-  return bookedItThemselves ? `Booked this task · ${when}` : `Stand-in creator for an outside booking · ${when}. Via Form shows who asked.`;
+  return bookedItThemselves ? `Booked this task · ${when}` : `Stand-in creator for an outside booking · ${when}. Via booking form shows who asked.`;
 }
 
 /** Long enough to tell a double click from two single ones, short enough that a copy still feels immediate. */

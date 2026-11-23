@@ -28,6 +28,19 @@ export const routes = {
     return `/portal/${encodeURIComponent(token)}${query}`;
   },
   portalBooking: (token: string) => `/portal/${encodeURIComponent(token)}/book`,
+  /**
+   * The workspace's portal at its short address: just the workspace, no key.
+   * The old token addresses (`portal`, `portalBooking`) redirect here.
+   */
+  workspacePortal: (slug: string, options: { task?: string | null } = {}) => {
+    const query = options.task ? `?task=${encodeURIComponent(options.task)}` : "";
+    return `/${encodeURIComponent(slug)}/portal${query}`;
+  },
+  /** The one booking form people outside the app use, at its short address. */
+  workspaceBooking: (slug: string, options: { for?: string | null } = {}) => {
+    const query = options.for ? `?for=${encodeURIComponent(options.for)}` : "";
+    return `/${encodeURIComponent(slug)}/booking${query}`;
+  },
   workspace: (slug: string) => `/workspace/${slug}`,
   myWork: (slug: string) => `/workspace/${slug}/my-work`,
   /**

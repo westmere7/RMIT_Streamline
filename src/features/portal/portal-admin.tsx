@@ -6,7 +6,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, FileText, Globe, GripVertical, Loader2, Lock, Pencil, RefreshCw, Settings2, Users } from "lucide-react";
+import { Check, ClipboardPen, Copy, ExternalLink, EyeOff, FileText, Globe, GripVertical, Loader2, Lock, Pencil, Settings2, Users } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import * as React from "react";
@@ -54,7 +54,7 @@ import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icon
 import { useServices } from "@/features/data/data-context";
 import { copyToClipboard } from "@/features/members/hooks";
 import { PersonChip } from "@/features/members/person-chip";
-import { portalUrl, usePortalMutations, usePortalOverview } from "@/features/portal/hooks";
+import { usePortalMutations, usePortalOverview, workspaceLinkUrls } from "@/features/portal/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
@@ -105,8 +105,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
   const { setEnabled, setPresentation, setPassword } = usePortalMutations();
   const [editing, setEditing] = React.useState<"portal" | "booking" | null>(null);
   const open = portal.enabled;
-  const url = portalUrl(portal.token);
-  const bookingUrl = `${url}/book`;
+  const { portal: url, booking: bookingUrl } = workspaceLinkUrls(ws.slug);
   const booked = rows.reduce((sum, row) => sum + row.requests, 0);
   const active = rows.filter((row) => row.requests > 0).length;
 
@@ -129,7 +128,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
           aside={rows.length === 0 ? "none set up yet" : readOnly ? undefined : `${active} of ${rows.length} have booked`}
           readOnly={readOnly}
           url={url}
-          href={routes.portal(portal.token)}
+          href={routes.workspacePortal(ws.slug)}
           openLabel="Open Portal"
           testId="portal-link"
           copyTestId="portal-copy"
@@ -161,7 +160,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
           label="Booking form"
           lead={portal.allowBooking ? <>Opens straight on the form. Requests land on the board.</> : <>Not taking requests.</>}
           url={bookingUrl}
-          href={`${routes.portal(portal.token)}/book`}
+          href={routes.workspaceBooking(ws.slug)}
           openLabel="Open Form"
           testId="portal-booking-link"
           copyTestId="portal-booking-link-copy"
@@ -408,30 +407,6 @@ export function LinkTile({
 /** A tile's contents, over the link under it: clicks pass through, except to what has a job of its own. */
 const OVER_TILE_LINK = "relative pointer-events-none [&_a]:pointer-events-auto [&_button]:pointer-events-auto [&_label]:pointer-events-auto [&_input]:pointer-events-auto";
 
-/** A new token for both links. The old one stops working at once, so it asks first. */
-function RegenerateButton({ testId }: { testId: string }) {
-  const { regenerate } = usePortalMutations();
-  const [confirm, setConfirm] = React.useState(false);
-  return (
-    <>
-      <Button variant="outline" size="sm" className="shrink-0 hover:text-destructive" onClick={() => setConfirm(true)} data-testid={testId}>
-        <RefreshCw /> New link
-      </Button>
-      <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
-        title="Issue a new link?"
-        description="Both links stop working straight away, including for anyone reading the portal right now. Their requests are untouched."
-        confirmLabel="Issue new link"
-        destructive
-        onConfirm={async () => {
-          await regenerate.mutateAsync();
-        }}
-      />
-    </>
-  );
-}
-
 /**
  * The form the booking link serves: its name, what it asks and when it went
  * live, and how many requests the portal has taken. The same read as the editor's Published form card, and
@@ -651,16 +626,6 @@ function SettingsDialog({ kind, portal, columns, open, onOpenChange }: { kind: k
 
           <div className="scrollbar-thin grid content-start gap-5 overflow-y-auto px-6 py-5">
             {kind === "portal" ? <PortalFields draft={draft} set={set} placeholder={ws.workspace.name} columns={columns} /> : <BookingFields draft={draft} set={set} />}
-            {/* Kept out of the card: replacing a link is rare, and it is final. It
-                takes effect at once (after asking), not on Save, because the old
-                address must stop working the moment it is replaced. */}
-            <div className="grid gap-1.5 border-t border-border/60 pt-4" data-testid={`portal-link-section-${kind}`}>
-              <p className="text-[13px] font-medium">Link</p>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-2xs text-muted-foreground">Replace the address if it has spread too far. The portal and the booking form share it, so both change.</p>
-                <RegenerateButton testId={`portal-regenerate-${kind}`} />
-              </div>
-            </div>
           </div>
 
           <DialogFooter className="items-center border-t border-border/60 px-6 py-3.5">

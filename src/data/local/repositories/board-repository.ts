@@ -237,7 +237,11 @@ export class LocalBoardRepository implements BoardRepository {
     const db = await this.conn.getDb();
     const itemIds = await db.getAllKeysFromIndex("items", "byGroup", id);
     await deleteItemsCascade(db, itemIds);
+    const group = await db.get("boardGroups", id);
     await db.delete("boardGroups", id);
+    // A landing group that goes takes the board's choice with it (0153: on delete set null).
+    const board = group ? await db.get("boards", group.boardId) : undefined;
+    if (board?.landingGroupId === id) await db.put("boards", { ...board, landingGroupId: null, updatedAt: nowIso() });
   }
 
   async reorderGroups(boardId: string, orderedIds: string[]): Promise<BoardGroup[]> {

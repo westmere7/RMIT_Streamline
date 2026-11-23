@@ -109,7 +109,8 @@ async function openPortal(page: Page): Promise<string> {
   }
   await expect(card.getByTestId("portal-toggle")).toHaveAttribute("aria-checked", "true");
   const link = await card.getByTestId("portal-link").innerText();
-  expect(link).toContain("/portal/");
+  // The short address: the workspace, no key (v0.156).
+  expect(link).toMatch(/\/rmit\/portal$/);
   return new URL(link).pathname;
 }
 
@@ -244,22 +245,28 @@ test.describe("the stakeholder portal", () => {
     await expect(form.getByText(/school or department is required/i)).toBeVisible();
   });
 
-  test("stops opening the moment the link is replaced, from either card's settings", async ({ page }) => {
-    const portalPath = await openPortal(page);
-    await page.goto(portalPath);
-    await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible();
-
-    const card = await portalCard(page);
-    await card.getByTestId("portal-booking-link-settings").click();
-    await page.getByTestId("portal-regenerate-booking").click();
-    await page.getByRole("alertdialog").getByRole("button", { name: /issue new link/i }).click();
-    await page.keyboard.press("Escape");
-    await expect(card.getByTestId("portal-link")).not.toHaveText(new RegExp(portalPath.split("/").pop()!));
-
-    // The old address is dead, and says so without naming the department.
-    await page.goto(portalPath);
+  test("an old token link moves to the short address, keeping what it asked for", async ({ page }) => {
+    await openPortal(page);
+    // The token the portal had before short links, read from this browser's store.
+    const token = await page.evaluate(
+      () =>
+        new Promise<string>((resolve, reject) => {
+          const open = indexedDB.open("rmit-streamline");
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const read = open.result.transaction("departmentPortals").objectStore("departmentPortals").getAll();
+            read.onsuccess = () => resolve((read.result as Array<{ departmentId: string | null; token: string }>).find((p) => p.departmentId === null)!.token);
+          };
+        }),
+    );
+    await page.goto(`/portal/${token}?range=all`);
+    await expect(page).toHaveURL(/\/rmit\/portal\?range=all$/);
+    await expect(page.getByTestId("portal-stakeholder-name")).toBeVisible({ timeout: 20_000 });
+    await page.goto(`/portal/${token}/book`);
+    await expect(page).toHaveURL(/\/rmit\/booking$/);
+    // A token that is not the current one stays shut.
+    await page.goto("/portal/notthecurrenttokennotthecurrent1");
     await expect(page.getByRole("heading", { name: "This link does not open a portal" })).toBeVisible();
-    await expect(page.getByTestId("portal-stakeholder-name")).toHaveCount(0);
   });
 
   test("closing a portal shuts both reading and booking", async ({ page }) => {
@@ -336,7 +343,7 @@ test.describe("the stakeholder portal", () => {
     await expect(page.locator("html.dark")).toHaveCount(1);
 
     // The booking form keeps its own theme, and dark reaches <html>, so menus match.
-    await page.goto(`${portalPath}/book`);
+    await page.goto(portalPath.replace(/\/portal$/, "/booking"));
     await expect(page.getByTestId("portal-book")).toBeVisible({ timeout: 20000 });
     await expect(page.locator("html.dark")).toHaveCount(1);
 

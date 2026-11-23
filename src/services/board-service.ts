@@ -175,9 +175,18 @@ export class BoardService {
 
   async updateBoard(
     boardId: EntityId,
-    patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction" | "viewOnly" | "followsTeam" | "editScope">>,
+    patch: Partial<Pick<Board, "name" | "description" | "teamId" | "visibility" | "color" | "icon" | "assetsFillPic" | "assetsClearPic" | "primaryAction" | "viewOnly" | "followsTeam" | "editScope" | "landingGroupId">>,
     actorId: EntityId,
   ): Promise<Board> {
+    if (patch.landingGroupId) {
+      // One of the board's own groups, never a built-in board's (the database refuses both: 0153).
+      const current = await this.repos.boards.getById(boardId);
+      if (current?.system) throw new Error(`${current.name} is built in: it has no landing group.`);
+      const groups = await this.repos.boards.listGroups(boardId);
+      const group = groups.find((g) => g.id === patch.landingGroupId);
+      if (!group) throw new Error("Pick one of this board's groups.");
+      if (group.role === "INTAKE") throw new Error("That group takes bookings only.");
+    }
     if (patch.teamId !== undefined || patch.visibility !== undefined || patch.followsTeam !== undefined || patch.editScope !== undefined) {
       const current = await this.repos.boards.getById(boardId);
       if (current?.system) throw new Error(`${current.name} is built in: where it sits and who can see it stay as they are.`);
