@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { FormattingTextBox } from "./formatting-text-box";
 
 /** The controls every part of the form editor is built from. */
 
@@ -16,6 +17,32 @@ import { cn } from "@/lib/utils";
  * is cut off at the edge; a one-line box still takes no line breaks.
  */
 export function TextBox({
+  value,
+  onChange,
+  ariaLabel,
+  placeholder,
+  className,
+  testId,
+  multiline,
+  rows,
+  formatting,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+  placeholder?: string;
+  className?: string;
+  testId?: string;
+  multiline?: boolean;
+  rows?: number;
+  /** Bold, italic, underline and links, offered over a selection: for hints, help lines and notes. */
+  formatting?: boolean;
+}) {
+  if (formatting) return <FormattingTextBox value={value} onChange={onChange} ariaLabel={ariaLabel} placeholder={placeholder} className={className} testId={testId} multiline={multiline} rows={rows} />;
+  return <PlainTextBox value={value} onChange={onChange} ariaLabel={ariaLabel} placeholder={placeholder} className={className} testId={testId} multiline={multiline} rows={rows} />;
+}
+
+function PlainTextBox({
   value,
   onChange,
   ariaLabel,

@@ -100,7 +100,7 @@ export function BriefBuilder({ service, onPatch, savedBlocks, onSaveBlock, onDel
       {/* The heading of the step, which the form only shows when there is one. */}
       <EditorSection title="Heading of this step" testId="editor-brief-heading" hoverOutline>
         <TextBox value={service.briefTitle ?? ""} onChange={(v) => onPatch({ briefTitle: v || null })} ariaLabel="Brief heading" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-brief-title" />
-        <TextBox value={service.briefHint ?? ""} onChange={(v) => onPatch({ briefHint: v || null })} ariaLabel="Brief hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-brief-hint" />
+        <TextBox formatting value={service.briefHint ?? ""} onChange={(v) => onPatch({ briefHint: v || null })} ariaLabel="Brief hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-brief-hint" />
       </EditorSection>
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={onDragEnd}>
@@ -323,7 +323,7 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
   if (block.kind === "separator") return null;
   if (block.kind === "text") {
     return (
-      <TextBox
+      <TextBox formatting={block.level === "body"}
         value={block.text}
         onChange={(v) => onPatch({ text: v } as Partial<BookingBlock>)}
         ariaLabel="Text"
@@ -355,7 +355,7 @@ function BlockBody({ block, onPatch, nested }: { block: BookingBlock; onPatch: (
         className="text-[13px] font-medium"
         testId={`editor-block-label-${block.id}`}
       />
-      <TextBox
+      <TextBox formatting
         value={block.description ?? ""}
         onChange={(v) => onPatch({ description: v || null } as Partial<BookingBlock>)}
         ariaLabel="Help text"

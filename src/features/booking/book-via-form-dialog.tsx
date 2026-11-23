@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardPen, LoaderCircle } from "lucide-react";
 import * as React from "react";
+import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { bookingHeaderOf } from "@/domain";
@@ -64,7 +65,7 @@ function BookViaFormBody() {
         <div className="min-w-0 flex-1 leading-tight">
           <DialogTitle className="truncate text-[15px] font-semibold tracking-tight">{header?.title ?? "Booking form"}</DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            {header?.subtitle ?? ""}
+            <InlineRichText text={header?.subtitle ?? ""} />
             {header ? ` · signed in as ${user.firstName}` : ""}
           </DialogDescription>
         </div>

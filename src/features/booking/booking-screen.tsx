@@ -1,5 +1,6 @@
 "use client";
 
+import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, LoaderCircle, LockKeyhole } from "lucide-react";
 import Link from "next/link";
@@ -77,7 +78,7 @@ export function BookingScreen({ workspaceSlug, bookingKey }: { workspaceSlug: st
             <div className="min-w-0 flex-1 leading-tight">
               <p className="truncate text-[15px] font-semibold tracking-tight">{bookingHeaderOf(form.data.template, form.data.workspaceName).title}</p>
               <p className="text-xs text-muted-foreground">
-                {bookingHeaderOf(form.data.template, form.data.workspaceName).subtitle}
+                <InlineRichText text={bookingHeaderOf(form.data.template, form.data.workspaceName).subtitle} />
                 {signedIn ? ` · signed in as ${user.firstName}` : ""}
               </p>
             </div>

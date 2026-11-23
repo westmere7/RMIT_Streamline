@@ -700,7 +700,7 @@ function BasicsPane({
               testId="editor-header-title"
             />
             <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-              <TextBox
+              <TextBox formatting
                 value={draft.header?.subtitle ?? ""}
                 onChange={(v) => update((t) => (t.header = { ...t.header, subtitle: v || null }))}
                 ariaLabel="Form header subtitle"
@@ -718,7 +718,7 @@ function BasicsPane({
 
       <EditorSection title="Heading of this step" testId="editor-basics-heading" hoverOutline>
         <TextBox value={draft.basics.title ?? ""} onChange={(v) => update((t) => (t.basics.title = v || null))} ariaLabel="Step one title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-basics-title" />
-        <TextBox value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />
+        <TextBox formatting value={draft.basics.hint ?? ""} onChange={(v) => update((t) => (t.basics.hint = v || null))} ariaLabel="Step one hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-basics-hint" />
       </EditorSection>
 
       {/* Who is asking: one block, three boxes, nothing to explain and nothing
@@ -794,7 +794,7 @@ function BasicsPane({
         testId="editor-service-question"
       >
         <TextBox value={draft.basics.serviceLabel} onChange={(v) => update((t) => (t.basics.serviceLabel = v))} ariaLabel="Service question" placeholder="What kind of work is this?" className="text-[13px] font-medium" testId="editor-service-label" />
-        <TextBox value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" testId="editor-service-hint" />
+        <TextBox formatting value={draft.basics.serviceHint ?? ""} onChange={(v) => update((t) => (t.basics.serviceHint = v || null))} ariaLabel="Service hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" testId="editor-service-hint" />
 
         {/* The chooser as the form shows it. Pick a card and its settings open underneath. */}
         <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToParentElement]} onDragEnd={onServiceDrag}>
@@ -855,7 +855,7 @@ function StandardFieldEditor({ field, form, previewRequest, onPatch }: { field: 
 /** The line under a fixed question, as the form prints it: editable, and left out when empty. */
 function FieldHintBox({ field, onPatch }: { field: BookingStandardField; onPatch: (patch: Partial<BookingStandardField>) => void }) {
   return (
-    <TextBox
+    <TextBox formatting
       value={field.description ?? ""}
       onChange={(v) => onPatch({ description: v.trim() ? v : null })}
       ariaLabel={`Hint for ${BOOKING_STANDARD_KEY_LABELS[field.key]}`}
@@ -1005,13 +1005,13 @@ function ServicePanel({
         <TextBox value={service.name} onChange={(v) => onPatch({ name: v })} ariaLabel="Service name" placeholder="Service name" className="text-[13px] font-semibold" testId={`editor-service-name-${key}`} />
       </Labeled>
       <Labeled label="Description">
-        <TextBox value={service.description ?? ""} onChange={(v) => onPatch({ description: v || null })} ariaLabel="Service description" placeholder="A line on the card (optional)" className="text-[13px] text-muted-foreground" testId={`editor-service-description-${key}`} />
+        <TextBox formatting value={service.description ?? ""} onChange={(v) => onPatch({ description: v || null })} ariaLabel="Service description" placeholder="A line on the card (optional)" className="text-[13px] text-muted-foreground" testId={`editor-service-description-${key}`} />
       </Labeled>
 
       <div className="grid gap-1.5 border-t border-border/60 pt-2.5">
         <span className="label-quiet">Work types, asked once this card is picked</span>
         <TextBox value={service.subServiceLabel} onChange={(v) => onPatch({ subServiceLabel: v })} ariaLabel="Work types question" placeholder="Work types" className="text-[13px] font-medium" testId={`editor-service-sublabel-${key}`} />
-        <TextBox value={service.subServiceHint ?? ""} onChange={(v) => onPatch({ subServiceHint: v || null })} ariaLabel="Work types hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+        <TextBox formatting value={service.subServiceHint ?? ""} onChange={(v) => onPatch({ subServiceHint: v || null })} ariaLabel="Work types hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
         <WorkTypeToggles selected={service.subServices} onChange={(subServices) => onPatch({ subServices })} testIdPrefix={`editor-service-worktypes-${key}`} />
       </div>
 
@@ -1197,7 +1197,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
           testId="editor-assets-heading"
         >
           <TextBox value={step.title} onChange={(v) => update((t) => (t.assets.title = v))} ariaLabel="Assets title" placeholder="A heading for this step" className="text-[15px] font-semibold tracking-tight" testId="editor-assets-title" />
-          <TextBox value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Assets hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
+          <TextBox formatting value={step.hint} onChange={(v) => update((t) => (t.assets.hint = v))} ariaLabel="Assets hint" placeholder="Explain what to list here (optional)" className="text-[13px] text-muted-foreground" multiline testId="editor-assets-hint" />
         </EditorSection>
 
         {/* Fixed, but a block like the others: outlined under the pointer,
@@ -1243,7 +1243,7 @@ function AssetsPane({ form, draft, update }: { form: BookingFormData; draft: Boo
           testId="editor-assets-link"
         >
           <TextBox value={step.linkLabel} onChange={(v) => update((t) => (t.assets.linkLabel = v))} ariaLabel="Link label" placeholder="Already have the list somewhere?" className="text-[13px] font-medium" testId="editor-assets-link-label" />
-          <TextBox value={step.linkHint ?? ""} onChange={(v) => update((t) => (t.assets.linkHint = v || null))} ariaLabel="Link hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
+          <TextBox formatting value={step.linkHint ?? ""} onChange={(v) => update((t) => (t.assets.linkHint = v || null))} ariaLabel="Link hint" placeholder="A line under it (optional)" className="text-2xs text-muted-foreground" />
           <Input readOnly placeholder="https://" className="pointer-events-none text-muted-foreground/60" tabIndex={-1} aria-hidden />
         </EditorSection>
       </div>
@@ -1256,7 +1256,7 @@ function ReviewPane({ draft, update, ticketPrefix }: { draft: BookingFormTemplat
     <div className="space-y-4">
       <EditorSection title="Heading of this step" testId="editor-review-heading" hoverOutline>
         <TextBox value={draft.review.title ?? ""} onChange={(v) => update((t) => (t.review.title = v || null))} ariaLabel="Recap title" placeholder="A heading for this step (optional)" className="text-[15px] font-semibold tracking-tight" testId="editor-review-title" />
-        <TextBox value={draft.review.hint ?? ""} onChange={(v) => update((t) => (t.review.hint = v || null))} ariaLabel="Recap hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-review-hint" />
+        <TextBox formatting value={draft.review.hint ?? ""} onChange={(v) => update((t) => (t.review.hint = v || null))} ariaLabel="Recap hint" placeholder="A line under it (optional)" className="text-[13px] text-muted-foreground" testId="editor-review-hint" />
       </EditorSection>
 
       {/* What the recap looks like: the step's own cards, so the heading above
@@ -1280,7 +1280,7 @@ function ReviewPane({ draft, update, ticketPrefix }: { draft: BookingFormTemplat
       {/* The bar at the foot of the wizard, as they meet it. */}
       <EditorSection title="The button" testId="editor-review-bar" hoverOutline>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <TextBox value={draft.review.submitNote} onChange={(v) => update((t) => (t.review.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
+          <TextBox formatting value={draft.review.submitNote} onChange={(v) => update((t) => (t.review.submitNote = v))} ariaLabel="Note beside the submit button" placeholder="Small print beside the button (optional)" className="flex-1 text-2xs text-muted-foreground" />
           <TextBox value={draft.review.submitLabel} onChange={(v) => update((t) => (t.review.submitLabel = v))} ariaLabel="Submit button label" className="h-10 rounded-lg border-transparent bg-primary px-4.5 text-center text-sm font-medium text-primary-foreground sm:w-44 focus:bg-primary" testId="editor-submit-label" />
         </div>
       </EditorSection>
@@ -1308,7 +1308,7 @@ function ReviewPane({ draft, update, ticketPrefix }: { draft: BookingFormTemplat
         }
         testId="editor-review-reply"
       >
-        <TextBox value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="text-[13px]" multiline rows={3} testId="editor-auto-reply" />
+        <TextBox formatting value={draft.review.autoReply} onChange={(v) => update((t) => (t.review.autoReply = v))} ariaLabel="Automatic reply" placeholder="Thanks — we have your request…" className="text-[13px]" multiline rows={3} testId="editor-auto-reply" />
         <p className="text-2xs text-muted-foreground">Shown with the ticket once a booking is in. Say what happens next and how long it usually takes.</p>
         {/* What the two switches add to the ticket. Example rows: there is nobody's bookings to show here. */}
         {(draft.review.showPastBookings === true || draft.review.offerPdf !== false) && (

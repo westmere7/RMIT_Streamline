@@ -3,6 +3,7 @@
 import { Check, ChevronDown, CircleCheck, LoaderCircle, Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import * as React from "react";
+import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { ColorDot } from "@/components/shared/label-pill";
 import { Button } from "@/components/ui/button";
@@ -107,7 +108,11 @@ export function Field({ id, label, required, description, error, number, hideLab
         ) : (
           <span className="flex items-center gap-1.5 text-[13px] font-medium">{text}</span>
         ))}
-      {hint && <p className="-mt-0.5 text-2xs text-muted-foreground">{hint}</p>}
+      {hint && (
+        <p className="-mt-0.5 text-2xs text-muted-foreground">
+          <InlineRichText text={hint} />
+        </p>
+      )}
       {children}
       {error && (
         <p className="text-2xs text-destructive" role="alert">
@@ -487,7 +492,11 @@ export function BlockField({ block, number, value, onChange, error, preview, hid
                   </span>
                 </span>
               </span>
-              {hint && <span className="text-2xs text-muted-foreground">{hint}</span>}
+              {hint && (
+                <span className="text-2xs text-muted-foreground">
+                  <InlineRichText text={hint} />
+                </span>
+              )}
             </span>
           </label>
           {error && (
@@ -539,7 +548,11 @@ export function TextBlockView({ block }: { block: BookingTextBlock }) {
   if (!text) return null;
   if (block.level === "heading") return <h3 className="text-[15px] font-semibold tracking-tight">{text}</h3>;
   if (block.level === "subheading") return <h4 className="text-[13px] font-semibold tracking-tight">{text}</h4>;
-  return <p className="text-[13px] text-muted-foreground">{text}</p>;
+  return (
+    <p className="text-[13px] text-muted-foreground">
+      <InlineRichText text={text} />
+    </p>
+  );
 }
 
 /** The rule between two groups of questions. */

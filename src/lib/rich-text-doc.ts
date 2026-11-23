@@ -7,7 +7,7 @@
  * markup again, so what is stored stays the same legible text it always was.
  */
 
-import { indentPrefix, isRichTextColor, parseRichText, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
+import { indentPrefix, isRichTextColor, parseInline, parseRichText, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 
 /** The shape of a ProseMirror/TipTap JSON node — only what we need. */
 export interface DocNode {
@@ -239,3 +239,24 @@ export function docToRichText(doc: DocNode): string {
 }
 
 export type { RichTextColor };
+
+// ---------------------------------------------------------------------------
+// Inline only: the form editor's small boxes
+
+/**
+ * A line of inline markup per paragraph and nothing else — bold, italic,
+ * underline and links. The booking form editor's hints and notes are short
+ * lines, so a "1." or a "- " at the start of one is the words, never a list.
+ */
+export function inlineTextToDoc(text: string): DocNode {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  return { type: "doc", content: lines.map((line) => paragraph(parseInline(line))) };
+}
+
+/** The other way: one line per paragraph, trailing empty lines dropped. */
+export function docToInlineText(doc: DocNode): string {
+  return (doc.content ?? [])
+    .map((block) => serializeInline(block.content ?? []))
+    .join("\n")
+    .replace(/\s+$/, "");
+}

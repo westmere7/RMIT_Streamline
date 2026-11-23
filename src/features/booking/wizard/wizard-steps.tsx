@@ -2,6 +2,7 @@
 
 import { ArrowRight, Boxes, Info, Link2, SkipForward } from "lucide-react";
 import * as React from "react";
+import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RichText } from "@/components/shared/rich-text";
@@ -74,7 +75,11 @@ export function StepBasics({
       {(template.basics.title || template.basics.hint) && (
         <div>
           {template.basics.title && <h2 className="text-[15px] font-semibold tracking-tight">{template.basics.title}</h2>}
-          {template.basics.hint && <p className="text-[13px] text-muted-foreground">{template.basics.hint}</p>}
+          {template.basics.hint && (
+            <p className="text-[13px] text-muted-foreground">
+              <InlineRichText text={template.basics.hint} />
+            </p>
+          )}
         </div>
       )}
       {besideCard ? (
@@ -157,7 +162,13 @@ function ServiceCard({ service, selected, onSelect }: { service: BookingServiceT
       selected={selected}
       onSelect={onSelect}
       name={<span className="block break-words">{service.name}</span>}
-      description={service.description ? <span className="text-2xs leading-relaxed text-muted-foreground">{service.description}</span> : undefined}
+      description={
+        service.description ? (
+          <span className="text-2xs leading-relaxed text-muted-foreground">
+            <InlineRichText text={service.description} links={false} />
+          </span>
+        ) : undefined
+      }
       testId={`booking-service-${slug(service.name)}`}
     />
   );
@@ -197,7 +208,11 @@ export function StepBrief({ template, request, patch, errors }: StepProps) {
       {(service.briefTitle || service.briefHint) && (
         <div>
           {service.briefTitle && <h2 className="text-[15px] font-semibold tracking-tight">{service.briefTitle}</h2>}
-          {service.briefHint && <p className="text-[13px] text-muted-foreground">{service.briefHint}</p>}
+          {service.briefHint && (
+            <p className="text-[13px] text-muted-foreground">
+              <InlineRichText text={service.briefHint} />
+            </p>
+          )}
         </div>
       )}
       {service.blocks.length === 0 && <p className="text-[13px] text-muted-foreground">Nothing else to ask — carry on.</p>}
@@ -279,7 +294,11 @@ export function StepAssets({ form, template, request, patch, assets, onAssets, d
           <h2 className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
             <Boxes className="size-4 shrink-0 text-muted-foreground" aria-hidden /> {step.title}
           </h2>
-          {step.hint && <p className="max-w-prose text-[13px] text-muted-foreground">{step.hint}</p>}
+          {step.hint && (
+            <p className="max-w-prose text-[13px] text-muted-foreground">
+              <InlineRichText text={step.hint} />
+            </p>
+          )}
         </div>
         {/* Skipping is a button, not an absence of one. Somebody who has not
             worked the list out yet should be able to say so and move on,
@@ -302,7 +321,11 @@ export function StepAssets({ form, template, request, patch, assets, onAssets, d
           <Label htmlFor="booking-reference" className="flex items-center gap-1.5 text-[13px] font-medium">
             <Link2 className="size-3.5 text-muted-foreground" aria-hidden /> {step.linkLabel}
           </Label>
-          {step.linkHint && <p className="mt-0.5 text-2xs text-muted-foreground">{step.linkHint}</p>}
+          {step.linkHint && (
+            <p className="mt-0.5 text-2xs text-muted-foreground">
+              <InlineRichText text={step.linkHint} />
+            </p>
+          )}
           <Input id="booking-reference" type="url" inputMode="url" placeholder="https://" className="mt-2 h-11" value={request.referenceUrl ?? ""} onChange={(event) => patch({ referenceUrl: event.target.value || null })} data-testid="booking-reference" />
         </div>
       )}
@@ -340,7 +363,11 @@ export function StepReview({ form, template, request, assets, omit, onEditStep }
       {(template.review.title || template.review.hint) && (
         <div>
           {template.review.title && <h2 className="text-[15px] font-semibold tracking-tight">{template.review.title}</h2>}
-          {template.review.hint && <p className="text-[13px] text-muted-foreground">{template.review.hint}</p>}
+          {template.review.hint && (
+            <p className="text-[13px] text-muted-foreground">
+              <InlineRichText text={template.review.hint} />
+            </p>
+          )}
         </div>
       )}
 

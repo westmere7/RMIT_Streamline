@@ -3,6 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileDown, History, LoaderCircle, LogIn, MessageSquareQuote, UserRound } from "lucide-react";
 import * as React from "react";
+import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -495,7 +496,11 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
               with the same one. A ticket is a number in the team's series now,
               so the team gives it, and the first place it can honestly appear is
               the receipt. */}
-          {last && template.review.submitNote && <p className="text-2xs text-muted-foreground">{template.review.submitNote}</p>}
+          {last && template.review.submitNote && (
+            <p className="text-2xs text-muted-foreground">
+              <InlineRichText text={template.review.submitNote} />
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" size="lg" onClick={back} disabled={index === 0 || busy} data-testid="booking-back">
@@ -776,7 +781,9 @@ function Receipt({
       {reply && (
         <div className="flex items-start gap-2.5 rounded-xl border border-border/60 bg-card p-4 text-[13px]" data-testid="booking-auto-reply">
           <MessageSquareQuote className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <p className="min-w-0 whitespace-pre-wrap">{reply}</p>
+          <p className="min-w-0">
+            <InlineRichText text={reply} />
+          </p>
         </div>
       )}
       {past && (past.sample ? <PastBookingsList rows={past.sample} /> : <PastBookings email={past.email} load={past.load} exclude={receipt.itemId} />)}

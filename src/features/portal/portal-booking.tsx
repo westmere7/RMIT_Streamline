@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, LoaderCircle, LogIn } from "lucide-react";
 import * as React from "react";
+import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { ErrorState } from "@/components/shared/error-state";
 import { usePageZoom, useVisitorScale, ViewControls } from "@/components/shared/view-controls";
 import { Button } from "@/components/ui/button";
@@ -125,7 +126,7 @@ export function PortalBookingScreen({
         <div className="min-w-0 flex-1 leading-tight">
           <p className="truncate text-[15px] font-semibold tracking-tight">{bookingHeaderOf(form.data?.template, portalName).title}</p>
           <p className="text-xs text-muted-foreground">
-            {bookingHeaderOf(form.data?.template, portalName).subtitle}
+            <InlineRichText text={bookingHeaderOf(form.data?.template, portalName).subtitle} />
             {account ? ` · signed in as ${account.name}` : ""}
           </p>
         </div>
