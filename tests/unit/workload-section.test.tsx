@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import * as React from "react";
 import type { DashboardFacts, TaskFact, TeamRef } from "@/features/dashboard/analytics";
+import { DrillProvider } from "@/features/dashboard/drill/drill";
 import { WorkloadSection } from "@/features/dashboard/views/workload-section";
 import type { DashboardViewProps } from "@/features/dashboard/views/types";
 
@@ -206,5 +207,51 @@ describe("the stakeholder group filter", () => {
     const danh = [...table.querySelectorAll("tbody tr")].find((r) => r.textContent?.includes("Danh"))!;
     // Two for Communications, one for Events, three in all.
     expect([...danh.querySelectorAll("td")].map((c) => c.textContent)).toEqual(["2", "1", "3"]);
+  });
+
+  it("opens the work behind a cell, the way the other panels' rows do", async () => {
+    const drill = vi.fn();
+    inProvider(
+      <DrillProvider value={drill}>
+        <WorkloadSection {...groupedProps()} />
+      </DrillProvider>,
+    );
+    const table = screen.getByTestId("dashboard-workload-matrix").querySelector("table")!;
+    const danh = [...table.querySelectorAll("tbody tr")].find((r) => r.textContent?.includes("Danh"))!;
+    const [comm, events, total] = [...danh.querySelectorAll("td")] as HTMLElement[];
+    const ids = () => (drill.mock.lastCall![0].tasks as TaskFact[]).map((t) => t.id).sort();
+
+    await userEvent.click(comm!);
+    expect(drill.mock.lastCall![0].title).toBe("Danh Nguyen");
+    expect(drill.mock.lastCall![0].subtitle).toContain("Comm.");
+    expect(ids()).toEqual(["comm-late", "comm-soon"]);
+    await userEvent.click(events!);
+    expect(ids()).toEqual(["events-one"]);
+    await userEvent.click(total!);
+    expect(ids()).toEqual(["comm-late", "comm-soon", "events-one"]);
+    // From the keyboard too.
+    total!.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(drill).toHaveBeenCalledTimes(4);
+  });
+
+  it("opens nothing behind a dash, and nothing without a pop-up to open", async () => {
+    const drill = vi.fn();
+    inProvider(
+      <DrillProvider value={drill}>
+        <WorkloadSection {...groupedProps()} />
+      </DrillProvider>,
+    );
+    const table = screen.getByTestId("dashboard-workload-matrix").querySelector("table")!;
+    const emily = [...table.querySelectorAll("tbody tr")].find((r) => r.textContent?.includes("Emily"))!;
+    const events = [...emily.querySelectorAll("td")][1] as HTMLElement;
+    expect(events.getAttribute("role")).toBeNull();
+    await userEvent.click(events);
+    expect(drill).not.toHaveBeenCalled();
+  });
+
+  it("leaves the cells plain where the dashboard has no pop-up (a shared link)", () => {
+    inProvider(<WorkloadSection {...groupedProps()} />);
+    expect(screen.getByTestId("dashboard-workload-matrix").querySelectorAll('[role="button"]')).toHaveLength(0);
   });
 });

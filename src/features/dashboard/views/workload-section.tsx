@@ -10,7 +10,7 @@ import { formatHours, type User } from "@/domain";
 import { ChartTooltip, formatCount, useSize } from "@/features/dashboard/charts/chart-utils";
 import { useRevealed } from "@/features/dashboard/charts/motion";
 import { DashLink } from "@/features/dashboard/components/dash-link";
-import { assignedWorkload, departmentHex, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
+import { assignedWorkload, departmentHex, departmentKeyOf, workloadDepartments, workloadForDepartment, MEASURE_LABELS, MEASURE_UNITS, type DepartmentLoadOption, type MeasureKind, type WorkloadRow } from "@/features/dashboard/metrics";
 import { Panel } from "@/features/dashboard/panels";
 import { cn } from "@/lib/utils";
 import { amountOfTasks, useDrill, workloadTasks } from "@/features/dashboard/drill/drill";
@@ -327,7 +327,29 @@ export function WorkloadSection({ facts, prefs, set, today, measure, valueOf, li
 
     {/* The exact figures, person by department, in a card of its own. */}
     <div className="grid gap-3">
-      {showMatrix && <DepartmentMatrix rows={measuredPeople} groups={measuredGroups} users={facts.users} measure={measure} format={format} personHref={personHref} onPickGroup={(stakeholderGroup) => set({ stakeholderGroup })} />}
+      {showMatrix && (
+        <DepartmentMatrix
+          rows={measuredPeople}
+          groups={measuredGroups}
+          users={facts.users}
+          measure={measure}
+          format={format}
+          personHref={personHref}
+          onPickGroup={(stakeholderGroup) => set({ stakeholderGroup })}
+          // A cell opens the work behind it: that person's open work in the window, for that department (or those).
+          onOpen={
+            drill
+              ? (row, keys, label) => {
+                  const tasks = workloadTasks(facts, today, prefs.teamIds, prefs.weeks, row.userId).filter((task) => {
+                    const key = departmentKeyOf(task);
+                    return key !== null && keys.has(key);
+                  });
+                  drill({ title: row.name, subtitle: `Open work due within ${prefs.weeks} weeks, late or undated · ${label}`, tasks, amount: amountOfTasks(tasks, measure, valueOf) });
+                }
+              : undefined
+          }
+        />
+      )}
     </div>
     </>
   );
@@ -393,9 +415,12 @@ function DepartmentMatrix({
   format,
   personHref,
   onPickGroup,
+  onOpen,
 }: {
   rows: WorkloadRow[];
   groups: DepartmentLoadOption[];
+  /** Opens the tasks behind a cell: a person, the departments it counts, and how to name them. */
+  onOpen?: (row: WorkloadRow, keys: ReadonlySet<string>, label: string) => void;
   users: Map<string, User>;
   measure: MeasureKind;
   format: (value: number) => string;
@@ -505,11 +530,29 @@ function DepartmentMatrix({
                         format={format}
                         onHover={() => readout.setOver({ row, group })}
                         tint={value > 0 ? { color: departmentHex(group.name), share: value / hottest } : undefined}
+                        onOpen={onOpen ? () => onOpen(row, new Set([group.key]), group.name) : undefined}
+                        label={`${row.name} · ${group.name}`}
                       />
                     );
                   })}
-                  {rest.length > 0 && <Cell value={other} format={format} onHover={() => readout.setOver({ row, group: null })} />}
-                  <Cell value={total} format={format} strong last onHover={() => readout.setOver({ row, group: null })} />
+                  {rest.length > 0 && (
+                    <Cell
+                      value={other}
+                      format={format}
+                      onHover={() => readout.setOver({ row, group: null })}
+                      onOpen={onOpen ? () => onOpen(row, restKeys, rest.map((g) => g.name).join(", ")) : undefined}
+                      label={`${row.name} · ${rest.length} more departments`}
+                    />
+                  )}
+                  <Cell
+                    value={total}
+                    format={format}
+                    strong
+                    last
+                    onHover={() => readout.setOver({ row, group: null })}
+                    onOpen={onOpen ? () => onOpen(row, new Set(groups.map((g) => g.key)), "Every department") : undefined}
+                    label={`${row.name} · every department`}
+                  />
                 </tr>
               );
             })}
@@ -590,7 +633,13 @@ function Cell({
   tint,
   format = formatCount,
   onHover,
+  onOpen,
+  label,
 }: {
+  /** Opens the tasks behind the figure, like the other panels' rows; only where there is a figure. */
+  onOpen?: () => void;
+  /** What the cell is, for a screen reader, when it opens something. */
+  label?: string;
   value: number;
   strong?: boolean;
   tone?: "urgent";
@@ -601,6 +650,8 @@ function Cell({
   onHover?: () => void;
 }) {
   const revealed = useRevealed();
+  // Nothing to open behind a dash.
+  const opens = !!onOpen && value > 0;
   const background = tint
     ? `color-mix(in oklab, ${tint.color} ${Math.round(12 + Math.min(1, tint.share) * 45)}%, transparent)`
     : share !== undefined && share > 0
@@ -608,8 +659,22 @@ function Cell({
       : undefined;
   return (
     <td
-      className={cn("relative py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive")}
+      className={cn("relative py-1.5 text-right tabular", !last && "pr-3", strong ? "font-medium" : "text-muted-foreground", tone === "urgent" && value > 0 && "text-destructive", opens && "cursor-pointer hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring")}
       onMouseEnter={onHover}
+      onClick={opens ? onOpen : undefined}
+      onKeyDown={
+        opens
+          ? (event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              onOpen();
+            }
+          : undefined
+      }
+      role={opens ? "button" : undefined}
+      tabIndex={opens ? 0 : undefined}
+      aria-label={opens && label ? `${label}: ${format(value)}` : undefined}
+      data-testid={opens ? "dashboard-matrix-cell" : undefined}
     >
       {background && <span aria-hidden className="pointer-events-none absolute inset-y-px right-1 left-0 rounded-sm transition-[background,opacity] duration-700 ease-kinetic motion-reduce:transition-none" style={{ background, opacity: revealed ? 1 : 0 }} />}
       <span className="relative">{value === 0 ? <span className="text-muted-foreground/50">—</span> : format(value)}</span>

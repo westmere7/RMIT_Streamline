@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.158.1",
+    date: "2026-11-23",
+    title: "Per person, per department opens its tasks",
+    changes: ["On the dashboard, each figure in Per person, per department opens the tasks behind it, like the other panels."],
+  },
+  {
     version: "0.158.0",
     date: "2026-11-23",
     title: "Internal portal on Portal and Booking; teams in both portals",
