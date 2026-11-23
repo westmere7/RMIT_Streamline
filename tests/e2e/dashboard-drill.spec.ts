@@ -36,7 +36,7 @@ test.describe("dashboard task lists", () => {
     await expect(rows).toHaveCount(listed);
   });
 
-  test("the year's activity: a day opens the tasks finished on it, and Started counts new work", async ({ page }) => {
+  test("the year's days: a day opens the tasks started on it, and a month on the chart lights its days", async ({ page }) => {
     const panel = page.getByTestId("dashboard-activity");
     await panel.scrollIntoViewIfNeeded({ timeout: 30_000 });
     await expect(panel.getByTestId("dashboard-activity-day").first()).toBeAttached();
@@ -45,7 +45,7 @@ test.describe("dashboard task lists", () => {
     expect(count).toBeGreaterThan(0);
     await busy.click();
     const dialog = page.getByRole("dialog");
-    await expect(dialog).toContainText(`${count} ${count === 1 ? "task" : "tasks"} finished`);
+    await expect(dialog).toContainText(`${count} ${count === 1 ? "task" : "tasks"} started`);
     await expect(dialog.getByTestId("dashboard-task-list-row")).toHaveCount(count);
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
@@ -61,9 +61,9 @@ test.describe("dashboard task lists", () => {
     expect(Math.abs(chartBox!.width - heatBox!.width)).toBeLessThan(1.5);
     await page.mouse.move(0, 0);
 
-    // Started: the same calendar counting the tasks made each day.
-    await panel.getByTestId("dashboard-activity-started").click();
-    await expect(panel.getByTestId("dashboard-activity-started")).toHaveAttribute("aria-checked", "true");
-    await expect(panel).toContainText("started");
+    // The days count started work only: no switch, and nothing about finished work.
+    await expect(panel.getByRole("radiogroup")).toHaveCount(0);
+    await expect(panel.getByTestId("dashboard-activity-total")).toContainText("started");
+    await expect(panel).not.toContainText("finished");
   });
 });

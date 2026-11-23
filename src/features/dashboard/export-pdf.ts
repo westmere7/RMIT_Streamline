@@ -777,7 +777,7 @@ export function reportSections(props: DashboardViewProps): Section[] {
   const basisLine = `${prefs.basis === "created" ? "Requested" : "Scheduled"} in ${period.label}`;
   // The year day by day, counted as the panel counts it, over the months the chart draws.
   const activityWindow = activityRange(Number(period.current.from.slice(0, 4)), monthly.length ? monthly.map((row) => row.month) : [1, 12]);
-  const activity = activityCalendar(facts, { ...activityWindow, today, teamIds: prefs.teamIds, kind: prefs.activityKind ?? "finished" });
+  const activity = activityCalendar(facts, { ...activityWindow, today, teamIds: prefs.teamIds, kind: "started" });
 
   // Work types: the team's profile, and each of the busiest people split across it.
   const workTypeSections: Section[] = [];

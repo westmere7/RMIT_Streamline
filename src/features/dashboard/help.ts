@@ -155,10 +155,10 @@ export const DASHBOARD_HELP: Record<HelpTopic, PanelHelpText> = {
     act: "Click a size for its tasks. When small requests dominate, batch them or route them to a template; when No size is long, set sizes when work is allocated.",
   },
   activity: {
-    shows: "The year day by day: a square for each day, a column for each week, darker the more work was finished (or started) that day.",
+    shows: "The year day by day: a square for each day, a column for each week, darker the more new work was started that day.",
     counted:
-      "Finished is tasks that moved to Done that day; started is tasks made that day. Each day's card also counts the deliverables ticked off. The shades step up by quarters of the days that had any work, so one very busy day does not wash the rest out. The year is the one the dashboard is set to, else the last twelve months.",
-    read: "Steady colour week after week is a team in rhythm. Pale stretches are holidays, waits or a pipeline running dry; a few very dark days are work landing in batches, which usually means reviews or sign-offs are bunching.",
-    act: "Click a day to see what was finished on it. Use the pale stretches to plan around known quiet periods, and when work lands in batches, look at where it waits before it is signed off.",
+      "Each day counts the tasks made that day. The shades step up by quarters of the days that had any, so one very busy day does not wash the rest out. The days are those of the months the chart above shows.",
+    read: "Steady colour week after week is a steady flow of requests. Pale stretches are holidays or quiet periods; a few very dark days are work arriving in batches, often around campaign launches or the start of a semester.",
+    act: "Click a day to see what was started on it. Plan around the quiet stretches, and when work arrives in batches, agree earlier request dates with the people who send it.",
   },
 };

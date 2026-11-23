@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ACTIVITY_HEX, ACTIVITY_KINDS, ACTIVITY_SHADES, activityCalendar, activityCount, activityLevel, activityRange, type ActivityDay, type ActivityKind } from "@/features/dashboard/activity";
+import { ACTIVITY_HEX, ACTIVITY_SHADES, activityCalendar, activityCount, activityLevel, activityRange, type ActivityDay, type ActivityKind } from "@/features/dashboard/activity";
 import { ChartTooltip, formatCount, useSize } from "@/features/dashboard/charts/chart-utils";
 import { PanelHelp } from "@/features/dashboard/components/panel-help";
 import type { ChartGeometry } from "@/features/dashboard/components/year-comparison";
@@ -30,7 +30,6 @@ const weekdayOf = (date: string) => (new Date(`${date}T12:00:00Z`).getUTCDay() +
 export function ActivityCalendar({
   facts,
   prefs,
-  set,
   today,
   measure,
   valueOf,
@@ -44,7 +43,8 @@ export function ActivityCalendar({
   highlightMonth: number | null;
 }) {
   const drill = useDrill();
-  const kind: ActivityKind = prefs.activityKind ?? "finished";
+  // The days count new work: the tasks started on each.
+  const kind: ActivityKind = "started";
   const year = Number(report.period.current.from.slice(0, 4));
   const months = React.useMemo(() => geometry?.months ?? Array.from({ length: 12 }, (_, i) => i + 1), [geometry?.months]);
   const range = activityRange(year, months);
@@ -73,9 +73,9 @@ export function ActivityCalendar({
   const cell = Math.max(2, step - Math.max(1.5, step * 0.18));
   const height = TOP + 7 * step;
 
-  const verb = kind === "finished" ? "finished" : "started";
+  const verb = "started";
   const open = (day: ActivityDay) => {
-    const tasks = kind === "finished" ? day.finished : day.started;
+    const tasks = day.started;
     if (!drill || tasks.length === 0) return;
     drill({ title: `${plural(tasks.length, "task")} ${verb}`, subtitle: longDate(day.date), tasks, amount: amountOfTasks(tasks, measure, valueOf) });
   };
@@ -152,12 +152,10 @@ export function ActivityCalendar({
               <p className="text-muted-foreground">Not yet</p>
             ) : (
               <>
-                <p className={cn(kind === "finished" ? "font-medium" : "text-muted-foreground")}>{plural(hover.day.finished.length, "task")} finished</p>
-                <p className={cn(kind === "started" ? "font-medium" : "text-muted-foreground")}>{plural(hover.day.started.length, "task")} started</p>
-                {hover.day.deliverables > 0 && <p className="text-muted-foreground">{plural(hover.day.deliverables, "deliverable")} ticked off</p>}
+                <p className="font-medium">{plural(hover.day.started.length, "task")} started</p>
                 {/* Names only where the tasks can be opened: a shared link carries none. */}
                 {drill &&
-                  (kind === "finished" ? hover.day.finished : hover.day.started).slice(0, 3).map((task) => (
+                  hover.day.started.slice(0, 3).map((task) => (
                     <p key={task.id} className="mt-0.5 truncate text-2xs text-muted-foreground">
                       · {task.name || "Private task"}
                     </p>
@@ -171,21 +169,6 @@ export function ActivityCalendar({
 
       {/* The days' own line: what each square counts, its figures and its scale. */}
       <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs" data-testid="dashboard-activity-summary">
-        <div role="radiogroup" aria-label="Each day counts" className="inline-flex items-center rounded-full border border-border/70 p-0.5">
-          {ACTIVITY_KINDS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={kind === option.value}
-              onClick={() => set({ activityKind: option.value })}
-              className={cn("h-9 rounded-full px-3 text-2xs font-medium transition-colors sm:h-7 sm:px-2.5", kind === option.value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
-              data-testid={`dashboard-activity-${option.value}`}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
         <Stat value={formatCount(calendar.total)} label={`${calendar.total === 1 ? "task" : "tasks"} ${verb}${prefs.teamIds ? " · selected teams" : ""}`} testId="dashboard-activity-total" />
         <Stat value={formatCount(calendar.activeDays)} label={calendar.activeDays === 1 ? "active day" : "active days"} />
         {calendar.busiest && <Stat value={formatCount(calendar.busiest.count)} label={`on the busiest day, ${longDate(calendar.busiest.date)}`} />}

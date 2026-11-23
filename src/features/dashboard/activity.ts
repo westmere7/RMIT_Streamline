@@ -15,11 +15,6 @@ import { addDays } from "./metrics";
  */
 export type ActivityKind = "finished" | "started";
 
-export const ACTIVITY_KINDS: ReadonlyArray<{ value: ActivityKind; label: string }> = [
-  { value: "finished", label: "Finished" },
-  { value: "started", label: "Started" },
-];
-
 /** Each kind in its own colour: finished work green, new work the brand red. */
 export const ACTIVITY_HEX: Record<ActivityKind, string> = { finished: "#10b981", started: "#e61e2a" };
 /** How much of the colour each level carries, from nothing to the busiest quarter. */

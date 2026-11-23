@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.159.1",
+    date: "2026-11-23",
+    title: "The days count started work",
+    changes: ["The dashboard's days count the tasks started each day only; the Finished choice is gone, here and in the PDF."],
+  },
+  {
     version: "0.159.0",
     date: "2026-11-23",
     title: "The year day by day",

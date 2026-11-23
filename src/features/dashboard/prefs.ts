@@ -1,6 +1,5 @@
 "use client";
 
-import type { ActivityKind } from "./activity";
 import * as React from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -44,8 +43,6 @@ export interface DashboardPrefs {
    * no longer holds work for is ignored rather than emptying the panel.
    */
   stakeholderGroup: string | null;
-  /** What the year's activity calendar counts per day: tasks finished, or tasks started. */
-  activityKind: ActivityKind;
 }
 
 export const DEFAULT_PREFS: DashboardPrefs = {
@@ -66,7 +63,6 @@ export const DEFAULT_PREFS: DashboardPrefs = {
   teamIds: null,
   weeks: 4,
   stakeholderGroup: null,
-  activityKind: "finished",
 };
 
 interface PrefsStore {
