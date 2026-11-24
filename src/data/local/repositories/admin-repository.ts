@@ -47,6 +47,31 @@ export class LocalAdminRepository implements DataAdminRepository {
       .map((v) => v.boardId);
   }
 
+  async listBoardsWithNewItems(userId: string, workspaceId: string): Promise<string[]> {
+    const db = await this.conn.getDb();
+    const visits = await db.getAllFromIndex("boardVisits", "byUser", userId);
+    const out: string[] = [];
+    for (const visit of visits) {
+      const board = await db.get("boards", visit.boardId);
+      if (!board || board.workspaceId !== workspaceId || board.archivedAt) continue;
+      const arrivals = (await db.getAllFromIndex("activities", "byBoard", visit.boardId)).filter(
+        (a) =>
+          a.createdAt > visit.visitedAt &&
+          a.actorId !== userId &&
+          a.itemId &&
+          (a.eventType === "ITEM_CREATED" || (a.eventType === "ITEM_MOVED" && !!(a.metadata as Record<string, unknown> | null)?.from)),
+      );
+      for (const arrival of arrivals) {
+        const item = await db.get("items", arrival.itemId!);
+        if (item && item.boardId === visit.boardId && !item.archivedAt && !item.parentItemId) {
+          out.push(visit.boardId);
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
   async exportAll(): Promise<DataExport> {
     const db = await this.conn.getDb();
     const stores: Record<string, unknown[]> = {};

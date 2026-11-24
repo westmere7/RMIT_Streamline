@@ -432,3 +432,62 @@ test("a change made the moment the board opens is not lost while the page connec
   await opening;
   await expect(row(name)).toBeVisible(LIVE);
 });
+
+// ---- the new-tasks dot (v0.163.0) -------------------------------------------------
+
+/** The dot on the board's count on its team's page, where every board of the team is listed. */
+async function onTeamPage() {
+  const b = ok(await service().from("boards").select("team_id").eq("id", board.id).single(), "board's team");
+  await emily.goto(`/workspace/rmit/teams/${b.team_id}`);
+  const link = emily.locator(`main a[href*="/boards/${board.slug}"]`).first();
+  await expect(link).toBeVisible({ timeout: 60_000 });
+  return link;
+}
+/** Danh puts a task on the board the way the app does: the row, then its line in the log. */
+async function danhAdds(name: string, boardId = board.id, groupId = board.groupId) {
+  const task = ok(await danh.from("items").insert({ board_id: boardId, group_id: groupId, name, position: -10, created_by: ids.danh }).select("id").single(), "add");
+  ok(await danh.from("activities").insert({ workspace_id: workspaceId, board_id: boardId, item_id: task.id, actor_id: ids.danh, event_type: "ITEM_CREATED", metadata: { itemName: name } }), "log add");
+  return task.id as string;
+}
+const flagged = async (client: SupabaseClient) => ok(await client.rpc("boards_with_new_items", { p_workspace_id: workspaceId }), "boards_with_new_items") as string[];
+
+test("a task a teammate adds while I am away puts a dot on the board's count; opening the board clears it", async () => {
+  await onBoard();
+  const link = await onTeamPage(); // leaving the board counts as having seen it
+  await expect(link.getByTestId("board-new-items")).toHaveCount(0, LIVE);
+  await danhAdds(`Live dot ${RUN}`);
+  await expect(link.getByTestId("board-new-items")).toBeVisible(LIVE);
+  await link.click();
+  await expect(emily.getByTestId("board-table").first()).toBeVisible({ timeout: 60_000 });
+  const back = await onTeamPage();
+  await expect(back.getByTestId("board-new-items")).toHaveCount(0, LIVE);
+});
+
+test("a task moved in from another board earns the dot; my own tasks and moves between groups do not", async () => {
+  const me = await as("emily@rmit.local");
+  await onBoard();
+  const link = await onTeamPage();
+  await expect.poll(async () => (await flagged(me)).includes(board.id), LIVE).toBe(false);
+
+  // Mine: no dot.
+  const mine = ok(await me.from("items").insert({ board_id: board.id, group_id: board.groupId, name: `Live mine ${RUN}`, position: -11, created_by: ids.emily }).select("id").single(), "my add");
+  ok(await me.from("activities").insert({ workspace_id: workspaceId, board_id: board.id, item_id: mine.id, actor_id: ids.emily, event_type: "ITEM_CREATED", metadata: {} }), "log my add");
+  // Danh moves one of the board's own tasks between groups: no dot.
+  ok(await danh.from("activities").insert({ workspace_id: workspaceId, board_id: board.id, item_id: item.id, actor_id: ids.danh, event_type: "ITEM_MOVED", metadata: { itemName: item.name, fromGroupName: "A", toGroupName: "B" } }), "log group move");
+  expect(await flagged(me)).not.toContain(board.id);
+
+  // Danh moves a task here from another board: dot.
+  const other = ok(await service().from("boards").select("id").eq("workspace_id", workspaceId).neq("id", board.id).is("archived_at", null).is("system", null).limit(1).single(), "other board");
+  const otherGroup = ok(await service().from("board_groups").select("id").eq("board_id", other.id).limit(1).single(), "other board's group");
+  const moving = await danhAdds(`Live moved ${RUN}`, other.id, otherGroup.id);
+  ok(await danh.from("items").update({ board_id: board.id, group_id: board.groupId }).eq("id", moving), "move");
+  ok(await danh.from("activities").insert({ workspace_id: workspaceId, board_id: board.id, item_id: moving, actor_id: ids.danh, event_type: "ITEM_MOVED", metadata: { itemName: "x", from: "Other", to: "This" } }), "log move");
+  await expect(link.getByTestId("board-new-items")).toBeVisible(LIVE);
+  expect(await flagged(me)).toContain(board.id);
+});
+
+test("only signed-in people can ask which boards have new tasks", async () => {
+  const anon = createClient(URL_, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } });
+  const { error } = await anon.rpc("boards_with_new_items", { p_workspace_id: workspaceId });
+  expect(error?.message ?? "").toMatch(/permission denied/i);
+});

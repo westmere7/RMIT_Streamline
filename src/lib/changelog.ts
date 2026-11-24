@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.163.0",
+    date: "2026-11-24",
+    title: "A dot for new tasks",
+    changes: [
+      "A board's task count shows a small dot when someone else has added, moved or allocated tasks to it since you last opened it. Opening the board clears it.",
+    ],
+  },
+  {
     version: "0.162.0",
     date: "2026-11-24",
     title: "More of the app keeps itself up to date",

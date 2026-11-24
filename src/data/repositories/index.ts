@@ -796,6 +796,12 @@ export interface DataAdminRepository {
   /** Replaces one view's settings on the board for this person, leaving the other views' alone. */
   saveBoardViewSettings(userId: EntityId, boardId: EntityId, view: BoardViewKind, settings: Record<string, unknown>): Promise<void>;
   listRecentBoardIds(userId: EntityId, limit: number): Promise<EntityId[]>;
+  /**
+   * Boards in the workspace where a task arrived (made, moved or allocated
+   * there) by someone else since this person last opened the board, and is
+   * still on it. Boards never opened are left out.
+   */
+  listBoardsWithNewItems(userId: EntityId, workspaceId: EntityId): Promise<EntityId[]>;
   /** Serialises every store so the state can be moved to another browser. */
   exportAll(): Promise<DataExport>;
   /** Replaces every store with the contents of a previous export. */

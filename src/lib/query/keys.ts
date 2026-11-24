@@ -48,6 +48,7 @@ export const queryKeys = {
   boardArchiveCount: (boardId: string) => ["board-archive-count", boardId] as const,
   /** Tasks on a board now, for the sidebar's badge. */
   boardItemCount: (boardId: string) => ["board-item-count", boardId] as const,
+  boardsWithNewItems: (workspaceId: string) => ["boards-new-items", workspaceId] as const,
   boardGroups: (boardId: string) => ["board-groups", boardId] as const,
   boardColumns: (boardId: string) => ["board-columns", boardId] as const,
   boardItems: (boardId: string) => ["board-items", boardId] as const,

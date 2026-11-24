@@ -104,7 +104,8 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
         filter: `event_type=in.(${COUNT_EVENTS.join(",")})`,
         insertsOnly: true,
         accept: (row) => row.workspace_id === workspaceId,
-        keys: [["board-item-count"]],
+        // The new-tasks dots too: a task made, moved or allocated somewhere.
+        keys: [["board-item-count"], ["boards-new-items"]],
       },
     ],
     [workspaceId],

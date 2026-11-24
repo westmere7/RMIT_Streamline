@@ -396,6 +396,7 @@ export function createMemoryRepositories(
       getBoardViewSettings: async () => ({}),
       saveBoardViewSettings: async () => undefined,
       listRecentBoardIds: async () => [],
+      listBoardsWithNewItems: async () => [],
       exportAll: readOnly("exporting data"),
       importAll: readOnly("importing data"),
     },
