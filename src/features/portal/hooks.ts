@@ -55,6 +55,16 @@ export function usePortalOverview() {
   });
 }
 
+/**
+ * Whether the booking form is taking requests right now (its own switch on
+ * Portal and Booking): what earns a form the Live badge. Null while unknown.
+ */
+export function useBookingFormLive(): boolean | null {
+  const overview = usePortalOverview();
+  if (overview.data === undefined) return null;
+  return overview.data?.portal.allowBooking ?? false;
+}
+
 export function usePortalMutations() {
   const ws = useWorkspace();
   const services = useServices();

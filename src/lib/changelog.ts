@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.162.0",
+    date: "2026-11-24",
+    title: "More of the app keeps itself up to date",
+    changes: [
+      "Shared saved views, pinned updates and Gantt baselines a teammate sets now show without a refresh.",
+      "The internal portal follows changes to its tasks as they happen.",
+      "A change made just as you open a page is no longer missed until the next one.",
+      "The published booking form shows a small Live badge while the form is taking requests.",
+      "A sheet that holds a task's assets names the task at the end of the sheet tabs instead of in a strip of its own, so the grid gets a row back. Hovering the tab shows the task too.",
+      "Each sheet tab has a ⋮ menu with everything right-click offers.",
+    ],
+  },
+  {
     version: "0.161.1",
     date: "2026-11-23",
     title: "Every quick click stays put",

@@ -20,7 +20,7 @@ export function useWorkspaceActivity(workspaceId: string, limit = 20) {
     () => (workspaceId ? [{ table: "activities", filter: `workspace_id=eq.${workspaceId}`, keys: [queryKeys.workspaceActivity(workspaceId)] }] : []),
     [workspaceId],
   );
-  useRealtime(workspaceId ? `workspace-activity:${workspaceId}` : null, bindings, { coalesceMs: 2_000, minIntervalMs: 10_000 });
+  useRealtime(workspaceId ? `workspace-activity:${workspaceId}` : null, bindings, { coalesceMs: 2_000, minIntervalMs: 10_000, catchUp: { workspaceId } });
   return useQuery({
     queryKey: [...queryKeys.workspaceActivity(workspaceId), limit],
     queryFn: () => services.repos.activities.listByWorkspace(workspaceId, limit),

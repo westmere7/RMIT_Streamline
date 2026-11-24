@@ -20,7 +20,9 @@ import { Label } from "@/components/ui/label";
 import type { BookingFormPublication, BookingFormSchedule, BookingFormTemplate } from "@/domain";
 import { MAX_BOOKING_TEMPLATE_NAME, defaultBookingFormTemplate, templateQuestionCount } from "@/domain";
 import { PersonChip } from "@/features/members/person-chip";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { LiveBadge } from "@/components/shared/live-badge";
+import { useBookingFormLive } from "@/features/portal/hooks";
 
 /** What is known about the form stakeholders are being served. */
 export interface PublishedFormInfo {
@@ -109,6 +111,7 @@ export function PublishedFormCard({ info, waitingFor, onOpen }: { info: Publishe
   const when = info.publishedAt ? new Date(info.publishedAt) : null;
   const title = info.name ?? (info.builtIn ? "Built-in form" : "Published form");
   const waiting = !!waitingFor;
+  const live = useBookingFormLive();
   return (
     <FormCardShell
       label={`Open the ${waiting ? "default" : "published"} form, ${title}`}
@@ -116,7 +119,10 @@ export function PublishedFormCard({ info, waitingFor, onOpen }: { info: Publishe
       className={waiting ? "border-dashed border-border/70 bg-transparent hover:bg-surface/50" : "border-border/70 bg-surface/50 hover:bg-surface"}
       testId="booking-published-form"
     >
-      <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">{waiting ? "Default form" : "Published form"}</p>
+      <p className="flex items-center gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
+        {waiting ? "Default form" : "Published form"}
+        {!waiting && live && <LiveBadge />}
+      </p>
       <p className={cn("mt-0.5 truncate font-medium", waiting ? "text-xs text-muted-foreground" : "text-[13px]")} title={title} data-testid="booking-published-name">
         {title}
       </p>
@@ -159,12 +165,16 @@ export function PublishedFormCard({ info, waitingFor, onOpen }: { info: Publishe
 /** A scheduled form whose days are running: the form people book through right now, shown as the main one. */
 export function ScheduledFormCard({ schedule, today, onOpen }: { schedule: BookingFormSchedule; today: string; onOpen: () => void }) {
   const left = differenceInCalendarDays(parseISO(schedule.endsOn), parseISO(today)) + 1;
+  const live = useBookingFormLive();
   const days =
     schedule.startsOn === schedule.endsOn ? format(parseISO(schedule.startsOn), "d MMM") : `${format(parseISO(schedule.startsOn), "d MMM")} – ${format(parseISO(schedule.endsOn), "d MMM yyyy")}`;
   return (
     <FormCardShell label={`Open the scheduled form, ${schedule.name}`} onOpen={onOpen} className="border-border/70 bg-surface/50 hover:bg-surface" testId="booking-scheduled-form">
       <p className="flex items-center justify-between gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
-        Published form
+        <span className="flex items-center gap-2">
+          Published form
+          {live && <LiveBadge />}
+        </span>
         <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 font-medium tracking-normal normal-case text-emerald-700 dark:text-emerald-300" data-testid="booking-scheduled-badge">
           Scheduled · {left === 1 ? "last day" : `${left} days left`}
         </span>

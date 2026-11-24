@@ -108,7 +108,7 @@ export function useDashboardRealtime(workspaceId: string | null): void {
       { table: "workspace_lists", filter: `workspace_id=eq.${workspaceId}`, keys },
     ];
   }, [workspaceId, checks]);
-  useRealtime(workspaceId ? `dashboard:${workspaceId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
+  useRealtime(workspaceId ? `dashboard:${workspaceId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS, catchUp: { workspaceId } });
 }
 
 /** The workspace dashboard's link and the mutations that shape it. */

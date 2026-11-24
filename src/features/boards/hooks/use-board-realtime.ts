@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { queryKeys } from "@/lib/query/keys";
 import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
+import { useWorkspaceOptional } from "@/features/workspace/workspace-context";
 
 /** One write often produces several row events; refetch once for the burst. */
 const COALESCE_MS = 400;
@@ -55,6 +56,13 @@ export function useBoardRealtime(boardId: string | null): void {
       { table: "comments", keys: [["comments"]] },
       { table: "comment_reactions", keys: [["comments"]] },
       { table: "comment_checks", keys: [["comments"]] },
+      // A pin moves an update to the top of the thread (and onto the overview).
+      { table: "comment_pins", keys: [["comments"]] },
+      // Views a teammate saves and shares, in the board's views menu; RLS
+      // sends nobody else's unshared ones (0154).
+      { table: "board_saved_views", filter: board, keys: [["saved-views", boardId]], catchUp: "refetch" },
+      // The plan somebody fixes for the Gantt to measure slips against (0154).
+      { table: "item_baselines", filter: board, keys: [["baseline", boardId]], catchUp: "refetch" },
       { table: "item_assets", filter: board, keys: [["item-assets"], snapshot] },
       { table: "item_links", keys: [["item-links"], snapshot], accept: checks.inWorkspace },
       { table: "activities", filter: board, keys: [["activity"]] },
@@ -63,5 +71,7 @@ export function useBoardRealtime(boardId: string | null): void {
 
   // A floor under the reads as well as the coalescing: a burst of deletions
   // (a workspace deleted elsewhere, an inbox cleared) arrives unfiltered.
-  useRealtime(boardId ? `board:${boardId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: 1_000 });
+  // Opening, ask whether the workspace changed while the board was being read (catchUp).
+  const workspaceId = useWorkspaceOptional()?.workspace.id ?? null;
+  useRealtime(boardId ? `board:${boardId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: 1_000, catchUp: { workspaceId } });
 }

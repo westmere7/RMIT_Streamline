@@ -15,10 +15,12 @@ import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
  */
 function fakeChannel() {
   const listeners: Array<{ event: string; table: string; filter?: string; run: () => void }> = [];
+  const system: Array<(payload: unknown) => void> = [];
   let onStatus: ((status: string) => void) | null = null;
   const channel = {
-    on(_kind: string, config: { event: string; table: string; filter?: string }, run: () => void) {
-      listeners.push({ event: config.event, table: config.table, filter: config.filter, run });
+    on(kind: string, config: { event: string; table: string; filter?: string }, run: (payload?: unknown) => void) {
+      if (kind === "system") system.push(run);
+      else listeners.push({ event: config.event, table: config.table, filter: config.filter, run });
       return channel;
     },
     subscribe(handler?: (status: string) => void) {
@@ -38,12 +40,18 @@ function fakeChannel() {
     reconnect() {
       onStatus?.("SUBSCRIBED");
     },
+    /** The server's word that the database feed behind the channel is up. */
+    ready(extension = "postgres_changes") {
+      for (const run of system) run({ extension, status: "ok", message: "Subscribed to PostgreSQL" });
+    },
   };
 }
 
 let provider: "supabase" | "local" = "supabase";
 let live = fakeChannel();
 const removeChannel = vi.fn();
+/** workspace_changed_within: what the database says, per test. */
+const rpc = vi.fn(async (_fn: string, _args: Record<string, unknown>): Promise<{ data: unknown; error: unknown }> => ({ data: false, error: null }));
 /** The Supabase channel names asked for, in order. */
 const opened: string[] = [];
 
@@ -58,6 +66,7 @@ vi.mock("@/lib/supabase/client", () => ({
       return live.channel;
     },
     removeChannel: (...args: unknown[]) => removeChannel(...args),
+    rpc: (fn: string, args: Record<string, unknown>) => rpc(fn, args),
   }),
 }));
 
@@ -259,5 +268,128 @@ describe("a realtime subscription", () => {
     act(() => release());
     act(() => void vi.advanceTimersByTime(500));
     expect(refetched(invalidate)).toEqual(['["item-assets"]']);
+  });
+
+});
+
+/**
+ * Catching up when the channel first comes up (v0.161.2): a page reads its
+ * data, then joins its channel a moment later, and a change committed in
+ * between reached nobody until the next one.
+ */
+describe("catching up when a channel comes up", () => {
+  /** A subscription whose page has already read `key` (or not). */
+  function opened(bindings: RealtimeBinding[], options: Parameters<typeof useRealtime>[2], read: Array<readonly unknown[]>) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    for (const key of read) client.setQueryData(key, { read: true });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+    const wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+    renderHook(() => useRealtime(`catch-up-${(channelNo += 1)}`, bindings, options), { wrapper });
+    return invalidate;
+  }
+
+  beforeEach(() => rpc.mockClear());
+
+  /** The feed comes up, the database answers (a promise), then the coalescing timer. */
+  const settle = async () => {
+    act(() => live.ready());
+    await act(async () => undefined);
+    await act(async () => void vi.advanceTimersByTime(500));
+  };
+
+  it("reads light data again once, without asking the database", async () => {
+    const invalidate = opened([{ table: "docs", keys: [["doc", "d1"]] }], undefined, [["doc", "d1"]]);
+    await settle();
+    expect(refetched(invalidate)).toEqual(['["doc","d1"]']);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("leaves alone what the page has not read yet", async () => {
+    const invalidate = opened([{ table: "docs", keys: [["doc", "d1"]] }], undefined, []);
+    await settle();
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("asks whether the workspace changed, and reads the board again only if it did", async () => {
+    rpc.mockResolvedValueOnce({ data: true, error: null });
+    const changed = opened([{ table: "items", keys: [["board-snapshot", "b1"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b1"]]);
+    await settle();
+    expect(rpc).toHaveBeenCalledWith("workspace_changed_within", expect.objectContaining({ p_workspace_id: "ws1" }));
+    expect((rpc.mock.calls[0]![1] as { p_seconds: number }).p_seconds).toBeGreaterThan(0);
+    expect(refetched(changed)).toEqual(['["board-snapshot","b1"]']);
+
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    const quiet = opened([{ table: "items", keys: [["board-snapshot", "b2"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b2"]]);
+    await settle();
+    expect(quiet).not.toHaveBeenCalled();
+  });
+
+  it("reads again when the question cannot be answered: a missed change costs more than one read", async () => {
+    rpc.mockResolvedValueOnce({ data: null, error: { message: "offline" } });
+    const invalidate = opened([{ table: "items", keys: [["board-snapshot", "b3"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b3"]]);
+    await settle();
+    expect(refetched(invalidate)).toEqual(['["board-snapshot","b3"]']);
+  });
+
+  it("mixes the three: probed, read again, and left alone, per binding", async () => {
+    rpc.mockResolvedValueOnce({ data: false, error: null });
+    const invalidate = opened(
+      [
+        { table: "items", keys: [["board-snapshot", "b4"]] },
+        { table: "notifications", keys: [["notifications", "u1"]], catchUp: "refetch" },
+        { table: "workspace_members", keys: [["workspace-members"]], catchUp: "none" },
+      ],
+      { catchUp: { workspaceId: "ws1" } },
+      [["board-snapshot", "b4"], ["notifications", "u1"], ["workspace-members"]],
+    );
+    await settle();
+    expect(refetched(invalidate)).toEqual(['["notifications","u1"]']);
+  });
+
+  it("catches up only the first time: a later reconnect re-reads everything, as before", async () => {
+    rpc.mockResolvedValue({ data: false, error: null });
+    const invalidate = opened([{ table: "items", keys: [["board-snapshot", "b5"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b5"]]);
+    await settle();
+    expect(invalidate).not.toHaveBeenCalled();
+    act(() => live.reconnect());
+    await settle();
+    expect(refetched(invalidate)).toEqual(['["board-snapshot","b5"]']);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    rpc.mockReset();
+    rpc.mockImplementation(async () => ({ data: false, error: null }));
+  });
+
+  it("waits for the database feed, not the channel joining: a change in between is still caught", async () => {
+    rpc.mockResolvedValueOnce({ data: true, error: null });
+    const invalidate = opened([{ table: "items", keys: [["board-snapshot", "b6"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b6"]]);
+    // Joined, feed not up yet: nothing asked.
+    await act(async () => void vi.advanceTimersByTime(1_000));
+    expect(rpc).not.toHaveBeenCalled();
+    await settle();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(refetched(invalidate)).toEqual(['["board-snapshot","b6"]']);
+    // Only the first word counts.
+    act(() => live.ready());
+    await act(async () => void vi.advanceTimersByTime(5_000));
+    expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes ahead after a few seconds when the feed never says, and again if it says later", async () => {
+    rpc.mockResolvedValue({ data: false, error: null });
+    opened([{ table: "items", keys: [["board-snapshot", "b7"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b7"]]);
+    await act(async () => void vi.advanceTimersByTime(2_900));
+    expect(rpc).not.toHaveBeenCalled();
+    await act(async () => void vi.advanceTimersByTime(200));
+    expect(rpc).toHaveBeenCalledTimes(1);
+    await settle();
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores other system messages", async () => {
+    rpc.mockResolvedValue({ data: false, error: null });
+    opened([{ table: "items", keys: [["board-snapshot", "b8"]] }], { catchUp: { workspaceId: "ws1" } }, [["board-snapshot", "b8"]]);
+    act(() => live.ready("system"));
+    await act(async () => void vi.advanceTimersByTime(1_000));
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

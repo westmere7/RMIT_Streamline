@@ -44,6 +44,19 @@ export interface RealtimeBinding {
    * deletion on the table.
    */
   insertsOnly?: boolean;
+  /**
+   * What to do, when the channel first comes up, about data this page read
+   * before it was listening (a change committed in that gap reached nobody):
+   * - "probe": ask the database whether the workspace changed since
+   *   (`workspace_changed_within`, one tiny call) and read again only if so.
+   *   For tables whose writes bump the workspace revision (boards, items,
+   *   values, updates, assets, links, teams, profiles, activity) when the
+   *   channel names its workspace (`options.catchUp`).
+   * - "refetch": read again. For light queries the revision does not follow.
+   * - "none": leave it; the next change reads anyway.
+   * Defaults to "probe" when the channel names a workspace, else "refetch".
+   */
+  catchUp?: "probe" | "refetch" | "none";
 }
 
 export interface RealtimeOptions {
@@ -55,9 +68,15 @@ export interface RealtimeOptions {
    * board being worked on looks like. Leave it off for small reads.
    */
   minIntervalMs?: number;
+  /** The workspace whose revision a "probe" catch-up asks about (see RealtimeBinding.catchUp). */
+  catchUp?: { workspaceId: string | null };
 }
 
 const DEFAULT_COALESCE_MS = 400;
+/** Added to the time since the page read, for the read's own trip and the commit's. */
+const CATCH_UP_MARGIN_S = 3;
+/** How long the catch-up waits for the database feed to say it is up before going ahead. */
+const CATCH_UP_FALLBACK_MS = 3_000;
 
 /**
  * Live channels, by the topic they were opened under.
@@ -104,6 +123,7 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
   const { providerKind } = useDataContext();
   const queryClient = useQueryClient();
   const { coalesceMs = DEFAULT_COALESCE_MS, minIntervalMs = 0 } = options;
+  const catchUpWorkspaceId = options.catchUp?.workspaceId ?? null;
 
   // What the subscription is, rather than which array described it: the effect
   // re-runs when a table, a filter or a key changes, and not when a caller
@@ -142,6 +162,7 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
     let everSubscribed = false;
     // Set while a re-read waits for this browser's own saves to land (write-holds).
     let awaitingRelease: (() => void) | null = null;
+    let closed = false;
 
     const flush = () => {
       timer = null;
@@ -220,10 +241,71 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
       const keys = [...merged.values()];
       subscription.on("postgres_changes", { event: "DELETE", schema: "public", table }, () => schedule(keys));
     }
+    // The data on screen was read before this channel was listening; anything
+    // committed in between would otherwise wait for the next change to show.
+    const catchUp = async () => {
+      const listening = Date.now();
+      const cache = queryClient.getQueryCache();
+      // Read (or being read) before the channel was up: the oldest such read.
+      const readBefore = (key: readonly unknown[]) => {
+        let oldest: number | null = null;
+        for (const query of cache.findAll({ queryKey: key })) {
+          const { dataUpdatedAt, fetchStatus } = query.state;
+          if (fetchStatus === "fetching") oldest = Math.min(oldest ?? listening, listening);
+          else if (dataUpdatedAt > 0 && dataUpdatedAt <= listening) oldest = Math.min(oldest ?? dataUpdatedAt, dataUpdatedAt);
+        }
+        return oldest;
+      };
+      const refetch = new Map<string, readonly unknown[]>();
+      const probe = new Map<string, readonly unknown[]>();
+      let oldest = listening;
+      for (const binding of latest.current) {
+        const mode = binding.catchUp ?? (catchUpWorkspaceId ? "probe" : "refetch");
+        if (mode === "none") continue;
+        for (const key of binding.keys) {
+          const at = readBefore(key);
+          if (at === null) continue;
+          if (mode === "probe" && catchUpWorkspaceId) {
+            probe.set(JSON.stringify(key), key);
+            oldest = Math.min(oldest, at);
+          } else refetch.set(JSON.stringify(key), key);
+        }
+      }
+      if (refetch.size) schedule([...refetch.values()]);
+      if (!probe.size || !catchUpWorkspaceId) return;
+      const seconds = (Date.now() - oldest) / 1000 + CATCH_UP_MARGIN_S;
+      const { data, error } = await supabase.rpc("workspace_changed_within", { p_workspace_id: catchUpWorkspaceId, p_seconds: seconds });
+      // Not sure is read again: a missed change costs more than one read.
+      if (closed) return;
+      if (error || data === true) schedule([...probe.values()]);
+    };
+
+    // `SUBSCRIBED` is the channel joining; the database feed behind it starts a
+    // moment later, and says so in a system message. A change committed in
+    // between reaches nobody (seen with a board just opened: a rename a second
+    // after the board drew never arrived), so the catch-up waits for that
+    // message, or for CATCH_UP_FALLBACK_MS when it does not come, and runs again
+    // if it comes after all.
+    let fallback: ReturnType<typeof setTimeout> | null = null;
+    let caughtUpOnReady = false;
+    subscription.on("system", {}, (payload: { extension?: string; status?: string }) => {
+      if (payload?.extension !== "postgres_changes" || caughtUpOnReady || closed) return;
+      caughtUpOnReady = true;
+      if (fallback) clearTimeout(fallback);
+      fallback = null;
+      void catchUp();
+    });
+
     subscription.subscribe((status) => {
       if (status !== "SUBSCRIBED") return;
       if (!everSubscribed) {
         everSubscribed = true;
+        if (!caughtUpOnReady) {
+          fallback = setTimeout(() => {
+            fallback = null;
+            if (!closed) void catchUp();
+          }, CATCH_UP_FALLBACK_MS);
+        }
         return;
       }
       // Back after a drop — a laptop lid, a lost network, a sleeping tab. Read
@@ -237,7 +319,9 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
       refs: 1,
       closing: null,
       close: () => {
+        closed = true;
         if (timer) clearTimeout(timer);
+        if (fallback) clearTimeout(fallback);
         awaitingRelease?.();
         awaitingRelease = null;
         pending.clear();
@@ -247,7 +331,7 @@ export function useRealtime(channel: string | null, bindings: readonly RealtimeB
     return () => release(topic);
     // `signature` stands in for `bindings`: same tables, same filters, same keys, same subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel, providerKind, queryClient, signature, coalesceMs, minIntervalMs]);
+  }, [channel, providerKind, queryClient, signature, coalesceMs, minIntervalMs, catchUpWorkspaceId]);
 }
 
 /**

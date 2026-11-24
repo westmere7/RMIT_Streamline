@@ -61,7 +61,8 @@ import { canUseInternalPortal } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
+import type { DepartmentOverview } from "@/services/stakeholder-portal-service";
+import { LiveBadge } from "@/components/shared/live-badge";
 
 /**
  * The management side of the portal.
@@ -205,7 +206,7 @@ function PortalCard({ portal, rows, columns, hasPassword, readOnly }: { portal: 
             testId: "portal-allow-booking",
           }}
         >
-          <PublishedFormSummary booked={readOnly ? null : booked} />
+          <PublishedFormSummary booked={readOnly ? null : booked} live={portal.allowBooking} />
         </LinkTile>
       </div>
 
@@ -439,7 +440,7 @@ const OVER_TILE_LINK = "relative pointer-events-none [&_a]:pointer-events-auto [
  * live, and how many requests the portal has taken. The same read as the editor's Published form card, and
  * the same cache, so opening Edit form costs nothing more.
  */
-function PublishedFormSummary({ booked }: { booked: number | null }) {
+function PublishedFormSummary({ booked, live }: { booked: number | null; live: boolean }) {
   const ws = useWorkspace();
   const services = useServices();
   const form = useQuery({
@@ -456,7 +457,10 @@ function PublishedFormSummary({ booked }: { booked: number | null }) {
   const serviceCount = template?.services.length ?? 0;
   return (
     <div className="min-w-0">
-      <p className="mb-1.5 text-2xs font-medium tracking-wide text-muted-foreground uppercase">Current published form</p>
+      <p className="mb-1.5 flex items-center gap-2 text-2xs font-medium tracking-wide text-muted-foreground uppercase">
+        Current published form
+        {live && <LiveBadge />}
+      </p>
       <div className="min-w-0 rounded-lg border border-border/60 px-3 py-2" data-testid="portal-booking-form-summary">
         <p className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium">
           <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />

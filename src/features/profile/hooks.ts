@@ -64,11 +64,12 @@ export function useProfileRealtime(userId: string | null): void {
       { table: "item_assets", keys, accept: checks.onBoard },
       { table: "board_groups", keys, accept: checks.onBoard },
       { table: "profiles", filter: `id=eq.${userId}`, keys },
-      { table: "workspace_members", filter: `user_id=eq.${userId}`, keys },
-      { table: "team_members", filter: `user_id=eq.${userId}`, keys },
+      // Not in the workspace revision; rare enough to leave to the next change.
+      { table: "workspace_members", filter: `user_id=eq.${userId}`, keys, catchUp: "none" },
+      { table: "team_members", filter: `user_id=eq.${userId}`, keys, catchUp: "none" },
     ];
   }, [workspaceId, userId, checks]);
-  useRealtime(userId ? `profile:${workspaceId}:${userId}` : null, bindings, { coalesceMs: 1_500, minIntervalMs: 5_000 });
+  useRealtime(userId ? `profile:${workspaceId}:${userId}` : null, bindings, { coalesceMs: 1_500, minIntervalMs: 5_000, catchUp: { workspaceId } });
 }
 
 type ProfilePatch = Partial<

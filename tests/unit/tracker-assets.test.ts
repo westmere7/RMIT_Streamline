@@ -430,5 +430,5 @@ describe("an asset sheet in Excel", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({ name: "Tile", assetType: "Social post", quantity: 4, assigneeIds: people.map((p) => p.id), dueDate: "2026-11-02", done: true });
     setTrackerPeople([]);
-  });
+  }, 30_000); // A full workbook round trip through ExcelJS: seconds on a busy machine.
 });

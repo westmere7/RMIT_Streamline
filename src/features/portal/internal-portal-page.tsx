@@ -20,6 +20,8 @@ import { PortalHeader, PortalRangePicker } from "@/features/portal/portal-shell"
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { canUseInternalPortal, canViewBoard } from "@/lib/permissions/permissions";
+import { useWorkspaceRowChecks } from "@/lib/realtime/in-workspace";
+import { useRealtime, type RealtimeBinding } from "@/lib/realtime/use-realtime";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -57,11 +59,27 @@ export function InternalPortalPage() {
     queryKey,
     queryFn: () => services.portals.internalBoard({ workspaceId: ws.workspace.id, boards, scope: { stakeholderId, teamId, range }, viewerName: auth.user?.displayName ?? null }),
     enabled: allowed,
-    // Read when opened, on coming back to the tab and after a task is closed: no polling.
+    // Read when opened, on coming back to the tab, after a task is closed, and
+    // when a teammate changes a task on one of its boards (below): no polling.
     staleTime: 30_000,
     refetchOnWindowFocus: true,
     placeholderData: (previous) => previous,
   });
+
+  // A teammate's change to any task on these boards shows without a reload.
+  // The page reads every board, so a busy minute is one read every 15 s at most.
+  const checks = useWorkspaceRowChecks();
+  const liveBindings = React.useMemo<RealtimeBinding[]>(() => {
+    const keys = [["internal-portal", ws.workspace.id]];
+    return [
+      { table: "items", keys, accept: checks.onBoard },
+      { table: "item_column_values", keys, accept: checks.onBoard },
+      { table: "item_links", keys, accept: checks.inWorkspace },
+      { table: "board_groups", keys, accept: checks.onBoard },
+      { table: "board_columns", keys, accept: checks.onBoard },
+    ];
+  }, [ws.workspace.id, checks]);
+  useRealtime(allowed ? `internal-portal:${ws.workspace.id}` : null, liveBindings, { coalesceMs: 2_000, minIntervalMs: 15_000, catchUp: { workspaceId: ws.workspace.id } });
 
   const replaceParams = React.useCallback(
     (patch: Record<string, string | null>) => {

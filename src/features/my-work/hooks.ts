@@ -59,7 +59,7 @@ export function useMyAssets(workspaceId: string, userId: string, enabled: boolea
       { table: "items", keys, accept: checks.onBoard },
     ];
   }, [workspaceId, userId, checks]);
-  useRealtime(enabled && workspaceId && userId ? `my-assets:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
+  useRealtime(enabled && workspaceId && userId ? `my-assets:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS, catchUp: { workspaceId } });
   return useQuery({
     queryKey: queryKeys.myAssets(workspaceId, userId),
     queryFn: () => services.myWork.listAssignedAssets(workspaceId, userId),
@@ -85,7 +85,7 @@ export function useMyStarred(workspaceId: string, userId: string, enabled: boole
       { table: "items", keys, accept: checks.onBoard },
     ];
   }, [workspaceId, userId, checks]);
-  useRealtime(enabled && workspaceId && userId ? `my-starred:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
+  useRealtime(enabled && workspaceId && userId ? `my-starred:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS, catchUp: { workspaceId } });
   return useQuery({
     queryKey: queryKeys.myStarred(workspaceId, userId),
     queryFn: () => services.myWork.listStarred(workspaceId, userId),
@@ -163,5 +163,5 @@ function useMyWorkRealtime(workspaceId: string, userId: string): void {
       { table: "boards", filter: `workspace_id=eq.${workspaceId}`, keys },
     ];
   }, [workspaceId, userId, checks]);
-  useRealtime(workspaceId && userId ? `my-work:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS });
+  useRealtime(workspaceId && userId ? `my-work:${workspaceId}:${userId}` : null, bindings, { coalesceMs: COALESCE_MS, minIntervalMs: MIN_REFETCH_MS, catchUp: { workspaceId } });
 }

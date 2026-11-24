@@ -48,8 +48,9 @@ export function useItemLinks(itemId: string | null) {
  * changes go to the mapping too: "syncs 8 fields · 2 not on that board" is
  * counted from the two boards' columns, so adding one on either side changes it.
  */
-function useItemLinksRealtime(itemId: string | null): void {
+function useItemLinksRealtime(itemId: string | null): void {
   const checks = useWorkspaceRowChecks();
+  const workspaceId = useWorkspace().workspace.id;
   const bindings = React.useMemo<RealtimeBinding[]>(() => {
     if (!itemId) return [];
     const links = [queryKeys.itemLinks(itemId)];
@@ -64,7 +65,7 @@ function useItemLinksRealtime(itemId: string | null): void {
       { table: "board_columns", keys: [...links, ["link-mapping"]], accept: checks.onBoard },
     ];
   }, [itemId, checks]);
-  useRealtime(itemId ? `item-links:${itemId}` : null, bindings, { coalesceMs: COALESCE_MS });
+  useRealtime(itemId ? `item-links:${itemId}` : null, bindings, { coalesceMs: COALESCE_MS, catchUp: { workspaceId } });
 }
 
 /** Items on other boards matching `query`; an empty query lists recent items so the dialog is never blank. */

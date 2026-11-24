@@ -2,7 +2,7 @@
 
 import { NoAccessState, UnavailableState } from "@/features/workspace/unavailable-state";
 import { canSeeTeamId } from "@/lib/permissions/permissions";
-import { ArrowLeft, ArrowLeftToLine, ArrowRightToLine, Check, ChevronDown, Copy, CopyPlus, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, Package, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { ArrowLeft, ArrowLeftToLine, ArrowRightToLine, Check, ChevronDown, Copy, CopyPlus, FileDown, FileSpreadsheet, FileUp, Loader2, MoreHorizontal, MoreVertical, Package, Pencil, Plus, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -19,11 +19,9 @@ import { assignAssetRole, isMappingUsable, suggestAssetMapping, type AssetRole, 
 import { exportSheetToCsv, exportTrackerToFile, useSheetAssetMutations, useTracker, useTrackerMutations, useTrackerRealtime, useTrackerSheets } from "@/features/trackers/hooks";
 import { DeleteTrackerDialog, KeepAssetsSwitch, useLinkedTaskNames } from "@/features/trackers/delete-tracker-dialog";
 import { SheetEditorProvider, useSheetEditorContext } from "@/features/trackers/sheet-editor-context";
-import { MenuSheet } from "@/components/layout/menu-sheet";
 import { TrackerGrid } from "@/features/trackers/tracker-grid";
-import { ColumnFitPrompt, LinkedSheetBar, TaskAssetsDialog, fitCheckFor, useLinkedTask, useTrackerPeopleDirectory, type FitCheck } from "@/features/trackers/tracker-asset-ui";
+import { ColumnFitPrompt, LinkedSheetBar, LinkedTaskTip, TaskAssetsDialog, fitCheckFor, useLinkedTask, useTrackerPeopleDirectory, type FitCheck } from "@/features/trackers/tracker-asset-ui";
 import { useWorkspace } from "@/features/workspace/workspace-context";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { canEditTrackers } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
@@ -270,9 +268,15 @@ export function TrackerPage() {
           </div>
         </header>
 
-        <SheetTabs sheets={sheets.data ?? []} activeId={activeSheet?.id ?? null} trackerId={t.id} canEdit={canEdit} onSelect={selectSheet} onTaskAssets={() => setAssetsOpen(true)} />
-
-        {activeSheet?.itemId && <LinkedSheetBar sheet={activeSheet} onSettings={canEditSheet ? () => setAssetsOpen(true) : null} />}
+        <SheetTabs
+          sheets={sheets.data ?? []}
+          activeId={activeSheet?.id ?? null}
+          trackerId={t.id}
+          canEdit={canEdit}
+          onSelect={selectSheet}
+          onTaskAssets={() => setAssetsOpen(true)}
+          task={activeSheet?.itemId ? <LinkedSheetBar sheet={activeSheet} onSettings={canEditSheet ? () => setAssetsOpen(true) : null} /> : null}
+        />
 
         <ActiveGrid canEdit={canEditSheet} onAssetRole={canEditSheet ? pickAssetRole : undefined} />
 
@@ -363,49 +367,29 @@ function SaveIndicator({ state }: { state: "idle" | "pending" | "saving" | "erro
 }
 
 /**
- * The active sheet's own actions, for a phone.
- *
- * On a desktop these live on a double-click (rename) and a right-click (the
- * rest). Neither exists on a touch screen, so below md the same three actions
- * get a button and a sheet. Rendered only there; the desktop tab strip is
- * unchanged.
- */
-function MobileSheetActions({ sheet, canDelete, onRename, onDuplicate, onDelete }: { sheet: TrackerSheet; canDelete: boolean; onRename: () => void; onDuplicate: () => void; onDelete: () => void }) {
-  const isMobile = useIsMobile();
-  const [open, setOpen] = React.useState(false);
-  if (!isMobile) return null;
-  return (
-    <>
-      <button
-        type="button"
-        aria-label={`Actions for ${sheet.name}`}
-        onClick={() => setOpen(true)}
-        className="mb-1 ml-auto flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent/70"
-        data-testid="mobile-sheet-actions"
-      >
-        <MoreHorizontal className="size-4" />
-      </button>
-      <MenuSheet
-        open={open}
-        onOpenChange={setOpen}
-        title={sheet.name}
-        actions={[
-          { type: "item", label: "Rename sheet", onSelect: onRename },
-          { type: "item", label: "Duplicate sheet", onSelect: onDuplicate },
-          { type: "separator" },
-          { type: "item", label: "Delete sheet", destructive: true, disabled: !canDelete, onSelect: onDelete },
-        ]}
-      />
-    </>
-  );
-}
-
-/**
  * Excel-style sheet tabs: click to switch, double-click to rename, drag to
  * reorder, right-click for the rest. A sheet holding a task's assets carries a
- * small box beside its name.
+ * small box beside its name, and its task sits at the end of the row (`task`):
+ * the tabs then take at most two thirds of it and scroll, so the task's name
+ * always has room.
  */
-function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect, onTaskAssets }: { sheets: TrackerSheet[]; activeId: string | null; trackerId: string; canEdit: boolean; onSelect: (id: string) => void; onTaskAssets: () => void }) {
+function SheetTabs({
+  sheets,
+  activeId,
+  trackerId,
+  canEdit,
+  onSelect,
+  onTaskAssets,
+  task,
+}: {
+  sheets: TrackerSheet[];
+  activeId: string | null;
+  trackerId: string;
+  canEdit: boolean;
+  onSelect: (id: string) => void;
+  onTaskAssets: () => void;
+  task: React.ReactNode;
+}) {
   const mutations = useTrackerMutations();
   const [renamingId, setRenamingId] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState<TrackerSheet | null>(null);
@@ -413,7 +397,6 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect, onTaskAsset
   const deletingTask = useLinkedTaskNames(deleting ? [deleting] : []);
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [dropAt, setDropAt] = React.useState<number | null>(null);
-  const activeSheet = sheets.find((sheet) => sheet.id === activeId) ?? null;
 
   const add = (layout: "campaign" | "blank" | "copy") => {
     const name = `Sheet ${sheets.length + 1}`;
@@ -432,134 +415,158 @@ function SheetTabs({ sheets, activeId, trackerId, canEdit, onSelect, onTaskAsset
   };
 
   return (
-    <div role="tablist" aria-label="Sheets" className="scrollbar-none flex items-end gap-0.5 overflow-x-auto overscroll-x-contain border-b px-6 max-md:px-3" data-testid="sheet-tabs">
-      {sheets.map((sheet, index) => {
-        const active = sheet.id === activeId;
-        const className = cn(
-          "relative -mb-px flex h-10 max-w-56 shrink-0 items-center gap-1.5 border-b-2 px-3 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring max-md:h-12",
-          active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
-          dropAt === index && dragId && "before:absolute before:inset-y-2 before:-left-px before:w-0.5 before:rounded before:bg-primary",
-          dragId === sheet.id && "opacity-50",
-        );
-        // While renaming, the field stands in for the tab: an input inside a
-        // button would hand its keys and clicks to the button.
-        if (renamingId === sheet.id) {
-          return (
-            <div key={sheet.id} className={className}>
-              <InlineEdit
-                value={sheet.name}
-                editing
-                onEditingChange={(editing) => !editing && setRenamingId(null)}
-                onSubmit={(name) => mutations.renameSheet.mutate({ sheetId: sheet.id, name })}
-                ariaLabel="Sheet name"
-                inputClassName="h-7 w-40 text-[13px]"
-              />
-            </div>
+    <div className="flex items-end gap-4 border-b px-6 max-md:gap-2 max-md:px-3">
+      <div role="tablist" aria-label="Sheets" className={cn("scrollbar-none flex min-w-0 items-end gap-0.5 overflow-x-auto overscroll-x-contain", task && "max-w-2/3 shrink-0")} data-testid="sheet-tabs">
+        {sheets.map((sheet, index) => {
+          const active = sheet.id === activeId;
+          const className = cn(
+            "relative -mb-px flex h-10 max-w-56 shrink-0 items-center gap-0.5 border-b-2 px-3 text-[13px] font-medium transition-colors max-md:h-12",
+            active ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+            dropAt === index && dragId && "before:absolute before:inset-y-2 before:-left-px before:w-0.5 before:rounded before:bg-primary",
+            dragId === sheet.id && "opacity-50",
           );
-        }
-        const tab = (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onSelect(sheet.id)}
-            onDoubleClick={() => canEdit && setRenamingId(sheet.id)}
-            draggable={canEdit && sheets.length > 1}
-            onDragStart={(e) => {
-              setDragId(sheet.id);
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", sheet.name);
-            }}
-            onDragOver={(e) => {
-              if (!dragId) return;
-              e.preventDefault();
-              const box = e.currentTarget.getBoundingClientRect();
-              setDropAt(e.clientX < box.left + box.width / 2 ? index : index + 1);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (dropAt !== null) drop(dropAt);
-            }}
-            onDragEnd={() => {
-              setDragId(null);
-              setDropAt(null);
-            }}
-            className={className}
-            data-testid="sheet-tab"
-          >
-            {sheet.itemId && <Package className="size-3.5 shrink-0 text-primary" aria-label="Holds a task's assets" />}
-            <span className="truncate">{sheet.name}</span>
-          </button>
-        );
-        if (!canEdit) return <React.Fragment key={sheet.id}>{tab}</React.Fragment>;
-        return (
-          <ContextMenu key={sheet.id}>
-            <ContextMenuTrigger asChild>{tab}</ContextMenuTrigger>
-            <ContextMenuContent className="w-52" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <ContextMenuItem onSelect={() => setRenamingId(sheet.id)}>
+          // While renaming, the field stands in for the tab: an input inside a
+          // button would hand its keys and clicks to the button.
+          if (renamingId === sheet.id) {
+            return (
+              <div key={sheet.id} className={className}>
+                <InlineEdit
+                  value={sheet.name}
+                  editing
+                  onEditingChange={(editing) => !editing && setRenamingId(null)}
+                  onSubmit={(name) => mutations.renameSheet.mutate({ sheetId: sheet.id, name })}
+                  ariaLabel="Sheet name"
+                  inputClassName="h-7 w-40 text-[13px]"
+                />
+              </div>
+            );
+          }
+          // The sheet's menu, shared by right-click and the ⋮ on the tab.
+          const menu = (Item: typeof DropdownMenuItem, Separator: typeof DropdownMenuSeparator) => (
+            <>
+              <Item onSelect={() => setRenamingId(sheet.id)}>
                 <Pencil /> Rename sheet
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => duplicate(sheet, "duplicate")}>
+              </Item>
+              <Item onSelect={() => duplicate(sheet, "duplicate")}>
                 <CopyPlus /> Duplicate sheet
-              </ContextMenuItem>
-              <ContextMenuItem onSelect={() => duplicate(sheet, "copy")}>
+              </Item>
+              <Item onSelect={() => duplicate(sheet, "copy")}>
                 <Copy /> Duplicate layout only
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem disabled={index === 0} onSelect={() => mutations.moveSheet.mutate({ sheetId: sheet.id, delta: -1 })}>
+              </Item>
+              <Separator />
+              <Item disabled={index === 0} onSelect={() => mutations.moveSheet.mutate({ sheetId: sheet.id, delta: -1 })}>
                 <ArrowLeftToLine /> Move left
-              </ContextMenuItem>
-              <ContextMenuItem disabled={index === sheets.length - 1} onSelect={() => mutations.moveSheet.mutate({ sheetId: sheet.id, delta: 1 })}>
+              </Item>
+              <Item disabled={index === sheets.length - 1} onSelect={() => mutations.moveSheet.mutate({ sheetId: sheet.id, delta: 1 })}>
                 <ArrowRightToLine /> Move right
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem
+              </Item>
+              <Separator />
+              <Item
                 onSelect={() => {
                   onSelect(sheet.id);
                   onTaskAssets();
                 }}
               >
                 <Package /> {sheet.itemId ? "Task assets…" : "Use for a task…"}
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-              <ContextMenuItem variant="destructive" disabled={sheets.length <= 1} onSelect={() => setDeleting(sheet)}>
+              </Item>
+              <Separator />
+              <Item variant="destructive" disabled={sheets.length <= 1} onSelect={() => setDeleting(sheet)}>
                 <Trash2 /> Delete sheet
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-        );
-      })}
-      {canEdit && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Add sheet"
-              className="mb-1 ml-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground max-md:size-11"
-              data-testid="add-sheet"
-            >
-              <Plus className="size-4" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Add sheet</DropdownMenuLabel>
-            <DropdownMenuItem onSelect={() => add("campaign")}>Campaign asset layout</DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => add("copy")} disabled={!activeId}>
-              Same columns as this sheet
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => add("blank")}>Blank grid</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
-      {canEdit && activeSheet && (
-        <MobileSheetActions
-          sheet={activeSheet}
-          canDelete={sheets.length > 1}
-          onRename={() => setRenamingId(activeSheet.id)}
-          onDuplicate={() => duplicate(activeSheet, "duplicate")}
-          onDelete={() => setDeleting(activeSheet)}
-        />
-      )}
+              </Item>
+            </>
+          );
+          const tab = (
+            <div role="presentation" className={cn(className, "group/tab px-0")}>
+              <LinkedTaskTip sheet={sheet}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onSelect(sheet.id)}
+                  onDoubleClick={() => canEdit && setRenamingId(sheet.id)}
+                  draggable={canEdit && sheets.length > 1}
+                  onDragStart={(e) => {
+                    setDragId(sheet.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", sheet.name);
+                  }}
+                  onDragOver={(e) => {
+                    if (!dragId) return;
+                    e.preventDefault();
+                    const box = e.currentTarget.getBoundingClientRect();
+                    setDropAt(e.clientX < box.left + box.width / 2 ? index : index + 1);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dropAt !== null) drop(dropAt);
+                  }}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setDropAt(null);
+                  }}
+                  className={cn("flex h-full min-w-0 items-center gap-1.5 rounded-sm pl-3 focus-visible:outline-2 focus-visible:outline-ring", canEdit ? "pr-1" : "pr-3")}
+                  data-testid="sheet-tab"
+                >
+                  {sheet.itemId && <Package className="size-3.5 shrink-0 text-primary" aria-label="Holds a task's assets" />}
+                  <span className="truncate">{sheet.name}</span>
+                </button>
+              </LinkedTaskTip>
+              {canEdit && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`Options for ${sheet.name}`}
+                      className={cn(
+                        "mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:size-9",
+                        !active && "opacity-0 group-hover/tab:opacity-100 max-md:hidden",
+                      )}
+                      data-testid="sheet-tab-menu"
+                    >
+                      <MoreVertical className="size-3.5" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-52" onCloseAutoFocus={(e) => e.preventDefault()}>
+                    {menu(DropdownMenuItem, DropdownMenuSeparator)}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+          );
+          if (!canEdit) return <React.Fragment key={sheet.id}>{tab}</React.Fragment>;
+          return (
+            <ContextMenu key={sheet.id}>
+              <ContextMenuTrigger asChild>{tab}</ContextMenuTrigger>
+              <ContextMenuContent className="w-52" onCloseAutoFocus={(e) => e.preventDefault()}>
+                {menu(ContextMenuItem as unknown as typeof DropdownMenuItem, ContextMenuSeparator as unknown as typeof DropdownMenuSeparator)}
+              </ContextMenuContent>
+            </ContextMenu>
+          );
+        })}
+        {canEdit && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Add sheet"
+                className="mb-1 ml-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground max-md:size-11"
+                data-testid="add-sheet"
+              >
+                <Plus className="size-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuLabel>Add sheet</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => add("campaign")}>Campaign asset layout</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => add("copy")} disabled={!activeId}>
+                Same columns as this sheet
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => add("blank")}>Blank grid</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+      {task && <div className="ml-auto flex min-w-0 justify-end">{task}</div>}
       <ConfirmDialog
         open={deleting !== null}
         onOpenChange={(open) => {

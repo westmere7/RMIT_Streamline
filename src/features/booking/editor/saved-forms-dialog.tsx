@@ -13,6 +13,8 @@ import type { BookingFormSchedule, BookingFormTemplate, BookingTemplate } from "
 import { activeSchedule, scheduleDatesProblem, scheduleToday, templateQuestionCount, upcomingSchedules } from "@/domain";
 import { normaliseBookingTemplate } from "@/services/booking";
 import { cn } from "@/lib/utils";
+import { LiveBadge } from "@/components/shared/live-badge";
+import { useBookingFormLive } from "@/features/portal/hooks";
 
 /** What the dialog asks of the page. Each resolves once the change is saved, or throws with the reason. */
 export interface SavedFormsActions {
@@ -73,6 +75,8 @@ export function SavedFormsDialog({
   const [scheduling, setScheduling] = React.useState<string | null>(null);
   const [changing, setChanging] = React.useState<string | null>(null);
   const defaultName = defaultForm.name ?? "Default form";
+  // The booking form taking requests: what turns "published" into Live.
+  const bookingOpen = useBookingFormLive();
 
   const run = async (work: () => Promise<void>, done: string) => {
     try {
@@ -95,7 +99,10 @@ export function SavedFormsDialog({
         <div className="scrollbar-thin -mx-1 min-h-0 space-y-5 overflow-y-auto px-1">
           {/* What stakeholders get today, and what comes next. */}
           <div className="rounded-xl border border-border/70 bg-surface/60 px-3 py-2.5 text-[13px]" data-testid="saved-forms-now">
-            <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">Currently published</p>
+            <p className="flex items-center gap-2 text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
+              Currently published
+              {bookingOpen && <LiveBadge />}
+            </p>
             <p className="mt-0.5 font-medium">
               {running ? running.name : defaultName}
               {(running || defaultForm.name) && <span className="ml-1.5 font-normal text-muted-foreground">{running ? `until ${day(running.endsOn)}, then ${defaultName}` : "default form"}</span>}
@@ -126,7 +133,7 @@ export function SavedFormsDialog({
                             {stale && " · the saved form has changed since"}
                           </span>
                         </span>
-                        {s.id === running?.id && <StatusChip tone="live">Live</StatusChip>}
+                        {s.id === running?.id && <PublishedChip open={bookingOpen} />}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button type="button" variant="ghost" size="icon-sm" aria-label={`Options for ${s.name}`} data-testid="saved-forms-window-menu">
@@ -184,7 +191,7 @@ export function SavedFormsDialog({
                         <span className="min-w-0 flex-1">
                           <span className="flex flex-wrap items-center gap-1.5">
                             <span className="truncate text-[13px] font-medium">{t.name}</span>
-                            {live && <StatusChip tone="live">Live</StatusChip>}
+                            {live && <PublishedChip open={bookingOpen} />}
                             {planned
                               .filter((s) => s.id !== running?.id)
                               .map((s) => (
@@ -268,6 +275,11 @@ export function SavedFormsDialog({
       />
     </Dialog>
   );
+}
+
+/** The form stakeholders book through: Live while booking is on, otherwise just published. */
+function PublishedChip({ open }: { open: boolean | null }) {
+  return open ? <LiveBadge /> : <StatusChip tone="live">Published</StatusChip>;
 }
 
 function StatusChip({ tone, children }: { tone: "live" | "scheduled"; children: React.ReactNode }) {

@@ -5,7 +5,7 @@ import { restrictToParentElement } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Check, CornerDownLeft, Info, ListChecks, GripVertical, Table2, Link2, Plus, SeparatorVertical, Space, Loader2, Package, Search, Unlink, X } from "lucide-react";
+import { AlertTriangle, Check, CornerDownLeft, Info, ListChecks, GripVertical, Table2, Link2, Lock, Plus, SeparatorVertical, Settings2, Space, Loader2, Package, Search, Unlink, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -284,42 +284,81 @@ export function useLinkedTask(sheet: Pick<TrackerSheet, "id" | "itemId"> | undef
 }
 
 /**
- * The strip under the sheet tabs while a sheet holds a task's assets: which
- * task, a way there, and why the grid is read only when the viewer cannot
- * edit that task.
+ * The task a sheet holds the assets of, at the end of the sheet tabs' row
+ * (rather than a strip of its own, which cost the grid a row): which task, a
+ * way there, how many assets, a lock when the viewer cannot edit that task,
+ * and the asset settings. The name gives way first when space runs short.
  */
 export function LinkedSheetBar({ sheet, onSettings }: { sheet: TrackerSheet; onSettings: (() => void) | null }) {
   const ws = useWorkspace();
   const { item, board, loading, canEditTask } = useLinkedTask(sheet);
   if (!sheet.itemId) return null;
   const lines = sheet.assetMapping && isMappingUsable(sheet.assetMapping) ? sheetAssetLines(sheet, sheet.assetMapping).length : 0;
+  const label = item ? `${item.ticket ? `${item.ticket} · ` : ""}${item.name}` : "";
   return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b bg-primary/[0.04] px-6 py-1.5 text-[13px] max-md:px-3" data-testid="linked-sheet-bar">
-      <Package className="size-4 shrink-0 text-primary" aria-hidden />
+    <div className="flex h-10 min-w-0 items-center gap-1.5 text-[13px] max-md:h-12" data-testid="linked-sheet-bar">
+      <Package className="size-4 shrink-0 text-primary" aria-label="Assets of" />
       {loading ? (
-        <span className="text-muted-foreground">Loading the task…</span>
+        <span className="truncate text-muted-foreground">Loading the task…</span>
       ) : item && board ? (
         <>
-          <span className="min-w-0 truncate">
-            Assets of{" "}
-            <Link href={routes.board(ws.slug, board.slug, { itemId: item.id })} className="font-medium hover:underline">
-              {item.ticket ? `${item.ticket} · ` : ""}
-              {item.name}
-            </Link>{" "}
-            <span className="text-muted-foreground">on {board.name}</span>
-          </span>
-          <span className="text-muted-foreground">· {lines === 1 ? "1 asset" : `${lines} assets`}</span>
-          {!canEditTask && <span className="text-muted-foreground">· Read only: you can&rsquo;t edit that task</span>}
+          <Link
+            href={routes.board(ws.slug, board.slug, { itemId: item.id })}
+            className="min-w-0 truncate font-medium hover:underline"
+            title={`Assets of ${label} on ${board.name}`}
+          >
+            {label}
+          </Link>
+          <span className="shrink-0 text-muted-foreground max-xl:hidden">· {lines === 1 ? "1 asset" : `${lines} assets`}</span>
+          {!canEditTask && (
+            <SimpleTooltip label="Read only: you can’t edit that task">
+              <Lock className="size-3.5 shrink-0 text-muted-foreground" aria-label="Read only: you can’t edit that task" />
+            </SimpleTooltip>
+          )}
         </>
       ) : (
-        <span className="text-muted-foreground">The task this sheet held the assets of is gone.</span>
+        <span className="truncate text-muted-foreground" title="The task this sheet held the assets of is gone.">
+          Task gone
+        </span>
       )}
       {onSettings && (
-        <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={onSettings} data-testid="linked-sheet-settings">
-          Asset settings
-        </Button>
+        <SimpleTooltip label="Asset settings">
+          <Button size="icon-sm" variant="ghost" className="shrink-0 max-md:hidden" onClick={onSettings} aria-label="Asset settings" data-testid="linked-sheet-settings">
+            <Settings2 />
+          </Button>
+        </SimpleTooltip>
       )}
     </div>
+  );
+}
+
+/**
+ * Hovering a sheet tab that holds a task's assets: which task, on which board,
+ * and how many assets, the same as the end of the tabs' row says for the open
+ * sheet.
+ */
+export function LinkedTaskTip({ sheet, children }: { sheet: TrackerSheet; children: React.ReactElement }) {
+  const { item, board, loading } = useLinkedTask(sheet);
+  if (!sheet.itemId) return children;
+  const lines = sheet.assetMapping && isMappingUsable(sheet.assetMapping) ? sheetAssetLines(sheet, sheet.assetMapping).length : 0;
+  const label = loading ? (
+    "Loading the task…"
+  ) : item && board ? (
+    <span className="block max-w-72" data-testid="sheet-tab-task">
+      Assets of{" "}
+      <span className="font-medium">
+        {item.ticket ? `${item.ticket} · ` : ""}
+        {item.name}
+      </span>{" "}
+      on {board.name} · {lines === 1 ? "1 asset" : `${lines} assets`}
+    </span>
+  ) : (
+    "The task this sheet held the assets of is gone."
+  );
+  return (
+    <SimpleTooltip label={label} side="bottom">
+      {children}
+    </SimpleTooltip>
   );
 }
 

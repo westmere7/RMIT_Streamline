@@ -51,7 +51,7 @@ export function useBoardAssets(boardId: string) {
     // The panel reads the same shared lines, so it follows them too.
     keys: [queryKeys.boardAssets(boardId), ["item-assets"]],
   }));
-  useRealtime(linkedBoardIds.length > 0 ? `board-linked-assets:${boardId}:${[...linkedBoardIds].sort().join(",")}` : null, bindings);
+  useRealtime(linkedBoardIds.length > 0 ? `board-linked-assets:${boardId}:${[...linkedBoardIds].sort().join(",")}` : null, bindings, { catchUp: { workspaceId: ws.workspace.id } });
   return query;
 }
 

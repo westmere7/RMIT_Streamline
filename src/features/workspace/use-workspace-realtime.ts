@@ -37,13 +37,16 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
       { table: "workspaces", filter: `id=eq.${workspaceId}`, keys: [context, ["workspace"], queryKeys.boards(workspaceId), queryKeys.trackers(workspaceId), queryKeys.docs(workspaceId)] },
       // Someone invited, onboarded, promoted or deactivated: the people picker,
       // the members page and this reader's own permissions all change.
-      { table: "workspace_members", filter: ws, keys: [context, ["workspace-members"]] },
-      { table: "workspace_invitations", filter: ws, keys: [queryKeys.workspaceInvitations(workspaceId)] },
+      // Seats are not in the workspace revision, and re-reading the context
+      // on every page load for them is not worth it: they change a few times
+      // a month, and the next change brings them (catchUp "none").
+      { table: "workspace_members", filter: ws, keys: [context, ["workspace-members"]], catchUp: "none" },
+      { table: "workspace_invitations", filter: ws, keys: [queryKeys.workspaceInvitations(workspaceId)], catchUp: "refetch" },
       // This person's seats in every workspace, and the workspaces themselves:
       // a workspace made by an Owner (every Owner is seated in it), access given
       // elsewhere, or a rename, reach the workspace menu without a reload.
       // RLS limits the workspaces to the ones they can open.
-      { table: "workspace_members", filter: me, keys: [["user-workspaces"]] },
+      { table: "workspace_members", filter: me, keys: [["user-workspaces"]], catchUp: "none" },
       { table: "workspaces", keys: [["user-workspaces"], ["all-workspaces"]] },
       // A profile is a name and an avatar on every board, every comment and
       // every assignment. Unfiltered because a profile row is keyed by the
@@ -55,35 +58,37 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
       // Joining or leaving a team, or a board, changes which boards (and, for
       // a team kept to itself, which trackers and docs) this person may read:
       // rows they could not read before are not in hand until read again.
-      { table: "team_members", keys: [context, queryKeys.boards(workspaceId), queryKeys.trackers(workspaceId), queryKeys.docs(workspaceId)] },
-      { table: "board_members", keys: [queryKeys.boardMembersAll(workspaceId), ["board-members"], queryKeys.boards(workspaceId)] },
+      { table: "team_members", keys: [context, queryKeys.boards(workspaceId), queryKeys.trackers(workspaceId), queryKeys.docs(workspaceId)], catchUp: "none" },
+      { table: "board_members", keys: [queryKeys.boardMembersAll(workspaceId), ["board-members"], queryKeys.boards(workspaceId)], catchUp: "none" },
       { table: "boards", filter: ws, keys: [queryKeys.boards(workspaceId), context] },
-      { table: "board_favourites", filter: me, keys: [queryKeys.favourites(userId)] },
+      { table: "board_favourites", filter: me, keys: [queryKeys.favourites(userId)], catchUp: "refetch" },
       // The workspace's vocabulary: asset types, stakeholder groups. Renaming
       // one rewrites what every board and the dashboard say.
-      { table: "workspace_lists", filter: ws, keys: [queryKeys.workspaceLists(workspaceId), ["board-snapshot"], ["item-assets"]] },
+      { table: "workspace_lists", filter: ws, keys: [queryKeys.workspaceLists(workspaceId), ["board-snapshot"], ["item-assets"]], catchUp: "none" },
       // The bell, anywhere in the app rather than only on a board.
-      { table: "notifications", filter: me, keys: [queryKeys.notifications(userId)] },
-      { table: "notification_preferences", filter: me, keys: [queryKeys.notificationPreferences(userId)] },
+      { table: "notifications", filter: me, keys: [queryKeys.notifications(userId)], catchUp: "refetch" },
+      { table: "notification_preferences", filter: me, keys: [queryKeys.notificationPreferences(userId)], catchUp: "refetch" },
       // The message badge in the user menu, which is on screen everywhere; the
       // thread itself is open on one page and rides along with it.
-      { table: "direct_messages", filter: `recipient_id=eq.${userId}`, keys: [["message-thread"], ["message-threads"], ["unread-messages"]] },
+      { table: "direct_messages", filter: `recipient_id=eq.${userId}`, keys: [["message-thread"], ["message-threads"], ["unread-messages"]], catchUp: "refetch" },
       // A second filter rather than a second condition: `postgres_changes`
       // takes one comparison, and a message sent from another tab of this
       // account has to reach this one too.
-      { table: "direct_messages", filter: `sender_id=eq.${userId}`, keys: [["message-thread"], ["message-threads"], ["unread-messages"]] },
+      { table: "direct_messages", filter: `sender_id=eq.${userId}`, keys: [["message-thread"], ["message-threads"], ["unread-messages"]], catchUp: "refetch" },
       // The sidebar lists the workspace's trackers; a sheet's contents are the
       // tracker page's business, not the shell's.
-      { table: "trackers", filter: ws, keys: [queryKeys.trackers(workspaceId)] },
+      { table: "trackers", filter: ws, keys: [queryKeys.trackers(workspaceId)], catchUp: "refetch" },
       // The same for docs: the list, not what is on any one page.
-      { table: "docs", filter: ws, keys: [queryKeys.docs(workspaceId)] },
+      { table: "docs", filter: ws, keys: [queryKeys.docs(workspaceId)], catchUp: "refetch" },
       // Which updates this person has caught up on, so the unread dot on a row
       // clears in the tab they did not read it in.
-      { table: "item_reads", filter: me, keys: [queryKeys.itemReads(userId)] },
+      { table: "item_reads", filter: me, keys: [queryKeys.itemReads(userId)], catchUp: "refetch" },
     ];
   }, [workspaceId, userId]);
 
-  useRealtime(workspaceId && userId ? `workspace:${workspaceId}:${userId}` : null, bindings);
+  // The rest (the workspace, boards, teams, names) is in the workspace
+  // revision: asked about once the channel is up, read again only if changed.
+  useRealtime(workspaceId && userId ? `workspace:${workspaceId}:${userId}` : null, bindings, { catchUp: { workspaceId } });
 
   // The task counts beside each board in the sidebar. A board's own channel
   // refreshes its count only while it is open, so a task allocated to a board
@@ -104,5 +109,5 @@ export function useWorkspaceRealtime(workspaceId: string, userId: string): void 
     ],
     [workspaceId],
   );
-  useRealtime(workspaceId ? `board-counts:${workspaceId}` : null, countBindings, { coalesceMs: 800, minIntervalMs: 2_000 });
+  useRealtime(workspaceId ? `board-counts:${workspaceId}` : null, countBindings, { coalesceMs: 800, minIntervalMs: 2_000, catchUp: { workspaceId } });
 }

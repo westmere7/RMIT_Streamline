@@ -694,6 +694,21 @@
     transform: scale(1);
   }
 }
+/* The Live badge's dot: a soft ring that swells and fades, every 2.4 s. */
+@keyframes live-dot {
+  0% {
+    box-shadow: 0 0 0 0 rgb(16 185 129 / 0.5);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 4px rgb(16 185 129 / 0);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot {
+    animation: live-dot 2.4s ease-out infinite;
+  }
+}
 @keyframes dashboard-live {
   0%, 100% {
     opacity: 1;
