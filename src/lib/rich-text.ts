@@ -451,37 +451,6 @@ export function plainInline(nodes: InlineNode[]): string {
     .join("");
 }
 
-/** What a booking brief says was booked, from its opening lines. */
-export interface BriefFacts {
-  service: string | null;
-  involves: string[];
-}
-
-/**
- * The "Service:" and "Work types:" (once "Involves:") lines a booking puts at the top of its brief,
- * lifted out so they can head the document, and the blocks left after them. A
- * body that does not start with them comes back untouched.
- */
-export function splitBriefFacts(blocks: BlockNode[]): { facts: BriefFacts | null; rest: BlockNode[] } {
-  const facts: BriefFacts = { service: null, involves: [] };
-  let index = 0;
-  for (; index < blocks.length; index++) {
-    const block = blocks[index];
-    if (block?.type !== "paragraph") break;
-    const first = block.children[0];
-    if (first?.type !== "bold") break;
-    const label = plainInline(first.children).trim();
-    const value = plainInline(block.children.slice(1)).trim();
-    if (label === "Service:" && !facts.service && value) facts.service = value;
-    else if ((label === "Work types:" || label === "Involves:") && facts.involves.length === 0 && value) facts.involves = value.split(/,\s*/).filter(Boolean);
-    else break;
-  }
-  if (index === 0) return { facts: null, rest: blocks };
-  // The rule a booking draws under them; the header does that job now.
-  if (blocks[index]?.type === "rule") index++;
-  return { facts, rest: blocks.slice(index) };
-}
-
 /**
  * A short piece of form text as plain words: a question's label in a brief, an
  * error message or an aria-label. Inline markup only — a label that starts

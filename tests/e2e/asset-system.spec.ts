@@ -79,6 +79,8 @@ test.describe("the asset system", () => {
   });
 
   test("task lines: made, assigned, ticked, filtered by To-do, listed in My Work and counted on the dashboard", async ({ page }) => {
+    // The longest walk here: two dashboard reads (each may wait 30 s for the figures), the panel, a block and My Work.
+    test.setTimeout(120_000);
     const before = await dashboardUnits(page, "Flyer (1 - 2 Pages)");
 
     await openTask(page);
@@ -95,14 +97,19 @@ test.describe("the asset system", () => {
     await poster.getByTestId("asset-type").click();
     await page.getByTestId("asset-type-option-Flyer (1 - 2 Pages)").click();
     await page.keyboard.press("Escape");
+    // Each picker has to finish closing before the next opens: a click while one animates out is lost.
+    const poppers = page.locator("[data-radix-popper-content-wrapper]");
+    await expect(poppers).toHaveCount(0);
     await poster.getByTestId("asset-assignee").click();
     await page.getByPlaceholder("Search people…").fill("Danh");
     // In the open picker: the account menu in the sidebar carries the same name.
-    await page.locator("[data-radix-popper-content-wrapper]").getByText("Danh Nguyen").first().click();
+    await poppers.getByText("Danh Nguyen").first().click();
     await page.keyboard.press("Escape");
+    await expect(poppers).toHaveCount(0);
     await poster.getByTestId("asset-due").click();
-    await page.locator("[data-radix-popper-content-wrapper]").getByRole("button", { name: "Today", exact: true }).click();
+    await poppers.getByRole("button", { name: "Today", exact: true }).click();
     await page.keyboard.press("Escape");
+    await expect(poppers).toHaveCount(0);
     await poster.getByTestId("asset-update").click();
     await expect(poster.getByTestId("asset-toggle")).toHaveAttribute("aria-expanded", "false", { timeout: 20_000 });
 
@@ -140,7 +147,8 @@ test.describe("the asset system", () => {
     await page.goto("/workspace/rmit/my-work");
     await page.getByTestId("my-work-tab-assets").click();
     await expect(page.getByTestId("my-assets").getByText("E2E poster")).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId("my-assets").getByText("Pull-up banner")).toHaveCount(0);
+    // The seed has a "Pull-up banner" of Danh's on another task: only this task's line is checked.
+    await expect(page.getByTestId("my-assets").getByRole("link").filter({ hasText: "Pull-up banner" }).filter({ hasText: "RMITinerary Pragmatist" })).toHaveCount(0);
 
     // The dashboard counts the new units, requested today: 3 posters, a banner and a runner, the posters as flyers.
     const after = await dashboardUnits(page, "Flyer (1 - 2 Pages)");

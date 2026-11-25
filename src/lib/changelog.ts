@@ -18,6 +18,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.165.0",
+    date: "2026-11-25",
+    title: "Linked tasks: labels carry across, and updates stay in sync; a brief edits as it reads",
+    changes: [
+      "A brief looks the same being edited as being read: it opens with the service as its heading, then Work types, Booked by and Booked, all made with the editor's own tools. The Word download matches. Briefs booked before keep their opening lines as they were.",
+      "Editing a brief keeps what the requester typed: a # or * or [ ] in their words stays as written instead of turning into formatting, and saving a brief unchanged no longer marks it Edited.",
+      "A status or dropdown value now syncs even when the other board has no label of that name yet: the label is added there, with the same name and colour, and the value lands (a Format of Photo essay no longer stays behind).",
+      "What stays in sync has Updates and replies: new updates, and replies under them, are posted to both tasks, and an edit or delete reaches both. Switch it off to keep a link's updates apart. Updates written before stay where they are.",
+    ],
+  },
+  {
+    version: "0.164.1",
+    date: "2026-11-25",
+    title: "The new-tasks dot is off for now; counts stay on the open board",
+    changes: [
+      "The dot on a board's task count is gone while it is reworked. Opening and leaving a board no longer does any extra work for it.",
+      "The board you have open keeps its task count in the sidebar; the … takes its place only while you hover the row.",
+    ],
+  },
+  {
     version: "0.164.0",
     date: "2026-11-25",
     title: "A new sheet for a task, in a tracker you already have",

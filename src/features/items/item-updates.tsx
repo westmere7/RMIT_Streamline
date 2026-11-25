@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COMMENT_REACTIONS, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Comment, type CommentPinState } from "@/domain";
+import { COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Comment, type CommentPinState } from "@/domain";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
@@ -47,7 +47,8 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
   const onCheck = React.useCallback<CheckHandler>((comment, key, on) => check.mutate({ comment, key, on }), [check]);
   const onPin = React.useCallback<PinHandler>((comment, state) => pin.mutate({ comment, state }), [pin]);
   const links = useItemLinks(itemId);
-  const linkedCount = links.data?.length ?? 0;
+  // Only links that carry updates (What stays in sync → Updates and replies).
+  const linkedCount = (links.data ?? []).filter((view) => !view.link.excluded.includes(LINK_FIELD_UPDATES)).length;
   // Default on: if a task is linked, an update usually concerns both sides.
   const [alsoLinked, setAlsoLinked] = React.useState(true);
   const [draft, setDraft] = React.useState("");

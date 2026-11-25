@@ -1,10 +1,10 @@
 "use client";
 
-import { Boxes, Hash, Link2, Loader2, TriangleAlert, Unlink } from "lucide-react";
+import { Boxes, Hash, Link2, Loader2, MessageSquare, TriangleAlert, Unlink } from "lucide-react";
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, type BoardColumn, type ColumnPair } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, LINK_FIELD_UPDATES, type BoardColumn, type ColumnPair } from "@/domain";
 import { COLUMN_TYPE_ICONS } from "@/features/boards/components/column-type-icons";
 import { cn } from "@/lib/utils";
 // Straight from the pure mapping rules rather than the services barrel, which
@@ -52,6 +52,7 @@ export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onP
   const readOnly = !onToggle;
   const nameOn = !excluded.has(LINK_FIELD_NAME) && !excluded.has(LINK_FIELD_DESCRIPTION);
   const referenceOn = !excluded.has(LINK_FIELD_TICKET);
+  const updatesOn = !excluded.has(LINK_FIELD_UPDATES);
   // Both sides arrived with a code of their own: carrying one across means the
   // other stops answering to the code people already have for it.
   const winner = ticket?.from === "target" ? ticket.other : ticket?.self;
@@ -81,6 +82,16 @@ export function SyncFieldList({ mapping, excluded, onToggle, pending, pairs, onP
         onChange={() => {}}
         icon={<Boxes className="size-3.5 shrink-0 text-muted-foreground" />}
         label="Assets"
+      />
+      {/* New updates, and replies under them, are posted to both tasks. Ones
+          written before stay where they were: an update keeps its own author. */}
+      <FieldRow
+        checked={updatesOn}
+        readOnly={readOnly}
+        pending={isPending([LINK_FIELD_UPDATES])}
+        onChange={(on) => onToggle?.([LINK_FIELD_UPDATES], on)}
+        icon={<MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />}
+        label="Updates and replies"
       />
       {ticket && (
         <>

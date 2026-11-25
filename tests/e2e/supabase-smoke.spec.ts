@@ -32,6 +32,9 @@ async function signIn(page: Page): Promise<void> {
   await page.getByLabel("Email").fill(ADMIN_EMAIL);
   await page.getByTestId("login-password").fill(ADMIN_PASSWORD);
   await page.getByRole("button", { name: "Continue" }).click();
+  // Signing in lands on the workspace last used, which after another spec may be another one.
+  await expect(page).toHaveURL(/\/workspace\/[^/]+$/, { timeout: 30_000 });
+  if (!/\/workspace\/rmit$/.test(page.url())) await page.goto("/workspace/rmit");
   await expect(page).toHaveURL(/\/workspace\/rmit$/, { timeout: 30_000 });
 }
 

@@ -331,7 +331,7 @@ describe("the booking wizard", { timeout: 15_000 }, () => {
     expect(sent.subServices).toEqual(["Digital / Social", "Print"]);
     expect(sent.answers["design-copy"]).toEqual({ kind: "choice", values: ["Yes, final and approved"] });
     // Composed as rich text, so it arrives formatted wherever it is read.
-    expect(sent.brief).toContain("**Service:** Design");
+    expect(sent.brief).toContain("# Design");
     expect(sent.brief).toContain("**Work types:** Digital / Social, Print");
     expect(sent.brief).toContain("## 1. What are you asking for?");
     expect(sent.brief).toContain("Six A1 posters for Brunswick.");

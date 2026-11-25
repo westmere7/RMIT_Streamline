@@ -549,6 +549,11 @@ export interface BriefBooking {
   at: Date;
 }
 
+export interface ComposeBriefOptions {
+  /** The service heading and the lines under it. Off where they are shown another way (the PDF receipt's facts table). */
+  header?: boolean;
+}
+
 export { BOOKED_BY_LABEL, briefForVisitors };
 
 /** "Nov 22, 2026, 2:20 PM (Vietnam time)": the team's clock, whoever booked. */
@@ -589,15 +594,21 @@ function pad(depth: number): string {
  *
  * Everything a requester typed is escaped on the way in, so nobody can type
  * markup into a brief and have it come out as markup.
+ *
+ * It opens with what was booked: the service as the heading of the whole
+ * document, then the work types, who booked it and when as bold-label lines,
+ * and a rule. Only what the editor can make, so the brief reads the same being
+ * edited as being read (before v0.165 the view drew a header of its own here).
  */
-export function composeBrief(request: BookingRequest, template: BookingFormTemplate, booked?: BriefBooking): string {
+export function composeBrief(request: BookingRequest, template: BookingFormTemplate, booked?: BriefBooking, options: ComposeBriefOptions = {}): string {
   const service = serviceById(template, request.serviceTypeId);
   const lines: string[] = [];
-  // The facts a producer looks at first, on their own lines above the rule.
-  if (service) lines.push(`**Service:** ${plain(service.name)}`);
-  // Straight under the service, which they narrow: the header shows both.
-  if (request.subServices.length) lines.push("", `**Work types:** ${request.subServices.map(plain).join(", ")}`);
-  if (booked) {
+  const header = options.header ?? true;
+  // The facts a producer looks at first, above the rule: the service large.
+  if (header && service) lines.push(`# ${plain(service.name)}`);
+  // Straight under the service, which they narrow.
+  if (header && request.subServices.length) lines.push("", `**Work types:** ${request.subServices.map(plain).join(", ")}`);
+  if (header && booked) {
     // Who asked and when, as words: the brief is the record of the request,
     // and it reads the same wherever it is copied, printed or exported.
     const who = [request.requesterName.trim(), request.department?.trim() ?? ""].filter(Boolean).map(plain).join(" · ");

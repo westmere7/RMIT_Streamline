@@ -52,11 +52,12 @@ describe("who booked it and when, in the brief", () => {
   });
 });
 
-describe("the brief's header", () => {
-  it("puts the work types under the service, and keeps who booked it in the body", async () => {
-    const { parseRichText, splitBriefFacts } = await import("@/lib/rich-text");
-    const { facts, rest } = splitBriefFacts(parseRichText("**Service:** Design Request\n\n**Work types:** Design, Motion graphic\n\n**Booked by:** Danh Nguyen · Comm.\n\n---\n\n## 1. Audience\nStudents"));
-    expect(facts).toEqual({ service: "Design Request", involves: ["Design", "Motion graphic"] });
-    expect(rest[0]?.type).toBe("paragraph");
+describe("a brief saved from the editor unchanged", () => {
+  it("still counts as the brief as booked, though the editor writes some lines its own way", () => {
+    // A rich answer's lines run together into one paragraph in the editor: the same document.
+    const composed = ["**Service:** Design", "", "---", "", "## 1. Hashtags", String.raw`\#RMITGrad and file\_v2`, "", "## 2. Notes", "first line", "second line"].join("\n");
+    const saved = ["**Service:** Design", "", "---", "", "## 1. Hashtags", String.raw`\#RMITGrad and file\_v2`, "", "## 2. Notes", "first line second line"].join("\n");
+    expect(briefMatchesSource(saved, composed)).toBe(true);
+    expect(briefMatchesSource(saved.replace("second", "third"), composed)).toBe(false);
   });
 });

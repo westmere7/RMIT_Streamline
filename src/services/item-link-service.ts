@@ -3,7 +3,8 @@ import { RefusedError, LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKE
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
-import { mapColumns, translateValue, valuesEqual, type ColumnMappingReport } from "./item-link-sync";
+import { mapColumns, translateValue, valuesEqual, type ColumnMappingReport, type ValueTranslation } from "./item-link-sync";
+import { newId } from "@/lib/ids";
 import { NotificationService } from "./notification-service";
 
 /** A linked item as shown in the item panel. */
@@ -544,7 +545,7 @@ export class ItemLinkService {
           continue;
         }
 
-        const translated = translateValue(change.value, originColumn!, nextColumn!);
+        const translated = await this.translateCarryingLabel(change.value, originColumn!, nextColumn!);
         if (translated.kind === "skip") continue;
         const existingValues = await this.valuesOf(next.id, cache);
         const existing = existingValues.find((v) => v.columnId === nextColumn!.id);
@@ -616,14 +617,41 @@ export class ItemLinkService {
       const sv = sourceValues.find((v) => v.columnId === sc.id)?.value;
       const dv = destValues.find((v) => v.columnId === dc.id)?.value;
       if (!isEmptyValue(sv)) {
-        const t = translateValue(sv!, sc, dc);
+        const t = await this.translateCarryingLabel(sv!, sc, dc);
         if (t.kind === "value" && !valuesEqual(dv, t.value)) writes.push({ itemId: dest.id, columnId: dc.id, value: t.value });
       } else if (!isEmptyValue(dv)) {
-        const t = translateValue(dv!, dc, sc);
+        const t = await this.translateCarryingLabel(dv!, dc, sc);
         if (t.kind === "value" && !valuesEqual(sv, t.value)) writes.push({ itemId: source.id, columnId: sc.id, value: t.value });
       }
     }
     if (writes.length) await this.repos.items.setValues(writes);
+  }
+
+  /**
+   * translateValue, except that a status or dropdown label the paired column
+   * does not have yet is added to it first, with the same name and colour, so
+   * the value lands instead of being skipped: two boards linked after they
+   * were set up seldom have the same labels (a Format of "Photo essay" on one,
+   * "Speaker card" on the other). The column object is updated in place, so
+   * the rest of a sync run sees the new label. Someone who may not edit that
+   * board cannot add to its column either: then the value is skipped, as before.
+   */
+  private async translateCarryingLabel(value: ColumnValue, source: BoardColumn, target: BoardColumn): Promise<ValueTranslation> {
+    const first = translateValue(value, source, target);
+    if (first.kind === "value") return first;
+    if ((value.type !== "STATUS" && value.type !== "DROPDOWN") || !value.labelId) return first;
+    if ((target.settings.kind !== "status" && target.settings.kind !== "dropdown") || target.type !== source.type) return first;
+    const label = columnLabels(source).find((l) => l.id === value.labelId);
+    if (!label) return first;
+    const added: ColumnLabel = { id: newId(), name: label.name, color: label.color };
+    try {
+      const updated = await this.repos.boards.updateColumn(target.id, { settings: { ...target.settings, labels: [...target.settings.labels, added] } });
+      Object.assign(target, updated);
+    } catch (error) {
+      console.warn("A label could not be added to a linked board's column", error);
+      return first;
+    }
+    return translateValue(value, source, target);
   }
 
   /** Links touching an item, read once per sync run. */

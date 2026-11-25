@@ -2,6 +2,7 @@ import type { Activity } from "@/domain/activity/activity";
 import type { BoardColumn } from "@/domain/board/column";
 import type { EntityId } from "@/domain/common/types";
 import { portalBriefMarkdown } from "@/domain/portal/stakeholder-portal";
+import { docToRichText, richTextToDoc } from "@/lib/rich-text-doc";
 
 /**
  * The brief as the booking wrote it, kept for evidence.
@@ -40,15 +41,24 @@ export function briefSourceText(bookingBrief: string): string {
   return /^#{1,3} \S/m.test(bookingBrief) ? bookingBrief : portalBriefMarkdown(bookingBrief);
 }
 
+/**
+ * A brief as the editor would save it. The markup has more than one way to
+ * write the same document (lines that wrap into one paragraph, an escape or
+ * none), and the editor writes one of them: a brief opened and saved unchanged
+ * is still the brief as booked.
+ */
 const normalise = (text: string) =>
-  text
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .join("\n")
-    .trim();
+  docToRichText(
+    richTextToDoc(
+      text
+        .replace(/\r\n?/g, "\n")
+        .split("\n")
+        .map((line) => line.trimEnd())
+        .join("\n"),
+    ),
+  );
 
-/** Whether the working copy still says what the booking said. Whitespace at line ends doesn't count. */
+/** Whether the working copy still says what the booking said. How the markup is written doesn't count, only what it shows. */
 export function briefMatchesSource(current: string, bookingBrief: string): boolean {
   const now = normalise(current);
   return now === normalise(bookingBrief) || now === normalise(briefSourceText(bookingBrief));

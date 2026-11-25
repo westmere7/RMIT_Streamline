@@ -2,7 +2,7 @@ import type { jsPDF as JsPdf } from "jspdf";
 import type { BookingFormTemplate, BookingReceipt, BookingRequest } from "@/domain";
 import { formatAssetLine, serviceById } from "@/domain";
 import { loadPng, pdfSafe } from "@/features/dashboard/export-pdf";
-import { parseRichText, plainInline, plainLabel, type BlockNode, type InlineNode } from "@/lib/rich-text";
+import { parseRichText, plainLabel, type BlockNode, type InlineNode } from "@/lib/rich-text";
 import { composeBrief } from "@/services/booking";
 
 /**
@@ -111,20 +111,6 @@ function registerFont(doc: JsPdf, bytes: Uint8Array | null): boolean {
   }
 }
 
-/** The leading "Service:" and "Work types:" lines of a brief, and the rule under them: the facts table has them. */
-function dropBriefFacts(blocks: BlockNode[]): BlockNode[] {
-  let index = 0;
-  while (index < blocks.length) {
-    const block = blocks[index];
-    if (block?.type !== "paragraph" || block.children[0]?.type !== "bold") break;
-    const label = plainInline(block.children[0].children).trim();
-    if (label !== "Service:" && label !== "Work types:") break;
-    index++;
-  }
-  if (index > 0 && blocks[index]?.type === "rule") index++;
-  return blocks.slice(index);
-}
-
 function runsOf(nodes: InlineNode[], bold = false): Run[] {
   const runs: Run[] = [];
   for (const node of nodes) {
@@ -214,7 +200,8 @@ class BookingPdf {
     }
 
     // The brief, as the team will read it.
-    const blocks = dropBriefFacts(parseRichText(composeBrief(request, template)));
+    // Without its opening lines: the facts table above has them.
+    const blocks = parseRichText(composeBrief(request, template, undefined, { header: false }));
     if (blocks.length) {
       this.section("Brief");
       for (const block of blocks) this.block(block);

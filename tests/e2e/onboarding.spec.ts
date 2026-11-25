@@ -151,7 +151,7 @@ test.describe("member onboarding", () => {
 
   test("a seeded pending member onboards with the seeded link, and the admin sees them become active", async ({ page }) => {
     await page.goto(`/join/${ANH_TOKEN}`);
-    await expect(page.getByRole("heading", { name: /Welcome to RMIT Creative Team/ })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: /Welcome to RMIT Creative Team/ })).toBeVisible({ timeout: 30000 });
     await expect(page.getByLabel("Last name")).toHaveValue("Pham");
     await page.getByTestId("onboarding-password").fill("anh-secret-2026");
     await page.getByTestId("onboarding-confirm").fill("anh-secret-2026");

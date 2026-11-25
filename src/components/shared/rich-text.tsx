@@ -5,7 +5,7 @@ import Link from "next/link";
 import * as React from "react";
 import { PersonHover } from "@/components/shared/user-avatar";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { parseRichText, splitBriefFacts, type BlockNode, type BriefFacts, type ChecklistItem, type InlineNode, type RichTextColor } from "@/lib/rich-text";
+import { parseRichText, type BlockNode, type ChecklistItem, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
 /** The palette an update can use. Chosen to stay readable on both themes. */
@@ -167,20 +167,20 @@ function Block({ node, mentionHref, variant = "compact", checklist }: { node: Bl
   const doc = variant === "document";
   switch (node.type) {
     case "rule":
-      return <hr className="my-2.5 border-border/70" />;
+      return <hr className={cn("border-border/70", doc ? "my-4" : "my-2.5")} />;
     case "heading":
       return node.level === 1 ? (
-        <p className={cn("leading-snug font-semibold tracking-tight text-foreground first:mt-0", doc ? "mt-6 mb-1.5 text-[17px]" : "mt-3 mb-1 text-[16px]", indentClass(node.indent))}>
+        <p className={cn("leading-snug font-semibold tracking-tight text-foreground first:mt-0", doc ? "mt-6 mb-1.5 text-[20px]" : "mt-3 mb-1 text-[16px]", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       ) : (
-        <p className={cn("leading-snug font-semibold text-foreground first:mt-0", doc ? "mt-5 mb-1 text-[14px]" : "mt-2.5 mb-0.5 text-[14px]", indentClass(node.indent))}>
+        <p className={cn("leading-snug font-semibold text-foreground first:mt-0", doc ? "mt-5 mb-1.5 text-[14px]" : "mt-2.5 mb-0.5 text-[14px]", indentClass(node.indent))}>
           <Inline nodes={node.children} mentionHref={mentionHref} />
         </p>
       );
     case "list":
       return node.ordered ? (
-        <ol className={cn("my-1 list-decimal space-y-0.5 pl-5", doc && "text-muted-foreground", indentClass(node.indent))}>
+        <ol className={cn("list-decimal space-y-0.5 pl-5", doc ? "my-1.5 text-muted-foreground" : "my-1", indentClass(node.indent))}>
           {node.items.map((item, index) => (
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
@@ -188,7 +188,7 @@ function Block({ node, mentionHref, variant = "compact", checklist }: { node: Bl
           ))}
         </ol>
       ) : (
-        <ul className={cn("my-1 list-disc space-y-0.5 pl-5", doc && "text-muted-foreground", indentClass(node.indent))}>
+        <ul className={cn("list-disc space-y-0.5 pl-5", doc ? "my-1.5 text-muted-foreground" : "my-1", indentClass(node.indent))}>
           {node.items.map((item, index) => (
             <li key={index}>
               <Inline nodes={item} mentionHref={mentionHref} />
@@ -198,7 +198,7 @@ function Block({ node, mentionHref, variant = "compact", checklist }: { node: Bl
       );
     case "checklist":
       return (
-        <ul className={cn("my-1 space-y-1", indentClass(node.indent))} data-testid="checklist">
+        <ul className={cn("space-y-1", doc ? "my-1.5" : "my-1", indentClass(node.indent))} data-testid="checklist">
           {node.items.map((item) => (
             <ChecklistBox key={item.key} item={item} checklist={checklist} mentionHref={mentionHref} />
           ))}
@@ -213,38 +213,12 @@ function Block({ node, mentionHref, variant = "compact", checklist }: { node: Bl
   }
 }
 
-/** What was booked, above everything else in the brief: the service large, its work types as chips under it. */
-function BriefFactsHeader({ facts }: { facts: BriefFacts }) {
-  return (
-    <div className="mb-4 flex flex-col gap-2.5 rounded-lg bg-muted/60 px-3.5 py-3" data-testid="brief-facts">
-      {facts.service && (
-        <div className="min-w-0">
-          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Service</p>
-          <p className="text-[18px] leading-snug font-semibold tracking-tight text-foreground">{facts.service}</p>
-        </div>
-      )}
-      {facts.involves.length > 0 && (
-        <div className="min-w-0">
-          <p className="text-2xs font-medium tracking-wide text-muted-foreground uppercase">Work types</p>
-          <div className="mt-1 flex flex-wrap gap-1.5">
-            {facts.involves.map((part) => (
-              <span key={part} className="rounded-md border bg-background px-2 py-0.5 text-[13px] font-medium text-foreground">
-                {part}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /**
  * Renders the small markup updates are written in. Everything comes from parsed
  * data — no HTML is ever built from what someone typed.
  *
- * A document that opens with a booking's Service and Involves lines shows them
- * as a header over the rest.
+ * A document is drawn exactly as the editor draws it (the .rich-text-document
+ * rules in globals.css): nothing here may show what the editor cannot make.
  */
 export function RichText({
   body,
@@ -265,11 +239,9 @@ export function RichText({
   checklist?: RichTextChecklist;
 }) {
   const parsed = React.useMemo(() => parseRichText(body, mentionNames), [body, mentionNames]);
-  const { facts, rest: blocks } = React.useMemo(() => (variant === "document" ? splitBriefFacts(parsed) : { facts: null, rest: parsed }), [parsed, variant]);
   return (
-    <div className={cn("space-y-1 text-[13px] break-words", className)} data-testid="rich-text">
-      {facts && <BriefFactsHeader facts={facts} />}
-      {blocks.map((block, index) => (
+    <div className={cn("text-[13px] break-words", variant === "document" ? "space-y-1.5" : "space-y-1", className)} data-testid="rich-text">
+      {parsed.map((block, index) => (
         <Block key={index} node={block} mentionHref={mentionHref} variant={variant} checklist={checklist} />
       ))}
     </div>

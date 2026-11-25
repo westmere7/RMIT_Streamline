@@ -96,7 +96,8 @@ export class CommentService {
     // Copies posted to linked items in one action share an id, which is how an
     // edit later finds them and how the update says it lives on more than one
     // task. It is only assigned when there is actually somewhere else to post.
-    const linkedIds = options.alsoLinked && this.links ? await this.links.connectedItemIds(itemId) : [];
+    // Across links that carry updates only (Updates and replies, in What stays in sync).
+    const linkedIds = options.alsoLinked && this.links ? await this.links.updatesChainIds(itemId) : [];
     const linkedItems = linkedIds.length ? await this.repos.items.listByIds(linkedIds) : [];
     const sharedId = linkedItems.length ? newId() : null;
 
@@ -199,10 +200,12 @@ export class CommentService {
   }
 
   /**
-   * Replies to an update, on this task only (a reply answers the conversation
-   * here, so it is not copied to linked tasks). A reply to a reply is filed
-   * under the same update: threads are one level deep. The update's author
-   * hears about it, and anyone mentioned hears as they would anywhere else.
+   * Replies to an update. A reply to a reply is filed under the same update:
+   * threads are one level deep. Where the update was posted to linked tasks
+   * too, the reply goes under each copy that is still on a task this one
+   * shares updates with (v0.165.0), all sharing one id so an edit or a delete
+   * reaches every copy. The update's author hears about it once, and anyone
+   * mentioned hears as they would anywhere else.
    */
   async replyToComment(itemId: EntityId, parentId: EntityId, body: string, actorId: EntityId, users: readonly User[]): Promise<Comment> {
     const trimmed = body.trim();
@@ -216,7 +219,26 @@ export class CommentService {
     const board = await this.repos.boards.getById(item.boardId);
     // As on a new update: only people active in this workspace can be mentioned.
     const mentionUserIds = extractMentions(trimmed, board ? await this.mentionable(board.workspaceId, users) : []);
-    const reply = await this.repos.comments.create({ itemId: root.itemId, authorId: actorId, body: trimmed, mentionUserIds, parentId: root.id });
+    // The update's copies on linked tasks that still share updates with this one.
+    const chain = root.sharedId && this.links ? new Set(await this.links.updatesChainIds(root.itemId)) : new Set<EntityId>();
+    const copies = root.sharedId && chain.size ? (await this.repos.comments.listBySharedId(root.sharedId)).filter((c) => c.id !== root.id && !c.parentId && chain.has(c.itemId)) : [];
+    const sharedId = copies.length ? newId() : null;
+    const reply = await this.repos.comments.create({ itemId: root.itemId, authorId: actorId, body: trimmed, mentionUserIds, parentId: root.id, sharedId });
+    if (copies.length) {
+      const skipped: Board[] = [];
+      for (const copy of copies) {
+        // A linked task on a board the person only views takes no copy; theirs stands.
+        try {
+          await this.repos.comments.create({ itemId: copy.itemId, authorId: actorId, body: trimmed, mentionUserIds, parentId: copy.id, sharedId });
+        } catch (error) {
+          console.warn("A reply was not copied to a linked task", error);
+          const linkedItem = await this.repos.items.getById(copy.itemId);
+          const where = linkedItem ? await this.repos.boards.getById(linkedItem.boardId) : null;
+          if (where) skipped.push(where);
+        }
+      }
+      this.links?.reportSkipped(skipped, "update");
+    }
     await this.repos.activities.create({
       workspaceId: board?.workspaceId ?? "",
       boardId: item.boardId,

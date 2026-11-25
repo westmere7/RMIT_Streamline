@@ -131,8 +131,8 @@ function wrapRun(kind: MarkKind, mark: NonNullable<ReturnType<typeof markOf>>, i
     case "link": {
       const href = String(mark.attrs?.href ?? "");
       if (!href) return inner;
-      // A bare address needs no label.
-      return inner === href ? href : `[${inner}](${href})`;
+      // A bare address needs no label, and is written as the address it is.
+      return inner === href || inner === escapeText(href) ? href : `[${inner}](${href})`;
     }
     case "textColor": {
       const color = String(mark.attrs?.color ?? "");
@@ -147,15 +147,36 @@ function wrapRun(kind: MarkKind, mark: NonNullable<ReturnType<typeof markOf>>, i
   }
 }
 
+/**
+ * Words as words: the characters that would otherwise be read as markup get a
+ * backslash, the same ones a booking escapes in what a requester typed
+ * (composeBrief), so a brief opened in the editor and saved unchanged is stored
+ * as it was. A backslash is doubled only where it would hide the next character.
+ */
+function escapeText(text: string): string {
+  return text
+    .replace(/\\(?=[\\*_#[\](){}`~|>-]|$)/g, "\\\\")
+    .replace(/[*_#[\]]/g, "\\$&")
+    .replace(/\{(?=\/?c[:}])/g, "\\{");
+}
+
+/**
+ * A paragraph that would start like a bullet or be a rule of dashes, kept a
+ * paragraph. Headings need nothing: every # is escaped already.
+ */
+function escapeLineStart(line: string): string {
+  return /^-(\s|-{2,}\s*$)/.test(line) ? `\\${line}` : line;
+}
+
 /** Serialises inline content, splitting it into runs of each mark in turn. */
-function serializeInline(nodes: DocNode[], order: MarkKind[] = MARK_ORDER): string {
+function serializeInline(nodes: DocNode[], order: MarkKind[] = MARK_ORDER, escape = true): string {
   if (order.length === 0) {
     return nodes
       .map((node) => {
-        if (node.type === "text") return node.text ?? "";
+        if (node.type === "text") return escape ? escapeText(node.text ?? "") : (node.text ?? "");
         if (node.type === "mention") return `@${String(node.attrs?.label ?? node.attrs?.id ?? "")}`;
         if (node.type === "hardBreak") return " ";
-        return node.content ? serializeInline(node.content, MARK_ORDER) : "";
+        return node.content ? serializeInline(node.content, MARK_ORDER, escape) : "";
       })
       .join("");
   }
@@ -176,13 +197,13 @@ function serializeInline(nodes: DocNode[], order: MarkKind[] = MARK_ORDER): stri
     if (mark) {
       // Whitespace at the edges of a run goes outside the markers, so "**bold **"
       // never happens and the stored text reads cleanly.
-      const inner = serializeInline(run.map((n) => withoutMark(n, kind)), rest);
+      const inner = serializeInline(run.map((n) => withoutMark(n, kind)), rest, escape);
       const leading = inner.match(/^\s*/)?.[0] ?? "";
       const trailing = inner.match(/\s*$/)?.[0] ?? "";
       const core = inner.slice(leading.length, inner.length - trailing.length);
       out += kind === "link" ? wrapRun(kind, mark, inner) : `${leading}${wrapRun(kind, mark, core)}${trailing}`;
     } else {
-      out += serializeInline(run, rest);
+      out += serializeInline(run, rest, escape);
     }
     index = end;
   }
@@ -226,7 +247,7 @@ export function docToRichText(doc: DocNode): string {
         // on an empty paragraph is trailing whitespace the parser has to trim
         // again, and the database has to store.
         const inline = serializeInline(block.content ?? []);
-        text = inline ? `${pad}${inline}` : "";
+        text = inline ? `${pad}${escapeLineStart(inline)}` : "";
       }
     }
     // Two paragraphs in a row need a blank line between them, or the parser
@@ -256,7 +277,8 @@ export function inlineTextToDoc(text: string): DocNode {
 /** The other way: one line per paragraph, trailing empty lines dropped. */
 export function docToInlineText(doc: DocNode): string {
   return (doc.content ?? [])
-    .map((block) => serializeInline(block.content ?? []))
+    // As typed, as these boxes always stored it: a short line of form text, never escaped.
+    .map((block) => serializeInline(block.content ?? [], MARK_ORDER, false))
     .join("\n")
     .replace(/\s+$/, "");
 }

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
+import { LINK_FIELD_UPDATES } from "@/domain";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { createServices } from "@/services";
 import { EMPTY_FILTERS } from "@/stores/board-ui-store";
@@ -199,7 +200,8 @@ describe("Task Linking", () => {
     });
   });
 
-  it("skips status labels the other board does not define", async () => {
+  // v0.165.0: a label the other board lacks is added to its column (same name and colour), so the value lands.
+  it("adds a status label the other board does not define, then syncs the value", async () => {
     const source = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
     const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam team");
     await services.links.link(source.id, target.id, SEED_USER_IDS.danh);
@@ -215,7 +217,38 @@ describe("Task Linking", () => {
       type: "STATUS",
       labelId: "qa",
     });
-    expect(await valueOf(target.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "not_started" });
+    const targetStatus = (await services.repos.boards.listColumns(SEED_BOARD_IDS.alwayson)).find((c) => c.type === "STATUS")!;
+    const added = targetStatus.settings.kind === "status" ? targetStatus.settings.labels.find((l) => l.name === "In QA") : undefined;
+    expect(added).toMatchObject({ name: "In QA", color: "teal" });
+    expect(await valueOf(target.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: added!.id });
+  });
+
+  it("carries a dropdown label across when the boards were set up with different ones, both on linking and on a change", async () => {
+    const source = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+    const target = await itemNamed(SEED_BOARD_IDS.alwayson, "Behind the scenes – Vietnam team");
+    // A dropdown of the same name on each board, with different labels.
+    const add = async (boardId: string, names: string[]) =>
+      services.boards.addColumn({ boardId, name: "Piece kind", type: "DROPDOWN" }).then(async (column) => {
+        const labels = names.map((name, i) => ({ id: `${boardId.slice(-4)}-${i}`, name, color: "blue" as const }));
+        return services.repos.boards.updateColumn(column.id, { settings: { ...(column.settings as Extract<typeof column.settings, { kind: "dropdown" }>), labels } });
+      });
+    const sourceFormat = await add(SEED_BOARD_IDS.sem1, ["Photo essay", "Video"]);
+    const targetFormat = await add(SEED_BOARD_IDS.alwayson, ["Speaker card"]);
+    await services.repos.items.setValue(source.id, sourceFormat.id, { type: "DROPDOWN", labelId: `${SEED_BOARD_IDS.sem1.slice(-4)}-0` });
+    await services.links.link(source.id, target.id, SEED_USER_IDS.danh);
+    const read = async () => (await services.repos.boards.listColumns(SEED_BOARD_IDS.alwayson)).find((c) => c.id === targetFormat.id)!;
+    const labelNamed = async (name: string) => {
+      const c = await read();
+      return c.settings.kind === "dropdown" ? c.settings.labels.find((l) => l.name === name) : undefined;
+    };
+    expect(await labelNamed("Photo essay")).toBeTruthy();
+    expect(await valueOf(target.id, SEED_BOARD_IDS.alwayson, "Piece kind")).toEqual({ type: "DROPDOWN", labelId: (await labelNamed("Photo essay"))!.id });
+
+    await setValue(source.id, SEED_BOARD_IDS.sem1, "Piece kind", { type: "DROPDOWN", labelId: `${SEED_BOARD_IDS.sem1.slice(-4)}-1` });
+    expect(await valueOf(target.id, SEED_BOARD_IDS.alwayson, "Piece kind")).toEqual({ type: "DROPDOWN", labelId: (await labelNamed("Video"))!.id });
+    // The label it already had is left alone, and nothing is added twice.
+    const labels = (await read()).settings;
+    expect(labels.kind === "dropdown" ? labels.labels.map((l) => l.name) : []).toEqual(["Speaker card", "Photo essay", "Video"]);
   });
 
   it("rejects links to itself, the same board, a subitem of its own, or a pair already linked", async () => {
@@ -362,5 +395,57 @@ describe("Task Linking", () => {
     await services.comments.addComment(a.id, "Just for this board", SEED_USER_IDS.danh, users);
     expect((await services.comments.listByItem(a.id)).map((c) => c.body)).toContain("Just for this board");
     expect((await services.comments.listByItem(b.id)).map((c) => c.body)).not.toContain("Just for this board");
+  });
+
+  // v0.165.0: Updates and replies, in What stays in sync.
+  describe("updates and replies in sync", () => {
+    const pair = async () => {
+      const a = await itemNamed(SEED_BOARD_IDS.sem1, "Campus open day messaging matrix");
+      const b = await itemNamed(SEED_BOARD_IDS.alwayson, "Student spotlight – exchange to Barcelona");
+      const link = await services.links.link(a.id, b.id, SEED_USER_IDS.danh, { seedFrom: "item" });
+      return { a, b, link, users: await services.repos.users.list() };
+    };
+    const bodies = async (itemId: string) => (await services.comments.listByItem(itemId)).map((c) => c.body);
+
+    it("puts a reply under the update's copy on the linked task, and an edit or a delete reaches both", async () => {
+      const { a, b, users } = await pair();
+      const update = await services.comments.addComment(a.id, "Brief is final", SEED_USER_IDS.danh, users, { alsoLinked: true });
+      const reply = await services.comments.replyToComment(a.id, update.id, "Thanks, starting now", SEED_USER_IDS.emily, users);
+      expect(reply.sharedId).not.toBeNull();
+      const copyOfUpdate = (await services.comments.listByItem(b.id)).find((c) => c.sharedId === update.sharedId && !c.parentId)!;
+      const copyOfReply = (await services.comments.listByItem(b.id)).find((c) => c.sharedId === reply.sharedId)!;
+      expect(copyOfReply).toMatchObject({ body: "Thanks, starting now", parentId: copyOfUpdate.id, authorId: SEED_USER_IDS.emily });
+
+      await services.comments.editComment(reply.id, "Thanks, starting tomorrow", users, { itemId: a.id, actorId: SEED_USER_IDS.emily });
+      expect(await bodies(b.id)).toContain("Thanks, starting tomorrow");
+
+      await services.comments.deleteComment(reply);
+      expect(await bodies(a.id)).not.toContain("Thanks, starting tomorrow");
+      expect(await bodies(b.id)).not.toContain("Thanks, starting tomorrow");
+      expect(await bodies(b.id)).toContain("Brief is final");
+    });
+
+    it("with Updates switched off for the link, neither new updates nor replies cross it", async () => {
+      const { a, b, link, users } = await pair();
+      const update = await services.comments.addComment(a.id, "Posted while shared", SEED_USER_IDS.danh, users, { alsoLinked: true });
+      await services.links.setExcluded(link.id, [LINK_FIELD_UPDATES], a.id, SEED_USER_IDS.danh);
+
+      await services.comments.addComment(a.id, "Posted after switching off", SEED_USER_IDS.danh, users, { alsoLinked: true });
+      expect(await bodies(a.id)).toContain("Posted after switching off");
+      expect(await bodies(b.id)).not.toContain("Posted after switching off");
+
+      // A reply to the update that was shared stays on this task too.
+      await services.comments.replyToComment(a.id, update.id, "Reply after switching off", SEED_USER_IDS.emily, users);
+      expect(await bodies(b.id)).not.toContain("Reply after switching off");
+      expect(await bodies(a.id)).toContain("Reply after switching off");
+    });
+
+    it("a reply to an update that was never shared stays where it is", async () => {
+      const { a, b, users } = await pair();
+      const update = await services.comments.addComment(a.id, "Only here", SEED_USER_IDS.danh, users);
+      const reply = await services.comments.replyToComment(a.id, update.id, "Reply only here", SEED_USER_IDS.emily, users);
+      expect(reply.sharedId ?? null).toBeNull();
+      expect(await bodies(b.id)).not.toContain("Reply only here");
+    });
   });
 });

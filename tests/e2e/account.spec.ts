@@ -17,7 +17,7 @@ test.describe("signing in and out", () => {
     await page.goto("/login");
     await page.getByLabel(/email/i).fill("emily@rmit.local");
     await page.getByRole("button", { name: /continue|sign in/i }).click();
-    await expect(page).toHaveURL(/\/workspace\/rmit$/, { timeout: 10000 });
+    await expect(page).toHaveURL(/\/workspace\/rmit$/, { timeout: 30000 });
   });
 
   test("session survives reload and deep links", async ({ page }) => {

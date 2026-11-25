@@ -52,6 +52,24 @@ describe("document to markup", () => {
     expect(roundTrip(body)).toBe(body);
   });
 
+  it("keeps what a requester typed as typed: escaped characters stay escaped", () => {
+    // The booking escapes * _ # [ ] in what was typed (composeBrief); an edit must not drop them.
+    const body = String.raw`\#RMITGrad2027 and \*note\* in file\_name\_v2 \[draft\]`;
+    expect(roundTrip(body)).toBe(body);
+    const doc = richTextToDoc(body);
+    expect(doc.content?.[0]?.content).toEqual([{ type: "text", text: "#RMITGrad2027 and *note* in file_name_v2 [draft]" }]);
+    // Typed into the editor as plain words, they are stored escaped and read back as the words.
+    const typed: DocNode = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "# not a heading, **not bold**, __not underlined__" }] }] };
+    expect(roundTrip(docToRichText(typed))).toBe(docToRichText(typed));
+    expect(richTextToDoc(docToRichText(typed)).content).toEqual(typed.content);
+    // A paragraph that starts like a list or a rule stays a paragraph.
+    const dash: DocNode = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "- not a bullet" }] }, { type: "paragraph", content: [{ type: "text", text: "---" }] }] };
+    expect(richTextToDoc(docToRichText(dash)).content).toEqual(dash.content);
+    // A colour written as words stays words; a backslash before nothing special stays one backslash.
+    const words: DocNode = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: String.raw`{c:red}x{/c} C:\temp\#1` }] }] };
+    expect(richTextToDoc(docToRichText(words)).content).toEqual(words.content);
+  });
+
   it("keeps two paragraphs apart with a blank line", () => {
     const doc: DocNode = {
       type: "doc",

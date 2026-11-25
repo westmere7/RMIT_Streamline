@@ -879,7 +879,9 @@ function BoardLink({
           )}
           {!collapsed && <span className="truncate">{board.name}</span>}
           {!collapsed && !archived && (
-            <span className="ml-auto flex min-w-6 shrink-0 justify-end transition-opacity group-focus-within/menu:opacity-0 group-hover/menu:opacity-0 group-has-[[data-state=open]]/menu:opacity-0">
+            // Gives way only where the "…" shows: on hover, while its menu is open, or with the "…" itself
+            // focused from the keyboard. A board just clicked keeps focus on its link, and keeps its count.
+            <span className="ml-auto flex min-w-6 shrink-0 justify-end transition-opacity group-hover/menu:opacity-0 group-has-[button:focus-visible]/menu:opacity-0 group-has-[[data-state=open]]/menu:opacity-0">
               <BoardItemCount boardId={board.id} className="bg-sidebar-accent" />
             </span>
           )}

@@ -183,7 +183,7 @@ test.describe("task booking", () => {
     await clickRowButton(request, "Open Open Day wayfinding posters");
     const panel = page.getByTestId("item-panel");
     // The brief is the description, composed from the service and the answers.
-    await expect(panel).toContainText("Service: Design");
+    await expect(panel).toContainText(/Design (Work types|Booked by)/);
     await expect(panel).toContainText("1. What are you asking for?");
     await panel.getByTestId("tab-assets").click();
     await expect(panel.getByTestId("asset-line")).toHaveCount(2, { timeout: 20_000 });

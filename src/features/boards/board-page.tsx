@@ -3,7 +3,6 @@
 import { NoAccessState, UnavailableState } from "@/features/workspace/unavailable-state";
 import { Archive, SquareKanban, Lock, LockOpen } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
@@ -41,7 +40,6 @@ import { SavedViewsContext, useSavedViewsController } from "@/features/boards/sa
 import { SavedViewsMenu } from "@/features/boards/saved-views/saved-views-menu";
 import { useArchiveCount } from "@/features/boards/archive/use-archive";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
-import { queryKeys } from "@/lib/query/keys";
 import { MobileBoardHeader, MobileBoardToolsRow } from "@/features/boards/components/mobile/mobile-board-screen";
 import { MobileKanbanView } from "@/features/boards/components/mobile/mobile-kanban-view";
 import { MobileTableView } from "@/features/boards/components/mobile/mobile-table-view";
@@ -110,7 +108,6 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const ws = useWorkspace();
   const board = ws.boardById(boardId)!;
   const services = useServices();
-  const queryClient = useQueryClient();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const snapshot = useBoardSnapshot(boardId);
@@ -138,25 +135,10 @@ function BoardScreen({ boardId }: { boardId: string }) {
   );
   useBoardRealtime(boardId);
 
-  // Remember recently visited boards for the home page, and when this person
-  // last saw the board: on opening it and again on leaving, so tasks that
-  // arrived while it was on screen do not earn it a new-tasks dot
-  // (BoardItemCount). Each write reads the dots again.
+  // Remember recently visited boards for the home page.
   React.useEffect(() => {
-    const userId = ws.currentUser.id;
-    const workspaceId = ws.workspace.id;
-    const seen = () =>
-      void services.repos.admin
-        .recordBoardVisit(userId, boardId)
-        .then(() => queryClient.invalidateQueries({ queryKey: queryKeys.boardsWithNewItems(workspaceId) }))
-        .catch(() => undefined);
-    seen();
-    window.addEventListener("pagehide", seen);
-    return () => {
-      window.removeEventListener("pagehide", seen);
-      seen();
-    };
-  }, [services, queryClient, ws.currentUser.id, ws.workspace.id, boardId]);
+    void services.repos.admin.recordBoardVisit(ws.currentUser.id, boardId).catch(() => undefined);
+  }, [services, ws.currentUser.id, boardId]);
 
   // The URL is the source of truth for the view. Otherwise the view this person
   // last used on this board fills in: the browser's copy first, then the one

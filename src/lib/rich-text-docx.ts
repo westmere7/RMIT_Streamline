@@ -9,7 +9,7 @@
  */
 
 import JSZip from "jszip";
-import { parseRichText, splitBriefFacts, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
+import { parseRichText, type BlockNode, type InlineNode, type RichTextColor } from "@/lib/rich-text";
 
 const COLORS: Record<RichTextColor, string> = {
   red: "C0392B",
@@ -32,17 +32,13 @@ interface RunStyle {
   italic?: boolean;
   underline?: boolean;
   color?: string;
-  size?: number;
-  caps?: boolean;
 }
 
 function run(text: string, style: RunStyle = {}): string {
   const props = [
     style.bold ? "<w:b/>" : "",
     style.italic ? "<w:i/>" : "",
-    style.caps ? "<w:caps/>" : "",
     style.color ? `<w:color w:val="${style.color}"/>` : "",
-    style.size ? `<w:sz w:val="${style.size}"/>` : "",
     style.underline ? '<w:u w:val="single"/>' : "",
   ].join("");
   return `<w:r>${props ? `<w:rPr>${props}</w:rPr>` : ""}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
@@ -109,12 +105,8 @@ function block(node: BlockNode, links: Links): string {
 /** The body of word/document.xml and the links it points at. Exported for the tests. */
 export function richTextToDocxBody(body: string, title: string): { xml: string; links: string[] } {
   const links = new Links();
-  const { facts, rest } = splitBriefFacts(parseRichText(body));
-  const parts = [paragraph(run(title), { style: "Title" })];
-  if (facts?.service) parts.push(paragraph(run("Service", { caps: true, color: "6B7280", size: 18 }), { after: 0 }), paragraph(run(facts.service, { bold: true, size: 36 })));
-  if (facts?.involves.length) parts.push(paragraph(run("Work types", { caps: true, color: "6B7280", size: 18 }), { after: 0 }), paragraph(run(facts.involves.join("  ·  "), { bold: true, size: 26 })));
-  if (facts) parts.push(paragraph("", { border: true }));
-  parts.push(...rest.map((node) => block(node, links)));
+  // Line for line what the app shows, in view and in edit alike.
+  const parts = [paragraph(run(title), { style: "Title" }), ...parseRichText(body).map((node) => block(node, links))];
   return { xml: parts.join(""), links: links.targets };
 }
 

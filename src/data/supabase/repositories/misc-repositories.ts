@@ -431,12 +431,6 @@ export class SupabaseAdminRepository implements DataAdminRepository {
     return unwrapList<{ board_id: string }>(result, "board_visits.listRecentBoardIds").map((row) => row.board_id);
   }
 
-  async listBoardsWithNewItems(_userId: string, workspaceId: string): Promise<string[]> {
-    // Runs as the caller: their own visits, through the usual read rules (0155).
-    const result = await db().rpc("boards_with_new_items", { p_workspace_id: workspaceId });
-    return unwrapList<string>(result as { data: string[] | null; error: null }, "board_visits.listBoardsWithNewItems");
-  }
-
   async exportAll(): Promise<DataExport> {
     throw new NotSupportedError("Exporting the database", "Use a Postgres dump (`pg_dump`) or the Supabase dashboard.");
   }

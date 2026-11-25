@@ -91,7 +91,7 @@ describe("the brief a service's answers compose", () => {
     // Composed as rich text: each question is a heading and its answer the
     // paragraph under it, so the brief opens formatted wherever it is read
     // (see src/lib/rich-text.ts).
-    expect(brief).toContain("**Service:** Design");
+    expect(brief).toContain("# Design");
     expect(brief).toContain("**Work types:** Print");
     expect(brief).toContain("## 1. What are you asking for?");
     expect(brief).toContain("## 2. Sizes, formats and where it will run");
@@ -132,7 +132,7 @@ describe("the brief a service's answers compose", () => {
     );
     const lines = brief.split("\n");
     // The lead, then a rule under it.
-    expect(lines[0]).toBe("**Service:** Design");
+    expect(lines[0]).toBe("# Design");
     expect(lines.slice(0, 6)).toContain("---");
     // A question is a subheading; the one its answer opened is a subheading one
     // step further in, so the brief has the shape the form had.
@@ -293,7 +293,7 @@ describe("placing a booking's answers on a board", () => {
     expect(placement.briefPlaced).toBe(false);
     expect(description.startsWith(richTextToPlain(req.brief))).toBe(true);
     expect(description).toContain("Requester: Priya Nair");
-    expect(description).toContain("Service: Design");
+    expect(description).toMatch(/^Design$/m);
     expect(description).not.toContain("Assets & specs");
     expect(description).toContain("Email: priya@rmit.edu.au");
     expect(description).toContain("Reference: https://example.com/brief");
@@ -657,7 +657,7 @@ describe("booking a task", () => {
     expect(lines[0]!.assetType).toBe("Print");
     expect(lines[1]!.assetType).toBe("Print");
     expect(receipt.assetCount).toBe(2);
-    expect(await briefText(services, item.id)).toContain("Service: Design");
+    expect(await briefText(services, item.id)).toMatch(/^Design$/m);
     expect(await briefText(services, item.id)).toContain("1. What are you asking for?");
 
     const columns = await services.repos.boards.listColumns(board.id);
@@ -811,7 +811,7 @@ describe("booking a task", () => {
     const plan = planStandardFields(columns);
     if (plan.dueDate) expect(values.find((v) => v.columnId === plan.dueDate!.id)?.value).toEqual({ type: "DATE", date: "2026-10-01" });
     // Whatever found no column is still on the record.
-    expect(await briefText(services, item.id)).toContain("Service: Design");
+    expect(await briefText(services, item.id)).toMatch(/^Design$/m);
     // The email is the Requester's own; only a board with neither column keeps it as text.
     if (!plan.requesterEmail && !columns.some((c) => c.type === "REQUESTER")) expect(item.description).toContain("priya@rmit.edu.au");
   });
@@ -917,15 +917,15 @@ describe("booking a task", () => {
     const { item } = await services.booking.allocate(receipt.itemId, target.id, owner);
     // No Brief column to carry it to: the flattened brief went on top of the description.
     const flattened = (await services.repos.items.getById(item.id))!.description ?? "";
-    expect(flattened).toContain("Service: Design");
+    expect(flattened).toMatch(/^Design$/m);
     const kept = (await services.repos.items.listBookingBriefs([item.id])).get(item.id)!;
-    expect(kept).toContain("**Service:** Design");
+    expect(kept).toContain("# Design");
 
     // Adding a Brief column brings the brief back, formatting and all, and the duplicate leaves the description.
     const brief = await services.boards.addColumn({ boardId: target.id, name: "Brief", type: "BRIEF" });
     const values = await services.repos.items.listValuesByItem(item.id);
     expect(values.find((v) => v.columnId === brief.id)?.value).toEqual({ type: "RICH_TEXT", text: kept });
-    expect((await services.repos.items.getById(item.id))!.description ?? "").not.toContain("Service: Design");
+    expect((await services.repos.items.getById(item.id))!.description ?? "").not.toMatch(/^Design$/m);
 
     // A task nobody booked gets nothing: its Brief cell is an ordinary rich-text field.
     const other = (await services.repos.items.listByBoard(target.id)).find((i) => i.id !== item.id)!;
@@ -949,7 +949,7 @@ describe("booking a task", () => {
     expect(item.id).toBe(receipt.itemId);
     expect(item.boardId).toBe(target.id);
     expect(item.name).toBe("Open Day wayfinding posters");
-    expect(await briefText(services, item.id)).toContain("Service: Design");
+    expect(await briefText(services, item.id)).toMatch(/^Design$/m);
 
     // Nothing was copied and nothing was linked.
     expect(await services.repos.links.listByItem(receipt.itemId)).toHaveLength(0);
@@ -1080,7 +1080,7 @@ describe("shaping the booking form", () => {
       request: request({ serviceTypeId: "svc-web", subServices: ["Landing page"], answers: { url: { kind: "link", url: "https://rmit.test/open-day", label: "Open Day" }, who: { kind: "choice", values: ["Students"] } } }),
     });
     const brief = await briefText(services, receipt.itemId);
-    expect(brief).toContain("Service: Web");
+    expect(brief).toMatch(/^Web$/m);
     expect(brief).toContain("1. Which page?");
     // The words given for the link are what the brief shows; the address is
     // behind them (see composeBrief).

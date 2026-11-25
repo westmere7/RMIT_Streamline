@@ -20,14 +20,14 @@ const BRIEF = [
 ].join("\n");
 
 describe("richTextToDocx", () => {
-  it("heads the document with the service and what it involves, then the questions as headings", () => {
+  it("writes the brief as it reads in the app: the title, then every line as written, questions as headings", () => {
     const { xml, links } = richTextToDocxBody(BRIEF, "Campus signage - Brief");
     expect(xml).toContain('<w:pStyle w:val="Title"/>');
     expect(xml).toContain(">Campus signage - Brief<");
-    expect(xml.indexOf(">Design<")).toBeLessThan(xml.indexOf("What are you asking for?"));
-    expect(xml).toContain(">Print  ·  Installation<");
-    // The facts come out of the body: they are not repeated as bold lines under the header.
-    expect(xml).not.toContain(">Service:<");
+    // The opening lines are the bold-label lines the editor shows, not a header of their own.
+    expect(xml).toContain(">Service:<");
+    expect(xml).toContain(">Involves:<");
+    expect(xml.indexOf(">Service:<")).toBeLessThan(xml.indexOf("What are you asking for?"));
     expect((xml.match(/<w:pStyle w:val="Heading2"\/>/g) ?? []).length).toBe(2);
     expect(xml).toContain("&amp; the tram stop &lt;welcome&gt;.");
     expect(xml).toContain("<w:b/>");

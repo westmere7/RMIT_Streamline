@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, type ColumnPair, type Item } from "@/domain";
+import { LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_UPDATES, type ColumnPair, type Item } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { LinkItemDialog } from "@/features/items/link-item-dialog";
 import { useItemLinks, useLinkMutations } from "@/features/items/link-hooks";
@@ -230,20 +230,22 @@ function SyncSummary({
   const label = (m: (typeof mapped)[number]) => (m.source.name.trim().toLowerCase() === m.target.name.trim().toLowerCase() ? m.source.name : `${m.source.name} → ${m.target.name}`);
   // Assets are always in the list: they are shared by the link rather than
   // copied, and there is no switching that off.
-  const synced = ["assets", ...(nameOn ? ["name, description"] : []), ...on.map(label)];
+  const updatesOn = !excluded.has(LINK_FIELD_UPDATES);
+  const synced = ["assets", ...(nameOn ? ["name, description"] : []), ...(updatesOn ? ["updates and replies"] : []), ...on.map(label)];
+  const offNames = [...(updatesOn ? [] : ["updates and replies"]), ...off.map(label)];
 
   const detail = [
     synced.length ? `Syncs ${synced.join(", ")}` : "Nothing syncs yet",
-    off.length > 0 ? `Off: ${off.map(label).join(", ")}` : null,
+    offNames.length > 0 ? `Off: ${offNames.join(", ")}` : null,
     unmapped.length > 0 ? `Not on ${view.board.name}: ${unmapped.map((c) => c.name).join(", ")}` : null,
   ]
     .filter(Boolean)
     .join("\n");
-  const fieldCount = 1 + (nameOn ? 2 : 0) + on.length;
+  const fieldCount = 1 + (nameOn ? 2 : 0) + (updatesOn ? 1 : 0) + on.length;
   const summary = (
     <span className="min-w-0 truncate" title={detail}>
       {fieldCount > 0 ? `Syncs ${fieldCount} ${fieldCount === 1 ? "field" : "fields"}` : "Nothing syncs yet"}
-      {off.length > 0 && <span className="text-muted-foreground/70"> · {off.length} off</span>}
+      {offNames.length > 0 && <span className="text-muted-foreground/70"> · {offNames.length} off</span>}
     </span>
   );
 
