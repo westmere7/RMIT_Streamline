@@ -131,6 +131,31 @@ export class TrackerService {
     return { tracker, sheet, moved };
   }
 
+  /**
+   * A new sheet in an existing tracker, laid out for assets and linked to the
+   * task in one go: the same as createForItem, without making a tracker. Put
+   * at the end of the tracker's sheets. If linking fails the sheet goes again,
+   * so the tracker is not left with an empty one nobody asked for.
+   */
+  async addSheetForItem(
+    input: { trackerId: EntityId; itemId: EntityId; name: string; assetTypes?: string[]; moveAssets?: boolean },
+    actorId: EntityId,
+  ): Promise<{ tracker: Tracker; sheet: TrackerSheet; moved: number }> {
+    const tracker = await this.get(input.trackerId);
+    const item = await this.repos.items.getById(input.itemId);
+    if (!item) throw new NotFoundError("Item", input.itemId);
+    if (await this.repos.trackers.getSheetByItem(item.id)) throw new Error(`“${item.name}” already takes its assets from a sheet.`);
+    const name = input.name.trim() || "Assets";
+    const created = await this.repos.trackers.createSheet(assetSheet(tracker.id, name, input.assetTypes));
+    try {
+      const { sheet, moved } = await this.linkSheet(created.id, item.id, suggestAssetMapping(created), actorId, { moveAssets: input.moveAssets });
+      return { tracker, sheet, moved };
+    } catch (error) {
+      await this.repos.trackers.deleteSheet(created.id).catch(() => undefined);
+      throw error;
+    }
+  }
+
   /** Copies a tracker: every sheet with its rows. Copies hold no task's assets. */
   async duplicate(trackerId: EntityId, actorId: EntityId): Promise<{ tracker: Tracker; sheets: TrackerSheet[] }> {
     const source = await this.get(trackerId);

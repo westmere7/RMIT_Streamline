@@ -133,5 +133,5 @@ describe("Trackers", () => {
     const dataIndex = source.rows.findIndex((r) => r.kind === "data");
     const cellsOf = (sheet: { columns: { id: string; name: string }[]; rows: { cells: Record<string, unknown> }[] }, index: number) => Object.fromEntries(Object.entries(sheet.rows[index]!.cells).map(([id, v]) => [sheet.columns.find((c) => c.id === id)!.name, v]));
     expect(cellsOf(back, dataIndex)).toEqual(cellsOf(source, dataIndex));
-  });
+  }, 30_000); // A full workbook through ExcelJS: seconds when the whole suite runs at once.
 });

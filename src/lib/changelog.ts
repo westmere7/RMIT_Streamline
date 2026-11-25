@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.164.0",
+    date: "2026-11-25",
+    title: "A new sheet for a task, in a tracker you already have",
+    changes: [
+      "Use a tracker sheet has New sheet beside each tracker: a sheet laid out for assets, named after the task, is added to that tracker and linked to the task in one go. Trackers whose sheets all hold a task now show too, so a new sheet can go there.",
+    ],
+  },
+  {
     version: "0.163.0",
     date: "2026-11-24",
     title: "A dot for new tasks",

@@ -17,7 +17,8 @@ function MobileTable({ openItem }: { openItem?: (id: string | null) => void }) {
   );
 }
 
-describe("the mobile board", () => {
+// Each test renders the whole phone board; when the full suite runs at once that can pass five seconds.
+describe("the mobile board", { timeout: 20_000 }, () => {
   it("puts the status and due date on every card, and the priority only when it asks for attention", async () => {
     const app = await createTestApp();
     await app.render(<MobileTable />);

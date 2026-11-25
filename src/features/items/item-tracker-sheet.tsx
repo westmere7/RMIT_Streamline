@@ -21,6 +21,7 @@ import { PeopleValue, TaskAssetsDialog } from "@/features/trackers/tracker-asset
 import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatShortDate, isOverdue } from "@/lib/dates/dates";
+import { canEditTrackers } from "@/lib/permissions/permissions";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
@@ -538,7 +539,10 @@ function SheetLineEditor({
   );
 }
 
-/** Every sheet in the workspace that holds no task's assets yet, by tracker; or a new tracker made for this task. */
+/**
+ * Every sheet in the workspace that holds no task's assets yet, by tracker; a
+ * new sheet made for this task in one of those trackers; or a new tracker.
+ */
 function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item: Item; open: boolean; onOpenChange: (open: boolean) => void; onPick: (sheet: TrackerSheet) => void; onLinked?: () => void }) {
   const services = useServices();
   const ws = useWorkspace();
@@ -547,36 +551,63 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
   const [creating, setCreating] = React.useState(false);
   // The new tracker's name: the task's to start with, the person's to change. Null while the box is closed.
   const [newName, setNewName] = React.useState<string | null>(null);
-  // A tracker on the task's board's team, with one sheet laid out for assets.
-  const createTracker = async () => {
-    const name = (newName ?? "").trim();
-    if (!name) return;
+  // A new sheet in an existing tracker: which tracker, and its name. Null while no box is open.
+  const [newSheet, setNewSheet] = React.useState<{ trackerId: string; name: string } | null>(null);
+  const canMake = canEditTrackers(ws.permissions);
+  // Made and linked in one go, so nothing new is left holding no task. The task's assets are
+  // then offered one by one (onLinked opens Move into sheet).
+  const make = async (work: () => Promise<unknown>, done: string, failed: string) => {
     setCreating(true);
     try {
-      // Made and linked in one go, so a new tracker is never left holding no task. The task's
-      // assets are then offered one by one (onLinked opens Move into sheet).
-      await services.trackers.createForItem(
-        { workspaceId: ws.workspace.id, teamId: ws.boardById(item.boardId)?.teamId ?? null, itemId: item.id, name, assetTypes: assetTypes.map((t) => t.name), moveAssets: false },
-        ws.currentUser.id,
-      );
+      await work();
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["trackers"] }),
+        queryClient.invalidateQueries({ queryKey: ["tracker-sheets"] }),
+        queryClient.invalidateQueries({ queryKey: ["tracker-sheet-picker"] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.itemAssets(item.id) }),
         queryClient.invalidateQueries({ queryKey: ["item-tracker-sheet", item.id] }),
       ]);
-      toast.success(`“${name}” now holds this task's assets`);
+      toast.success(done);
       setNewName(null);
+      setNewSheet(null);
       onOpenChange(false);
       onLinked?.();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not make the tracker");
+      toast.error(error instanceof Error ? error.message : failed);
     } finally {
       setCreating(false);
     }
   };
+  // A tracker on the task's board's team, with one sheet laid out for assets.
+  const createTracker = async () => {
+    const name = (newName ?? "").trim();
+    if (!name) return;
+    await make(
+      () =>
+        services.trackers.createForItem(
+          { workspaceId: ws.workspace.id, teamId: ws.boardById(item.boardId)?.teamId ?? null, itemId: item.id, name, assetTypes: assetTypes.map((t) => t.name), moveAssets: false },
+          ws.currentUser.id,
+        ),
+      `“${name}” now holds this task's assets`,
+      "Could not make the tracker",
+    );
+  };
+  // A sheet laid out for assets, added to a tracker that is already there.
+  const createSheet = async (trackerName: string) => {
+    const name = (newSheet?.name ?? "").trim();
+    if (!newSheet || !name) return;
+    await make(
+      () => services.trackers.addSheetForItem({ trackerId: newSheet.trackerId, itemId: item.id, name, assetTypes: assetTypes.map((t) => t.name), moveAssets: false }, ws.currentUser.id),
+      `“${name}” in ${trackerName} now holds this task's assets`,
+      "Could not make the sheet",
+    );
+  };
   const newButton =
     newName === null ? (
-      <Button type="button" variant="outline" size="sm" onClick={() => setNewName(item.name.trim() || "Assets")} className="self-start" data-testid="pick-sheet-new-tracker">
+      <Button type="button" variant="outline" size="sm" onClick={() => {
+          setNewSheet(null);
+          setNewName(item.name.trim() || "Assets");
+        }} className="self-start" data-testid="pick-sheet-new-tracker">
         <Plus /> New tracker for this task
       </Button>
     ) : (
@@ -605,7 +636,7 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
       const trackers = await services.trackers.list(ws.workspace.id);
       const all = await Promise.all(trackers.map(async (tracker) => ({ tracker, sheets: await services.trackers.listSheets(tracker.id) })));
       // Only sheets this task can take: one holding another task's assets is no choice, so it is not offered.
-      return { any: all.length > 0, free: all.map(({ tracker, sheets }) => ({ tracker, sheets: sheets.filter((sheet) => !sheet.itemId) })).filter(({ sheets }) => sheets.length > 0) };
+      return { any: all.length > 0, trackers: all.map(({ tracker, sheets }) => ({ tracker, sheets: sheets.filter((sheet) => !sheet.itemId) })) };
     },
     enabled: open,
     staleTime: 5_000,
@@ -615,13 +646,18 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
   const teamName = teamId ? (ws.teams.find((t) => t.id === teamId)?.name ?? null) : null;
   const [teamOnly, setTeamOnly] = React.useState(true);
   const narrowed = !!teamId && teamOnly;
-  const free = (data.data?.free ?? []).filter(({ tracker }) => !narrowed || tracker.teamId === teamId);
-  const emptyText = narrowed && (data.data?.free ?? []).length > 0 ? `No free sheets in ${teamName ?? "this team"}'s trackers.` : data.data?.any ? "Every sheet already holds a task's assets." : "No trackers in this workspace yet.";
+  // A tracker with no free sheet still shows while a new sheet can be made in it.
+  const offered = (data.data?.trackers ?? []).filter(({ sheets }) => sheets.length > 0 || canMake);
+  const free = offered.filter(({ tracker }) => !narrowed || tracker.teamId === teamId);
+  const emptyText = narrowed && offered.length > 0 ? `No free sheets in ${teamName ?? "this team"}'s trackers.` : data.data?.any ? "Every sheet already holds a task's assets." : "No trackers in this workspace yet.";
   return (
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) setNewName(null);
+        if (!next) {
+          setNewName(null);
+          setNewSheet(null);
+        }
         onOpenChange(next);
       }}
     >
@@ -651,16 +687,34 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
           <ul className="max-h-[50dvh] space-y-3 overflow-y-auto">
             {free.map(({ tracker, sheets }) => (
               <li key={tracker.id}>
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <FileSpreadsheet className="size-3.5" aria-hidden /> {tracker.name}
-                </p>
+                <div className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <FileSpreadsheet className="size-3.5 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1 truncate">{tracker.name}</span>
+                  {canMake && newSheet?.trackerId !== tracker.id && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 shrink-0 px-1.5 text-2xs font-medium max-md:h-9"
+                      onClick={() => {
+                        setNewName(null);
+                        setNewSheet({ trackerId: tracker.id, name: item.name.trim() || "Assets" });
+                      }}
+                      data-testid="pick-sheet-new-sheet"
+                    >
+                      <Plus className="size-3" /> New sheet
+                    </Button>
+                  )}
+                </div>
                 <ul className="space-y-0.5">
+                  {sheets.length === 0 && newSheet?.trackerId !== tracker.id && <li className="px-2 py-1 text-2xs text-muted-foreground">Every sheet here holds a task&rsquo;s assets.</li>}
                   {sheets.map((sheet) => (
                     <li key={sheet.id}>
                       <button
                         type="button"
                         onClick={() => {
                           setNewName(null);
+                          setNewSheet(null);
                           onOpenChange(false);
                           onPick(sheet);
                         }}
@@ -672,6 +726,35 @@ function PickSheetDialog({ item, open, onOpenChange, onPick, onLinked }: { item:
                       </button>
                     </li>
                   ))}
+                  {newSheet?.trackerId === tracker.id && (
+                    <li>
+                      <form
+                        className="flex w-full items-center gap-2 px-1 py-1"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void createSheet(tracker.name);
+                        }}
+                        data-testid="pick-sheet-new-sheet-form"
+                      >
+                        <Input
+                          value={newSheet.name}
+                          onChange={(e) => setNewSheet({ trackerId: tracker.id, name: e.target.value })}
+                          aria-label={`New sheet in ${tracker.name}`}
+                          placeholder="Sheet name"
+                          maxLength={120}
+                          autoFocus
+                          className="h-8 min-w-0 flex-1"
+                          data-testid="pick-sheet-new-sheet-name"
+                        />
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setNewSheet(null)} disabled={creating}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" size="sm" disabled={creating || !newSheet.name.trim()} data-testid="pick-sheet-new-sheet-create">
+                          {creating ? <Loader2 className="animate-spin" /> : <Plus />} Create
+                        </Button>
+                      </form>
+                    </li>
+                  )}
                 </ul>
               </li>
             ))}

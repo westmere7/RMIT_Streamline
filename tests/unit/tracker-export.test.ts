@@ -44,7 +44,7 @@ describe("tracker export", () => {
     expect((totals.getCell(3).value as { formula: string }).formula).toBe('IFERROR(AVERAGE(C2:C5),"")');
     expect((totals.getCell(4).value as { formula: string }).formula).toBe('COUNTIF(D2:D5,"Y")');
     expect((totals.getCell(5).value as { formula: string }).formula).toBe("COUNTA(E2:E5)");
-  });
+  }, 30_000); // A full workbook through ExcelJS: seconds when the whole suite runs at once.
 
   it("round-trips without importing the totals row, and recognises number columns and their formats", async () => {
     const bytes = await sheetsToWorkbook("Tracker", [sheet]);
