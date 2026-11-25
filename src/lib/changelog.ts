@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.165.1",
+    date: "2026-11-25",
+    title: "Tidy-up after the new-tasks dot",
+    changes: ["The database function the new-tasks dot used is removed; nothing calls it now that the dot is off."],
+  },
+  {
     version: "0.165.0",
     date: "2026-11-25",
     title: "Linked tasks: labels carry across, and updates stay in sync; a brief edits as it reads",

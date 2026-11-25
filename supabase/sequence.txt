@@ -202,3 +202,4 @@ migrations/0152_booking_brief_kept.sql
 migrations/0153_board_landing_group.sql
 migrations/0154_realtime_live_gaps.sql
 migrations/0155_boards_with_new_items.sql
+migrations/0156_drop_boards_with_new_items.sql
