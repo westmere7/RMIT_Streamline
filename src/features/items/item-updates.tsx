@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronsDownUp, ChevronsUpDown, Link2, ListChecks, Maximize2, MessageSquare, Minimize2, Pencil, Pin, PinOff, Reply, Send, SmilePlus, Trash2, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { EmptyState } from "@/components/shared/empty-state";
 import { RelativeTime } from "@/components/shared/relative-time";
 import { RichText } from "@/components/shared/rich-text";
@@ -17,7 +18,7 @@ import { SimpleTooltip } from "@/components/ui/tooltip";
 import { COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Activity, type Comment, type CommentPinState } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
-import { mergeFeed, type FeedEntry } from "@/features/items/item-feed";
+import { mergeFeed, type FeedEntry, type FeedOrder } from "@/features/items/item-feed";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useServices } from "@/features/data/data-context";
@@ -37,13 +38,40 @@ const CheckToggle = React.createContext<CheckHandler | undefined>(undefined);
 /** Pins an update or takes its pin away. Absent where the reader may not work on the task. */
 type PinHandler = (comment: Comment, state: CommentPinState) => void;
 const PinControl = React.createContext<PinHandler | undefined>(undefined);
+/** Pin to overview offered and named. Off in the pop-up, where the overview's pinned copy would sit beside the update itself. */
+const OverviewPins = React.createContext(true);
 
 /**
  * @param log The task's history, woven in among the updates by time (the
  * pop-up's one feed). Its "update posted" lines are left out: the update is there.
  * @param embedded Inside a parent that scrolls: no height or scroll of its own.
  */
-export function ItemUpdates({ itemId, canComment, log, embedded = false }: { itemId: string; canComment: boolean; log?: readonly Activity[]; embedded?: boolean }) {
+export function ItemUpdates({
+  itemId,
+  canComment,
+  log,
+  embedded = false,
+  order = "time",
+  fadeLog = true,
+  composerTop,
+  overviewPins = true,
+  collapseSlot,
+}: {
+  itemId: string;
+  canComment: boolean;
+  log?: readonly Activity[];
+  embedded?: boolean;
+  /** The feed by time, or every update above the history. */
+  order?: FeedOrder;
+  /** History lines faded back behind the updates. */
+  fadeLog?: boolean;
+  /** Embedded: the composer stays put this far from the top of the scroll, under the parent's tab bar. */
+  composerTop?: string;
+  /** Pin to overview on offer (and named on the badge). */
+  overviewPins?: boolean;
+  /** Where Collapse all goes, as an icon, instead of a row above the feed. */
+  collapseSlot?: HTMLElement | null;
+}) {
   const ws = useWorkspace();
   const services = useServices();
   const item = useQuery({ queryKey: ["item-board", itemId], queryFn: () => services.repos.items.getById(itemId), staleTime: 60_000 });
@@ -76,7 +104,10 @@ export function ItemUpdates({ itemId, canComment, log, embedded = false }: { ite
   }, [comments.data]);
   // The feed: pinned conversations first, then updates and history lines
   // together, newest first, each update where it was posted.
-  const feed = React.useMemo((): FeedEntry[] => (log ? mergeFeed(updates, repliesTo, log) : updates.map((comment) => ({ kind: "update", comment }))), [log, updates, repliesTo]);
+  const feed = React.useMemo(
+    (): FeedEntry[] => (log ? mergeFeed(updates, log, order, (u) => threadPinOf(u, repliesTo.get(u.id)) != null) : updates.map((comment) => ({ kind: "update", comment }))),
+    [log, updates, order, repliesTo],
+  );
   // Conversations folded to one line. Per visit, not stored: a panel reopened later starts open.
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set());
   const allCollapsed = updates.length > 0 && updates.every((u) => collapsed.has(u.id));
@@ -97,11 +128,13 @@ export function ItemUpdates({ itemId, canComment, log, embedded = false }: { ite
   return (
     <DeleteRule.Provider value={mayDelete}>
     <PinControl.Provider value={canComment ? onPin : undefined}>
+    <OverviewPins.Provider value={overviewPins}>
     <CheckToggle.Provider value={canComment ? onCheck : undefined}>
     <div className={cn("flex flex-col", !embedded && "h-full")}>
       {canComment && (
         <form
-          className={cn("border-b transition-[padding] duration-200", embedded ? (open ? "px-8 py-4" : "px-8 py-3.5") : open ? "p-4" : "px-4 py-3")}
+          className={cn("border-b transition-[padding] duration-200", embedded ? (open ? "px-8 py-4" : "px-8 py-3.5") : open ? "p-4" : "px-4 py-3", embedded && composerTop && "sticky z-[9] bg-popover")}
+          style={embedded && composerTop ? { top: composerTop } : undefined}
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -161,7 +194,25 @@ export function ItemUpdates({ itemId, canComment, log, embedded = false }: { ite
           </div>
         )}
         {comments.data && feed.length === 0 && <EmptyState icon={MessageSquare} title="No updates yet" description="Post the first update to start the conversation." compact />}
-        {updates.length > 1 && (
+        {/* Given a slot (the pop-up's tab bar), the button goes there as an icon rather than taking a row of its own. */}
+        {updates.length > 1 && collapseSlot &&
+          createPortal(
+            <SimpleTooltip label={allCollapsed ? "Expand all" : "Collapse all"}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                aria-label={allCollapsed ? "Expand all" : "Collapse all"}
+                onClick={() => setCollapsed(allCollapsed ? new Set() : new Set(updates.map((u) => u.id)))}
+                data-testid="comments-collapse-all"
+              >
+                {allCollapsed ? <ChevronsUpDown /> : <ChevronsDownUp />}
+              </Button>
+            </SimpleTooltip>,
+            collapseSlot,
+          )}
+        {updates.length > 1 && !collapseSlot && (
           <div className="mb-2 flex justify-end">
             <Button
               type="button"
@@ -177,7 +228,7 @@ export function ItemUpdates({ itemId, canComment, log, embedded = false }: { ite
         )}
         <ul className="space-y-3" data-testid={log ? "item-feed" : undefined}>
           {feed.map((entry) => {
-            if (entry.kind === "log") return <LogLine key={`log-${entry.activity.id}`} activity={entry.activity} />;
+            if (entry.kind === "log") return <LogLine key={`log-${entry.activity.id}`} activity={entry.activity} faded={fadeLog} />;
             const comment = entry.comment;
             return (
             <CommentItem
@@ -201,20 +252,22 @@ export function ItemUpdates({ itemId, canComment, log, embedded = false }: { ite
       </div>
     </div>
     </CheckToggle.Provider>
+    </OverviewPins.Provider>
     </PinControl.Provider>
     </DeleteRule.Provider>
   );
 }
 
 /** One line of the task's history among its updates: who did what, and when. Quieter than an update. */
-function LogLine({ activity }: { activity: Activity }) {
+function LogLine({ activity, faded }: { activity: Activity; faded: boolean }) {
   const ws = useWorkspace();
   const links = useMentionLinks();
   return (
     <li className="flex items-center gap-2.5 px-1 text-[12.5px] leading-snug text-muted-foreground" data-testid="feed-log">
       <UserAvatar user={ws.userById(activity.actorId)} size="xs" />
-      <p className="min-w-0 flex-1">
-        {describeActivity(activity, ws.users, false, links)} <RelativeTime iso={activity.createdAt} className="ml-1 text-2xs text-muted-foreground/80" />
+      {/* Faded back behind the updates; the face stays, so who did it is still found at a glance. */}
+      <p className={cn("min-w-0 flex-1", faded && "opacity-55")}>
+        {describeActivity(activity, ws.users, false, links)} <RelativeTime iso={activity.createdAt} className="ml-1 text-2xs" />
       </p>
     </li>
   );
@@ -280,14 +333,18 @@ function CommentItem({
 
   if (collapsed) {
     return (
-      <li className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs" data-testid="comment" data-collapsed="true">
+      // Hover lifts the card (a wash of the text colour and a firmer edge): the
+      // accent tint read darker than the card in the dark theme.
+      <li className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-xs transition-colors hover:border-border" data-testid="comment" data-collapsed="true">
         {/* Folded, but still read at a glance: who and when on one line, the start of what they said under it. */}
-        <button type="button" onClick={onToggle} className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-accent/40">
+        <button type="button" onClick={onToggle} className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-foreground/[0.04]">
           <ChevronDown className="mt-1 size-3.5 shrink-0 -rotate-90 text-muted-foreground" />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2">
               <CommentAuthorName comment={comment} size="sm" />
               <RelativeTime iso={comment.createdAt} className="shrink-0 text-2xs text-muted-foreground" />
+              {/* Folded, a pinned one still says why it sits on top. */}
+              {threadPinOf(comment, replies) && <Pin className="size-3 shrink-0 text-accent-soft-foreground" aria-label="Pinned" data-testid="comment-pinned-mark" />}
               <span className="ml-auto flex shrink-0 items-center gap-3">
                 <ChecklistTally comment={comment} />
                 <ReactionSummary comment={comment} />
@@ -371,11 +428,14 @@ function CommentItem({
 /** One reply inside an update's card: smaller, on the card's quieter ground. */
 function ReplyRow({ reply, names, onEdit, onDelete, onReact }: { reply: Comment; names: string[]; onEdit: (body: string) => void; onDelete: () => void; onReact?: ReactHandler }) {
   const [editing, setEditing] = React.useState(false);
+  // No reactions yet: the react button waits in the header with edit and
+  // delete, rather than on a line of its own that left every reply with a gap.
+  const reacted = groupReactions(reply.reactions).length > 0;
   return (
     <li className="group/comment" data-testid="comment-reply">
-      <CommentHeader comment={reply} size="sm" onEdit={() => setEditing(true)} onDelete={onDelete} />
+      <CommentHeader comment={reply} size="sm" onEdit={() => setEditing(true)} onDelete={onDelete} hoverAction={!reacted && onReact ? <ReactionPicker comment={reply} onReact={onReact} compact /> : undefined} />
       <CommentBody comment={reply} names={names} editing={editing} onEditingChange={setEditing} onSave={onEdit} className="mt-1 pl-8" />
-      <Reactions comment={reply} onReact={onReact} compact className="mt-1 pl-8" />
+      {reacted && <Reactions comment={reply} onReact={onReact} compact className="mt-1 pl-8" />}
     </li>
   );
 }
@@ -514,16 +574,20 @@ function CommentHeader({
   onDelete,
   leading,
   onHeaderClick,
+  hoverAction,
 }: {
   comment: Comment;
   size: "sm" | "md";
   onEdit: () => void;
   onDelete: () => void;
   leading?: React.ReactNode;
+  /** One more button among the ones that wait for the pointer (a reply's react button). */
+  hoverAction?: React.ReactNode;
   /** Clicking the header anywhere but its name and buttons: an update folds this way. */
   onHeaderClick?: () => void;
 }) {
   const ws = useWorkspace();
+  const showOverviewPins = React.useContext(OverviewPins);
   const links = useMentionLinks();
   const mayDelete = React.useContext(DeleteRule);
   const author = ws.userById(comment.authorId);
@@ -552,7 +616,7 @@ function CommentHeader({
         {edited && <span className="text-2xs text-muted-foreground">(edited)</span>}
         {comment.pin && (
           <span className="flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-0.5 text-2xs font-medium text-accent-soft-foreground" data-testid="comment-pinned-badge">
-            <Pin className="size-3" /> {comment.pin.overview ? "Pinned to overview" : "Pinned"}
+            <Pin className="size-3" /> {comment.pin.overview && showOverviewPins ? "Pinned to overview" : "Pinned"}
           </span>
         )}
         {comment.sharedId && (
@@ -563,7 +627,8 @@ function CommentHeader({
           </SimpleTooltip>
         )}
       </div>
-      <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100 pointer-coarse:opacity-100">
+      <span className="flex shrink-0 items-center opacity-0 group-hover/comment:opacity-100 focus-within:opacity-100 has-[[data-confirming]]:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100">
+        {hoverAction}
         <PinMenu comment={comment} />
         {canEditComment(ws.permissions, comment) && (
           <Button variant="ghost" size="icon-xs" aria-label={`Edit ${noun}`} onClick={onEdit}>
@@ -582,6 +647,7 @@ function CommentHeader({
 /** Pin, Pin to overview, and the way back from each, on an update or a reply, for whoever can work on the task. */
 function PinMenu({ comment }: { comment: Comment }) {
   const onPin = React.useContext(PinControl);
+  const overviewPins = React.useContext(OverviewPins);
   if (!onPin) return null;
   const state = pinStateOf(comment);
   return (
@@ -601,7 +667,7 @@ function PinMenu({ comment }: { comment: Comment }) {
             <PinOff /> Unpin
           </DropdownMenuItem>
         )}
-        {state === "overview" ? (
+        {!overviewPins ? null : state === "overview" ? (
           <DropdownMenuItem onSelect={() => onPin(comment, "pinned")} data-testid="comment-unpin-overview">
             <PinOff /> Remove from overview
           </DropdownMenuItem>

@@ -40,6 +40,7 @@ import { SavedViewsContext, useSavedViewsController } from "@/features/boards/sa
 import { SavedViewsMenu } from "@/features/boards/saved-views/saved-views-menu";
 import { useArchiveCount } from "@/features/boards/archive/use-archive";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
+import { feedOptionsOf, feedSettingsPatch, TABLE_VIEW_DEFAULTS, type TableViewSettings } from "@/features/boards/table-view-settings";
 import { MobileBoardHeader, MobileBoardToolsRow } from "@/features/boards/components/mobile/mobile-board-screen";
 import { MobileKanbanView } from "@/features/boards/components/mobile/mobile-kanban-view";
 import { MobileTableView } from "@/features/boards/components/mobile/mobile-table-view";
@@ -120,7 +121,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
   // Where a task opens, beside the board or over it: the table's setting, which
   // the timeline, calendar, Gantt and workload follow (kanban has its own), and
   // part of a saved view like the rest of it.
-  const [tableSettings, updateTableSettings] = useViewSettingsFor<{ showTicket: boolean; openIn: ItemOpenMode }>(boardId, "table", { showTicket: true, openIn: "panel" });
+  const [tableSettings, updateTableSettings] = useViewSettingsFor<TableViewSettings>(boardId, "table", TABLE_VIEW_DEFAULTS);
   const preferredOpen: ItemOpenMode = tableSettings.openIn === "popup" ? "popup" : "panel";
   const isMobile = useIsMobile();
   // Cards or the grid on a phone. Its own key: the desktop table has no such
@@ -370,10 +371,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
             setShowTicket,
             rememberOpenMode,
             openMode: preferredOpen,
+            feedOptions: feedOptionsOf(tableSettings),
+            setFeedOptions: (patch) => updateTableSettings(feedSettingsPatch(patch)),
             updates,
           }
         : null,
-    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket, rememberOpenMode, preferredOpen],
+    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket, rememberOpenMode, preferredOpen, tableSettings, updateTableSettings],
   );
 
   // Next holds this page on screen until the next one is ready, so a board

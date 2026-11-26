@@ -2,6 +2,7 @@
 
 import { Boxes, CalendarClock, Check, Info, ChevronDown, CircleCheck, Copy, Eye, FileDown, Link2, LoaderCircle, MessageSquareQuote, Palette, Plus, Rocket, Save, SkipForward, Split, SquareKanban, Trash2, Undo2, X } from "lucide-react";
 import * as React from "react";
+import { BOARD_ROW, TEAM_ROW } from "@/components/shared/team-board-rows";
 import { createPortal } from "react-dom";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { restrictToParentElement } from "@dnd-kit/modifiers";
@@ -1097,11 +1098,11 @@ function ServicePanel({
                     <React.Fragment key={team?.id ?? "none"}>
                       <SelectSeparator />
                       <SelectGroup>
-                        <SelectLabel>{team?.name ?? "No team"}</SelectLabel>
+                        <SelectLabel className={TEAM_ROW}>{team?.name ?? "No team"}</SelectLabel>
                         {boards.map((board) => {
                           const nominated = !!team && team.bookingBoardId === board.id;
                           return (
-                            <SelectItem key={board.id} value={nominated ? team!.id : BOARD + board.id} data-testid={`editor-service-board-${key}-${board.slug}`}>
+                            <SelectItem key={board.id} value={nominated ? team!.id : BOARD + board.id} className={BOARD_ROW} data-testid={`editor-service-board-${key}-${board.slug}`}>
                               <span className="flex min-w-0 items-center gap-2">
                                 <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
                                 <span className="truncate">{board.name}</span>

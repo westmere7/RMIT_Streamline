@@ -18,6 +18,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.167.0",
+    date: "2026-11-26",
+    title: "An automation builder that reads as it runs",
+    changes: [
+      "New automation shows the rule as three steps, When, Only if and Then, each in its own colour on a line, with the whole rule spelled out above as you build it. No conditions reads as Every time, with a button to add one; several actions are numbered.",
+      "What can be filled in when it runs is a row of chips (Task name, Board, Group, Ticket, Who did it, Today, a column) that add themselves to the text, in place of a line of braces. The name is optional.",
+      "A new automation shows on the Automations page straight away; it used to wait for a reload.",
+      "A request on Task Allocation shows Allocation right under its description, as one row: the board picker and Allocate.",
+      "Board pickers that group boards by team (allocation, a service's routing) show teams and boards at one size, each board stepped in under its team.",
+      "The pop-up's feed has an options button beside the tabs: Activity, Keep Updates on top, and Fade activity (history lines sit back behind the updates; the faces stay clear). Off, Keep Updates on top runs updates and history together by time. Pinned updates stay at the top either way. Collapse all is an icon beside the options, not a row of its own. The choices are saved with the board's view settings.",
+      "The box for a new update stays put while the feed scrolls. The pop-up has no Pin to overview and no pinned copy above the feed: the update is right there. The side panel keeps both.",
+      "A reply's react button waits beside edit and delete, so replies no longer leave a gap under each one.",
+    ],
+  },
+  {
     version: "0.166.0",
     date: "2026-11-26",
     title: "A new task pop-up; sort and filter together",

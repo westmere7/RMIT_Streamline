@@ -272,8 +272,16 @@ export function useAutomationMutations(boardId: EntityId, vocabulary: RuleVocabu
   const services = useServices();
   const queryClient = useQueryClient();
   const key = queryKeys.automations(boardId);
-  // Read back once the last save on the rules has landed (quickSave).
-  const settled = { onSettled: () => (lastSave(queryClient, key) ? queryClient.invalidateQueries({ queryKey: key }) : undefined) };
+  // Read back once the last save on the rules has landed (quickSave): the
+  // board's rules, and the Automations page's list across the workspace, which
+  // otherwise kept a new rule off the page until a reload.
+  const settled = {
+    onSettled: () => {
+      if (!lastSave(queryClient, key)) return;
+      void queryClient.invalidateQueries({ queryKey: key });
+      void queryClient.invalidateQueries({ queryKey: ["workspace-automations"] });
+    },
+  };
   const failed = (fallback: string) => (error: unknown) => toast.error(error instanceof Error ? error.message : fallback);
 
   const create = useMutation({

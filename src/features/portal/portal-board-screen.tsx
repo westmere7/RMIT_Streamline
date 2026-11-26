@@ -26,6 +26,7 @@ import { GanttView } from "@/features/boards/components/views/gantt-view";
 import { KanbanView } from "@/features/boards/components/views/kanban-view";
 import { TimelineView } from "@/features/boards/components/views/timeline-view";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
+import { feedOptionsOf, feedSettingsPatch, TABLE_VIEW_DEFAULTS, type TableViewSettings } from "@/features/boards/table-view-settings";
 import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
@@ -222,7 +223,7 @@ function PortalBoard({
   const [now] = React.useState(() => new Date());
   // Where a task opens, beside the board or over it, as on a board in the app:
   // a view setting, kept with a saved view (kanban has its own).
-  const [tableSettings, updateTableSettings] = useViewSettingsFor<{ showTicket: boolean; openIn: ItemOpenMode }>(board.id, "table", { showTicket: true, openIn: "panel" });
+  const [tableSettings, updateTableSettings] = useViewSettingsFor<TableViewSettings>(board.id, "table", TABLE_VIEW_DEFAULTS);
   const preferredOpen: ItemOpenMode = tableSettings.openIn === "popup" ? "popup" : "panel";
   // A card that asked for one way (kanban's own setting) wins for the task it opened.
   const [askedMode, setAskedMode] = React.useState<ItemOpenMode | null>(null);
@@ -313,12 +314,14 @@ function PortalBoard({
             setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
             rememberOpenMode,
             openMode: preferredOpen,
+            feedOptions: feedOptionsOf(tableSettings),
+            setFeedOptions: (patch) => updateTableSettings(feedSettingsPatch(patch)),
             updates: new Map(),
             itemMenu,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen],
+    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen, tableSettings],
   );
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;

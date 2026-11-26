@@ -7,6 +7,7 @@ import type { BoardModel } from "@/features/boards/board-model";
 import type { BoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import type { ItemUpdatesSummary } from "@/features/comments/updates";
 import type { ItemOpenMode } from "@/stores/board-ui-store";
+import type { FeedOptions } from "@/features/boards/table-view-settings";
 
 export interface BoardContextValue {
   board: Board;
@@ -42,6 +43,9 @@ export interface BoardContextValue {
   rememberOpenMode?: (mode: ItemOpenMode) => void;
   /** Where this board opens tasks now (the setting rememberOpenMode keeps). */
   openMode?: ItemOpenMode;
+  /** How the pop-up's feed reads: a view setting of the board, kept with a saved view. */
+  feedOptions?: FeedOptions;
+  setFeedOptions?: (patch: Partial<FeedOptions>) => void;
   /** Update counts per item (subitems included), with how many are new to this person. */
   updates: Map<string, ItemUpdatesSummary>;
   /**

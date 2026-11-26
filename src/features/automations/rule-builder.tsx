@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Filter, Play, Plus, X, Zap } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,53 +155,72 @@ export function RuleBuilder({
   const quick = mode === "quick";
 
   return (
-    <div className="space-y-4" data-testid="rule-builder">
+    // Read top to bottom as the rule runs: something happens, it is checked,
+    // things are done. Each step a card on a rail, in its own colour.
+    <div data-testid="rule-builder">
       {!quick && (
-        <Section label="When">
+        <Step tone="when" icon={Zap} label="When" hint="what sets it off">
           <TriggerEditor trigger={draft.trigger} onChange={(trigger) => set({ trigger, actions: draft.actions.filter((a) => actionsAllowedFor(trigger.kind).includes(a.kind)) })} vocabulary={vocabulary} />
-        </Section>
+        </Step>
       )}
 
       {!quick && (
-      <Section
-        label="Only if"
-        action={
-          <Button variant="ghost" size="sm" onClick={() => set({ conditions: [...draft.conditions, defaultCondition(vocabulary)] })} data-testid="add-condition">
-            <Plus /> Add
-          </Button>
-        }
-      >
-        {draft.conditions.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">Always.</p>
-        ) : (
-          <div className="space-y-2">
-            {draft.conditions.length > 1 && (
-              <Select value={draft.conditionMatch} onValueChange={(value) => set({ conditionMatch: value as ConditionMatch })}>
-                <SelectTrigger className="h-8 w-40" aria-label="How the conditions combine">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">all of these</SelectItem>
-                  <SelectItem value="any">any of these</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            {draft.conditions.map((condition, index) => (
-              <Row key={index} onRemove={() => set({ conditions: draft.conditions.filter((_, i) => i !== index) })}>
-                <ConditionEditor
-                  condition={condition}
-                  onChange={(next) => set({ conditions: draft.conditions.map((c, i) => (i === index ? next : c)) })}
-                  vocabulary={vocabulary}
-                />
-              </Row>
-            ))}
-          </div>
-        )}
-      </Section>
+        <Step
+          tone="check"
+          icon={Filter}
+          label="Only if"
+          hint="optional checks"
+          action={
+            draft.conditions.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => set({ conditions: [...draft.conditions, defaultCondition(vocabulary)] })} data-testid="add-condition">
+                <Plus /> Add
+              </Button>
+            )
+          }
+        >
+          {draft.conditions.length === 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[13px] text-muted-foreground">Every time, no checks.</p>
+              <Button variant="outline" size="sm" onClick={() => set({ conditions: [defaultCondition(vocabulary)] })} data-testid="add-condition">
+                <Plus /> Add a condition
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {draft.conditions.length > 1 && (
+                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                  Match
+                  <Select value={draft.conditionMatch} onValueChange={(value) => set({ conditionMatch: value as ConditionMatch })}>
+                    <SelectTrigger className="h-8 w-36" aria-label="How the conditions combine">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">all of these</SelectItem>
+                      <SelectItem value="any">any of these</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {draft.conditions.map((condition, index) => (
+                <Row key={index} onRemove={() => set({ conditions: draft.conditions.filter((_, i) => i !== index) })}>
+                  <ConditionEditor
+                    condition={condition}
+                    onChange={(next) => set({ conditions: draft.conditions.map((c, i) => (i === index ? next : c)) })}
+                    vocabulary={vocabulary}
+                  />
+                </Row>
+              ))}
+            </div>
+          )}
+        </Step>
       )}
 
-      <Section
+      <Step
+        tone="do"
+        icon={Play}
         label={quick ? "Do" : "Then"}
+        hint={draft.actions.length > 1 ? "in this order" : "what it does"}
+        last
         action={
           <Button
             variant="ghost"
@@ -210,13 +229,17 @@ export function RuleBuilder({
             onClick={() => set({ actions: [...draft.actions, defaultAction(allowed, vocabulary)] })}
             data-testid="add-action"
           >
-            <Plus /> Add
+            <Plus /> Add an action
           </Button>
         }
       >
         <div className="space-y-2">
           {draft.actions.map((action, index) => (
-            <Row key={index} onRemove={draft.actions.length > 1 ? () => set({ actions: draft.actions.filter((_, i) => i !== index) }) : undefined}>
+            <Row
+              key={index}
+              number={draft.actions.length > 1 ? index + 1 : undefined}
+              onRemove={draft.actions.length > 1 ? () => set({ actions: draft.actions.filter((_, i) => i !== index) }) : undefined}
+            >
               <ActionEditor
                 action={action}
                 allowed={allowed}
@@ -226,26 +249,60 @@ export function RuleBuilder({
             </Row>
           ))}
         </div>
-      </Section>
+      </Step>
     </div>
   );
 }
 
-function Section({ label, action, children }: { label: string; action?: React.ReactNode; children: React.ReactNode }) {
+const STEP_TONES = {
+  when: { badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400", card: "border-amber-500/25" },
+  check: { badge: "bg-sky-500/15 text-sky-600 dark:text-sky-400", card: "border-sky-500/25" },
+  do: { badge: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400", card: "border-emerald-500/25" },
+} as const;
+
+/** One step of the rule: a badge on the rail, its name and a word on what it is for, and the card. */
+function Step({
+  tone,
+  icon: Icon,
+  label,
+  hint,
+  action,
+  last = false,
+  children,
+}: {
+  tone: keyof typeof STEP_TONES;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  hint?: string;
+  action?: React.ReactNode;
+  last?: boolean;
+  children: React.ReactNode;
+}) {
+  const colours = STEP_TONES[tone];
   return (
-    <section>
-      <div className="mb-1.5 flex items-center justify-between">
-        <h3 className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</h3>
-        {action}
+    <section className="flex gap-2.5 sm:gap-3" data-testid={`rule-step-${tone}`}>
+      <div className="flex flex-col items-center">
+        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-full sm:size-8", colours.badge)}>
+          <Icon className="size-4" />
+        </span>
+        {!last && <span aria-hidden className="my-1 w-px flex-1 bg-border" />}
       </div>
-      {children}
+      <div className={cn("min-w-0 flex-1", !last && "pb-5")}>
+        <div className="mb-2 flex min-h-8 items-center gap-2">
+          <h3 className="text-[14px] font-semibold">{label}</h3>
+          {hint && <span className="text-2xs text-muted-foreground">{hint}</span>}
+          <span className="ml-auto">{action}</span>
+        </div>
+        <div className={cn("rounded-xl border bg-card p-2 shadow-xs sm:p-3", colours.card)}>{children}</div>
+      </div>
     </section>
   );
 }
 
-function Row({ children, onRemove }: { children: React.ReactNode; onRemove?: () => void }) {
+function Row({ children, onRemove, number }: { children: React.ReactNode; onRemove?: () => void; number?: number }) {
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-border/70 bg-surface/40 p-2">
+    <div className="flex items-start gap-2 rounded-lg bg-muted/40 p-2">
+      {number !== undefined && <span className="mt-1.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-2xs font-semibold tabular text-muted-foreground">{number}</span>}
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{children}</div>
       {onRemove && (
         <Button variant="ghost" size="icon-sm" onClick={onRemove} aria-label="Remove">
@@ -909,12 +966,92 @@ function ActionEditor({
         </>
       )}
 
-      {TEMPLATED.includes(action.kind) && (
-        <p className="w-full text-2xs text-muted-foreground">
-          {"{item}, {board}, {group}, {ticket}, {actor}, {today} and {column:Name} are filled in when it runs."}
-        </p>
+      {TEMPLATED.includes(action.kind) && templateText(action) && (
+        <InsertChips vocabulary={vocabulary} onInsert={(token) => onChange(withTemplateText(action, token))} />
       )}
     </>
+  );
+}
+
+/** The text a templated action writes, where an insert chip lands; null for the tag actions (a list, not text). */
+function templateText(action: AutomationAction): string | null {
+  switch (action.kind) {
+    case "notify":
+      return action.message;
+    case "add_comment":
+      return action.body;
+    case "create_item":
+    case "create_subitem":
+    case "set_name":
+      return action.name;
+    case "set_description":
+      return action.text;
+    default:
+      return null;
+  }
+}
+
+/** The action with a placeholder added at the end of its text, a space before it when needed. */
+function withTemplateText(action: AutomationAction, token: string): AutomationAction {
+  const join = (text: string) => (text && !/\s$/.test(text) ? `${text} ${token}` : `${text}${token}`);
+  switch (action.kind) {
+    case "notify":
+      return { ...action, message: join(action.message) };
+    case "add_comment":
+      return { ...action, body: join(action.body) };
+    case "create_item":
+    case "create_subitem":
+    case "set_name":
+      return { ...action, name: join(action.name) };
+    case "set_description":
+      return { ...action, text: join(action.text) };
+    default:
+      return action;
+  }
+}
+
+const INSERTS: ReadonlyArray<{ token: string; label: string }> = [
+  { token: "{item}", label: "Task name" },
+  { token: "{board}", label: "Board" },
+  { token: "{group}", label: "Group" },
+  { token: "{ticket}", label: "Ticket" },
+  { token: "{actor}", label: "Who did it" },
+  { token: "{today}", label: "Today" },
+];
+
+/** What can be filled in when it runs, as chips that add themselves to the text. */
+function InsertChips({ vocabulary, onInsert }: { vocabulary: RuleVocabulary; onInsert: (token: string) => void }) {
+  return (
+    <div className="flex w-full flex-wrap items-center gap-1" data-testid="insert-chips">
+      <span className="mr-0.5 text-2xs text-muted-foreground">Insert</span>
+      {INSERTS.map((insert) => (
+        <button
+          key={insert.token}
+          type="button"
+          onClick={() => onInsert(insert.token)}
+          title={`Adds ${insert.token}, filled in when it runs`}
+          className="h-6 rounded-full border border-border/70 px-2 text-2xs text-muted-foreground transition-colors hover:border-ring/40 hover:bg-accent hover:text-foreground"
+          data-testid="insert-chip"
+          data-token={insert.token}
+        >
+          {insert.label}
+        </button>
+      ))}
+      {vocabulary.columns.length > 0 && (
+        <Select value="" onValueChange={(name) => onInsert(`{column:${name}}`)}>
+          <SelectTrigger className="h-6 w-auto gap-1 rounded-full border-border/70 px-2 text-2xs text-muted-foreground max-md:h-7 max-md:text-xs" aria-label="Insert a column's value">
+            <SelectValue placeholder="A column…" />
+          </SelectTrigger>
+          <SelectContent>
+            {vocabulary.columns.map((c) => (
+              <SelectItem key={c.id} value={c.name}>
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
   );
 }
 

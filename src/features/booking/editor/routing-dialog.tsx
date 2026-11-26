@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Plus, SquareKanban, X } from "lucide-react";
 import * as React from "react";
+import { BOARD_ROW, TEAM_ROW } from "@/components/shared/team-board-rows";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -223,9 +224,9 @@ function BoardSelect({ value, boards, onChange, ariaLabel, testId, extra }: { va
           <React.Fragment key={group.label}>
             {(i > 0 || extra) && <SelectSeparator />}
             <SelectGroup>
-              <SelectLabel>{extra ? `Board · ${group.label}` : group.label}</SelectLabel>
+              <SelectLabel className={TEAM_ROW}>{extra ? `Board · ${group.label}` : group.label}</SelectLabel>
               {group.list.map((board) => (
-                <SelectItem key={board.id} value={board.id}>
+                <SelectItem key={board.id} value={board.id} className={BOARD_ROW}>
                   <span className="flex min-w-0 items-center gap-2">
                     <SquareKanban className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="truncate">{board.name}</span>

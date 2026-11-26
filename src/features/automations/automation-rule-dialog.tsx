@@ -134,15 +134,15 @@ export function useRuleEditor({ board, rule, preset, quick = false, boards, onBo
   const heading = quick ? (rule ? "Edit quick run" : "New quick run") : rule ? "Edit automation" : preset ? preset.title : "New automation";
   const blurb = quick
     ? "A group of actions you point at tasks and run. No trigger, no conditions — it does what it says the moment you press Run."
-    : "These run on a server, so they happen whether or not anybody has the app open.";
+    : "Runs on its own, even when nobody has the app open.";
   const saveLabel = rule ? "Save changes" : quick ? "Save quick run" : "Create automation";
 
   const body = (
     <div className="space-y-5">
       {canPickBoard && (
         <div>
-          <label htmlFor="automation-board" className="mb-1.5 block text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-            On which board
+          <label htmlFor="automation-board" className="mb-1.5 block text-[13px] font-medium">
+            Board
           </label>
           <Select value={board.id} onValueChange={(id) => onBoardChange?.(boards!.find((b) => b.id === id) ?? board)}>
             <SelectTrigger id="automation-board" className="w-full" data-testid="automation-board">
@@ -167,10 +167,17 @@ export function useRuleEditor({ board, rule, preset, quick = false, boards, onBo
         </div>
       ) : (
         <>
+          {/* The rule in plain words, as it is built: what the pickers below add up to. */}
+          {!quick && (
+            <div className="rounded-xl border border-border/70 bg-muted/50 px-3.5 py-2.5" data-testid="automation-summary">
+              <p className="text-2xs font-medium text-muted-foreground">Reads as</p>
+              <p className="text-[14px] leading-snug font-medium text-foreground">{describeRule(draft.trigger, draft.conditions, draft.actions, draft.conditionMatch, vocabulary)}</p>
+            </div>
+          )}
           <RuleBuilder draft={draft} onChange={setDraft} vocabulary={vocabulary} mode={quick ? "quick" : "rule"} />
           <div>
-            <label htmlFor="automation-name" className="mb-1.5 block text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Name
+            <label htmlFor="automation-name" className="mb-1.5 block text-[13px] font-medium">
+              Name <span className="font-normal text-muted-foreground">(optional)</span>
             </label>
             <Input
               id="automation-name"

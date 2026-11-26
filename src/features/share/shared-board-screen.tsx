@@ -28,6 +28,7 @@ import { WorkloadView } from "@/features/boards/components/views/workload-view";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useViewSettingsFor } from "@/features/boards/components/views/view-settings";
+import { feedOptionsOf, feedSettingsPatch, TABLE_VIEW_DEFAULTS, type TableViewSettings } from "@/features/boards/table-view-settings";
 import { useBoardUpdates } from "@/features/comments/updates";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
 import { formatShortDate } from "@/lib/dates/dates";
@@ -60,7 +61,7 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
   // Where a task opens, beside the board or over it, as on the board itself.
-  const [tableSettings, updateTableSettings] = useViewSettingsFor<{ showTicket: boolean; openIn: ItemOpenMode }>(board.id, "table", { showTicket: true, openIn: "panel" });
+  const [tableSettings, updateTableSettings] = useViewSettingsFor<TableViewSettings>(board.id, "table", TABLE_VIEW_DEFAULTS);
   const preferredOpen: ItemOpenMode = tableSettings.openIn === "popup" ? "popup" : "panel";
   const [askedMode, setAskedMode] = React.useState<ItemOpenMode | null>(null);
   const popup = (askedMode ?? preferredOpen) === "popup";
@@ -141,11 +142,13 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
             setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
             rememberOpenMode,
             openMode: preferredOpen,
+            feedOptions: feedOptionsOf(tableSettings),
+            setFeedOptions: (patch) => updateTableSettings(feedSettingsPatch(patch)),
             updates,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, updates, tableSettings.showTicket, rememberOpenMode, preferredOpen],
+    [board, model, mutations, payload.users, openItem, now, updates, tableSettings.showTicket, rememberOpenMode, preferredOpen, tableSettings],
   );
 
   // The board arrives before anything is drawn, so the wait looks the same as it

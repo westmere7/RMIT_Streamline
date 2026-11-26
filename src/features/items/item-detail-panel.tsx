@@ -5,7 +5,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SquarePen, Trash2, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SlidersHorizontal, SquarePen, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
@@ -45,6 +46,7 @@ import { MenuSheet } from "@/components/layout/menu-sheet";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { useBoardContext } from "@/features/boards/board-context";
+import { DEFAULT_FEED_OPTIONS } from "@/features/boards/table-view-settings";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
 import { COLUMN_TYPE_PICKER_WIDTH, ColumnTypePicker } from "@/features/boards/components/table/column-type-picker";
@@ -438,26 +440,34 @@ type WideLeftTab = "overview" | "updates";
 type WideRightTab = "assets" | "activity";
 type PopupFeedTab = "updates" | "assets";
 
-const FEED_ACTIVITY_KEY = "streamline:popup-feed-activity";
-
-/** Whether the pop-up's feed shows the history lines. On unless switched off; remembered in this browser. */
-function useFeedActivity(): [boolean, (on: boolean) => void] {
-  const [on, setOn] = React.useState(() => {
-    try {
-      return window.localStorage.getItem(FEED_ACTIVITY_KEY) !== "off";
-    } catch {
-      return true;
-    }
-  });
-  const set = React.useCallback((next: boolean) => {
-    setOn(next);
-    try {
-      window.localStorage.setItem(FEED_ACTIVITY_KEY, next ? "on" : "off");
-    } catch {
-      // Private window or blocked storage: the switch still works for this visit.
-    }
-  }, []);
-  return [on, set];
+/** The pop-up feed's options, in a pop-up of their own: view settings of the board, kept with a saved view. */
+function FeedOptionsButton() {
+  const { feedOptions = DEFAULT_FEED_OPTIONS, setFeedOptions } = useBoardContext();
+  if (!setFeedOptions) return null;
+  const row = (label: string, icon: React.ReactNode, checked: boolean, onChange: (on: boolean) => void, testId: string, disabled = false) => (
+    <label className={cn("flex cursor-pointer items-center gap-2 py-1.5 text-[13px]", disabled && "cursor-default opacity-50")}>
+      {icon}
+      <span className="flex-1">{label}</span>
+      <Switch size="sm" checked={checked} onCheckedChange={onChange} disabled={disabled} aria-label={label} data-testid={testId} />
+    </label>
+  );
+  return (
+    <Popover>
+      <SimpleTooltip label="Feed options">
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="icon-sm" aria-label="Feed options" className="shrink-0 text-muted-foreground" data-testid="feed-options">
+            <SlidersHorizontal />
+          </Button>
+        </PopoverTrigger>
+      </SimpleTooltip>
+      <PopoverContent align="end" className="w-60 p-2.5" data-testid="feed-options-panel">
+        <p className="mb-1 text-2xs font-medium text-muted-foreground">Saved with the view</p>
+        {row("Activity", <History className="size-3.5 text-muted-foreground" />, feedOptions.activity, (on) => setFeedOptions({ activity: on }), "feed-activity-toggle")}
+        {row("Keep Updates on top", <MessageSquare className="size-3.5 text-muted-foreground" />, feedOptions.updatesOnTop, (on) => setFeedOptions({ updatesOnTop: on }), "feed-updates-top-toggle", !feedOptions.activity)}
+        {row("Fade activity", <Eye className="size-3.5 text-muted-foreground" />, feedOptions.fade, (on) => setFeedOptions({ fade: on }), "feed-fade-toggle", !feedOptions.activity)}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /**
@@ -489,18 +499,19 @@ function PopupCard({
   deliverables: boolean;
 }) {
   const activity = useItemActivity(item.id);
-  const [showActivity, setShowActivity] = useFeedActivity();
+  const { feedOptions = DEFAULT_FEED_OPTIONS } = useBoardContext();
+  const [collapseSlot, setCollapseSlot] = React.useState<HTMLDivElement | null>(null);
   return (
     // The overview takes three-eighths of the width (never under 420px) and the
     // feed the rest; minmax(0, 1fr) so a long line in an update cannot push the
     // overview off the side.
     <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(420px,0.6fr)]" data-testid="popup-card">
       <section className="scrollbar-thin min-h-0 min-w-0 overflow-y-auto [scrollbar-gutter:stable]" aria-label="Description and updates" data-testid="popup-main">
-        <Overview key={item.id} item={item} part="header" onOpenUpdates={() => onFeedChange("updates")} />
+        {/* No pinned-to-overview copy here: the update itself is right below. */}
         <Tabs value={feedTab} onValueChange={onFeedChange} className="flex flex-col">
-          {/* Stays at the top while the feed scrolls under it, with the switch
-              for the history lines at its end. */}
-          <div className="sticky top-0 z-10 flex shrink-0 items-center border-b border-border/70 bg-popover pr-8">
+          {/* Stays at the top while the feed scrolls under it, with the feed's
+              options (a view setting) at its end. */}
+          <div className="sticky top-0 z-10 flex h-11 shrink-0 items-center gap-4 border-b border-border/70 bg-popover pr-8">
           <UnderlineTabsList className="min-w-0 flex-1 border-b-0 px-6">
             <UnderlineTabsTrigger value="updates">
               <MessageSquare className="size-3.5" /> Updates
@@ -514,14 +525,26 @@ function PopupCard({
             )}
           </UnderlineTabsList>
           {feedTab === "updates" && (
-            <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground">
-              <History className="size-3.5" /> Activity
-              <Switch size="sm" checked={showActivity} onCheckedChange={setShowActivity} aria-label="Show activity in the feed" data-testid="feed-activity-toggle" />
-            </label>
+            <div className="flex items-center gap-0.5">
+              {/* Collapse all lands here from the feed, as an icon. */}
+              <div ref={setCollapseSlot} className="flex items-center" />
+              <FeedOptionsButton />
+            </div>
           )}
           </div>
           <TabsContent value="updates">
-            <ItemUpdates itemId={item.id} canComment={canEdit} log={showActivity ? (activity.data ?? []) : []} embedded />
+            {/* The composer stays under the tab bar (h-11) while the feed scrolls. */}
+            <ItemUpdates
+              itemId={item.id}
+              canComment={canEdit}
+              log={feedOptions.activity ? (activity.data ?? []) : []}
+              embedded
+              order={feedOptions.updatesOnTop ? "updatesFirst" : "time"}
+              fadeLog={feedOptions.fade}
+              composerTop="2.75rem"
+              overviewPins={false}
+              collapseSlot={collapseSlot}
+            />
           </TabsContent>
           {deliverables && (
             <TabsContent value="assets" className="px-4 py-2">
@@ -1155,7 +1178,7 @@ const NO_PEOPLE: readonly never[] = [];
  * the pinned update, over the feed; "side" is the description, columns,
  * allocation, links and subitems, in the column on the right.
  */
-function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpdates?: () => void; part?: "all" | "header" | "side" }) {
+function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpdates?: () => void; part?: "all" | "side" }) {
   // Below 768 the field rows stack; the cell fills the row rather than holding
   // its desktop width, which at 375px would push the panel sideways.
   const isMobile = useIsMobile();
@@ -1248,21 +1271,14 @@ function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpd
     </section>
   );
 
-  if (part === "header") {
-    return (
-      // Gone altogether when nothing is pinned, padding included.
-      <div className="px-8 pt-5 pb-5 empty:hidden" data-testid="popup-header">
-        <PinnedUpdate itemId={item.id} canEdit={canEdit} onOpenUpdates={onOpenUpdates} />
-      </div>
-    );
-  }
   if (part === "side") {
     return (
       <div className="space-y-6 px-7 py-6">
         {/* Above the columns, as the card's own text: read as it is, edited only once clicked. */}
         <DescriptionSection item={item} canEdit={canEdit} />
-        {fields}
+        {/* A request waiting on Task Allocation: placing it is the job, so it comes first. */}
         <AllocationSection item={item} />
+        {fields}
         <LinkedItemsSection item={item} />
         {subitemsSection}
       </div>
@@ -1273,8 +1289,8 @@ function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpd
       {/* The update pinned to the overview, read before the description. */}
       <PinnedUpdate itemId={item.id} canEdit={canEdit} onOpenUpdates={onOpenUpdates} />
       <DescriptionSection item={item} canEdit={canEdit} />
-      {fields}
       <AllocationSection item={item} />
+      {fields}
       <LinkedItemsSection item={item} />
       {subitemsSection}
     </div>
