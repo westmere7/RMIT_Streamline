@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EVENT_BATCH_SIZE, MAX_EVENT_DEPTH, MAX_QUICK_RUN_ITEMS } from "@/domain";
+import { EVENT_BATCH_SIZE, isSweepTick, MAX_EVENT_DEPTH, MAX_QUICK_RUN_ITEMS } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { buildPermissionContext, canEditBoard } from "@/lib/permissions/permissions";
@@ -153,10 +153,11 @@ export async function runAutomations(options: { limit?: number; sweep?: boolean;
     report.skipped += more.skipped;
     report.failed += more.failed;
   }
-  // Housekeeping on the same tick, but only when asked: the cron driver sweeps,
-  // a nudge from a browser does not, so somebody clicking about a board never
-  // pays for a delete of thirty days of log rows.
-  const swept = options.sweep ? await repos.automations.sweep(SWEEP_KEEP_DAYS) : 0;
+  // Housekeeping, once a day and only when asked: the cron driver sweeps, a
+  // nudge from a browser does not, so somebody clicking about a board never
+  // pays for a delete of thirty days of log rows. Every tick used to sweep,
+  // one more API request a minute for a thirty-day keep (see isSweepTick).
+  const swept = options.sweep && isSweepTick(new Date(started)) ? await repos.automations.sweep(SWEEP_KEEP_DAYS) : 0;
 
   return { ...report, swept, tookMs: Date.now() - started };
 }

@@ -463,10 +463,24 @@ export interface AutomationHeartbeat {
  * How long the runner may be quiet before the board says something.
  *
  * The shipped drivers tick every five minutes (GitHub Actions) or every minute
- * (pg_cron). Twenty is late enough that an ordinary late run says nothing and
+ * (pg_cron), which since 0157 calls the app only when an event waits or on the
+ * quarter hour. Twenty is late enough that an ordinary late run says nothing and
  * early enough that somebody notices the same morning.
  */
 export const HEARTBEAT_STALE_MINUTES = 20;
+
+/**
+ * The quarter hour, in UTC, when the runner clears out old events and run log
+ * rows (02:00 in Vietnam). Once a day is plenty for a thirty-day keep; it used
+ * to run on every tick, one more API request a minute. Both drivers tick inside
+ * this window: pg_cron on the quarter hour (0157), GitHub every five minutes.
+ */
+export const SWEEP_HOUR_UTC = 19;
+
+/** Whether a tick at `now` is the day's sweep. */
+export function isSweepTick(now: Date): boolean {
+  return now.getUTCHours() === SWEEP_HOUR_UTC && now.getUTCMinutes() < 15;
+}
 
 export const AUTOMATION_RUN_STATUSES = ["ran", "skipped", "failed"] as const;
 export type AutomationRunStatus = (typeof AUTOMATION_RUN_STATUSES)[number];

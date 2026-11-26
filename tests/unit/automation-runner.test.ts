@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createLocalRepositories, type LocalRepositories } from "@/data/local";
 import { SEED_BOARD_IDS, SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
 import type { AutomationAction, AutomationRuleInput, AutomationTrigger, BoardColumn } from "@/domain";
-import { MAX_EVENT_DEPTH } from "@/domain";
+import { HEARTBEAT_STALE_MINUTES, isSweepTick, MAX_EVENT_DEPTH, SWEEP_HOUR_UTC } from "@/domain";
 import { AutomationEngine } from "@/services/automation-engine";
 import { authoriseRunner } from "@/server/automations";
 import { HttpError } from "@/server/http";
@@ -343,5 +343,21 @@ describe("the automation runner", () => {
     expect(await fromTheRule(SEED_USER_IDS.emily)).toHaveLength(1);
     // Danh is on the task too, and set it off, so he hears nothing about it.
     expect(await fromTheRule(SEED_USER_IDS.danh)).toHaveLength(0);
+  });
+});
+
+describe("the runner's daily sweep", () => {
+  it("runs in one quarter hour a day, which both drivers tick inside", () => {
+    expect(isSweepTick(new Date(Date.UTC(2026, 10, 26, SWEEP_HOUR_UTC, 0)))).toBe(true);
+    expect(isSweepTick(new Date(Date.UTC(2026, 10, 26, SWEEP_HOUR_UTC, 14, 59)))).toBe(true);
+    expect(isSweepTick(new Date(Date.UTC(2026, 10, 26, SWEEP_HOUR_UTC, 15)))).toBe(false);
+    expect(isSweepTick(new Date(Date.UTC(2026, 10, 26, SWEEP_HOUR_UTC - 1, 59)))).toBe(false);
+    expect(isSweepTick(new Date(Date.UTC(2026, 10, 26, (SWEEP_HOUR_UTC + 1) % 24, 0)))).toBe(false);
+    const ticks = Array.from({ length: 24 * 4 }, (_, i) => new Date(Date.UTC(2026, 10, 26, 0, i * 15)));
+    expect(ticks.filter(isSweepTick)).toHaveLength(1);
+  });
+
+  it("leaves the quarter-hour tick (0157) inside the heartbeat's warning time", () => {
+    expect(15).toBeLessThan(HEARTBEAT_STALE_MINUTES);
   });
 });

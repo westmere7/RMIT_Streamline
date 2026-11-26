@@ -89,11 +89,13 @@ begin
   --
   -- One line, no comments: pg_cron copies the command into the row it logs for
   -- every run, 1,440 times a day (migration 0114).
+  -- It calls the app only when an event waits or on the quarter hour (0157):
+  -- an idle minute makes no API request.
   perform cron.schedule(
     'streamline-automations',
     '* * * * *',
     format(
-      $job$select %I.http_post(url := %L, headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', %L), body := '{}'::jsonb, timeout_milliseconds := 5000);$job$,
+      $job$select %I.http_post(url := %L, headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', %L), body := '{}'::jsonb, timeout_milliseconds := 5000) where exists (select 1 from public.automation_events where processed_at is null and claimed_at is null) or extract(minute from now())::int %% 15 = 0;$job$,
       v_net,
       v_url,
       'Bearer ' || v_secret

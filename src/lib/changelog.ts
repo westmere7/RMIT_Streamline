@@ -18,6 +18,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.165.2",
+    date: "2026-11-26",
+    title: "Automations check in less often when there is nothing to do",
+    changes: [
+      "The automation clock still looks every minute, but calls the app only when something is waiting or on the quarter hour. Changes made in the app still fire straight away, scheduled rules still fire on the hour, and old runs are cleared once a day.",
+    ],
+  },
+  {
     version: "0.165.1",
     date: "2026-11-25",
     title: "Tidy-up after the new-tasks dot",
