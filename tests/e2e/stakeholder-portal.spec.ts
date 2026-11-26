@@ -169,6 +169,16 @@ test.describe("the stakeholder portal", () => {
     await showOnly(page, "Comm.");
     await expect(page.getByRole("button", { name: "Open Day wayfinding posters", exact: true })).toBeVisible();
     await expect(page.getByTestId("portal-totals")).toContainText("1");
+
+    // The portal opens tasks the board's way too: switched to the pop-up, the request opens in it, feed and all.
+    await page.getByTestId("board-open-mode").click();
+    await page.getByTestId("board-open-mode-popup").click();
+    await expect(page.getByTestId("board-open-mode")).toContainText("Pop-up");
+    await page.getByRole("button", { name: "Open Day wayfinding posters", exact: true }).click();
+    const popup = page.getByTestId("item-popup");
+    await expect(popup).toContainText("Open Day wayfinding posters", { timeout: 15000 });
+    await expect(popup.getByTestId("item-feed")).toBeVisible();
+    await expect(popup.getByTestId("popup-overview")).toBeVisible();
   });
 
   test("shows one stakeholder only their own work, and everybody's together", async ({ page }) => {

@@ -34,6 +34,14 @@ export interface BoardContextValue {
    */
   showTicket: boolean;
   setShowTicket: (show: boolean) => void;
+  /**
+   * Keeps "open in pop-up" or "open in panel", picked from a task's menu, as
+   * where this board opens tasks from now on. A view setting, so a saved view
+   * keeps it. Absent where the board is a view over somewhere else.
+   */
+  rememberOpenMode?: (mode: ItemOpenMode) => void;
+  /** Where this board opens tasks now (the setting rememberOpenMode keeps). */
+  openMode?: ItemOpenMode;
   /** Update counts per item (subitems included), with how many are new to this person. */
   updates: Map<string, ItemUpdatesSummary>;
   /**

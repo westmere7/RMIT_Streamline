@@ -152,11 +152,13 @@ test.describe("deployed build", () => {
     await page.getByTestId("search-input").fill("");
     await expect.poll(() => page.getByTestId("item-row").count(), { timeout: 30_000 }).toBeGreaterThan(1);
 
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitemradio", { name: "Item name" }).click();
+    await page.getByTestId("filter-button").click();
+    await page.locator('[data-testid="sort-option"][data-sort-field="name"]').click();
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitem", { name: /clear sort/i }).click();
+    await page.getByTestId("filter-button").click();
+    await page.getByTestId("sort-clear").click();
+    await page.keyboard.press("Escape");
 
     // Move it to another group by drag, and check the move stuck.
     const target = page.getByTestId("group-Backlog").getByTestId("item-row").first();

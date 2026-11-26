@@ -81,16 +81,16 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
   });
 
   test("sorting orders by name and by due date, both directions, and clears", async ({ page }) => {
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitemradio", { name: "Item name" }).click();
+    await page.getByTestId("filter-button").click();
+    await page.locator('[data-testid="sort-option"][data-sort-field="name"]').click();
     await page.keyboard.press("Escape");
     const design = () => page.getByTestId("group-Design").getByTestId("item-row").evaluateAll((r) => r.map((x) => x.getAttribute("data-item-name")!));
     const asc = await design();
     expect(asc).toEqual([...asc].sort((a, b) => a.localeCompare(b)));
 
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitem", { name: /descending/i }).click();
+    await page.getByTestId("filter-button").click();
+    await page.getByTestId("sort-direction").click();
     await page.keyboard.press("Escape");
     const desc = await design();
     expect(desc).toEqual([...asc].reverse());
@@ -101,20 +101,21 @@ test.describe("filtering, sorting, bulk actions and drag and drop", () => {
 
     // Clearing by hand does the same.
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitemradio", { name: "Item name" }).click();
+    await page.getByTestId("filter-button").click();
+    await page.locator('[data-testid="sort-option"][data-sort-field="name"]').click();
+    await page.keyboard.press("Escape");
     await expect.poll(design, { timeout: 15000 }).toEqual(asc);
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitem", { name: /clear sort/i }).click();
+    await page.getByTestId("filter-button").click();
+    await page.getByTestId("sort-clear").click();
     await page.keyboard.press("Escape");
     const cleared = await design();
     expect(cleared).not.toEqual(asc);
   });
 
   test("sorting by due date puts empty values last", async ({ page }) => {
-    await page.getByTestId("sort-button").click();
-    await page.getByRole("menuitemradio", { name: "Due date" }).click();
+    await page.getByTestId("filter-button").click();
+    await page.locator('[data-testid="sort-option"][data-sort-field="dueDate"]').click();
     await page.keyboard.press("Escape");
     const rows = await page.getByTestId("group-Production").getByTestId("item-row").evaluateAll((els) =>
       els.map((el) => ({

@@ -33,7 +33,7 @@ import { ItemDetailPanel } from "@/features/items/item-detail-panel";
 import { formatShortDate } from "@/lib/dates/dates";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { useBoardUi, useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 
 function isViewKind(value: string | null): value is BoardViewKind {
   return !!value && (BOARD_VIEWS as readonly string[]).includes(value);
@@ -59,7 +59,11 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
-  const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showTicket: true });
+  // Where a task opens, beside the board or over it, as on the board itself.
+  const [tableSettings, updateTableSettings] = useViewSettingsFor<{ showTicket: boolean; openIn: ItemOpenMode }>(board.id, "table", { showTicket: true, openIn: "panel" });
+  const preferredOpen: ItemOpenMode = tableSettings.openIn === "popup" ? "popup" : "panel";
+  const [askedMode, setAskedMode] = React.useState<ItemOpenMode | null>(null);
+  const popup = (askedMode ?? preferredOpen) === "popup";
   const isMobile = useIsMobile();
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${board.id}`, "cards");
 
@@ -78,7 +82,22 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
     },
     [router, pathname],
   );
-  const openItem = React.useCallback((id: string | null) => replaceParams({ item: id }), [replaceParams]);
+  const openItem = React.useCallback(
+    (id: string | null, mode?: ItemOpenMode) => {
+      setAskedMode(id ? (mode ?? null) : null);
+      replaceParams({ item: id });
+    },
+    [replaceParams],
+  );
+  const rememberOpenMode = React.useCallback(
+    (openIn: ItemOpenMode) => {
+      if (view === "kanban") return;
+      setAskedMode(null);
+      updateTableSettings({ openIn });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
+    [view],
+  );
 
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
   React.useEffect(() => {
@@ -120,11 +139,13 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
             now,
             showTicket: tableSettings.showTicket,
             setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
+            rememberOpenMode,
+            openMode: preferredOpen,
             updates,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, updates, tableSettings.showTicket],
+    [board, model, mutations, payload.users, openItem, now, updates, tableSettings.showTicket, rememberOpenMode, preferredOpen],
   );
 
   // The board arrives before anything is drawn, so the wait looks the same as it
@@ -172,7 +193,7 @@ export function SharedBoardScreen({ payload }: { payload: PublicBoardPayload }) 
                   {view === "gantt" && <GanttView />}
                   {view === "workload" && <WorkloadView />}
                 </div>
-                {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} />}
+                {itemId && <ItemDetailPanel itemId={itemId} onClose={() => openItem(null)} overlay={view === "kanban"} popup={popup} />}
               </div>
             </>
           )}

@@ -68,6 +68,71 @@ test.describe("board views", () => {
     await page.getByTestId("close-panel").click();
   });
 
+  test("the pop-up: one feed of updates and history, assets beside it, the overview in its own column, and the choice kept", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const pragmatist = row(page, "RMITinerary Pragmatist");
+    await pragmatist.hover();
+    await pragmatist.getByRole("button", { name: /^Open RMITinerary Pragmatist/ }).first().click({ force: true });
+    await expect(page.getByTestId("item-panel")).toBeVisible({ timeout: 15000 });
+    await page.getByTestId("panel-menu").click();
+    await page.getByTestId("panel-open-mode").click();
+
+    const popup = page.getByTestId("item-popup");
+    await expect(popup).toContainText("RMITinerary Pragmatist", { timeout: 15000 });
+    // The overview is a column of its own on the right; there is no Activity tab.
+    await expect(popup.getByTestId("popup-overview").getByTestId("panel-fields")).toBeVisible();
+    await expect(popup.getByRole("tab", { name: /^Activity/ })).toHaveCount(0);
+    // Updates and history in one list: the task's creation is a line in it.
+    const feed = popup.getByTestId("item-feed");
+    await expect(feed.getByTestId("comment").first()).toBeVisible();
+    await expect(feed.getByTestId("feed-log").first()).toContainText(/created/);
+    await popup.getByTestId("tab-assets").click();
+    await expect(popup.getByTestId("popup-main")).toContainText("No items yet");
+
+    // The description heads the overview column: edited on a click, closed and saved by clicking anywhere else.
+    const overview = popup.getByTestId("popup-overview");
+    await overview.getByTestId("panel-description-empty").click();
+    await expect(page.getByTestId("panel-description-editor")).toBeVisible();
+    await page.keyboard.type("Hero spread for the persona.");
+    await popup.getByTestId("popup-main").click({ position: { x: 300, y: 500 } });
+    await expect(page.getByTestId("panel-description-editor")).toHaveCount(0);
+    await expect(overview.getByTestId("panel-description")).toContainText("Hero spread for the persona.");
+    await overview.getByTestId("panel-description").click();
+    await expect(page.getByTestId("panel-description-editor")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("panel-description-editor")).toHaveCount(0);
+    await expect(popup).toBeVisible();
+
+    // Closed and another task opened: the board now opens tasks in the pop-up, after a reload too.
+    await page.getByTestId("close-panel").click();
+    await expect(popup).toHaveCount(0);
+    const next = row(page, "RMITinerary High Achiever");
+    await next.hover();
+    await next.getByRole("button", { name: /^Open RMITinerary High Achiever/ }).first().click({ force: true });
+    await expect(page.getByTestId("item-popup")).toContainText("RMITinerary High Achiever", { timeout: 15000 });
+    await page.getByTestId("close-panel").click();
+    await page.reload();
+    await expect(next).toBeVisible({ timeout: 30000 });
+    await next.hover();
+    await next.getByRole("button", { name: /^Open RMITinerary High Achiever/ }).first().click({ force: true });
+    await expect(page.getByTestId("item-popup")).toBeVisible({ timeout: 15000 });
+
+    // Back to the panel from the menu, and that is kept too.
+    await page.getByTestId("panel-menu").click();
+    await page.getByTestId("panel-open-mode").click();
+    await expect(page.getByTestId("item-panel")).toBeVisible({ timeout: 15000 });
+    // The toolbar says so, and sets it: a view setting, saved with a view.
+    await expect(page.getByTestId("board-open-mode")).toContainText("Side panel");
+    await page.getByTestId("close-panel").click();
+    await page.getByTestId("board-open-mode").click();
+    await page.getByTestId("board-open-mode-popup").click();
+    await expect(page.getByTestId("board-open-mode")).toContainText("Pop-up");
+    await next.hover();
+    await next.getByRole("button", { name: /^Open RMITinerary High Achiever/ }).first().click({ force: true });
+    await expect(page.getByTestId("item-popup")).toBeVisible({ timeout: 15000 });
+  });
+
   test("timeline zooms, colours bars by status, and lists items without a date", async ({ page }) => {
     await switchView(page, "timeline");
     await expect(page.getByTestId("timeline")).toBeVisible({ timeout: 15000 });

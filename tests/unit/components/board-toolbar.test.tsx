@@ -66,7 +66,7 @@ describe("BoardToolbar", () => {
     expect(useBoardUiStore.getState().boards[boardId]?.filters.personIds).toEqual([]);
   });
 
-  it("sets and toggles sort", async () => {
+  it("sets, turns round and clears the sort from the Sort / Filter panel", async () => {
     const user = userEvent.setup();
     const app = await createTestApp();
     await app.render(
@@ -74,12 +74,17 @@ describe("BoardToolbar", () => {
         <BoardToolbar view="table" onViewChange={() => {}} />
       </TestBoard>,
     );
-    await user.click(screen.getByTestId("sort-button"));
-    await user.click(await screen.findByRole("menuitemradio", { name: "Due date" }));
+    // Sort is the first row of the Sort / Filter panel.
+    await user.click(screen.getByTestId("filter-button"));
+    await user.click(await screen.findByRole("radio", { name: /Due date/ }));
     expect(useBoardUiStore.getState().boards[boardId]?.sort).toEqual({ field: "dueDate", direction: "asc" });
-    await user.click(screen.getByTestId("sort-button"));
-    await user.click(await screen.findByRole("menuitem", { name: /Descending/ }));
+    // Picked again, it turns round; the direction button does the same.
+    await user.click(screen.getByRole("radio", { name: /Due date/ }));
     expect(useBoardUiStore.getState().boards[boardId]?.sort).toEqual({ field: "dueDate", direction: "desc" });
+    await user.click(screen.getByTestId("sort-direction"));
+    expect(useBoardUiStore.getState().boards[boardId]?.sort).toEqual({ field: "dueDate", direction: "asc" });
+    await user.click(screen.getByTestId("sort-clear"));
+    expect(useBoardUiStore.getState().boards[boardId]?.sort ?? null).toBeNull();
   });
 
   it("creates a new item from the New Item popover", async () => {

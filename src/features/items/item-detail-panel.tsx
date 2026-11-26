@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { RichText } from "@/components/shared/rich-text";
@@ -210,9 +211,9 @@ export function ItemDetailPanel({
   // the page, a phone fills the screen, and the pop-up has its own frame.
   const resizable = !narrow && !shared && !asPopup;
   const panel = useResizablePanel(resizable);
-  // The wide panel reads like the pop-up: the overview, and the other three
-  // tabs in a pane beside it.
-  const twoPane = asPopup || panel.size === "wide";
+  // The wide side panel: the overview, and the other three tabs in a pane
+  // beside it. The pop-up has a layout of its own (PopupCard).
+  const twoPane = !asPopup && panel.size === "wide";
   const [localTab, setLocalTab] = React.useState("overview");
   const requestedTab = useBoardUiStore((s) => s.requestedItemTab);
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
@@ -229,13 +230,20 @@ export function ItemDetailPanel({
   const deliverables = boardHasDeliverables(board);
   const [wideRight, setWideRight] = React.useState<WideRightTab>(deliverables ? "assets" : "activity");
   const leftTab: WideLeftTab = requested === "overview" || requested === "updates" ? requested : wideLeft;
+  // The pop-up's feed: updates and history in one list, or the deliverables.
+  const [pickedFeed, setPickedFeed] = React.useState<PopupFeedTab>("updates");
+  const feedTab: PopupFeedTab = requested === "assets" && deliverables ? "assets" : requested === "updates" || requested === "activity" ? "updates" : deliverables ? pickedFeed : "updates";
   const rightTab: WideRightTab = (requested === "assets" && deliverables) || requested === "activity" ? requested : deliverables ? wideRight : "activity";
   // What is on screen, for anything that has to know whether the updates are.
   const picked = requested ?? localTab;
-  const tab = twoPane ? (leftTab === "updates" ? "updates" : rightTab) : picked === "assets" && !deliverables ? "overview" : picked;
+  const tab = asPopup ? feedTab : twoPane ? (leftTab === "updates" ? "updates" : rightTab) : picked === "assets" && !deliverables ? "overview" : picked;
   const setTab = (next: string) => {
     if (requestedTab) setRequestedItemTab(null);
     setLocalTab(next);
+  };
+  const pickFeed = (next: string) => {
+    if (requestedTab) setRequestedItemTab(null);
+    setPickedFeed(next === "assets" ? "assets" : "updates");
   };
   const pickWide = (side: "left" | "right", next: string) => {
     if (requestedTab) setRequestedItemTab(null);
@@ -311,9 +319,15 @@ export function ItemDetailPanel({
         </div>
       ) : !ready || !item ? (
         <PanelBlocks onClose={onClose} hideClose={shared} />
+      ) : asPopup ? (
+        <>
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup hideMenu={hideMenu} />
+          {notice}
+          <PopupCard item={item} canEdit={canEdit} feedTab={feedTab} onFeedChange={pickFeed} comments={comments.data?.length ?? 0} assets={assets.data?.length ?? 0} deliverables={deliverables} />
+        </>
       ) : twoPane ? (
         <>
-          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} popup={asPopup} hideMenu={hideMenu} />
+          <PanelHeader item={item} onClose={onClose} canEdit={canEdit} assets={assets.data ?? []} hideClose={shared} shared={shared} hideMenu={hideMenu} />
           {notice}
           <PopupBody
             item={item}
@@ -377,8 +391,14 @@ export function ItemDetailPanel({
             usual padding, and as tall as the screen comfortably allows so the
             overview and the pane beside it each have somewhere to scroll. */}
         <DialogContent
-          className="flex h-[calc(100vh-3.5rem)] max-h-[1040px] max-w-[min(1160px,calc(100vw-4rem))] flex-col gap-0 overflow-hidden p-0"
+          className="flex h-[calc(100vh-3.5rem)] max-h-[1040px] max-w-[min(1320px,calc(100vw-4rem))] flex-col gap-0 overflow-hidden p-0"
           aria-describedby={undefined}
+          // Escape inside a field (the description, an update being written)
+          // belongs to that field, as it does in the panel; the next one closes.
+          onEscapeKeyDown={(event) => {
+            const active = document.activeElement;
+            if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable)) event.preventDefault();
+          }}
           data-testid="item-popup"
           /* The header's own close, beside share and the task's menu, rather
              than the dialog's in the corner above it: two ways out, a row
@@ -416,9 +436,113 @@ export function ItemDetailPanel({
 
 type WideLeftTab = "overview" | "updates";
 type WideRightTab = "assets" | "activity";
+type PopupFeedTab = "updates" | "assets";
+
+const FEED_ACTIVITY_KEY = "streamline:popup-feed-activity";
+
+/** Whether the pop-up's feed shows the history lines. On unless switched off; remembered in this browser. */
+function useFeedActivity(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = React.useState(() => {
+    try {
+      return window.localStorage.getItem(FEED_ACTIVITY_KEY) !== "off";
+    } catch {
+      return true;
+    }
+  });
+  const set = React.useCallback((next: boolean) => {
+    setOn(next);
+    try {
+      window.localStorage.setItem(FEED_ACTIVITY_KEY, next ? "on" : "off");
+    } catch {
+      // Private window or blocked storage: the switch still works for this visit.
+    }
+  }, []);
+  return [on, set];
+}
 
 /**
- * The two-pane body of the wide panel and the pop-up.
+ * The pop-up, laid out like a card: the task and its conversation on the
+ * left, its overview in a column on the right.
+ *
+ * Left, one scroll: the pinned update under the header, then the feed (the composer, and every update and every line of the task's
+ * history together, newest first, so what was said and what was done read as
+ * one story; there is no Activity tab here, and a switch hides the history)
+ * or, on the other tab, the deliverables. Right, the description, the columns,
+ * the allocation, the links and the subitems, scrolling on their own so the fields stay in reach of the feed.
+ */
+function PopupCard({
+  item,
+  canEdit,
+  feedTab,
+  onFeedChange,
+  comments,
+  assets,
+  deliverables,
+}: {
+  item: Item;
+  canEdit: boolean;
+  feedTab: PopupFeedTab;
+  onFeedChange: (tab: string) => void;
+  comments: number;
+  assets: number;
+  /** False on App development: no Assets tab, the feed is all there is. */
+  deliverables: boolean;
+}) {
+  const activity = useItemActivity(item.id);
+  const [showActivity, setShowActivity] = useFeedActivity();
+  return (
+    // The overview takes three-eighths of the width (never under 420px) and the
+    // feed the rest; minmax(0, 1fr) so a long line in an update cannot push the
+    // overview off the side.
+    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(420px,0.6fr)]" data-testid="popup-card">
+      <section className="scrollbar-thin min-h-0 min-w-0 overflow-y-auto [scrollbar-gutter:stable]" aria-label="Description and updates" data-testid="popup-main">
+        <Overview key={item.id} item={item} part="header" onOpenUpdates={() => onFeedChange("updates")} />
+        <Tabs value={feedTab} onValueChange={onFeedChange} className="flex flex-col">
+          {/* Stays at the top while the feed scrolls under it, with the switch
+              for the history lines at its end. */}
+          <div className="sticky top-0 z-10 flex shrink-0 items-center border-b border-border/70 bg-popover pr-8">
+          <UnderlineTabsList className="min-w-0 flex-1 border-b-0 px-6">
+            <UnderlineTabsTrigger value="updates">
+              <MessageSquare className="size-3.5" /> Updates
+              {comments > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{comments}</span>}
+            </UnderlineTabsTrigger>
+            {deliverables && (
+              <UnderlineTabsTrigger value="assets" data-testid="tab-assets">
+                <Package className="size-3.5" /> Assets
+                {assets > 0 && <span className="rounded-full bg-surface-strong px-1.5 text-2xs tabular">{assets}</span>}
+              </UnderlineTabsTrigger>
+            )}
+          </UnderlineTabsList>
+          {feedTab === "updates" && (
+            <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground">
+              <History className="size-3.5" /> Activity
+              <Switch size="sm" checked={showActivity} onCheckedChange={setShowActivity} aria-label="Show activity in the feed" data-testid="feed-activity-toggle" />
+            </label>
+          )}
+          </div>
+          <TabsContent value="updates">
+            <ItemUpdates itemId={item.id} canComment={canEdit} log={showActivity ? (activity.data ?? []) : []} embedded />
+          </TabsContent>
+          {deliverables && (
+            <TabsContent value="assets" className="px-4 py-2">
+              <ItemAssetsTab key={item.id} item={item} canEdit={canEdit} />
+            </TabsContent>
+          )}
+        </Tabs>
+      </section>
+      <aside className="scrollbar-thin min-h-0 min-w-0 overflow-y-auto border-l border-border bg-surface-strong/15" aria-label="Overview" data-testid="popup-overview">
+        {/* The cells fill the column, as in the wide panel: at their fixed
+            width a timeline ran out past the column's edge. */}
+        <PanelSizeProvider value="wide">
+          <Overview key={item.id} item={item} part="side" />
+        </PanelSizeProvider>
+      </aside>
+    </div>
+  );
+}
+
+/**
+ * The two-pane body of the wide side panel.
  *
  * Left, what the task is and what is being said about it; right, what it is
  * delivering and what has happened to it. Two equal columns, each with its own
@@ -554,7 +678,7 @@ function PanelHeader({
       <div className="relative">
         <ItemCover item={item} canEdit={canEdit} />
       </div>
-      <div className={cn("relative", size === "wide" ? "px-8 pt-5 pb-7" : "px-6 pt-4 pb-6")}>
+      <div className={cn("relative", size === "wide" || popup ? "px-8 pt-5 pb-7" : "px-6 pt-4 pb-6")}>
         <div className="flex items-center gap-3">
           <p className="flex min-w-0 flex-1 items-center gap-1 text-2xs text-muted-foreground">
             <Link href={ws.boardPath(board)} className="truncate hover:text-foreground hover:underline" data-testid="panel-board-link">
@@ -903,8 +1027,25 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
     setEditing(true);
   };
 
-  // Nothing written and nothing you could write: the section has no reason to be.
-  if (!text && !canEdit) return null;
+  const editorBox = React.useRef<HTMLDivElement>(null);
+  const commitRef = React.useRef<() => void>(() => undefined);
+  // Leaving is a press anywhere outside the box: in the rest of the pop-up or
+  // the panel, focusable or not. Not focus alone, which the pop-up (a dialog)
+  // moves to its own frame when the "Add a description" button that was
+  // clicked goes away, a moment after the editor has taken it: read as
+  // leaving, that closed the editor as it opened. The editor's own link and
+  // colour dialogs and menus, portalled outside the box, are still writing.
+  React.useEffect(() => {
+    if (!editing) return;
+    const onPress = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target || editorBox.current?.contains(target)) return;
+      if (target.closest("[role=dialog]:not([data-testid=item-popup]):not([data-testid=item-panel]), [data-radix-popper-content-wrapper]")) return;
+      commitRef.current();
+    };
+    document.addEventListener("pointerdown", onPress, true);
+    return () => document.removeEventListener("pointerdown", onPress, true);
+  }, [editing]);
 
   const commit = () => {
     setEditing(false);
@@ -915,6 +1056,12 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
     if (!typed) return;
     if (next !== (item.description ?? null)) void mutations.updateDescription(item.id, next);
   };
+  React.useEffect(() => {
+    commitRef.current = commit;
+  });
+
+  // Nothing written and nothing you could write: the section has no reason to be.
+  if (!text && !canEdit) return null;
 
   return (
     <section>
@@ -924,10 +1071,19 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
         // dialogs and menus (a link, a colour), which are portalled outside
         // it, is still writing; so are keys pressed in them.
         <div
+          ref={editorBox}
+          // And Tab to another control. Focus going nowhere, or to the pop-up's
+          // or the panel's own frame, is not the reader leaving (see above).
           onBlur={(event) => {
             const next = event.relatedTarget as HTMLElement | null;
-            if (!event.currentTarget.contains(event.target as Node)) return;
-            if (next && (event.currentTarget.contains(next) || next.closest("[role=dialog], [data-radix-popper-content-wrapper]"))) return;
+            if (!next || !event.currentTarget.contains(event.target as Node) || event.currentTarget.contains(next)) return;
+            if (next.matches("[data-testid=item-popup], [data-testid=item-panel]")) {
+              // Taken by the frame, not by the reader: give it back, so typing goes on landing here.
+              const box = editorBox.current;
+              requestAnimationFrame(() => box?.querySelector<HTMLElement>("[contenteditable=true]")?.focus());
+              return;
+            }
+            if (next.closest("[role=dialog]:not([data-testid=item-popup]):not([data-testid=item-panel]), [data-radix-popper-content-wrapper]")) return;
             commit();
           }}
           onKeyDown={(event) => {
@@ -994,7 +1150,12 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
 /** Nobody to mention in a description. */
 const NO_PEOPLE: readonly never[] = [];
 
-function Overview({ item, onOpenUpdates }: { item: Item; onOpenUpdates?: () => void }) {
+/**
+ * @param part All of it (the panel), or the pop-up's two halves: "header" is
+ * the pinned update, over the feed; "side" is the description, columns,
+ * allocation, links and subitems, in the column on the right.
+ */
+function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpdates?: () => void; part?: "all" | "header" | "side" }) {
   // Below 768 the field rows stack; the cell fills the row rather than holding
   // its desktop width, which at 375px would push the panel sideways.
   const isMobile = useIsMobile();
@@ -1028,7 +1189,7 @@ function Overview({ item, onOpenUpdates }: { item: Item; onOpenUpdates?: () => v
         <SortableContext items={panelColumns.map((c) => c.id)} strategy={verticalListSortingStrategy}>
           <div className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs" data-testid="panel-fields">
             {panelColumns.map((column) => (
-              <FieldRow key={column.id} item={item} column={column} isMobile={isMobile} canEdit={canEdit} />
+              <FieldRow key={column.id} item={item} column={column} isMobile={isMobile} canEdit={canEdit} centered={part === "side"} />
             ))}
           </div>
         </SortableContext>
@@ -1087,6 +1248,26 @@ function Overview({ item, onOpenUpdates }: { item: Item; onOpenUpdates?: () => v
     </section>
   );
 
+  if (part === "header") {
+    return (
+      // Gone altogether when nothing is pinned, padding included.
+      <div className="px-8 pt-5 pb-5 empty:hidden" data-testid="popup-header">
+        <PinnedUpdate itemId={item.id} canEdit={canEdit} onOpenUpdates={onOpenUpdates} />
+      </div>
+    );
+  }
+  if (part === "side") {
+    return (
+      <div className="space-y-6 px-7 py-6">
+        {/* Above the columns, as the card's own text: read as it is, edited only once clicked. */}
+        <DescriptionSection item={item} canEdit={canEdit} />
+        {fields}
+        <AllocationSection item={item} />
+        <LinkedItemsSection item={item} />
+        {subitemsSection}
+      </div>
+    );
+  }
   return (
     <div className={cn("space-y-6 p-4")}>
       {/* The update pinned to the overview, read before the description. */}
@@ -1110,7 +1291,7 @@ function Overview({ item, onOpenUpdates }: { item: Item; onOpenUpdates?: () => v
  */
 function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void; onJourney: () => void; shared?: boolean; popup?: boolean }) {
   const isMobile = useIsMobile();
-  const { model, mutations, openItem } = useBoardContext();
+  const { model, mutations, openItem, rememberOpenMode } = useBoardContext();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
   const hiddenOnBoard = model.columns.filter((c) => c.hidden);
@@ -1134,7 +1315,15 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
             <>
               {/* A phone shows the task full screen either way: there is no pop-up to switch to. */}
               {!isMobile && (
-                <DropdownMenuItem onSelect={() => openItem(item.id, popup ? "panel" : "popup")} data-testid="panel-open-mode">
+                <DropdownMenuItem
+                  onSelect={() => {
+                    const next = popup ? "panel" : "popup";
+                    openItem(item.id, next);
+                    // And where tasks open from now on (saved with the view).
+                    rememberOpenMode?.(next);
+                  }}
+                  data-testid="panel-open-mode"
+                >
                   {popup ? (
                     <>
                       <PanelRight /> Open in side panel
@@ -1380,7 +1569,8 @@ function PhoneColumnMenu({ column }: { column: BoardColumn }) {
  * scrolling sheet fights the scroll, and the board is where columns get
  * arranged anyway.
  */
-function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: BoardColumn; isMobile: boolean; canEdit: boolean }) {
+/** @param centered The value centred in its space, as in the pop-up's overview column; the label stays left. */
+function FieldRow({ item, column, isMobile, canEdit, centered = false }: { item: Item; column: BoardColumn; isMobile: boolean; canEdit: boolean; centered?: boolean }) {
   const { model, mutations } = useBoardContext();
   const [open, setOpen] = React.useState(false);
   // Wide, the cell fills its half of the panel rather than holding the default
@@ -1447,7 +1637,7 @@ function FieldRow({ item, column, isMobile, canEdit }: { item: Item; column: Boa
             {/* The cell takes the whole height of the row, so a status chip is
                 a band down the row rather than a small pill floating in it. Its
                 own padding keeps it off the dividers. */}
-            <div className={cn("flex min-w-0 items-center [&>*]:border-r-0", isMobile ? "min-h-11 w-full" : "h-full flex-1")}>
+            <div className={cn("flex min-w-0 items-center [&>*]:border-r-0", isMobile ? "min-h-11 w-full" : "h-full flex-1", centered && "justify-center [&>*]:justify-center [&>*]:text-center")}>
               <CellRenderer
                 item={item}
                 column={column}

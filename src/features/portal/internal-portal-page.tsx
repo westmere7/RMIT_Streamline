@@ -14,6 +14,7 @@ import { DEFAULT_PORTAL_RANGE, EVERY_PORTAL_RANGE, formatPortalRange, parsePorta
 import { useAuth } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { TaskPanelHost } from "@/features/items/task-panel-host";
+import type { ItemOpenMode } from "@/stores/board-ui-store";
 import { PortalBoardScreen } from "@/features/portal/portal-board-screen";
 import { PortalBoardSkeleton } from "@/features/portal/portal-board-skeleton";
 import { PortalHeader, PortalRangePicker } from "@/features/portal/portal-shell";
@@ -47,6 +48,8 @@ export function InternalPortalPage() {
   const chosenRange = parsePortalRange(searchParams.get("range")) ?? DEFAULT_PORTAL_RANGE;
   // The board's own search box, lifted so a search can reach every year.
   const [search, setSearch] = React.useState("");
+  // Where a task opens, as the board's toolbar has it (a view setting the board keeps).
+  const [openMode, setOpenMode] = React.useState<ItemOpenMode>("panel");
   const searching = useDebouncedValue(search.trim(), 250).length > 0;
   const range = searching ? EVERY_PORTAL_RANGE : chosenRange;
 
@@ -174,9 +177,10 @@ export function InternalPortalPage() {
               taskPanel="outside"
               linksStayHere={false}
               itemMenu={itemMenu}
+              onOpenModeChange={setOpenMode}
             />
           </div>
-          {openTaskId && boardOfOpen && <TaskPanelHost key={boardOfOpen} boardId={boardOfOpen} itemId={openTaskId} onOpen={(id) => replaceParams({ task: id })} onClose={closeTask} />}
+          {openTaskId && boardOfOpen && <TaskPanelHost key={boardOfOpen} boardId={boardOfOpen} itemId={openTaskId} onOpen={(id) => replaceParams({ task: id })} onClose={closeTask} popup={openMode === "popup"} />}
         </div>
       ) : (
         <PortalBoardSkeleton />

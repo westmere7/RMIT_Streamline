@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Filter, Hash, LoaderCircle, Plus, Search, UserRound, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, EyeOff, Hash, LoaderCircle, PanelRight, PictureInPicture2, Plus, Search, SlidersHorizontal, UserRound, X } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,9 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -27,8 +25,9 @@ import { PrimaryActionSlot } from "@/features/boards/components/primary-action-s
 import { useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
 import { formatTag, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses } from "@/lib/colors";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
-import { activeFilterCount, sortFieldColumnId, useBoardUi, useBoardUiStore, type DateFilter, type SortField } from "@/stores/board-ui-store";
+import { activeFilterCount, sortFieldColumnId, useBoardUi, useBoardUiStore, type DateFilter, type ItemOpenMode, type SortField } from "@/stores/board-ui-store";
 import { BookViaFormButton, BookViaFormPlaceholder, useBookingFormOpen } from "@/features/booking/book-via-form-dialog";
 
 const SORT_LABELS: Record<Exclude<SortField, `column:${string}`>, string> = { name: "Item name", dueDate: "Due date", priority: "Priority", status: "Status", createdAt: "Created date" };
@@ -71,7 +70,11 @@ export function BoardToolbar({
   /** The board's saved views, ahead of the filters. Only the board's own screen has them. */
   savedViews?: React.ReactNode;
 }) {
-  const { board, model, canEdit, mutations, showTicket, setShowTicket } = useBoardContext();
+  const { board, model, canEdit, mutations, showTicket, setShowTicket, openMode, rememberOpenMode } = useBoardContext();
+  // Where a task opens. Kanban has its own (Display → Open cards in), and below
+  // 1024px there is no room for the pop-up, so the panel is all there is.
+  const narrow = useMediaQuery("(max-width: 1023px)");
+  const openModeShown = !!rememberOpenMode && view !== "kanban" && !narrow;
   const ui = useBoardUi(board.id);
   const store = useBoardUiStore();
   const filterCount = activeFilterCount(ui.filters);
@@ -112,53 +115,34 @@ export function BoardToolbar({
           <>
             {!folded && <PersonFilter labelClass={labelClass} />}
             {!folded && <TagFilter labelClass={labelClass} />}
+            {/* Filters and sort in one place: the sort is the first row of the panel. */}
             <Popover>
-              <SimpleTooltip label="Filter items">
+              <SimpleTooltip label="Filter and sort items">
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="sm" aria-label="Filter" className={cn("rounded-full", filterCount > 0 && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="filter-button">
-                    <Filter /> <span className={labelClass}>Filter</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Filter and sort"
+                    className={cn("rounded-full", (filterCount > 0 || ui.sort) && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")}
+                    data-testid="filter-button"
+                  >
+                    <SlidersHorizontal /> <span className={labelClass}>Sort / Filter</span>
                     {filterCount > 0 && <span className="rounded-full bg-ring px-1.5 text-2xs font-semibold text-white tabular">{filterCount}</span>}
+                    {ui.sort && (
+                      <span className="flex items-center gap-0.5 text-2xs" data-testid="sort-indicator">
+                        <ArrowUpDown className="size-3" />
+                        <span className={labelClass}>{sortLabel(ui.sort.field)}</span>
+                        {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+                      </span>
+                    )}
                   </Button>
                 </PopoverTrigger>
               </SimpleTooltip>
               <PopoverContent className="w-[520px] p-3">
+                <SortRow sortLabel={sortLabel} />
                 <FilterPanel folded={folded} />
               </PopoverContent>
             </Popover>
-            <DropdownMenu>
-              <SimpleTooltip label="Sort items">
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" aria-label="Sort" className={cn("rounded-full", ui.sort && "state-on hover:bg-accent-soft hover:text-accent-soft-foreground")} data-testid="sort-button">
-                    <ArrowUpDown /> <span className={labelClass}>Sort</span>
-                    {ui.sort && (
-                      <span className="flex items-center gap-0.5 text-2xs">
-                        {sortLabel(ui.sort.field)} {ui.sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
-                      </span>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-              </SimpleTooltip>
-              <DropdownMenuContent align="start" className="w-48">
-                <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={ui.sort?.field ?? ""}
-                  onValueChange={(field) => store.setSort(board.id, { field: field as SortField, direction: ui.sort?.field === field ? ui.sort.direction : "asc" })}
-                >
-                  {(Object.keys(SORT_LABELS) as Array<keyof typeof SORT_LABELS>).map((field) => (
-                    <DropdownMenuRadioItem key={field} value={field}>
-                      {SORT_LABELS[field]}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem disabled={!ui.sort} onSelect={() => ui.sort && store.setSort(board.id, { ...ui.sort, direction: ui.sort.direction === "asc" ? "desc" : "asc" })}>
-                  {ui.sort?.direction === "desc" ? <ArrowUp /> : <ArrowDown />} {ui.sort?.direction === "desc" ? "Ascending" : "Descending"}
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled={!ui.sort} onSelect={() => store.setSort(board.id, null)}>
-                  <X /> Clear sort
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
             <DropdownMenu>
               <SimpleTooltip label="Show or hide columns">
                 <DropdownMenuTrigger asChild>
@@ -186,6 +170,28 @@ export function BoardToolbar({
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            {openModeShown && (
+              <DropdownMenu>
+                <SimpleTooltip label="Where a task opens">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" aria-label="Open tasks in" className="rounded-full" data-testid="board-open-mode">
+                      {openMode === "popup" ? <PictureInPicture2 /> : <PanelRight />} <span className={labelClass}>{openMode === "popup" ? "Pop-up" : "Side panel"}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                </SimpleTooltip>
+                <DropdownMenuContent align="start" className="w-44">
+                  <DropdownMenuLabel>Open tasks in</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={openMode ?? "panel"} onValueChange={(next) => rememberOpenMode?.(next as ItemOpenMode)}>
+                    <DropdownMenuRadioItem value="panel" data-testid="board-open-mode-panel">
+                      Side panel
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="popup" data-testid="board-open-mode-popup">
+                      Pop-up
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             {(filterCount > 0 || ui.search || ui.sort) && (
               <SimpleTooltip label="Clear search, filters and sort">
                 <Button
@@ -452,6 +458,67 @@ function TagChoices({ options }: { options: ReturnType<typeof useTagOptions>["op
 }
 
 /** Status, priority, group and date; with Person and Tags on top when the bar has folded their buttons in. */
+/**
+ * The sort, as the first row of the filter panel: one field at a time, the
+ * chosen one picked again to turn it round, and a way back to the board's own
+ * order. A column sorted from its header shows here as well.
+ */
+function SortRow({ sortLabel }: { sortLabel: (field: SortField) => string }) {
+  const { board } = useBoardContext();
+  const ui = useBoardUi(board.id);
+  const setSort = useBoardUiStore((s) => s.setSort);
+  const sort = ui.sort;
+  const fields: SortField[] = Object.keys(SORT_LABELS) as SortField[];
+  // A column picked from its header is not one of the fixed fields: it is shown too, while on.
+  if (sort && !fields.includes(sort.field)) fields.push(sort.field);
+  const pick = (field: SortField) => setSort(board.id, { field, direction: sort?.field === field ? (sort.direction === "asc" ? "desc" : "asc") : "asc" });
+  return (
+    <div className="mb-3 space-y-1.5 border-b border-border/60 pb-3" data-testid="sort-row">
+      <div className="flex items-center justify-between">
+        <p className="text-[13px] font-medium">Sort</p>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            disabled={!sort}
+            onClick={() => sort && setSort(board.id, { ...sort, direction: sort.direction === "asc" ? "desc" : "asc" })}
+            data-testid="sort-direction"
+          >
+            {sort?.direction === "desc" ? <ArrowDown /> : <ArrowUp />} {sort?.direction === "desc" ? "Descending" : "Ascending"}
+          </Button>
+          <Button variant="ghost" size="sm" className="text-muted-foreground" disabled={!sort} onClick={() => setSort(board.id, null)} data-testid="sort-clear">
+            Clear
+          </Button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Sort by">
+        {fields.map((field) => {
+          const on = sort?.field === field;
+          return (
+            <button
+              key={field}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => pick(field)}
+              className={cn(
+                "flex h-7 items-center gap-1 rounded-full border px-2.5 text-[12.5px] transition-colors",
+                on ? "border-ring/40 bg-accent-soft text-accent-soft-foreground" : "border-border/70 text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+              data-testid="sort-option"
+              data-sort-field={field}
+            >
+              {sortLabel(field)}
+              {on && (sort.direction === "asc" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function FilterPanel({ folded }: { folded: boolean }) {
   const { board, model } = useBoardContext();
   const { hasTags, options: tagOptions } = useTagOptions();

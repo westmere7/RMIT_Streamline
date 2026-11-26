@@ -14,8 +14,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Comment, type CommentPinState } from "@/domain";
+import { COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Activity, type Comment, type CommentPinState } from "@/domain";
+import { describeActivity } from "@/features/activity/format-activity";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
+import { mergeFeed, type FeedEntry } from "@/features/items/item-feed";
 import { useItemLinks } from "@/features/items/link-hooks";
 import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
 import { useServices } from "@/features/data/data-context";
@@ -36,7 +38,12 @@ const CheckToggle = React.createContext<CheckHandler | undefined>(undefined);
 type PinHandler = (comment: Comment, state: CommentPinState) => void;
 const PinControl = React.createContext<PinHandler | undefined>(undefined);
 
-export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment: boolean }) {
+/**
+ * @param log The task's history, woven in among the updates by time (the
+ * pop-up's one feed). Its "update posted" lines are left out: the update is there.
+ * @param embedded Inside a parent that scrolls: no height or scroll of its own.
+ */
+export function ItemUpdates({ itemId, canComment, log, embedded = false }: { itemId: string; canComment: boolean; log?: readonly Activity[]; embedded?: boolean }) {
   const ws = useWorkspace();
   const services = useServices();
   const item = useQuery({ queryKey: ["item-board", itemId], queryFn: () => services.repos.items.getById(itemId), staleTime: 60_000 });
@@ -67,6 +74,9 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
     // A pinned reply lifts its conversation to the top, and stays in it.
     return { updates: orderUpdates(top, (u) => threadPinOf(u, byParent.get(u.id))), repliesTo: byParent };
   }, [comments.data]);
+  // The feed: pinned conversations first, then updates and history lines
+  // together, newest first, each update where it was posted.
+  const feed = React.useMemo((): FeedEntry[] => (log ? mergeFeed(updates, repliesTo, log) : updates.map((comment) => ({ kind: "update", comment }))), [log, updates, repliesTo]);
   // Conversations folded to one line. Per visit, not stored: a panel reopened later starts open.
   const [collapsed, setCollapsed] = React.useState<ReadonlySet<string>>(() => new Set());
   const allCollapsed = updates.length > 0 && updates.every((u) => collapsed.has(u.id));
@@ -88,10 +98,10 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
     <DeleteRule.Provider value={mayDelete}>
     <PinControl.Provider value={canComment ? onPin : undefined}>
     <CheckToggle.Provider value={canComment ? onCheck : undefined}>
-    <div className="flex h-full flex-col">
+    <div className={cn("flex flex-col", !embedded && "h-full")}>
       {canComment && (
         <form
-          className={cn("border-b transition-[padding] duration-200", open ? "p-4" : "px-4 py-3")}
+          className={cn("border-b transition-[padding] duration-200", embedded ? (open ? "px-8 py-4" : "px-8 py-3.5") : open ? "p-4" : "px-4 py-3")}
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -144,13 +154,13 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
           </div>
         </form>
       )}
-      <div className="scrollbar-thin flex-1 overflow-y-auto p-4">
+      <div className={cn(embedded ? "px-8 py-5" : "scrollbar-thin flex-1 overflow-y-auto p-4")}>
         {comments.isLoading && (
           <div className="space-y-3">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
           </div>
         )}
-        {comments.data && updates.length === 0 && <EmptyState icon={MessageSquare} title="No updates yet" description="Post the first update to start the conversation." compact />}
+        {comments.data && feed.length === 0 && <EmptyState icon={MessageSquare} title="No updates yet" description="Post the first update to start the conversation." compact />}
         {updates.length > 1 && (
           <div className="mb-2 flex justify-end">
             <Button
@@ -165,8 +175,11 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
             </Button>
           </div>
         )}
-        <ul className="space-y-3">
-          {updates.map((comment) => (
+        <ul className="space-y-3" data-testid={log ? "item-feed" : undefined}>
+          {feed.map((entry) => {
+            if (entry.kind === "log") return <LogLine key={`log-${entry.activity.id}`} activity={entry.activity} />;
+            const comment = entry.comment;
+            return (
             <CommentItem
               key={comment.id}
               comment={comment}
@@ -182,13 +195,28 @@ export function ItemUpdates({ itemId, canComment }: { itemId: string; canComment
               onToggle={() => toggle(comment.id)}
               onReact={canComment ? (target, emoji, on) => react.mutate({ comment: target, emoji, on }) : undefined}
             />
-          ))}
+            );
+          })}
         </ul>
       </div>
     </div>
     </CheckToggle.Provider>
     </PinControl.Provider>
     </DeleteRule.Provider>
+  );
+}
+
+/** One line of the task's history among its updates: who did what, and when. Quieter than an update. */
+function LogLine({ activity }: { activity: Activity }) {
+  const ws = useWorkspace();
+  const links = useMentionLinks();
+  return (
+    <li className="flex items-center gap-2.5 px-1 text-[12.5px] leading-snug text-muted-foreground" data-testid="feed-log">
+      <UserAvatar user={ws.userById(activity.actorId)} size="xs" />
+      <p className="min-w-0 flex-1">
+        {describeActivity(activity, ws.users, false, links)} <RelativeTime iso={activity.createdAt} className="ml-1 text-2xs text-muted-foreground/80" />
+      </p>
+    </li>
   );
 }
 

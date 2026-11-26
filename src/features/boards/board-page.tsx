@@ -117,7 +117,11 @@ function BoardScreen({ boardId }: { boardId: string }) {
   const [editLabelsColumn, setEditLabelsColumn] = React.useState<BoardColumn | null>(null);
   const [now] = React.useState(() => new Date());
   // The ticket column is the table's own setting: per person, per board.
-  const [tableSettings, updateTableSettings] = useViewSettingsFor(boardId, "table", { showTicket: true });
+  // Where a task opens, beside the board or over it: the table's setting, which
+  // the timeline, calendar, Gantt and workload follow (kanban has its own), and
+  // part of a saved view like the rest of it.
+  const [tableSettings, updateTableSettings] = useViewSettingsFor<{ showTicket: boolean; openIn: ItemOpenMode }>(boardId, "table", { showTicket: true, openIn: "panel" });
+  const preferredOpen: ItemOpenMode = tableSettings.openIn === "popup" ? "popup" : "panel";
   const isMobile = useIsMobile();
   // Cards or the grid on a phone. Its own key: the desktop table has no such
   // choice, and the board's view settings follow the person to another device.
@@ -165,6 +169,13 @@ function BoardScreen({ boardId }: { boardId: string }) {
   // A view this board does not offer (a link from before, a remembered choice) opens the table.
   const wanted: BoardViewKind = isViewKind(viewParam) ? viewParam : (rememberedView ?? "table");
   const view: BoardViewKind = boardViewsFor(board).includes(wanted) ? wanted : "table";
+  // Kanban keeps its own "Open cards in"; everywhere else the table's setting is the board's.
+  const rememberOpenMode = React.useCallback((openIn: ItemOpenMode) => {
+    if (view === "kanban") return;
+    updateTableSettings({ openIn });
+    // A task open as the setting changes moves with it.
+    if (useBoardUiStore.getState().openItemId) useBoardUiStore.getState().setOpenItemMode(openIn);
+  }, [view, updateTableSettings]);
 
   const urlItemId = searchParams.get("item");
 
@@ -235,15 +246,20 @@ function BoardScreen({ boardId }: { boardId: string }) {
    * handler, and Next reads it back as a router update, which would otherwise
    * sweep this along with it and land it a render later than it should.
    */
+  // The last task opened from inside the board, so the URL catching up with
+  // it is not mistaken for a link followed in (which opens the board's way).
+  const openedHere = React.useRef<string | null>(null);
   const openItem = React.useCallback(
     (id: string | null, mode?: ItemOpenMode) => {
+      openedHere.current = id;
       flushSync(() => {
         // An explicit mode is the caller asking for one. Without it the way the
         // task is being looked at carries over — a breadcrumb followed from
         // inside the pop-up stays a pop-up — and closing puts it back to the
         // panel, so the next row clicked opens where rows always open.
-        if (id === null) setOpenItemMode("panel");
+        if (id === null) setOpenItemMode(preferredOpen);
         else if (mode) setOpenItemMode(mode);
+        else if (!useBoardUiStore.getState().openItemId) setOpenItemMode(preferredOpen);
         setOpenItemId(id);
       });
       // And the URL is bookkeeping. Writing it here costs ~150ms of router
@@ -251,7 +267,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
       // getting a chance to paint it; a frame later it is free.
       requestAnimationFrame(() => replaceParams({ item: id }));
     },
-    [replaceParams, setOpenItemId, setOpenItemMode],
+    [replaceParams, setOpenItemId, setOpenItemMode, preferredOpen],
   );
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
   const openItemUpdates = React.useCallback(
@@ -272,8 +288,11 @@ function BoardScreen({ boardId }: { boardId: string }) {
   // button — and the one that survives a reload. The click has already set the
   // store; this is the route catching up with it, or overruling it.
   React.useEffect(() => {
+    // Followed in from a link rather than clicked: it opens where this board opens tasks.
+    if (urlItemId && openedHere.current !== urlItemId) setOpenItemMode(preferredOpen);
     setOpenItemId(urlItemId);
     return () => setOpenItemId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the mode is read when the link changes, not re-applied when the setting does
   }, [urlItemId, setOpenItemId]);
 
   // A link to a task that has since been put away lands here, on a board that
@@ -349,10 +368,12 @@ function BoardScreen({ boardId }: { boardId: string }) {
             now,
             showTicket: tableSettings.showTicket,
             setShowTicket,
+            rememberOpenMode,
+            openMode: preferredOpen,
             updates,
           }
         : null,
-    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket],
+    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket, rememberOpenMode, preferredOpen],
   );
 
   // Next holds this page on screen until the next one is ready, so a board

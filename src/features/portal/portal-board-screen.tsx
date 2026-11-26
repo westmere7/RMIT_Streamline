@@ -34,7 +34,7 @@ import { applyPortalGrouping, orderStatusLabels, withTeamColumn } from "@/featur
 import { ShareGuestProviders } from "@/features/share/share-shell";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
-import { activeFilterCount, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
+import { activeFilterCount, useBoardUi, useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 
 /**
  * A department's requests, as a board.
@@ -67,7 +67,10 @@ export function PortalBoardScreen({
   taskPanel = "own",
   linksStayHere = true,
   itemMenu,
+  onOpenModeChange,
 }: {
+  /** Where tasks open (the toolbar's view setting), for a page that draws the opened task itself. */
+  onOpenModeChange?: (mode: ItemOpenMode) => void;
   /** The page's own entries on a task's menu, in place of the reading extras (the internal portal). */
   itemMenu?: BoardContextValue["itemMenu"];
   /**
@@ -132,7 +135,7 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={home ?? `/portal/${encodeURIComponent(token)}`} activityFor={loadJourney} linksStayHere={linksStayHere}>
-      <PortalBoard payload={shown} itemMenu={itemMenu} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={groupings} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
+      <PortalBoard payload={shown} itemMenu={itemMenu} onOpenModeChange={onOpenModeChange} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={groupings} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
     </ShareGuestProviders>
   );
 }
@@ -177,6 +180,7 @@ function isGrouping(value: string | null): value is PortalGrouping {
 function PortalBoard({
   payload,
   itemMenu,
+  onOpenModeChange,
   ownPanel,
   bookHref,
   rangePicker,
@@ -193,6 +197,7 @@ function PortalBoard({
   onShowAll?: () => void;
   payload: PortalBoardPayload;
   itemMenu?: BoardContextValue["itemMenu"];
+  onOpenModeChange?: (mode: ItemOpenMode) => void;
   /** False when the page draws the opened task itself. */
   ownPanel: boolean;
   refreshing: boolean;
@@ -215,7 +220,16 @@ function PortalBoard({
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
-  const [tableSettings, updateTableSettings] = useViewSettingsFor(board.id, "table", { showTicket: true });
+  // Where a task opens, beside the board or over it, as on a board in the app:
+  // a view setting, kept with a saved view (kanban has its own).
+  const [tableSettings, updateTableSettings] = useViewSettingsFor<{ showTicket: boolean; openIn: ItemOpenMode }>(board.id, "table", { showTicket: true, openIn: "panel" });
+  const preferredOpen: ItemOpenMode = tableSettings.openIn === "popup" ? "popup" : "panel";
+  // A card that asked for one way (kanban's own setting) wins for the task it opened.
+  const [askedMode, setAskedMode] = React.useState<ItemOpenMode | null>(null);
+  const popup = (askedMode ?? preferredOpen) === "popup";
+  React.useEffect(() => {
+    onOpenModeChange?.(preferredOpen);
+  }, [preferredOpen, onOpenModeChange]);
   const isMobile = useIsMobile();
   const [tableMode, setTableMode] = useMobileViewPref<"cards" | "grid">(`table-mode:${board.id}`, "cards");
 
@@ -238,7 +252,22 @@ function PortalBoard({
     },
     [router, defaultView],
   );
-  const openItem = React.useCallback((id: string | null) => replaceParams({ task: id }), [replaceParams]);
+  const openItem = React.useCallback(
+    (id: string | null, mode?: ItemOpenMode) => {
+      setAskedMode(id ? (mode ?? null) : null);
+      replaceParams({ task: id });
+    },
+    [replaceParams],
+  );
+  const rememberOpenMode = React.useCallback(
+    (openIn: ItemOpenMode) => {
+      if (view === "kanban") return;
+      setAskedMode(null);
+      updateTableSettings({ openIn });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
+    [view],
+  );
 
   const setOpenItemId = useBoardUiStore((s) => s.setOpenItemId);
   React.useEffect(() => {
@@ -282,12 +311,14 @@ function PortalBoard({
             now,
             showTicket: tableSettings.showTicket,
             setShowTicket: (showTicket) => updateTableSettings({ showTicket }),
+            rememberOpenMode,
+            openMode: preferredOpen,
             updates: new Map(),
             itemMenu,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu],
+    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen],
   );
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;
@@ -374,7 +405,7 @@ function PortalBoard({
               (pending ? (
                 <ItemPanelSkeleton onClose={() => openItem(null)} overlay={view === "kanban"} />
               ) : (
-                <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} overlay={view === "kanban"} hideMenu notice={notice} />
+                <ItemDetailPanel itemId={openTaskId} onClose={() => openItem(null)} overlay={view === "kanban"} popup={popup} hideMenu notice={notice} />
               ))}
           </div>
         </>

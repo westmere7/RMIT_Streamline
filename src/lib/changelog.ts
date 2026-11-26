@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.166.0",
+    date: "2026-11-26",
+    title: "A new task pop-up; sort and filter together",
+    changes: [
+      "The pop-up reads like a card: updates and the task's history in one feed, newest first, with a switch to hide the history and Assets beside it; the description, columns, links and subitems in a wider column on the right, values centred.",
+      "The description opens for editing only when clicked, and closes and saves when you click anywhere else. Escape while typing in the pop-up leaves the pop-up open.",
+      "Where tasks open, side panel or pop-up, is a board setting next to Hide, kept with saved views (shared or just yours). The task's own menu sets it too. Kanban keeps its Open cards in.",
+      "Sort / Filter is one button: the sort is the first row of the panel, a field picked again turns it round.",
+      "The guest portal, the internal portal and shared board links have the same pop-up, setting and Sort / Filter.",
+    ],
+  },
+  {
     version: "0.165.2",
     date: "2026-11-26",
     title: "Automations check in less often when there is nothing to do",
