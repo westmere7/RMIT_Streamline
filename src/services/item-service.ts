@@ -19,8 +19,11 @@ import type {
 import { EMPTY_ARCHIVE_LINK_IMPACT, INTAKE_MANUAL_MESSAGE, INTAKE_MOVE_MESSAGE, emptyValueFor, intakeGroupOf, normaliseTicket, otherEndOf } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
+import { richTextToPlain } from "@/lib/rich-text";
+import { truncate } from "@/lib/utils";
 import { clipActivityValue, displayValue } from "./column-display";
 import type { ItemLinkService } from "./item-link-service";
+import { mentionAudience } from "./mention-audience";
 import { NotificationService } from "./notification-service";
 
 /**
@@ -270,8 +273,37 @@ export class ItemService {
 
   async updateDescription(itemId: EntityId, description: string | null, actorId: EntityId): Promise<Item> {
     const next = description?.trim() || null;
+    const before = await this.repos.items.getById(itemId);
     const item = await this.repos.items.update(itemId, { description: next });
     await this.links.propagate(itemId, { kind: "description", description: next }, actorId);
+    // Someone newly named in it ("@Name", "@all", "@task", "@board") hears once;
+    // a mention already there before the edit is not news.
+    if (next && next.includes("@")) {
+      try {
+        const board = await this.repos.boards.getById(item.boardId);
+        const users = await this.repos.users.list();
+        const now = await mentionAudience(this.repos, next, users, item, board);
+        const was = before?.description ? new Set(await mentionAudience(this.repos, before.description, users, item, board)) : new Set<EntityId>();
+        const told = now.filter((id) => id !== actorId && !was.has(id));
+        if (told.length) {
+          const actorName = users.find((u) => u.id === actorId)?.firstName ?? "Someone";
+          await this.notifications.deliver(
+            told.map((userId) => ({
+              userId,
+              type: "MENTION" as const,
+              title: `${actorName} mentioned you in the description of ${item.name}`,
+              body: truncate(richTextToPlain(next), 140),
+              entityType: "ITEM" as const,
+              entityId: item.id,
+              boardId: item.boardId,
+              actorId,
+            })),
+          );
+        }
+      } catch (error) {
+        console.warn("Could not tell the people mentioned in a description", error);
+      }
+    }
     return item;
   }
 

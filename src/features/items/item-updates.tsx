@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import { COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Activity, type Comment, type CommentPinState } from "@/domain";
+import { GROUP_MENTION_NAMES, COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Activity, type Comment, type CommentPinState } from "@/domain";
 import { useBoardContext } from "@/features/boards/board-context";
 import { describeActivity } from "@/features/activity/format-activity";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
@@ -93,7 +93,7 @@ export function ItemUpdates({
   // write. Anything already written keeps it open.
   const [writing, setWriting] = React.useState(false);
   const open = writing || draft.trim().length > 0;
-  const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
+  const names = React.useMemo(() => [...ws.users.map((u) => u.displayName), ...GROUP_MENTION_NAMES], [ws.users]);
   // Pinned updates first, then the rest newest first; the replies under each, oldest first, as a conversation reads.
   const { updates, repliesTo } = React.useMemo(() => {
     const all = comments.data ?? [];
@@ -158,7 +158,7 @@ export function ItemUpdates({
                 value={draft}
                 onChange={setDraft}
                 onSubmit={submit}
-                people={ws.activeUsers}
+                people={ws.activeUsers} groupMentions
                 placeholder="Write an update… type @ to mention a teammate"
                 ariaLabel="New update"
                 testId="comment-input"
@@ -700,7 +700,7 @@ export function PinnedUpdate({ itemId, canEdit, onOpenUpdates }: { itemId: strin
   const pinned = overviewPinOf(comments.data ?? []);
   const onCheck = React.useCallback<CheckHandler>((comment, key, on) => check.mutate({ comment, key, on }), [check]);
   const checklist = useChecklist(pinned, canEdit ? onCheck : undefined);
-  const names = React.useMemo(() => ws.users.map((u) => u.displayName), [ws.users]);
+  const names = React.useMemo(() => [...ws.users.map((u) => u.displayName), ...GROUP_MENTION_NAMES], [ws.users]);
   const bodyRef = React.useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = React.useState(false);
   const [overflows, setOverflows] = React.useState(false);
@@ -864,7 +864,7 @@ function CommentBody({
         save();
       }}
     >
-      <RichTextEditor value={draft} onChange={setDraft} onSubmit={save} people={ws.activeUsers} ariaLabel="Edit update" testId="comment-edit-input" autoFocus checklist />
+      <RichTextEditor value={draft} onChange={setDraft} onSubmit={save} people={ws.activeUsers} groupMentions ariaLabel="Edit update" testId="comment-edit-input" autoFocus checklist />
       <div className="flex justify-end gap-2">
         <Button
           type="button"
@@ -926,7 +926,7 @@ function ReplyComposer({ onSubmit, onCancel }: { onSubmit: (body: string) => voi
     >
       <UserAvatar user={ws.currentUser} size="sm" tooltip={false} />
       <div className="min-w-0 flex-1 space-y-1.5">
-        <RichTextEditor compact={!full} value={draft} onChange={setDraft} onSubmit={send} people={ws.activeUsers} placeholder="Write a reply… type @ to mention" ariaLabel="Reply" testId="comment-reply-input" autoFocus checklist />
+        <RichTextEditor compact={!full} value={draft} onChange={setDraft} onSubmit={send} people={ws.activeUsers} groupMentions placeholder="Write a reply… type @ to mention" ariaLabel="Reply" testId="comment-reply-input" autoFocus checklist />
         <div className="flex items-center gap-1.5">
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-2xs text-muted-foreground" onClick={() => setFull((v) => !v)} data-testid="comment-reply-expand">
             {full ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />} {full ? "Basic editor" : "Full editor"}

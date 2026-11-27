@@ -689,6 +689,8 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
     sections: [
       { title: "Updates and replies", bullets: [
         "Post updates for decisions, progress and reviews. Type @ to mention someone.",
+        "@all tells everyone in the workspace, @task the people on the task, @board the board's members.",
+        "A mention in a task's description tells the person too, once.",
         "Reply under an update to keep the thread together.",
         "React with an emoji instead of replying. Hover a reaction to see who.",
         "Edit your own updates. Delete with the bin, then Delete? to confirm.",

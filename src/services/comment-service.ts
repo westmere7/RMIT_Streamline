@@ -5,27 +5,12 @@ import { newId } from "@/lib/ids";
 import { richTextToPlain } from "@/lib/rich-text";
 import { truncate } from "@/lib/utils";
 import type { ItemLinkService } from "./item-link-service";
+import { extractMentions, mentionAudience } from "./mention-audience";
 import { NotificationService } from "./notification-service";
 
 
-/** Finds `@Full Name` mentions for known users. */
-export function extractMentions(body: string, users: readonly User[]): EntityId[] {
-  const ids: EntityId[] = [];
-  // Longest names first, each "@" claimed once, and a name must end where a
-  // word does: "@Ann" is not a mention of Ann inside "@Anna Lee", nor is "@Ann
-  // Lee" also a mention of Ann.
-  const claimed = new Set<number>();
-  const byLength = users.filter((u) => u.displayName.trim()).slice().sort((a, b) => b.displayName.length - a.displayName.length);
-  for (const user of byLength) {
-    const needle = `@${user.displayName}`;
-    for (let at = body.indexOf(needle); at !== -1; at = body.indexOf(needle, at + 1)) {
-      if (claimed.has(at) || /[\p{L}\p{N}]/u.test(body.charAt(at + needle.length))) continue;
-      claimed.add(at);
-      if (!ids.includes(user.id)) ids.push(user.id);
-    }
-  }
-  return ids;
-}
+// "@Name", "@all", "@task" and "@board": worked out in one place (mention-audience.ts).
+export { extractMentions } from "./mention-audience";
 
 export class CommentService {
   constructor(
@@ -88,10 +73,9 @@ export class CommentService {
     const board = await this.repos.boards.getById(item.boardId);
     // Only people active in this task's workspace can be mentioned. Callers
     // with the service role hand over every profile there is, and with several
-    // workspaces an "@Name" must never reach somebody in another one.
-    const members = board ? await this.repos.workspaces.listMembers(board.workspaceId) : [];
-    const here = new Set(members.filter((m) => m.status === "ACTIVE").map((m) => m.userId));
-    const mentionUserIds = extractMentions(trimmed, users.filter((u) => here.has(u.id)));
+    // workspaces an "@Name" must never reach somebody in another one. "@all",
+    // "@task" and "@board" stand for the people behind them.
+    const mentionUserIds = await mentionAudience(this.repos, trimmed, users, item, board);
 
     // Copies posted to linked items in one action share an id, which is how an
     // edit later finds them and how the update says it lives on more than one
@@ -174,8 +158,7 @@ export class CommentService {
     const item = context ? await this.repos.items.getById(context.itemId) : null;
     const board = item ? await this.repos.boards.getById(item.boardId) : null;
     const before = item ? (await this.repos.comments.listByItem(item.id)).find((c) => c.id === commentId) : undefined;
-    const reachable = board ? await this.mentionable(board.workspaceId, users) : users;
-    const patch = { body: trimmed, mentionUserIds: extractMentions(trimmed, reachable) };
+    const patch = { body: trimmed, mentionUserIds: item ? await mentionAudience(this.repos, trimmed, users, item, board) : extractMentions(trimmed, users) };
     const updated = await this.repos.comments.update(commentId, patch);
     if (updated.sharedId) {
       const copies = await this.repos.comments.listBySharedId(updated.sharedId);
@@ -191,12 +174,6 @@ export class CommentService {
       }
     }
     return updated;
-  }
-
-  /** The people an "@Name" on this workspace's tasks can reach: those active in it. */
-  private async mentionable(workspaceId: EntityId, users: readonly User[]): Promise<User[]> {
-    const here = new Set((await this.repos.workspaces.listMembers(workspaceId)).filter((m) => m.status === "ACTIVE").map((m) => m.userId));
-    return users.filter((u) => here.has(u.id));
   }
 
   /**
@@ -218,7 +195,7 @@ export class CommentService {
     if (!item) throw new NotFoundError("Item", root.itemId);
     const board = await this.repos.boards.getById(item.boardId);
     // As on a new update: only people active in this workspace can be mentioned.
-    const mentionUserIds = extractMentions(trimmed, board ? await this.mentionable(board.workspaceId, users) : []);
+    const mentionUserIds = await mentionAudience(this.repos, trimmed, users, item, board);
     // The update's copies on linked tasks that still share updates with this one.
     const chain = root.sharedId && this.links ? new Set(await this.links.updatesChainIds(root.itemId)) : new Set<EntityId>();
     const copies = root.sharedId && chain.size ? (await this.repos.comments.listBySharedId(root.sharedId)).filter((c) => c.id !== root.id && !c.parentId && chain.has(c.itemId)) : [];

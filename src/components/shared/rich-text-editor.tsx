@@ -7,7 +7,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { SuggestionKeyDownProps, SuggestionProps } from "@tiptap/suggestion";
-import { Bold, ExternalLink, Heading1, Heading2, Indent, Italic, Link2, List, ListChecks, ListOrdered, Minus, Outdent, Palette, Pencil, Trash2, Underline } from "lucide-react";
+import { Bold, ExternalLink, Heading1, Heading2, Indent, Italic, Link2, List, ListChecks, ListOrdered, Minus, Outdent, Palette, Pencil, Trash2, Underline, Users } from "lucide-react";
 import * as React from "react";
 import { RICH_TEXT_COLOR_CLASSES } from "@/components/shared/rich-text";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { User } from "@/domain";
+import { GROUP_MENTION_NAMES, GROUP_MENTIONS } from "@/domain";
 import { MAX_INDENT, normalizeLinkHref, RICH_TEXT_COLORS, type RichTextColor } from "@/lib/rich-text";
 import { docToRichText, richTextToDoc } from "@/lib/rich-text-doc";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,8 @@ export interface RichTextEditorProps {
    * an update. A "[ ]" line typed anywhere else still reads as a box.
    */
   checklist?: boolean;
+  /** Offer "@all", "@task" and "@board" in the picker, after the people. */
+  groupMentions?: boolean;
 }
 
 /** Text colour from the fixed palette, stored as {c:red}…{/c}. */
@@ -139,6 +142,18 @@ const BlockIndent = Extension.create({
   },
 });
 
+/** "@all", "@task", "@board" as picker rows: shaped like a person so the list can hold both. */
+const GROUP_ROWS: User[] = GROUP_MENTIONS.map((group) => ({ id: `group:${group.key}`, displayName: group.key, firstName: group.key, jobTitle: group.hint, deactivatedAt: null }) as unknown as User);
+const isGroupRow = (person: User) => person.id.startsWith("group:");
+
+/** The picker's rows: the people who fit, then the groups whose word starts with what was typed. */
+function rankMentions(people: readonly User[], rawQuery: string, groups: boolean): User[] {
+  const found = rankPeople(people, rawQuery);
+  if (!groups) return found;
+  const query = rawQuery.toLowerCase().trim();
+  return [...found, ...GROUP_ROWS.filter((row) => row.displayName.startsWith(query))];
+}
+
 /** Ranks people for the "@" picker: a name that starts with what was typed comes first. */
 function rankPeople(people: readonly User[], rawQuery: string): User[] {
   const query = rawQuery.toLowerCase().trim();
@@ -172,7 +187,7 @@ type LinkCardState = { href: string; from: number; to: number; left: number; top
  * as soon as you type "@". What is stored is still the plain markup that
  * ./rich-text.ts reads, so nothing about posted updates changes.
  */
-export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill, compact = false, checklist = false }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, onSubmit, people, placeholder, rows = 3, ariaLabel, testId, autoFocus, className, fill, compact = false, checklist = false, groupMentions = false }: RichTextEditorProps) {
   const [mention, setMention] = React.useState<MentionState | null>(null);
   const [highlighted, setHighlighted] = React.useState(0);
   const [colorsOpen, setColorsOpen] = React.useState(false);
@@ -184,7 +199,8 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
   const mentionRef = React.useRef<MentionState | null>(null);
   const highlightedRef = React.useRef(0);
   const dismissedRef = React.useRef(false);
-  const mentionNames = React.useMemo(() => people.map((person) => person.displayName), [people]);
+  const mentionNames = React.useMemo(() => [...people.map((person) => person.displayName), ...(groupMentions ? GROUP_MENTION_NAMES : [])], [people, groupMentions]);
+  const groupsRef = React.useRef(groupMentions);
   const namesRef = React.useRef(mentionNames);
   React.useLayoutEffect(() => {
     onSubmitRef.current = onSubmit;
@@ -192,6 +208,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
     mentionRef.current = mention;
     highlightedRef.current = highlighted;
     namesRef.current = mentionNames;
+    groupsRef.current = groupMentions;
   });
 
   const extensions = React.useMemo(
@@ -238,7 +255,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
         suggestion: {
           char: "@",
           allowSpaces: true,
-          items: ({ query }) => rankPeople(peopleRef.current, query),
+          items: ({ query }) => rankMentions(peopleRef.current, query, groupsRef.current),
           render: () => {
             const show = (props: SuggestionProps<User>) => {
               if (dismissedRef.current) return;
@@ -436,6 +453,33 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
     setMention(null);
   };
 
+  /**
+   * The picker opens above the box, unless whatever scrolls around the box
+   * would cut it off there (a description at the top of a panel): then below.
+   */
+  const [mentionBelow, setMentionBelow] = React.useState(false);
+  const mentionOpen = !!mention && mention.items.length > 0;
+  const mentionCount = mention?.items.length ?? 0;
+  React.useLayoutEffect(() => {
+    if (!mentionOpen) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const box = root.getBoundingClientRect();
+    let top = 0;
+    let bottom = window.innerHeight;
+    for (let el = root.parentElement; el; el = el.parentElement) {
+      const overflow = getComputedStyle(el).overflowY;
+      if (overflow === "visible") continue;
+      const r = el.getBoundingClientRect();
+      top = Math.max(top, r.top);
+      bottom = Math.min(bottom, r.bottom);
+    }
+    const needed = Math.min(224, mentionCount * 34 + 10) + 8;
+    const above = box.top - top;
+    const below = bottom - box.bottom;
+    setMentionBelow(above < needed && below > above);
+  }, [mentionOpen, mentionCount]);
+
   return (
     <div ref={rootRef} className={cn("rich-text-editor relative", fill && "flex min-h-0 flex-col", className)} style={compact ? ({ "--rte-min-height": "2.5rem" } as React.CSSProperties) : undefined} data-compact={compact || undefined}>
       <div className={cn("overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20", fill && "flex min-h-0 flex-1 flex-col")}>
@@ -573,7 +617,7 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
       )}
       {mention && mention.items.length > 0 && (
         <ul
-          className="absolute right-0 bottom-full left-0 z-30 mb-1 max-h-56 overflow-y-auto rounded-xl border border-border/70 bg-popover p-1 shadow-lg"
+          className={cn("absolute right-0 left-0 z-30 max-h-56 overflow-y-auto rounded-xl border border-border/70 bg-popover p-1 shadow-lg", mentionBelow ? "top-full mt-1" : "bottom-full mb-1")}
           role="listbox"
           aria-label="People to mention"
           data-testid="mention-list"
@@ -595,7 +639,13 @@ export function RichTextEditor({ value, onChange, onSubmit, people, placeholder,
                 onMouseMove={() => setHighlighted(index)}
                 className={cn("flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px]", index === highlighted ? "bg-accent" : "hover:bg-accent/60")}
               >
-                <UserAvatar user={person} size="xs" tooltip={false} />
+                {isGroupRow(person) ? (
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/12 text-primary" aria-hidden>
+                    <Users className="size-3" />
+                  </span>
+                ) : (
+                  <UserAvatar user={person} size="xs" tooltip={false} />
+                )}
                 <span className="min-w-0 flex-1 truncate">{person.displayName}</span>
                 {person.jobTitle && <span className="hidden truncate text-2xs text-muted-foreground sm:block">{person.jobTitle}</span>}
               </button>

@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.171.0",
+    date: "2026-11-27",
+    title: "Mention everyone at once, and in the description",
+    changes: [
+      "Type @ in an update or a reply: after the people come @all (everyone in this workspace), @task (the people on the task: its person columns and whoever is in charge of its deliverables) and @board (the board's members).",
+      "The description has the same picker. Someone newly named in it hears about it once; a mention already there before an edit says nothing again.",
+      "The @ picker opens below the box when there is no room above it, so it is never cut off at the top of a panel.",
+      "The description has Save and Discard under it while you edit (Ctrl/⌘ + Enter saves). Leaving the box still saves.",
+    ],
+  },
+  {
     version: "0.170.2",
     date: "2026-11-27",
     title: "A guide with pictures",

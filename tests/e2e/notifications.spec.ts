@@ -164,6 +164,8 @@ test.describe("notifications and updates", () => {
   });
 
   test("unsubscribing from a board silences it, and resubscribing brings it back", async ({ page }) => {
+    // Two accounts and two mentions, each through the board and the inbox: longer than the default.
+    test.setTimeout(120_000);
     // Unsubscribe from the board menu.
     await openBoard(page);
     await page.getByTestId("board-menu").click();

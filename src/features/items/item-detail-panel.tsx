@@ -36,7 +36,7 @@ import { RichText } from "@/components/shared/rich-text";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import { keepLineBreaks } from "@/lib/rich-text";
 import type { BoardColumn, ColorToken, Item, ItemAsset } from "@/domain";
-import { COLUMN_TYPE_LABELS, TICKET_MAX, boardHasDeliverables, isSystemColumnType } from "@/domain";
+import { COLUMN_TYPE_LABELS, GROUP_MENTION_NAMES, TICKET_MAX, boardHasDeliverables, isSystemColumnType } from "@/domain";
 import { copyToClipboard } from "@/features/members/hooks";
 import { ActivityFeed } from "@/features/activity/activity-feed";
 import { useItemActivity } from "@/features/activity/hooks";
@@ -1073,6 +1073,8 @@ function TicketField({
 function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean }) {
   const { mutations } = useBoardContext();
   const mentionLinks = useMentionLinks();
+  const ws = useWorkspace();
+  const mentionNames = React.useMemo(() => [...ws.users.map((u) => u.displayName), ...GROUP_MENTION_NAMES], [ws.users]);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
   // Whether anything was changed: opened and left untouched writes nothing.
@@ -1164,12 +1166,33 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
               setDraft(next);
               setTyped(true);
             }}
-            // Nobody is told about a name in a description, so no picker offers one.
-            people={NO_PEOPLE}
+            // A name here tells the person, as in an update; so do @all, @task and @board.
+            people={ws.activeUsers}
+            groupMentions
+            onSubmit={commit}
             placeholder="Add a description, brief or links…"
             rows={3}
             ariaLabel="Description"
           />
+          {/* Leaving the box still saves; these say so out loud, and Discard puts it back. */}
+          <div className="mt-2 flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDraft(item.description ?? "");
+                setTyped(false);
+                setEditing(false);
+              }}
+              data-testid="panel-description-discard"
+            >
+              Discard
+            </Button>
+            <Button type="button" size="sm" onClick={commit} disabled={!typed} data-testid="panel-description-save">
+              Save
+            </Button>
+          </div>
         </div>
       ) : text ? (
         // A div, not a button: the description can hold links of its own,
@@ -1194,7 +1217,7 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
           )}
           data-testid="panel-description"
         >
-          <RichText body={text} mentionHref={mentionLinks.personNamed} />
+          <RichText body={text} mentionNames={mentionNames} mentionHref={mentionLinks.personNamed} />
         </div>
       ) : (
         <button
@@ -1211,7 +1234,6 @@ function DescriptionSection({ item, canEdit }: { item: Item; canEdit: boolean })
 }
 
 /** Nobody to mention in a description. */
-const NO_PEOPLE: readonly never[] = [];
 
 /**
  * @param part All of it (the panel), or the pop-up's two halves: "header" is

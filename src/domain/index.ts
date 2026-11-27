@@ -36,6 +36,7 @@ export * from "./tracker/tracker-people";
 export * from "./tracker/tracker-values";
 export * from "./doc/doc";
 export * from "./comment/comment";
+export * from "./comment/group-mentions";
 export * from "./message/direct-message";
 export * from "./activity/activity";
 export * from "./automation/automation";
