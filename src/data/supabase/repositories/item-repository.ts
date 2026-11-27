@@ -346,10 +346,18 @@ export class SupabaseItemRepository implements ItemRepository {
 
   // ---- Values --------------------------------------------------------------
 
+  /**
+   * Every value on the board, by the value's own board_id (indexed, and kept
+   * equal to its column's board by enforce_value_same_board). Reading the
+   * board's column ids first and then filtering by them was a round trip more
+   * on every board opened. Paged as listValuesByColumns is.
+   */
   async listValuesByBoard(boardId: string): Promise<ItemColumnValue[]> {
-    const columns = await db().from("board_columns").select("id").eq("board_id", boardId);
-    const columnIds = unwrapList<{ id: string }>(columns, "item_column_values.listValuesByBoard.columns").map((c) => c.id);
-    return this.listValuesByColumns(columnIds);
+    const rows = await unwrapAll<ItemColumnValueRow>(
+      (from, to) => db().from("item_column_values").select(VALUE).eq("board_id", boardId).order("id", { ascending: true }).range(from, to),
+      "item_column_values.listValuesByBoard",
+    );
+    return rows.map(toItemColumnValue);
   }
 
   async listValuesByItem(itemId: string): Promise<ItemColumnValue[]> {

@@ -42,7 +42,12 @@ export function useBoardAssets(boardId: string) {
   const query = useQuery({
     queryKey: queryKeys.boardAssets(boardId),
     queryFn: () => services.assets.loadBoard(boardId, ws.workspace.id),
-    staleTime: 5_000,
+    // Kept fresh by the board's channel and the bindings below, not by mounting:
+    // every Assets/Progress cell and the task panel is an observer, so with a
+    // short staleTime opening a task or scrolling the table re-ran this four-read
+    // chain (every line, every link in the workspace, the linked tasks, their lines).
+    staleTime: 5 * 60_000,
+    refetchOnMount: false,
   });
   const linkedBoardIds = query.data?.linkedBoardIds ?? EMPTY_BOARD_IDS;
   const bindings: RealtimeBinding[] = linkedBoardIds.map((id) => ({

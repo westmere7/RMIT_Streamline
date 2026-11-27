@@ -32,9 +32,10 @@ export function useItemLinks(itemId: string | null) {
     queryKey: queryKeys.itemLinks(itemId ?? ""),
     queryFn: () => services.links.listForItem(itemId!),
     enabled: !!itemId,
-    // A preview of somebody else's row is worth nothing stale: it is on screen
-    // precisely to say what that row says now.
-    staleTime: 0,
+    // A preview of somebody else's row must say what that row says now, which
+    // the subscription above sees to; 0 here re-read it on every mount (four
+    // reads for one task opened).
+    staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
 }

@@ -220,14 +220,15 @@ export class WorkspaceService {
 
   /** Everything the shell needs about people and teams, loaded once. */
   async loadContext(workspaceId: EntityId): Promise<WorkspaceContext> {
-    const workspace = await this.repos.workspaces.getById(workspaceId);
-    if (!workspace) throw new NotFoundError("Workspace", workspaceId);
-    const [members, users, teams, teamMembers] = await Promise.all([
+    // All at once: the workspace row first was a round trip of its own before everything else.
+    const [workspace, members, users, teams, teamMembers] = await Promise.all([
+      this.repos.workspaces.getById(workspaceId),
       this.repos.workspaces.listMembers(workspaceId),
       this.repos.users.list(),
       this.repos.teams.listByWorkspace(workspaceId),
       this.repos.teams.listMembersByWorkspace(workspaceId),
     ]);
+    if (!workspace) throw new NotFoundError("Workspace", workspaceId);
     const memberUserIds = new Set(members.map((m) => m.userId));
     return { workspace, members, users: users.filter((u) => memberUserIds.has(u.id)), teams, teamMembers };
   }

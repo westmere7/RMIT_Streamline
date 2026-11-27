@@ -57,11 +57,9 @@ export class SupabaseTeamRepository implements TeamRepository {
     if (unwrapList<{ id: string }>(result, "teams.delete").length === 0) throw new Error("Only workspace admins can delete a team.");
   }
 
+  /** Through the team's workspace in one read (an inner join), not the team ids first. */
   async listMembersByWorkspace(workspaceId: string): Promise<TeamMember[]> {
-    const teams = await db().from("teams").select("id").eq("workspace_id", workspaceId);
-    const ids = unwrapList<{ id: string }>(teams, "teams.listMembersByWorkspace.teams").map((t) => t.id);
-    if (ids.length === 0) return [];
-    const result = await db().from("team_members").select(MEMBER).in("team_id", ids);
+    const result = await db().from("team_members").select(`${MEMBER}, teams!inner(workspace_id)`).eq("teams.workspace_id", workspaceId);
     return unwrapList<TeamMemberRow>(result, "team_members.listMembersByWorkspace").map(toTeamMember);
   }
 

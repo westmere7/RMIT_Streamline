@@ -159,14 +159,15 @@ export class ItemService {
   }
 
   async loadBoardSnapshot(boardId: EntityId): Promise<BoardSnapshot> {
-    const board = await this.repos.boards.getById(boardId);
-    if (!board) throw new NotFoundError("Board", boardId);
-    const [groups, columns, items, values] = await Promise.all([
+    // The board row with the rest, not before it: one round trip less on every board opened.
+    const [board, groups, columns, items, values] = await Promise.all([
+      this.repos.boards.getById(boardId),
       this.repos.boards.listGroups(boardId),
       this.repos.boards.listColumns(boardId),
       this.repos.items.listByBoard(boardId),
       this.repos.items.listValuesByBoard(boardId),
     ]);
+    if (!board) throw new NotFoundError("Board", boardId);
     const links = await this.repos.links.listByItems(items.map((i) => i.id));
     return { board, groups, columns, items, values, links };
   }

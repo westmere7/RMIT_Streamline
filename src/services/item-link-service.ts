@@ -124,25 +124,33 @@ export class ItemLinkService {
   // ---- Reads ---------------------------------------------------------------
 
   async listForItem(itemId: EntityId): Promise<LinkedItemView[]> {
-    const item = await this.repos.items.getById(itemId);
-    if (!item) return [];
-    const links = await this.repos.links.listByItem(itemId);
-    if (links.length === 0) return [];
+    // The task and its links together: most tasks have none, and opening one
+    // waits on this read, so it is one round trip rather than two.
+    const [item, links] = await Promise.all([this.repos.items.getById(itemId), this.repos.links.listByItem(itemId)]);
+    if (!item || links.length === 0) return [];
     const boards = new Map<EntityId, BoardBundle>();
-    const own = await this.bundle(item.boardId, boards);
+    // This task's board and each linked task's own reads at once, then put together in link order.
+    const [own, others] = await Promise.all([
+      this.bundle(item.boardId, boards),
+      Promise.all(
+      links.map(async (link) => {
+        const other = await this.repos.items.getById(otherEndOf(link, itemId));
+        if (!other) return null;
+        const [bundle, values, parent] = await Promise.all([this.bundle(other.boardId, boards), this.repos.items.listValuesByItem(other.id), other.parentItemId ? this.repos.items.getById(other.parentItemId) : Promise.resolve(null)]);
+        return bundle ? { link, other, bundle, values, parent } : null;
+      }),
+      ),
+    ]);
     const views: LinkedItemView[] = [];
-    for (const link of links) {
-      const other = await this.repos.items.getById(otherEndOf(link, itemId));
-      if (!other) continue;
-      const bundle = await this.bundle(other.boardId, boards);
-      if (!bundle) continue;
-      const values = await this.repos.items.listValuesByItem(other.id);
+    for (const found of others) {
+      if (!found) continue;
+      const { link, other, bundle, values, parent } = found;
       views.push({
         link,
         item: other,
         board: bundle.board,
         group: bundle.groups.find((g) => g.id === other.groupId) ?? null,
-        parent: other.parentItemId ? await this.repos.items.getById(other.parentItemId) : null,
+        parent,
         status: statusOf(bundle.columns, values),
         statusStuck: stuckStatus(bundle.columns, values),
         ownerIds: ownersOf(bundle.columns, values),

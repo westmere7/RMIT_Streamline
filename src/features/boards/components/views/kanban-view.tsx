@@ -35,6 +35,7 @@ import { NONE, useKanbanLanes, useLaneOptions, useLaneReorder, type Lane, type L
 import { daysSince, useStatusSince } from "./use-status-since";
 import { useViewSettings } from "./view-settings";
 import { Segmented, ViewBar, ViewEmpty, ViewSelect, ViewStat } from "./view-shell";
+import { useTaskPrefetch } from "@/features/items/task-prefetch";
 
 /**
  * How much of an item a card carries, and so how tall it stands: the name alone
@@ -809,6 +810,7 @@ function CardBody({ item, laneBy, detail, narrow, draggable, overlay }: CardProp
   const brief = detailed && item.description ? richTextToPlain(item.description).trim() : "";
   const shownTags = tags.slice(0, detailed ? 6 : 2);
   const open = () => openItem(item.id, openIn);
+  const prefetch = useTaskPrefetch(item.id);
   // The board's own updates shortcut opens the panel; on these cards it opens where the card does.
   const openUpdates = () => {
     if (openIn === "panel") return openItemUpdates(item.id);
@@ -822,6 +824,7 @@ function CardBody({ item, laneBy, detail, narrow, draggable, overlay }: CardProp
     <ContextMenu>
       <ContextMenuTrigger asChild disabled={overlay}>
         <article
+          {...prefetch}
           data-testid="kanban-card"
           data-item-name={item.name}
           onClick={overlay ? undefined : open}

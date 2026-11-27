@@ -46,10 +46,13 @@ interface ItemShareStateRow extends Omit<ItemShareRow, "token" | "password_hash"
  */
 export class SupabaseItemShareRepository implements ItemShareRepository {
   async getByItem(itemId: string): Promise<ItemShare | null> {
-    const result = await db().from("item_shares").select(SHARE).eq("item_id", itemId).maybeSingle();
+    // Both at once: the row is a manager's to read, the state anyone's, and most
+    // tasks have neither — asked one after the other that was two round trips
+    // on every task opened, holding the panel back for the second.
+    const [result, stateResult] = await Promise.all([db().from("item_shares").select(SHARE).eq("item_id", itemId).maybeSingle(), db().rpc("item_share_state", { p_item_id: itemId })]);
     const row = unwrapMaybe<ItemShareRow>(result, "item_shares.getByItem");
     if (row) return toItemShare(row);
-    const state = unwrapList<ItemShareStateRow>(await db().rpc("item_share_state", { p_item_id: itemId }), "item_shares.state")[0];
+    const state = unwrapList<ItemShareStateRow>(stateResult, "item_shares.state")[0];
     // Not a manager: the link without its secrets.
     return state ? toItemShare({ ...state, token: "", password_hash: null }) : null;
   }

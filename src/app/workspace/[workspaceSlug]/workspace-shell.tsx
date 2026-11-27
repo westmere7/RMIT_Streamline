@@ -37,15 +37,22 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     // added, deactivated): always asked again, never answered from before.
     staleTime: 0,
   });
-  const membershipQuery = useQuery({
-    queryKey: [...queryKeys.workspaceMembers(workspaceQuery.data?.id ?? ""), "self", user?.id],
-    queryFn: async () => {
-      const members = await services.repos.workspaces.listMembers(workspaceQuery.data!.id);
-      return members.find((m) => m.userId === user!.id) ?? null;
-    },
-    enabled: !!workspaceQuery.data && !!user,
+  // This person's own seats, asked alongside the workspace rather than after it
+  // (every seat in the workspace, read to find one, was a round trip of its own
+  // on every page load). Under "workspace-members", so a change to any seat
+  // still asks again.
+  const seatsQuery = useQuery({
+    queryKey: ["workspace-members", "self", user?.id],
+    queryFn: () => services.repos.workspaces.listMembershipsForUser(user!.id),
+    enabled: status === "signed-in" && !!user,
     staleTime: 0,
   });
+  const membershipQuery = {
+    // Undefined until both are in; null when they hold no seat here.
+    data: workspaceQuery.data && seatsQuery.data ? (seatsQuery.data.find((m) => m.workspaceId === workspaceQuery.data!.id) ?? null) : undefined,
+    isLoading: seatsQuery.isLoading,
+    isFetching: seatsQuery.isFetching,
+  };
 
   // The workspace to come back to next time: this one, once it has let them in.
   const admitted = membershipQuery.data?.status === "ACTIVE";

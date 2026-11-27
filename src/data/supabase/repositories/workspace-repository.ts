@@ -29,9 +29,12 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
   }
 
   async getById(id: string): Promise<Workspace | null> {
-    const result = await db().from("workspaces").select(WORKSPACE).eq("id", id).maybeSingle();
+    // The id is known, so the row and its keys go together: one round trip, not two.
+    const [result, keys] = await Promise.all([db().from("workspaces").select(WORKSPACE).eq("id", id).maybeSingle(), db().rpc("workspace_keys", { p_workspace_ids: [id] })]);
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getById");
-    return row ? toWorkspace((await withKeys([row]))[0]!) : null;
+    if (!row) return null;
+    const found = unwrapList<{ workspace_id: string; join_key: string | null; booking_key: string | null }>(keys, "workspaces.keys").find((k) => k.workspace_id === id);
+    return toWorkspace(found ? { ...row, join_key: found.join_key, booking_key: found.booking_key } : row);
   }
 
   async accessTo(kind: AccessKind, workspaceId: string, ref: string): Promise<AccessAnswer> {

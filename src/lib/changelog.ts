@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.174.0",
+    date: "2026-11-27",
+    title: "Faster tasks and boards",
+    changes: [
+      "A task starts loading while the pointer rests on it, so it opens at once when clicked.",
+      "Opening a task no longer re-reads the whole board's deliverables.",
+      "A link to a task loads it alongside its board, not after.",
+      "Boards, the workspace and the task panel load in fewer steps.",
+    ],
+  },
+  {
     version: "0.173.5",
     date: "2026-11-27",
     title: "Safer mentions and send-backs",

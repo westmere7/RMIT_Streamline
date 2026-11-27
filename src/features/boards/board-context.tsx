@@ -56,6 +56,8 @@ export interface BoardContextValue {
    * so they are left to the real panel the page opens.
    */
   itemMenu?: { extra: (item: Item) => MenuAction[] };
+  /** Read a task's panel data while the pointer rests on it (features/items/task-prefetch.ts). The board page only. */
+  prefetchTasks?: boolean;
   /**
    * Tasks sent back to their requester and not answered yet. Each shows "Sent
    * back" in place of its status, and nobody edits it until the requester

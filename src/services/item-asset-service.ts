@@ -135,9 +135,13 @@ export class ItemAssetService {
    * the two sides their own counts to disagree about.
    */
   async list(itemId: EntityId): Promise<ItemAsset[]> {
+    // The task's own lines alongside the first look at its links: most tasks
+    // have none, and the panel waits on this, so that is one round trip, not two.
+    const [own, direct] = await Promise.all([this.repos.itemAssets.listByItem(itemId), this.repos.links.listByItems([itemId])]);
+    if (direct.length === 0) return own;
     const ids = await this.sharedWith(itemId);
-    if (ids.length === 1) return this.repos.itemAssets.listByItem(itemId);
-    const lists = await Promise.all(ids.map((id) => this.repos.itemAssets.listByItem(id)));
+    if (ids.length === 1) return own;
+    const lists = [own, ...(await Promise.all(ids.slice(1).map((id) => this.repos.itemAssets.listByItem(id))))];
     // The item's own lines first, then the far side's, each in its own order:
     // the list reads as "ours, and theirs" rather than interleaved by position
     // numbers that mean nothing across two boards.

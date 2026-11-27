@@ -3,6 +3,7 @@
 import { NoAccessState, UnavailableState } from "@/features/workspace/unavailable-state";
 import { Archive, SquareKanban, Lock, LockOpen } from "lucide-react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { LoadingSweep } from "@/components/shared/loading-sweep";
@@ -57,6 +58,7 @@ import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { readRememberedView, rememberView, useBoardUi, useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
+import { prefetchTaskPanel } from "@/features/items/task-prefetch";
 
 const NO_COLUMNS: BoardColumn[] = [];
 const NO_ITEMS: Item[] = [];
@@ -180,6 +182,14 @@ function BoardScreen({ boardId }: { boardId: string }) {
   }, [view, updateTableSettings]);
 
   const urlItemId = searchParams.get("item");
+
+  // A link straight to a task: its panel's reads go out with the board's, not
+  // after the board has loaded and the panel has mounted to ask for them.
+  const queryClient = useQueryClient();
+  const firstItemId = React.useRef(urlItemId);
+  React.useEffect(() => {
+    if (firstItemId.current) prefetchTaskPanel(queryClient, services, firstItemId.current);
+  }, [queryClient, services]);
 
   /**
    * Put the open task and the chosen view in the URL, so both survive a reload
@@ -393,6 +403,7 @@ function BoardScreen({ boardId }: { boardId: string }) {
             setFeedOptions: (patch) => updateTableSettings(feedSettingsPatch(patch)),
             updates,
             sentBackItemIds,
+            prefetchTasks: true,
           }
         : null,
     [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket, rememberOpenMode, preferredOpen, tableSettings, updateTableSettings, sentBackItemIds],

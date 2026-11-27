@@ -24,6 +24,7 @@ import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { EMPTY_BOARD_UI, useBoardUiStore } from "@/stores/board-ui-store";
 import { useItemMenuActions } from "@/features/boards/components/item-menu-actions";
+import { useTaskPrefetch } from "@/features/items/task-prefetch";
 
 export interface ItemRowProps {
   item: Item;
@@ -44,6 +45,7 @@ export const ItemRow = React.memo(function ItemRow(props: ItemRowProps) {
 function ItemRowBody({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
   const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates } = useBoardContext();
   const canEditUnlocked = useCanEditUnlocked();
+  const prefetch = useTaskPrefetch(item.id);
   const layout = useTableLayout();
   const showTicket = useShowTicket();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
@@ -208,6 +210,7 @@ function ItemRowBody({ item, group, dndEnabled, widthOverrides }: ItemRowProps) 
                 onClick={(e) => {
                   if (e.target === e.currentTarget && !dragged.current) openItem(item.id);
                 }}
+                {...prefetch}
                 data-testid="item-name-cell"
               >
                 {/* Somebody who only views the board has nothing to add: no "Add subitem" for them, just the room it takes. */}
