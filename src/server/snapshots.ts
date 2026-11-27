@@ -102,10 +102,10 @@ function ident(name: string): string {
 }
 
 /** The signed-in caller, who must be an Owner: snapshots hold and restore every workspace. */
-export async function requireSnapshotOwner(request: Request): Promise<Caller> {
+export async function requireSnapshotOwner(request: Request, what = "manage snapshots"): Promise<Caller> {
   const header = request.headers.get("authorization") ?? "";
   const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
-  if (!jwt) throw new HttpError(401, "Sign in to manage snapshots.");
+  if (!jwt) throw new HttpError(401, `Sign in to ${what}.`);
   const admin = getSupabaseAdminClient();
   const { data, error } = await admin.auth.getUser(jwt);
   if (error || !data.user) throw new HttpError(401, "Your session has expired. Sign in again.");
@@ -113,7 +113,7 @@ export async function requireSnapshotOwner(request: Request): Promise<Caller> {
     select p.display_name, p.deactivated_at
     from public.app_owners o join public.profiles p on p.id = o.user_id
     where o.user_id = ${data.user.id}`;
-  if (!owner || owner.deactivated_at) throw new HttpError(403, "Only Owners can manage snapshots.");
+  if (!owner || owner.deactivated_at) throw new HttpError(403, `Only Owners can ${what}.`);
   return { userId: data.user.id, email: data.user.email ?? null, name: owner.display_name ?? data.user.email ?? "An Owner" };
 }
 

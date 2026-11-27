@@ -13,6 +13,6 @@ type Context = { params: Promise<{ id: string }> };
 export const DELETE = handleRoute(async (request: Request, { params }: Context) => {
   const id = z.uuid().parse(decodeURIComponent((await params).id));
   const { confirmName } = bodySchema.parse(await readJson(request));
-  const caller = await requireSnapshotOwner(request);
+  const caller = await requireSnapshotOwner(request, "delete a workspace");
   return json(await deleteWorkspace(id, caller, confirmName));
 });

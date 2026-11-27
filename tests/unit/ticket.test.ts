@@ -236,6 +236,31 @@ describe("linked tasks and the ticket they share", () => {
 
     await expect(services.tickets.setTicket(SEED_WORKSPACE_ID, c.id, SPARE, DANH)).rejects.toBeInstanceOf(TicketError);
   });
+
+  it("unlinked, the far side takes the next ticket and the near side keeps its own", async () => {
+    const { services, a, b } = await twoTasks();
+    await services.tickets.setTicket(SEED_WORKSPACE_ID, a.id, SPARE, DANH);
+    const link = await services.links.link(a.id, b.id, DANH, { seedFrom: "item" });
+    const n = await nextNumber(services);
+
+    await services.links.unlink(link.id, DANH);
+
+    expect((await services.repos.items.getById(a.id))!.ticket).toBe(SPARE);
+    expect((await services.repos.items.getById(b.id))!.ticket).toBe(formatTicket("CP", n));
+  });
+
+  it("unlinked but still joined another way, both keep the one ticket", async () => {
+    const { services, a, b } = await twoTasks();
+    const c = await task(services, SEED_BOARD_IDS.sem1, "Poster set");
+    await services.tickets.setTicket(SEED_WORKSPACE_ID, a.id, SPARE, DANH);
+    const ab = await services.links.link(a.id, b.id, DANH, { seedFrom: "item" });
+    await services.links.link(a.id, c.id, DANH, { seedFrom: "item" });
+    await services.links.link(c.id, b.id, DANH, { seedFrom: "item" });
+
+    await services.links.unlink(ab.id, DANH);
+
+    expect((await services.repos.items.getById(b.id))!.ticket).toBe(SPARE);
+  });
 });
 
 describe("changing the workspace's prefix", () => {

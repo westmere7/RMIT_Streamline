@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.173.3",
+    date: "2026-11-27",
+    title: "Unlinking gives each task its own ticket",
+    changes: [
+      "Unlinking two tasks that shared a ticket gives the other task the next ticket. Before, both kept the same one.",
+      "Deleting a workspace while signed out says so in its own words.",
+    ],
+  },
+  {
     version: "0.173.2",
     date: "2026-11-27",
     title: "Booking form fixes",

@@ -1,5 +1,5 @@
 import type { ActivityInput, Board, BoardColumn, BoardGroup, ColumnLabel, ColumnPair, ColumnValue, EntityId, Item, ItemColumnValue, ItemLink, NotificationInput } from "@/domain";
-import { RefusedError, LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
+import { BUG_TICKET_PREFIX, RefusedError, formatTicket, ticketPrefixOf, LINK_FIELD_DESCRIPTION, LINK_FIELD_NAME, LINK_FIELD_TICKET, LINK_FIELD_UPDATES, columnLabels, emptyValueFor, isEmptyValue, isStuckLabel, otherEndOf, resolveColumnRoles } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { clipActivityValue, displayValue } from "./column-display";
@@ -355,6 +355,29 @@ export class ItemLinkService {
     const [boardA, boardB] = await Promise.all([this.repos.boards.getById(a.boardId), this.repos.boards.getById(b.boardId)]);
     if (!boardA || !boardB) return;
     await this.repos.activities.createMany([linkActivity("ITEM_UNLINKED", a, boardA, b, boardB, actorId), linkActivity("ITEM_UNLINKED", b, boardB, a, boardA, actorId)]);
+    await this.splitTicket(a, b, boardB);
+  }
+
+  /**
+   * One ticket is one piece of work (TicketService). A link that carried it is
+   * gone, so unless the two are still joined some other way, B's side takes the
+   * next ticket in the series and A, the side the link was made from, whose
+   * ticket the link copied, keeps its own.
+   */
+  private async splitTicket(a: Item, b: Item, boardB: Board): Promise<void> {
+    if (!a.ticket || a.ticket !== b.ticket) return;
+    if ((await this.ticketChainIds(a.id)).includes(b.id)) return;
+    const holders = [b.id, ...(await this.ticketChainIds(b.id))];
+    const workspace = await this.repos.workspaces.getById(boardB.workspaceId);
+    if (!workspace) return;
+    const ticket =
+      boardB.system === "APP_DEVELOPMENT"
+        ? formatTicket(BUG_TICKET_PREFIX, await this.repos.workspaces.allocateBugTicketNumbers(workspace.id, 1))
+        : formatTicket(ticketPrefixOf(workspace.ticketPrefix), await this.repos.workspaces.allocateTicketNumbers(workspace.id, 1));
+    for (const id of holders) {
+      const item = await this.repos.items.getById(id);
+      if (item?.ticket === a.ticket) await this.repos.items.update(id, { ticket });
+    }
   }
 
   // ---- Sync ----------------------------------------------------------------
