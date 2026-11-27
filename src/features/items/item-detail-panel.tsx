@@ -5,7 +5,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SlidersHorizontal, SquarePen, Trash2, X } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SlidersHorizontal, SquarePen, Trash2, X, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -79,6 +79,7 @@ import { useUiStore } from "@/stores/ui-store";
 import { FollowControl } from "@/features/notifications/follow-control";
 import { StarTaskButton } from "@/features/my-work/star-task-button";
 import { SharedPanelMenu } from "@/features/items/shared-panel-menu";
+import { useResetBooking } from "@/features/booking/reset-booking";
 
 const FIELD_WIDTH = 260;
 
@@ -1374,6 +1375,7 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
   const isMobile = useIsMobile();
   const { model, mutations, openItem, rememberOpenMode } = useBoardContext();
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const reset = useResetBooking(item);
   const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
   const hiddenOnBoard = model.columns.filter((c) => c.hidden);
   const anythingHidden = hiddenHere.length > 0 || hiddenOnBoard.length > 0;
@@ -1427,7 +1429,8 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
               {(canEdit || anythingHidden) && <DropdownMenuSeparator />}
             </>
           )}
-          {canEdit && (
+          {/* A copy is made by hand, and Booked by Form takes bookings only (as the row's menu). */}
+          {canEdit && item.groupId !== model.intakeGroupId && (
             <>
               <DropdownMenuItem onSelect={() => void mutations.duplicateItem(item.id)}>
                 <Copy /> Duplicate task
@@ -1469,6 +1472,11 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
           {canEdit && (
             <>
               <DropdownMenuSeparator />
+              {reset.offered && (
+                <DropdownMenuItem onSelect={reset.ask} data-testid="panel-reset-booking">
+                  <RotateCcw /> Reset booking
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onSelect={() => {
                   void mutations.archiveItems([item.id]);
@@ -1484,6 +1492,7 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
           )}
         </DropdownMenuContent>
       </DropdownMenu>
+      {reset.dialog}
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

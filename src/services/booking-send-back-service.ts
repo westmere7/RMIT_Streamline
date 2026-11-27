@@ -166,7 +166,9 @@ export class BookingSendBackService {
     // Every column the team could have changed: what the booking put there, else empty as it was.
     for (const column of columns) {
       if (RESET_SKIPS.has(column.type)) continue;
-      const booked = placement.values.find((v) => v.columnId === column.id)?.value ?? emptyValueFor(column.type);
+      // A status the booking did not set starts on the board's default label, as any new task does.
+      const fresh: ColumnValue = column.settings.kind === "status" && column.settings.defaultLabelId ? { type: "STATUS", labelId: column.settings.defaultLabelId } : emptyValueFor(column.type);
+      const booked = placement.values.find((v) => v.columnId === column.id)?.value ?? fresh;
       const now = values.find((v) => v.columnId === column.id)?.value ?? emptyValueFor(column.type);
       if (sameJson(now, booked) || (isEmptyValue(now) && isEmptyValue(booked))) continue;
       await this.items.setValue(item.id, column.id, booked, { column, item, board, users }, actorId);

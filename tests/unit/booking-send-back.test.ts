@@ -265,6 +265,8 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
       expect(after.item.name).toBe("Open Day posters");
       expect(after.item.description).toBe(before.item.description);
       expect(after.byName("Priority")).toEqual(bookedPriority);
+      // The status the booking started on: the board's default label, written as a new task's is.
+      expect(after.statusId).toBe(before.statusId);
       expect((await services.repos.itemAssets.listByItem(receipt.itemId)).map((a) => a.name)).toEqual(bookedAssets);
       expect((await services.repos.items.listByBoard(board.id)).filter((i) => i.parentItemId === receipt.itemId)).toEqual([]);
     });

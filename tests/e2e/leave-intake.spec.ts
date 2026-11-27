@@ -71,5 +71,14 @@ test.describe("leaving Booked by Form", () => {
     await expect(page.getByTestId("confirm-dialog")).toContainText(`Reset “${task}” to its booking?`);
     await page.getByTestId("confirm-cancel").click();
     await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+
+    // The panel's own menu offers it too, and no Duplicate on a booking in Booked by Form.
+    await clickRowButton(row(page, task), `Open ${task}`);
+    await page.getByTestId("panel-menu").click();
+    await expect(page.getByTestId("panel-reset-booking")).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Duplicate task" })).toHaveCount(0);
+    await page.getByTestId("panel-reset-booking").click();
+    await expect(page.getByTestId("confirm-dialog")).toContainText("to its booking?");
+    await page.getByTestId("confirm-cancel").click();
   });
 });

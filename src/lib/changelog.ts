@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.173.1",
+    date: "2026-11-27",
+    title: "Reset booking in the task's own menu",
+    changes: [
+      "Reset booking is in the task panel's menu too, above Archive task.",
+      "A reset puts the status back on the board's first label, as the booking did, instead of leaving it blank.",
+      "The panel's menu no longer offers Duplicate on a task in Booked by Form, as the row's menu already did not.",
+    ],
+  },
+  {
     version: "0.173.0",
     date: "2026-11-27",
     title: "Reset a booking",
