@@ -62,6 +62,10 @@ export interface BoardContextValue {
    * answers or the team takes it back: their answer would land on top.
    */
   sentBackItemIds?: ReadonlySet<string>;
+  /** Requests waiting to be allocated, where the board alone cannot say (the portals): shown as Waiting allocation. */
+  waitingItemIds?: ReadonlySet<string>;
+  /** Tasks archived, where the item no longer says so (a task link's page): shown as Archived. */
+  archivedItemIds?: ReadonlySet<string>;
   /**
    * Inside a sent-back task's scope, whether the reader could edit it were it
    * not waiting: they may still post updates and take the send-back back.
@@ -89,6 +93,23 @@ export function ItemEditScope({ itemId, children }: { itemId: string; children: 
 export function useItemSentBack(itemId: string | null | undefined): boolean {
   const ctx = useContext(BoardContext);
   return !!itemId && !!ctx?.sentBackItemIds?.has(itemId);
+}
+
+/** A status nobody sets, shown in place of the task's own (features/booking/sent-back-pill.tsx). */
+export type SpecialStatus = "waiting_allocation" | "sent_back" | "archived";
+
+/**
+ * The special status a task shows, if any: Archived when it is put away,
+ * Sent back while it waits on its requester, Waiting allocation while it sits
+ * in Booked by Form. Its own status stays underneath, frozen.
+ */
+export function useItemSpecialStatus(item: Pick<Item, "id" | "groupId" | "parentItemId" | "archivedAt"> | null | undefined): SpecialStatus | null {
+  const ctx = useContext(BoardContext);
+  if (!item) return null;
+  if (item.archivedAt || ctx?.archivedItemIds?.has(item.id)) return "archived";
+  if (ctx?.sentBackItemIds?.has(item.id)) return "sent_back";
+  if (!item.parentItemId && (ctx?.waitingItemIds?.has(item.id) || (!!ctx?.model.intakeGroupId && item.groupId === ctx.model.intakeGroupId))) return "waiting_allocation";
+  return null;
 }
 
 /** Whether the reader may post updates on, or act on the send-back of, the task in scope: the right the lock leaves alone. */

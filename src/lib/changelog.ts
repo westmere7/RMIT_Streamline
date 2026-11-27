@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.172.0",
+    date: "2026-11-27",
+    title: "Statuses nobody sets",
+    changes: [
+      "Three statuses come from where a task is, each with its own icon, and show in place of its status: Waiting allocation (in Booked by Form), Sent back (waiting on the requester) and Archived.",
+      "While one shows, the task's own status is frozen underneath and comes back when it ends. On a kanban by status the card stays in its lane.",
+      "The portals show Waiting allocation too, and a task link opens an archived task as Archived.",
+      "Display only: the Status column keeps the real status, and the dashboard and automations go on reading it. Archived work is still counted, by the status it had.",
+    ],
+  },
+  {
     version: "0.171.1",
     date: "2026-11-27",
     title: "Leaving Booked by Form asks first",

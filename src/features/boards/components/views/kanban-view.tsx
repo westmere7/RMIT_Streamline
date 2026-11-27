@@ -15,8 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { ColumnLabel, Item, User } from "@/domain";
 import { INTAKE_MOVE_MESSAGE, columnLabels, isStuckLabel, recapAssets } from "@/domain";
-import { ItemEditScope, useBoardContext, useItemSentBack } from "@/features/boards/board-context";
-import { SentBackPill } from "@/features/booking/sent-back-pill";
+import { ItemEditScope, useBoardContext, useItemSentBack, useItemSpecialStatus } from "@/features/boards/board-context";
+import { SpecialStatusPill } from "@/features/booking/sent-back-pill";
 import { useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
 import { SizePill } from "@/features/boards/components/pickers/size-picker";
 import { formatTag, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
@@ -722,8 +722,10 @@ function SwimCell({ id, lane, row, itemIds, laneBy, detail, width, canEdit, tint
 /** A card that can be picked up; while it is in hand, this copy stays in the flow as a ghost marking where it will land. */
 function SortableCard({ item, laneBy, detail, narrow, disabled: offBoard, ghost }: { item: Item; laneBy: LaneBy; detail: CardDetail; narrow: boolean; disabled: boolean; ghost: boolean }) {
   // A task waiting on its requester stays where it is: moving it is an edit.
+  // On status lanes, nor does one whose status is a special one: it is frozen.
   const sentBack = useItemSentBack(item.id);
-  const disabled = offBoard || sentBack;
+  const special = useItemSpecialStatus(item);
+  const disabled = offBoard || sentBack || (laneBy === "status" && special !== null);
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: item.id, disabled });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} {...attributes} {...listeners} className={cn(!disabled && "cursor-grab active:cursor-grabbing")} data-testid={ghost ? "kanban-ghost" : undefined}>
@@ -755,7 +757,7 @@ function Card(props: CardProps) {
 }
 
 function CardBody({ item, laneBy, detail, narrow, draggable, overlay }: CardProps) {
-  const sentBack = useItemSentBack(item.id);
+  const special = useItemSpecialStatus(item);
   const { model, board, users: assignable, people: users = assignable, openItem, openItemUpdates, canEdit, updates, mutations } = useBoardContext();
   const setArchiveRequest = useBoardUiStore((s) => s.setArchiveRequest);
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
@@ -802,7 +804,7 @@ function CardBody({ item, laneBy, detail, narrow, draggable, overlay }: CardProp
   const rowsBy = React.useContext(RowsByContext);
   const showStatus = laneBy !== "status" && rowsBy !== "status" && statusLabel;
   const showPriority = laneBy !== "priority" && rowsBy !== "priority" && priorityLabel;
-  const chips = sentBack || (!compact && (showStatus || showPriority || tags.length > 0 || (size?.type === "SIZE" && size.size)));
+  const chips = special !== null || (!compact && (showStatus || showPriority || tags.length > 0 || (size?.type === "SIZE" && size.size)));
   // Only the fullest cards carry the brief, and two lines of it at that.
   const brief = detailed && item.description ? richTextToPlain(item.description).trim() : "";
   const shownTags = tags.slice(0, detailed ? 6 : 2);
@@ -853,7 +855,7 @@ function CardBody({ item, laneBy, detail, narrow, draggable, overlay }: CardProp
           )}
           {chips && (
             <div className="mt-2 flex flex-wrap items-center gap-1">
-              {sentBack ? <SentBackPill /> : showStatus && <LabelPill label={statusLabel} appearance="soft" size="sm" striped={isStuckLabel(statusColumn, statusLabel.id)} />}
+              {special ? <SpecialStatusPill kind={special} /> : showStatus && <LabelPill label={statusLabel} appearance="soft" size="sm" striped={isStuckLabel(statusColumn, statusLabel.id)} />}
               {showPriority && <PriorityPill label={priorityLabel} />}
               {size?.type === "SIZE" && size.size && <SizePill size={size.size} />}
               {shownTags.map((t) => (

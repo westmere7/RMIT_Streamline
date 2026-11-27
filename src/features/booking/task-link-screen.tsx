@@ -50,7 +50,7 @@ export function TaskLinkScreen({ token }: { token: string }) {
               The team archived this request on {formatShortDate(archivedAt.slice(0, 10))}.
             </p>
           )}
-          <SharedItemScreen payload={shown} openings={readerOpenings} />
+          <SharedItemScreen payload={shown} openings={readerOpenings} archived={!!archivedAt} />
         </div>
       </ShareGuestProviders>
     );

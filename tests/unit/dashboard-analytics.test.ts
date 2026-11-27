@@ -125,6 +125,17 @@ function snapshot(): DashboardSnapshot {
 const year2026: DashboardScope = { span: "year", year: 2026, half: 1, quarter: 1, teamIds: null, basis: "due" };
 
 describe("buildFacts", () => {
+  it("counts an archived task by its own status: Archived is only how it is shown", () => {
+    const base = snapshot();
+    const archived = { ...base, items: base.items.map((i) => (i.id === "a3" ? { ...i, archivedAt: "2026-04-02T05:00:00.000Z" } : i)) };
+    const before = buildFacts(base).tasks.find((t) => t.id === "a3")!;
+    const after = buildFacts(archived).tasks.find((t) => t.id === "a3")!;
+    // Still counted, with the status it was left with.
+    expect(after.status).toBe(before.status);
+    expect(after.isDone).toBe(before.isDone);
+    expect(after.statusLabel).toBe(before.statusLabel);
+  });
+
   it("counts top-level items off the intake board as tasks, once per linked pair", () => {
     const facts = buildFacts(snapshot());
     expect(facts.tasks.map((t) => t.id).sort()).toEqual(["a1", "a2", "a3", "b1"]);

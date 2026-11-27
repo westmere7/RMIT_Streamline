@@ -16,7 +16,8 @@ import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-
 import { itemHours } from "@/features/boards/components/views/workload-hours";
 import { sizeEvidence, useAssetRates, useSizeScale } from "@/features/boards/size-fit";
 import { routes } from "@/lib/routes";
-import { useBoardContext, useItemSentBack } from "@/features/boards/board-context";
+import { useBoardContext, useItemSpecialStatus, type SpecialStatus } from "@/features/boards/board-context";
+import { SPECIAL_STATUSES } from "@/features/booking/sent-back-pill";
 import { BRIEF_TEXT_WIDTH, columnAlign, columnAlignAt } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
@@ -148,32 +149,43 @@ function doneLabelColor(column: BoardColumn): string | null {
 
 // ---- Status / Priority -----------------------------------------------------
 
-/** The status, or "Sent back" while the task waits on its requester. */
+/** The status, or a special status (Waiting allocation, Sent back, Archived) frozen in its place. */
 function StatusOrSentBack(props: CellProps) {
-  const sentBack = useItemSentBack(props.item.id);
-  return sentBack ? <SentBackStatus {...props} /> : <StatusCell {...props} />;
+  const special = useItemSpecialStatus(props.item);
+  return special ? <SpecialStatusCell kind={special} {...props} /> : <StatusCell {...props} />;
 }
 
 /**
- * Where the status would be, while the requester has the task back: one chip
- * that says so, in the board's table, the panels and both portals. The other
- * columns stay as they are; the status underneath comes back with the answer.
+ * Where the status would be while a special status holds: one chip that says
+ * so, in the board's table, the panels and both portals. Nothing to pick: the
+ * status underneath comes back when the special one ends.
  */
-export function SentBackStatus({ item, column, width }: Pick<CellProps, "item" | "column" | "width">) {
+export function SpecialStatusCell({ kind, item, column, width }: Pick<CellProps, "item" | "column" | "width"> & { kind: SpecialStatus }) {
   const pill = useCellStretchMode() !== "table";
+  const s = SPECIAL_STATUSES[kind];
+  const Icon = s.icon;
   return (
-    <CellShell width={width ?? column.width} interactive={false} align={columnAlign(column.type)} aria-label={`${column.name}: Sent back for ${item.name}`} data-testid="status-cell" data-sent-back="true">
-      <span className={cn("flex h-full w-full items-center", pill ? "justify-center py-1" : "p-1.5")} title="Sent back to the requester for more information">
+    <CellShell
+      width={width ?? column.width}
+      interactive={false}
+      align={columnAlign(column.type)}
+      aria-label={`${column.name}: ${s.label} for ${item.name}`}
+      data-testid="status-cell"
+      data-sent-back={kind === "sent_back" ? "true" : undefined}
+      data-special-status={kind}
+    >
+      <span className={cn("flex h-full w-full items-center", pill ? "justify-center py-1" : "p-1.5")} title={s.hint}>
         <span
           className={cn(
-            "flex items-center justify-center gap-1.5 truncate font-semibold shadow-xs ring-2 ring-amber-300/70 ring-inset dark:ring-amber-300/40",
+            "flex items-center justify-center gap-1.5 truncate font-semibold shadow-xs ring-2 ring-inset",
             pill ? "h-7 min-w-36 max-w-full rounded-md px-2.5 text-[13px]" : "h-full w-full rounded-lg px-2 text-xs",
-            "bg-amber-500 text-white dark:bg-amber-500/90",
+            s.solid,
+            s.ring,
           )}
-          data-testid="sent-back-chip"
+          data-testid={s.testId}
         >
-          <Undo2 className="size-3.5 shrink-0" aria-hidden />
-          <span className="truncate">Sent back</span>
+          <Icon className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">{s.label}</span>
         </span>
       </span>
     </CellShell>

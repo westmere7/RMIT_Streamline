@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
  * board somebody may read but not change. There is no board around it, because
  * the payload holds only this task: nothing to click through to.
  */
-export function SharedItemScreen({ payload, openings = null }: { payload: PublicItemPayload; openings?: ItemOpenings | null }) {
+export function SharedItemScreen({ payload, openings = null, archived = false }: { payload: PublicItemPayload; openings?: ItemOpenings | null; archived?: boolean }) {
   const board = payload.board;
   // One size for every shared page this visitor opens: there is no account to keep it on.
   const scale = useVisitorScale(SHARE_SCALE_KEY);
@@ -69,9 +69,11 @@ export function SharedItemScreen({ payload, openings = null }: { payload: Public
             showTicket: true,
             setShowTicket: () => undefined,
             updates,
+            // An archived task opened from its link shows Archived where its status would be.
+            archivedItemIds: archived ? new Set([payload.itemId]) : undefined,
           }
         : null,
-    [board, model, mutations, payload.users, now, updates],
+    [board, model, mutations, payload.users, now, updates, archived, payload.itemId],
   );
 
   if (!contextValue && !snapshot.isError) return <FullPageLoader label="Opening the shared task…" />;

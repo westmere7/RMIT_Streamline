@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetItem } from "@/components/ui/sheet";
 import type { BoardColumn, BoardGroup, ColumnLabel, Item } from "@/domain";
 import { columnLabels, isStuckLabel, priorityStrength } from "@/domain";
-import { ItemEditScope, useBoardContext, useItemSentBack } from "@/features/boards/board-context";
-import { SentBackPill } from "@/features/booking/sent-back-pill";
+import { ItemEditScope, useBoardContext, useItemSpecialStatus } from "@/features/boards/board-context";
+import { SpecialStatusPill } from "@/features/booking/sent-back-pill";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue, toISODate } from "@/lib/dates/dates";
@@ -62,7 +62,7 @@ export function MobileItemCard(props: MobileItemCardProps) {
 }
 
 function MobileItemCardBody({ item, group, selectMode, indent = false, footer, menuLead }: MobileItemCardProps) {
-  const sentBack = useItemSentBack(item.id);
+  const special = useItemSpecialStatus(item);
   const { board, model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
   const selected = useBoardUiStore((s) => (s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds).includes(item.id));
   const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
@@ -150,8 +150,8 @@ function MobileItemCardBody({ item, group, selectMode, indent = false, footer, m
           </button>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {sentBack ? (
-              <SentBackPill className="h-6.5 px-2 text-xs" />
+            {special ? (
+              <SpecialStatusPill kind={special} className="h-6.5 px-2 text-xs" />
             ) : statusColumn &&
               chip(
                 "status",

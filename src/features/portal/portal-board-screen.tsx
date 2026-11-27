@@ -240,6 +240,10 @@ function PortalBoard({
   const sentBackKey = (sentBack?.ids ?? []).join(",");
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids, not the array the payload re-creates
   const sentBackItemIds = React.useMemo<ReadonlySet<string>>(() => new Set(sentBack?.ids ?? []), [sentBackKey]);
+  // Requests not yet placed with a team show Waiting allocation in place of their status.
+  const awaitingKey = (awaiting?.ids ?? []).join(",");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids, not the array the payload re-creates
+  const waitingItemIds = React.useMemo<ReadonlySet<string>>(() => new Set(awaiting?.ids ?? []), [awaitingKey]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const snapshot = useBoardSnapshot(board.id);
@@ -343,10 +347,11 @@ function PortalBoard({
             updates: new Map(),
             itemMenu,
             sentBackItemIds,
+            waitingItemIds,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen, tableSettings, sentBackItemIds],
+    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen, tableSettings, sentBackItemIds, waitingItemIds],
   );
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;
