@@ -204,6 +204,16 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     }
   });
 
+  it("a requester's reply mentions nobody, @all included", async () => {
+    const receipt = await book();
+    const sent = await services.bookingSendBacks.send(receipt.itemId, "Which campus?", owner);
+    await services.bookingSendBacks.resubmit(sent.token, request({ answers: { ...request().answers, "design-what": { kind: "text", text: "For Hanoi." } } }), "@all please hurry");
+    const update = (await services.repos.comments.listByItem(receipt.itemId)).find((c) => c.body.includes("please hurry"))!;
+    // Only whoever sent it back is mentioned (by the system line), never the whole workspace.
+    expect(update.mentionUserIds).toEqual([owner]);
+    expect(update.body).toContain("@⁠all please hurry");
+  });
+
   it("an asset line they drop stays on the task and is named in the update", async () => {
     const receipt = await book({ assets: [{ name: "A1 poster", quantity: 6, spec: null, assetType: null }, { name: "Flyer", quantity: 1, spec: null, assetType: null }] });
     const sent = await services.bookingSendBacks.send(receipt.itemId, "Do you still need the flyer?", owner);

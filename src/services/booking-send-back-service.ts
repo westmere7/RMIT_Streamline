@@ -175,7 +175,8 @@ export class BookingSendBackService {
     }
     if (item.name.trim() !== request.title.trim()) await this.items.renameItem(item.id, request.title, actorId);
     const description = describeBooking(request, placement) || null;
-    if ((item.description ?? null) !== description) await this.items.updateDescription(item.id, description, actorId);
+    // The requester's words, put back: nobody is told they were mentioned, as the booking told nobody.
+    if ((item.description ?? null) !== description) await this.items.updateDescription(item.id, description, actorId, { notify: false });
     if (request.brief.trim()) await this.repos.items.setBookingBrief(item.id, request.brief);
 
     // Its asset lines as asked for: the ones added since go, the ones asked for come back fresh.
@@ -300,7 +301,9 @@ export class BookingSendBackService {
         `${author ? "Sent" : `${request.requesterName || "The requester"} sent`} the request again with more information.${sender ? ` @${sender.displayName}` : ""}`,
         parts.length ? `Changed: ${parts.join(", ")}.` : "Nothing on the form changed.",
         ...(dropped.length ? [`No longer asked for (still on Assets): ${dropped.map((a) => a.name).join(", ")}.`] : []),
-        ...(reply ? [reply] : []),
+        // Typed into a form, by someone who may have no seat (then it is posted under
+        // a team member's name): its "@" names, "@all" included, reach nobody's inbox.
+        ...(reply ? [quietMentions(reply)] : []),
       ];
       await this.comments.addComment(item.id, lines.join("\n\n"), author ?? sendBack.sentBy, users);
       await this.log(item, board, author ?? sendBack.sentBy, "BOOKING_RESUBMITTED", { requesterName: request.requesterName || undefined, summary: before ? (parts.length ? `Changed ${parts.join(", ")}` : "Nothing changed") : undefined }).catch((error: unknown) => console.error("Could not log the answer", error));
@@ -378,6 +381,11 @@ function statusOf(columns: readonly BoardColumn[], values: ReadonlyArray<{ colum
 }
 
 /** A line's worth of a longer text. */
+/** "@" kept on screen but no longer a mention: a word joiner after it breaks the match. */
+export function quietMentions(text: string): string {
+  return text.replace(/@/g, "@⁠");
+}
+
 function excerpt(text: string, max = 140): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;

@@ -271,14 +271,15 @@ export class ItemService {
     return this.repos.items.update(itemId, { coverUrl });
   }
 
-  async updateDescription(itemId: EntityId, description: string | null, actorId: EntityId): Promise<Item> {
+  /** `notify: false` for text nobody on the team wrote (a booking put back by Reset): its "@" names are not the actor's. */
+  async updateDescription(itemId: EntityId, description: string | null, actorId: EntityId, options: { notify?: boolean } = {}): Promise<Item> {
     const next = description?.trim() || null;
     const before = await this.repos.items.getById(itemId);
     const item = await this.repos.items.update(itemId, { description: next });
     await this.links.propagate(itemId, { kind: "description", description: next }, actorId);
     // Someone newly named in it ("@Name", "@all", "@task", "@board") hears once;
     // a mention already there before the edit is not news.
-    if (next && next.includes("@")) {
+    if (next && next.includes("@") && options.notify !== false) {
       try {
         const board = await this.repos.boards.getById(item.boardId);
         const users = await this.repos.users.list();

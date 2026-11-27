@@ -78,6 +78,20 @@ describe("sharing one task", () => {
     expect(payload.links).toEqual([]);
   });
 
+  it("names only the people an update names by name, not everyone @all reached", async () => {
+    const { repos, services } = freshServices();
+    const item = await anItem(repos);
+    const users = await repos.users.list();
+    const before = await services.itemShares.load((await services.itemShares.save(item.id, ADMIN, { enabled: true })).token, null);
+    await services.comments.addComment(item.id, "Heads up @all", ADMIN, users);
+    const share = await services.itemShares.save(item.id, ADMIN, { enabled: true });
+    const payload = await services.itemShares.load(share.token, null);
+    const update = payload.comments.find((c) => c.body === "Heads up @all")!;
+    expect(update.mentionUserIds).toEqual([]);
+    // Nobody new is handed over because of it.
+    expect(payload.users.map((u) => u.id).sort()).toEqual(before.users.map((u) => u.id).sort());
+  });
+
   it("refuses a link that is off, expired, or asked a password that was not given", async () => {
     const { repos, services } = freshServices();
     const item = await anItem(repos);

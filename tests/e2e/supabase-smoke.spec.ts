@@ -139,7 +139,8 @@ test.describe("supabase provider", () => {
     await expect(created).toBeVisible({ timeout: 20_000 });
 
     await created.getByTestId("item-name").dblclick();
-    const rename = page.getByLabel("Item name");
+    // Exact: the panel's "Edit item name" button matches the label too.
+    const rename = page.getByLabel("Item name", { exact: true });
     await rename.fill(`${RUN} renamed`);
     await expectWrite(page, "items", "PATCH", async () => {
       await rename.press("Enter");

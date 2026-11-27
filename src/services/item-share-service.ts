@@ -5,6 +5,7 @@ import { NotFoundError } from "@/data/repositories";
 import { hashPassword, newSalt } from "@/lib/auth/password-hash";
 import { todayISO } from "@/lib/dates/dates";
 import type { ItemOpeningsService } from "./item-openings-service";
+import { extractMentions } from "./mention-audience";
 import {
   checkShareAccess,
   checkSharePassword,
@@ -208,7 +209,14 @@ export async function readPublicItem(repos: Repositories, item: Item, board: Boa
     named.add(asset.createdBy);
     for (const id of asset.assigneeIds) named.add(id);
   }
-  for (const comment of comments) {
+  // Only the people an update names by name. A stored audience also holds
+  // everyone "@all" or "@board" reached, and handing those to a link holder
+  // would hand over the workspace's directory.
+  const shownComments = comments.map((comment) => {
+    const named_ = new Set(extractMentions(comment.body, users));
+    return { ...comment, mentionUserIds: comment.mentionUserIds.filter((id) => named_.has(id)) };
+  });
+  for (const comment of shownComments) {
     named.add(comment.authorId);
     for (const id of comment.mentionUserIds) named.add(id);
   }
@@ -225,7 +233,7 @@ export async function readPublicItem(repos: Repositories, item: Item, board: Boa
     // A link to another task would name something the visitor cannot see.
     links: [],
     assets: shownAssets,
-    comments,
+    comments: shownComments,
     activities: shownActivities,
     users: users.filter((u) => named.has(u.id)).map(toPublicUser),
     workspaceName: workspace?.name ?? "",

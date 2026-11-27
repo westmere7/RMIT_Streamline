@@ -103,7 +103,7 @@ test("send back over the real routes: who may, what each can read, answering onc
     const forged = await admin.client.from("booking_sendbacks").update({ cancelled_at: new Date().toISOString() }).eq("item_id", itemId).select("id");
     expect(forged.error !== null || (forged.data ?? []).length === 0).toBe(true);
 
-    // The task: Waiting, an update with the note, the journey's step.
+    // The task: Waiting, the note on its activity (no update since v0.169), the journey's step.
     const status = async () => {
       const column = (await db.from("board_columns").select("id, settings").eq("board_id", (await db.from("items").select("board_id").eq("id", itemId).single()).data!.board_id).eq("type", "STATUS").limit(1).single()).data!;
       const value = (await db.from("item_column_values").select("value_json").eq("item_id", itemId).eq("column_id", column.id).maybeSingle()).data;
@@ -111,7 +111,9 @@ test("send back over the real routes: who may, what each can read, answering onc
     };
     expect(await status()).toBe("waiting");
     const comments = async () => ((await db.from("comments").select("body").eq("item_id", itemId)).data ?? []).map((c) => c.body as string);
-    expect((await comments()).some((b) => b.includes("Which campus, and how many?"))).toBe(true);
+    expect((await comments()).some((b) => b.includes("Which campus, and how many?"))).toBe(false);
+    const sentNote = (await db.from("activities").select("metadata").eq("item_id", itemId).eq("event_type", "BOOKING_SENT_BACK").single()).data?.metadata as { summary?: string } | undefined;
+    expect(sentNote?.summary ?? "").toContain("Which campus, and how many?");
     const events = async () => ((await db.from("activities").select("event_type, created_at").eq("item_id", itemId).order("created_at")).data ?? []).map((a) => a.event_type as string).filter((t) => t.startsWith("BOOKING_"));
     expect(await events()).toEqual(["BOOKING_SENT_BACK"]);
 

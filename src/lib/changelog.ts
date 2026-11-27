@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.173.5",
+    date: "2026-11-27",
+    title: "Safer mentions and send-backs",
+    changes: [
+      "A requester's reply to a send-back mentions nobody. Before, @all in it reached everyone.",
+      "Reset booking puts the description back without notifying anyone it names.",
+      "Shared task links show only people an update names by name, not everyone @all reached.",
+      "A sent-back request keeps its passed Needed by date unless the requester changes it.",
+      "No Undo after moving tasks out of Booked by Form; it could never work.",
+      "The archived date on a task link is the Vietnam date.",
+    ],
+  },
+  {
     version: "0.173.4",
     date: "2026-11-27",
     title: "Fewer requests on a board; unlinking keeps the older task's ticket",

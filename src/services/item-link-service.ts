@@ -357,7 +357,8 @@ export class ItemLinkService {
     await this.repos.activities.createMany([linkActivity("ITEM_UNLINKED", a, boardA, b, boardB, actorId), linkActivity("ITEM_UNLINKED", b, boardB, a, boardA, actorId)]);
     // The older task keeps the ticket; the pair is stored in id order, so which end is "a" says nothing.
     const [keeper, other, otherBoard] = Date.parse(b.createdAt) < Date.parse(a.createdAt) ? [b, a, boardA] : [a, b, boardB];
-    await this.splitTicket(keeper, other, otherBoard);
+    // The link is already gone; a ticket that could not be split is not a failed unlink.
+    await this.splitTicket(keeper, other, otherBoard).catch((error: unknown) => console.error("Could not give the unlinked task its own ticket", error));
   }
 
   /**
@@ -370,6 +371,8 @@ export class ItemLinkService {
     if (!keeper.ticket || keeper.ticket !== other.ticket) return;
     if ((await this.ticketChainIds(keeper.id)).includes(other.id)) return;
     const holders = [other.id, ...(await this.ticketChainIds(other.id))];
+    // All of them or none: tasks still linked to each other must not end up on two tickets.
+    if (!(await Promise.all(holders.map((id) => this.repos.items.canEdit(id)))).every(Boolean)) return;
     const workspace = await this.repos.workspaces.getById(otherBoard.workspaceId);
     if (!workspace) return;
     const ticket =

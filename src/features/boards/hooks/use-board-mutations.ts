@@ -445,7 +445,9 @@ export function useBoardMutations(boardId: string) {
         if (groupId && groupId !== toGroupId) from.set(groupId, [...(from.get(groupId) ?? []), id]);
       }
       const result = await moveToGroup(itemIds, toGroupId);
-      if (result !== undefined && from.size > 0) {
+      // Nothing goes back into Booked by Form (0159), so a move out of it has no Undo.
+      const intake = snapshot ? intakeGroupOf(snapshot.groups)?.id : undefined;
+      if (result !== undefined && from.size > 0 && !(intake && from.has(intake))) {
         const groupName = snapshot?.groups.find((g) => g.id === toGroupId)?.name ?? "another group";
         offerUndo(itemIds.length === 1 ? `Moved to ${groupName}` : `${itemIds.length} items moved to ${groupName}`, async () => {
           for (const [groupId, ids] of from) await moveToGroup(ids, groupId);
@@ -453,7 +455,7 @@ export function useBoardMutations(boardId: string) {
       }
       return result;
     },
-    [moveToGroup, queryClient, key],
+    [moveToGroup, queryClient, key, leavesIntake],
   );
 
   /** Puts archived items back, silently: the inverse of archiving, and only ever run as one. */

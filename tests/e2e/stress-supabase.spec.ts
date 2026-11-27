@@ -226,7 +226,9 @@ test("ten people at once: nothing lost, nothing doubled, every screen agrees", a
     expect(codes.filter((c) => c === 200).length, "exactly one send-back goes through").toBe(1);
     expect(codes.filter((c) => c >= 500).length, "a lost race is refused cleanly, not a server error").toBe(0);
     expect(((await db.from("booking_sendbacks").select("id").eq("item_id", target).is("resubmitted_at", null).is("cancelled_at", null)).data ?? []).length).toBe(1);
-    expect(((await db.from("comments").select("id").eq("item_id", target).like("body", "Sent back%")).data ?? []).length, "one update for one send-back").toBe(1);
+    // The note goes on the activity, once; no update is posted (v0.169).
+    expect(((await db.from("activities").select("id").eq("item_id", target).eq("event_type", "BOOKING_SENT_BACK")).data ?? []).length, "one activity for one send-back").toBe(1);
+    expect(((await db.from("comments").select("id").eq("item_id", target)).data ?? []).length, "no update for a send-back").toBe(0);
 
     const allocated = await book(`${TAG} allocation race`);
     raced.push(allocated);

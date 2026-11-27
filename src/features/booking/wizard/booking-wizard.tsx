@@ -279,6 +279,9 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
 
   // Sent back: the form has to come back different from what was sent (the server checks too).
   const unchanged = !!resubmit && !!initial && changedParts(initial, buildRequest()).length === 0;
+  // A day gone by is refused only when it is being picked now: a request sent
+  // back after its date keeps that date unless the requester changes it.
+  const dueFloor = (value: BookingRequest) => (initial && value.dueDate === initial.dueDate ? null : todayISO());
 
   // Who the wizard is booking as without having to ask: the account first, and
   // then whatever this browser remembers.
@@ -307,7 +310,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
 
   const advance = () => {
     if (!preview) {
-      const found = validateBookingStep(step.key, buildRequest(), template, omit, todayISO());
+      const found = validateBookingStep(step.key, buildRequest(), template, omit, dueFloor(buildRequest()));
       setErrors(found);
       if (Object.keys(found).length) return;
       keep();
@@ -337,7 +340,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     if (target > index) {
       const value = buildRequest();
       for (let at = index; at < target; at++) {
-        const found = validateBookingStep(steps[at]!.key, value, template, omit, todayISO());
+        const found = validateBookingStep(steps[at]!.key, value, template, omit, dueFloor(value));
         if (Object.keys(found).length) {
           setErrors(found);
           goTo(at);
@@ -378,7 +381,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       return;
     }
     for (const [at, candidate] of steps.entries()) {
-      const found = validateBookingStep(candidate.key, value, template, omit, todayISO());
+      const found = validateBookingStep(candidate.key, value, template, omit, dueFloor(value));
       if (Object.keys(found).length) {
         setErrors(found);
         goTo(at);

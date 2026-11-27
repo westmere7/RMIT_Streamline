@@ -6,6 +6,7 @@ import { useServices } from "@/features/data/data-context";
 import { ShareClosed, ShareGuestProviders, SharePlaceholder, SHARE_REFRESH_MS } from "@/features/share/share-shell";
 import { SharedItemScreen } from "@/features/share/shared-item-screen";
 import { useReaderOpenings } from "@/features/items/shared-panel-menu";
+import { scheduleToday } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 
 /**
@@ -47,7 +48,7 @@ export function TaskLinkScreen({ token }: { token: string }) {
         <div data-testid="task-link-page" data-archived={archivedAt ? "true" : undefined}>
           {archivedAt && (
             <p className="border-b border-border/60 bg-surface-strong/60 px-4 py-2 text-center text-[13px] text-muted-foreground" data-testid="task-link-archived">
-              The team archived this request on {formatShortDate(archivedAt.slice(0, 10))}.
+              The team archived this request on {formatShortDate(scheduleToday(new Date(archivedAt)))}.
             </p>
           )}
           <SharedItemScreen payload={shown} openings={readerOpenings} archived={!!archivedAt} />
