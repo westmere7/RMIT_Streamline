@@ -88,7 +88,11 @@ export function useMentionLinksHere(boardId: string, itemIds: ReadonlySet<string
     return {
       ...links,
       board: (b, itemId) => links.board(here(b, itemId), itemId),
-      part: (b, itemId, part) => links.part(here(b, itemId), itemId, part),
+      // A column is the board's own: one named on the board the task has left is not on this one, so the task alone.
+      part: (b, itemId, part) => {
+        const at = here(b, itemId);
+        return "field" in part && b && at !== b ? links.board(at, itemId) : links.part(at, itemId, part);
+      },
     };
   }, [links, boardId, itemIds]);
 }

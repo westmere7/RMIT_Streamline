@@ -237,7 +237,7 @@ export class BookingSendBackService {
     const before = stored?.request ?? null;
     // Who asked does not change: the link is theirs, not a new booking.
     const incoming: BookingRequest = { ...raw, itemId: item.id, requesterName: before?.requesterName ?? raw.requesterName, requesterEmail: before?.requesterEmail ?? raw.requesterEmail };
-    const { request, template, team, department } = await this.booking.prepareRequest(workspaceId, incoming, null);
+    const { request, template, team, department } = await this.booking.prepareRequest(workspaceId, incoming, null, new Date(item.createdAt));
     // The same form sent straight back answers nothing. (A booking from before
     // answers were kept opens empty, so whatever comes back is new.)
     if (before && changedParts(before, request).length === 0) throw new RefusedError(NOTHING_CHANGED);

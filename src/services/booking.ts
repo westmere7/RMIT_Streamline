@@ -502,8 +502,12 @@ export const SUBSERVICE_ERROR_KEY = "subServices";
  * past a step with a required answer missing and has to know which step that
  * is. The keys are field ids and block ids, so each message lands under the
  * question it belongs to.
+ *
+ * `today` ("YYYY-MM-DD", the reader's own day) also refuses a "Needed by" that
+ * has passed. Only the form passes it: the server's clock is in another
+ * timezone, and a booking sent back with a date gone by is still the same booking.
  */
-export function validateBookingStep(step: BookingStep, request: BookingRequest, template: BookingFormTemplate, omit: readonly BookingStandardKey[] = []): Record<string, string> {
+export function validateBookingStep(step: BookingStep, request: BookingRequest, template: BookingFormTemplate, omit: readonly BookingStandardKey[] = [], today: string | null = null): Record<string, string> {
   const errors: Record<string, string> = {};
   const service = serviceById(template, request.serviceTypeId);
   if (step === "basics") {
@@ -512,6 +516,7 @@ export function validateBookingStep(step: BookingStep, request: BookingRequest, 
       // portal takes the department from the link, so there is no box to fill.
       if (omit.includes(field.key)) continue;
       if (field.required && isStandardAnswerEmpty(request, field.key)) errors[field.id] = `${plainLabel(field.label)} is required`;
+      else if (field.key === "dueDate" && today && request.dueDate && request.dueDate < today) errors[field.id] = "That day has passed. Pick today or later";
     }
     if (!service) errors[SERVICE_ERROR_KEY] = "Pick the kind of work this is";
     // A service that offers sub-services is asking a question, and "none of
@@ -531,6 +536,8 @@ export function validateBookingStep(step: BookingStep, request: BookingRequest, 
       // An answer of another shape (the question changed kind since) counts as none.
       const answer = usableAnswer(block, request.answers[block.id]);
       if (block.required && isAnswerEmpty(answer)) errors[block.id] = block.kind === "ack" ? `Tick “${plainLabel(block.label)}” to go on` : `${plainLabel(block.label)} is required`;
+      // Caught here, under the question, not at the end, where the server's check would send the reader looking for it.
+      else if (answer?.kind === "link" && answer.url.trim() && !answerUrl.safeParse(answer.url).success) errors[block.id] = "That doesn't look like a link";
     }
     return errors;
   }

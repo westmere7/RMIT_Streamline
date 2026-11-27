@@ -10,6 +10,7 @@ import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useSentBackItems } from "@/features/booking/send-back-hooks";
+import { ReallocateDialog } from "@/features/boards/components/dialogs/reallocate-dialog";
 import { useBoardUpdates } from "@/features/comments/updates";
 import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -89,6 +90,8 @@ export function TaskPanelHost({ boardId, itemId, onOpen, onClose, popup = false 
           </div>
         }
       />
+      {/* The panel's menu asks for it; the board page mounts its own, and this host is never on one. */}
+      <ReallocateDialog />
     </BoardContextProvider>
   );
 }

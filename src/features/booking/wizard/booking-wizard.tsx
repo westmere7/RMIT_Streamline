@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingPastSummary, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { changedParts, NOTHING_CHANGED, serviceById } from "@/domain";
-import { formatShortDate } from "@/lib/dates/dates";
+import { formatShortDate, todayISO } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { colorClasses } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -307,7 +307,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
 
   const advance = () => {
     if (!preview) {
-      const found = validateBookingStep(step.key, buildRequest(), template, omit);
+      const found = validateBookingStep(step.key, buildRequest(), template, omit, todayISO());
       setErrors(found);
       if (Object.keys(found).length) return;
       keep();
@@ -337,7 +337,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     if (target > index) {
       const value = buildRequest();
       for (let at = index; at < target; at++) {
-        const found = validateBookingStep(steps[at]!.key, value, template, omit);
+        const found = validateBookingStep(steps[at]!.key, value, template, omit, todayISO());
         if (Object.keys(found).length) {
           setErrors(found);
           goTo(at);
@@ -378,7 +378,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
       return;
     }
     for (const [at, candidate] of steps.entries()) {
-      const found = validateBookingStep(candidate.key, value, template, omit);
+      const found = validateBookingStep(candidate.key, value, template, omit, todayISO());
       if (Object.keys(found).length) {
         setErrors(found);
         goTo(at);
@@ -389,15 +389,19 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     if (!parsed.success) {
       // Formats the template cannot describe: an address that is not an email,
       // a link without a scheme. They all live on the first or third step.
-      const byKey: Record<string, BookingStep> = { requesterName: "basics", requesterEmail: "basics", title: "basics", dueDate: "basics", referenceUrl: "assets", assets: "assets" };
+      const byKey: Record<string, BookingStep> = { requesterName: "basics", requesterEmail: "basics", title: "basics", dueDate: "basics", answers: "brief", referenceUrl: "assets", assets: "assets" };
       const issue = parsed.error.issues[0];
       const key = String(issue?.path[0] ?? "");
+      const message = issue?.message ?? "Check this answer";
       const field = template.basics.fields.find((f) => f.key === key);
+      // An answer's problem goes under its own question, by the block id in its path.
+      const blockId = key === "answers" ? String(issue?.path[1] ?? "") : "";
       const owner = byKey[key] ?? "basics";
       const at = steps.findIndex((s) => s.key === owner);
-      setErrors(field ? { [field.id]: issue?.message ?? "Check this answer" } : {});
-      setFailure(field ? null : (issue?.message ?? "Something in the form is not right yet."));
+      // goTo clears the message, so it is set after the move, not before.
       if (at >= 0) goTo(at);
+      setErrors(field ? { [field.id]: message } : blockId ? { [blockId]: message } : {});
+      setFailure(field || blockId ? null : message);
       return;
     }
     setErrors({});

@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.173.2",
+    date: "2026-11-27",
+    title: "Booking form fixes",
+    changes: [
+      "A link answer that isn't a link is caught under its question. Before, Book this task jumped back to step 1 with no message.",
+      "Needed by can't be a day that has passed.",
+      "A request sent again keeps its first booking time in the brief.",
+      "Re-allocate… is in the task panel's menu too.",
+      "Activity from a task's earlier board opens the task, not a column that board had.",
+    ],
+  },
+  {
     version: "0.173.1",
     date: "2026-11-27",
     title: "Reset booking in the task's own menu",

@@ -5,7 +5,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SlidersHorizontal, SquarePen, Trash2, X, RotateCcw } from "lucide-react";
+import { Archive, ArrowDown, ArrowUp, Route, Copy, CornerDownRight, Eye, EyeOff, Globe, GripVertical, Hash, History, LoaderCircle, MessageSquare, MoreVertical, Package, PanelRight, PictureInPicture2, Plus, Share2, SlidersHorizontal, SquarePen, Trash2, Undo2, X, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -69,6 +69,7 @@ import { BriefEditedNote, useBriefSource } from "@/features/items/brief-source";
 import { BriefRowValue, RichTextDocument } from "@/features/items/rich-text-field";
 import { Mention, useMentionLinks, useMentionLinksHere } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { canEditBoard } from "@/lib/permissions/permissions";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { colorClasses } from "@/lib/colors";
@@ -1373,9 +1374,14 @@ function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpd
  */
 function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup }: { item: Item; canEdit: boolean; canManage: boolean; onShare: () => void; onJourney: () => void; shared?: boolean; popup?: boolean }) {
   const isMobile = useIsMobile();
-  const { model, mutations, openItem, rememberOpenMode } = useBoardContext();
+  const { board, model, mutations, openItem, rememberOpenMode } = useBoardContext();
+  const ws = useWorkspace();
+  const setReallocateRequest = useBoardUiStore((s) => s.setReallocateRequest);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const reset = useResetBooking(item);
+  // Back to Task Allocation, as the row's menu offers it: a booked task on a team's board.
+  const queueBoard = ws.boards.find((b) => b.system === "TASK_ALLOCATION" && !b.archivedAt);
+  const reallocate = !board.system && !!queueBoard && canEditBoard(ws.permissions, queueBoard) && !!item.bookedVia && !item.parentItemId && !item.archivedAt;
   const hiddenHere = model.columns.filter((c) => c.hiddenInPanel);
   const hiddenOnBoard = model.columns.filter((c) => c.hidden);
   const anythingHidden = hiddenHere.length > 0 || hiddenOnBoard.length > 0;
@@ -1475,6 +1481,11 @@ function PanelMenu({ item, canEdit, canManage, onShare, onJourney, shared, popup
               {reset.offered && (
                 <DropdownMenuItem onSelect={reset.ask} data-testid="panel-reset-booking">
                   <RotateCcw /> Reset booking
+                </DropdownMenuItem>
+              )}
+              {reallocate && (
+                <DropdownMenuItem onSelect={() => setReallocateRequest(item.id)} data-testid="panel-reallocate">
+                  <Undo2 /> Re-allocate…
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem

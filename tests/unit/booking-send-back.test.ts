@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fixtureBookingFormTemplate } from "./helpers/booking-fixture";
 import { createLocalRepositories } from "@/data/local";
 import { SEED_USER_IDS, SEED_WORKSPACE_ID } from "@/data/seed/seed-data";
@@ -186,6 +186,22 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     expect(said).toContain("It's for Saigon South.");
     expect(said).toContain("@Danh");
     expect((await services.bookingSendBacks.openAmong([receipt.itemId])).size).toBe(0);
+  });
+
+  it("the brief sent again still says when it was booked, as the Booking time column does", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date("2026-11-27T12:03:00Z"));
+      const receipt = await book();
+      const sent = await services.bookingSendBacks.send(receipt.itemId, "Which campus?", owner);
+      vi.setSystemTime(new Date("2026-11-27T12:07:00Z"));
+      await services.bookingSendBacks.resubmit(sent.token, request({ answers: { ...request().answers, "design-what": { kind: "text", text: "For Hanoi." } } }), "");
+      const item = (await services.repos.items.getById(receipt.itemId)) as unknown as { bookingBrief?: string };
+      expect(item.bookingBrief ?? "").toContain("**Booked:** Nov 27, 2026, 7:03 PM");
+      expect(item.bookingBrief ?? "").not.toContain("7:07 PM");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("an asset line they drop stays on the task and is named in the update", async () => {

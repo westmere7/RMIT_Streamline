@@ -532,6 +532,27 @@ describe("what a step will not let a stakeholder past", () => {
     expect(Object.keys(production).sort()).toEqual(["prod-people", "prod-what", "prod-when", "prod-where"]);
   });
 
+  it("refuses a link that is not one under its own question, not at the end", () => {
+    const withLink: BookingFormTemplate = {
+      ...template,
+      services: template.services.map((s) => (s.id === "svc-design" ? { ...s, blocks: [...s.blocks, { id: "design-where", kind: "link", label: "Where are the assets?", description: null, required: false }] } : s)),
+    };
+    const answer = (url: string): BookingRequest => request({ answers: { ...DESIGN_ANSWERS, "design-where": { kind: "link", url, label: "" } } });
+    expect(validateBookingStep("brief", answer("not a url"), withLink)).toEqual({ "design-where": "That doesn't look like a link" });
+    expect(validateBookingStep("brief", answer("javascript:alert(1)"), withLink)).toEqual({ "design-where": "That doesn't look like a link" });
+    // Without a scheme it is taken as https, and an optional one left blank is fine.
+    expect(validateBookingStep("brief", answer("example.com/brief"), withLink)).toEqual({});
+    expect(validateBookingStep("brief", answer(""), withLink)).toEqual({});
+  });
+
+  it("refuses a Needed by that has passed, when the form says what today is", () => {
+    const passed = request({ dueDate: "2026-11-01" });
+    expect(validateBookingStep("basics", passed, template, [], "2026-11-27")).toEqual({ "std-dueDate": "That day has passed. Pick today or later" });
+    expect(validateBookingStep("basics", request({ dueDate: "2026-11-27" }), template, [], "2026-11-27")).toEqual({});
+    // The server passes no day: a booking sent back after its date is still the same booking.
+    expect(validateBookingStep("basics", passed, template)).toEqual({});
+  });
+
   it("never holds anybody on the deliverables or the recap", () => {
     const bare = request({ assets: [], assetTypes: [], referenceUrl: null });
     expect(validateBookingStep("assets", bare, template)).toEqual({});

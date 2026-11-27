@@ -410,7 +410,7 @@ export class BookingService {
    * department from the list, and the brief composed here. A new booking and a
    * task sent back and answered again both go through this.
    */
-  async prepareRequest(workspaceId: EntityId, rawRequest: BookingRequest, stakeholder: string | null = null) {
+  async prepareRequest(workspaceId: EntityId, rawRequest: BookingRequest, stakeholder: string | null = null, bookedAt: Date = new Date()) {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
     // The form the visitor filled in: the live one, or the one live a moment
@@ -448,7 +448,8 @@ export class BookingService {
 
     // The brief is composed here, from the template and the answers, whatever
     // the caller sent as one. What the team reads is what the form asked for.
-    request.brief = composeBrief(request, template, { at: new Date() });
+    // "Booked:" is when it was booked: a request sent again keeps its first time, as its Booking time column does.
+    request.brief = composeBrief(request, template, { at: bookedAt });
     return { request, template, service, team, workspace, allocation, teams, department };
   }
 
