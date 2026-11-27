@@ -96,8 +96,11 @@ test.describe("sending a booking back", () => {
     await expect(panel.getByTestId("allocation-section")).toHaveCount(0);
     await panel.getByRole("tab", { name: /Updates/ }).click();
     await expect(panel.getByTestId("comment-composer")).toBeVisible();
-    // The update says what was asked; the journey has it.
-    await expect(page.getByText("Sent back to Priya Nair for more information:").first()).toBeVisible({ timeout: 20_000 });
+    // No update for it: the activity says what was asked; the journey has it.
+    await panel.getByRole("tab", { name: /Activity/ }).click();
+    await expect(panel.getByText(/sent this back to Priya Nair for more information: “Which campus/).first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("Sent back to Priya Nair for more information:")).toHaveCount(0);
+    await panel.getByRole("tab", { name: /Updates/ }).click();
 
     // The Guest portal shows it as Sent back, and never the link.
     await signOut(page);
@@ -115,6 +118,13 @@ test.describe("sending a booking back", () => {
     await page.getByTestId("resubmit-reply").fill("Saigon South, four banners.");
     await page.getByTestId("booking-next").click();
     await expect(page.getByTestId("booking-answer-design-what")).toHaveValue("Banners for graduation.");
+    // Nothing changed yet (a reply alone is not a change): it cannot go back.
+    await page.getByTestId("booking-next").click();
+    await page.getByTestId("booking-skip-assets").click();
+    await expect(page.getByTestId("booking-submit")).toBeDisabled();
+    await expect(page.getByTestId("resubmit-unchanged")).toBeVisible();
+    await page.getByTestId("booking-back").click();
+    await page.getByTestId("booking-back").click();
     await page.getByTestId("booking-answer-design-what").fill("Four pull-up banners for graduation at Saigon South.");
     await page.getByTestId("booking-next").click();
     await expect(page.getByTestId("booking-step-assets")).toBeVisible();

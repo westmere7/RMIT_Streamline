@@ -1,6 +1,7 @@
 import type { ActivityMetadata, Board, BoardColumn, BookingForm, BookingReceipt, BookingRequest, BookingSendBack, ColumnValue, EntityId, Item, User } from "@/domain";
 import {
   ALREADY_WAITING,
+  NOTHING_CHANGED,
   RESUBMIT_REPLY_MAX,
   RefusedError,
   SEND_BACK_NOTE_MAX,
@@ -86,8 +87,9 @@ export class BookingSendBackService {
 
   /**
    * Sends a booked task back to its requester: the link is made, the task says
-   * it is waiting (its board's "Waiting" status, when it has one), and an
-   * update says what the team asked for, which the portals show too.
+   * it is waiting (its board's "Waiting" status, when it has one), and the
+   * task's activity and journey say what the team asked for. No update is
+   * posted: the activity is the record.
    */
   async send(itemId: EntityId, rawNote: string, actorId: EntityId): Promise<BookingSendBack> {
     if (this.transport) return this.transport.send({ itemId, note: rawNote });
@@ -103,11 +105,10 @@ export class BookingSendBackService {
     const users = await this.repos.users.list();
     try {
       const who = await this.requesterName(item, columns, users);
-      await this.comments.addComment(itemId, `Sent back to ${who} for more information:\n\n${note}`, actorId, users);
-      // On the task's journey, with its own time: a task can go back and forth more than once.
-      await this.log(item, board, actorId, "BOOKING_SENT_BACK", { requesterName: who === "the requester" ? undefined : who, summary: excerpt(note) }).catch((error: unknown) => console.error("Could not log the send-back", error));
+      // On the task's activity and journey, with its own time: a task can go back and forth more than once.
+      await this.log(item, board, actorId, "BOOKING_SENT_BACK", { requesterName: who === "the requester" ? undefined : who, summary: excerpt(note, 280) });
     } catch (error) {
-      // Without the update the requester's side would never say what is missing: undone.
+      // Without the entry the task would never say it went back, or what was asked: undone.
       await this.repos.bookingSendBacks.update(sendBack.id, { cancelledAt: new Date().toISOString() }).catch(() => undefined);
       throw error;
     }
@@ -126,7 +127,6 @@ export class BookingSendBackService {
     await this.repos.bookingSendBacks.update(open.id, { cancelledAt: new Date().toISOString() });
     const { item, board, status } = await this.taskOf(itemId);
     const users = await this.repos.users.list();
-    await this.comments.addComment(itemId, "Send back recalled: no more information needed.", actorId, users).catch((error: unknown) => console.error("Could not post the cancel update", error));
     await this.log(item, board, actorId, "BOOKING_SEND_BACK_CANCELLED", {}).catch((error: unknown) => console.error("Could not log the cancel", error));
     await this.restoreStatus(item, board, status, users, actorId);
   }
@@ -171,6 +171,9 @@ export class BookingSendBackService {
     // Who asked does not change: the link is theirs, not a new booking.
     const incoming: BookingRequest = { ...raw, itemId: item.id, requesterName: before?.requesterName ?? raw.requesterName, requesterEmail: before?.requesterEmail ?? raw.requesterEmail };
     const { request, template, team, department } = await this.booking.prepareRequest(workspaceId, incoming, null);
+    // The same form sent straight back answers nothing. (A booking from before
+    // answers were kept opens empty, so whatever comes back is new.)
+    if (before && changedParts(before, request).length === 0) throw new RefusedError(NOTHING_CHANGED);
 
     // Claimed before anything is written: a second press, or a second tab, gets "already answered".
     const at = new Date().toISOString();

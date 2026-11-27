@@ -70,7 +70,7 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     expect(stored?.request.itemId).toBe(receipt.itemId);
   });
 
-  it("sends back: a link, the task marked Waiting, and an update with the note", async () => {
+  it("sends back: a link, the task marked Waiting, and the note on its activity (no update)", async () => {
     const receipt = await book();
     const sent = await services.bookingSendBacks.send(receipt.itemId, "  Which campus are these for?  ", owner);
     expect(isSendBackToken(sent.token)).toBe(true);
@@ -78,8 +78,10 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     expect(Date.parse(sent.expiresAt) - Date.parse(sent.sentAt)).toBeGreaterThan(13 * 24 * 3600 * 1000);
     const { statusId } = await cells(receipt.itemId);
     expect(statusId).toBe("waiting");
-    const said = await updates(receipt.itemId);
-    expect(said.some((b) => b.startsWith("Sent back to Priya Nair for more information:") && b.includes("Which campus are these for?"))).toBe(true);
+    expect(await updates(receipt.itemId)).toEqual([]);
+    const logged = (await services.repos.activities.listByItem(receipt.itemId)).find((a) => a.eventType === "BOOKING_SENT_BACK");
+    expect(logged?.metadata.summary).toBe("Which campus are these for?");
+    expect(logged?.metadata.requesterName).toBe("Priya Nair");
     expect((await services.bookingSendBacks.openAmong([receipt.itemId, "other"])).has(receipt.itemId)).toBe(true);
   });
 
@@ -135,7 +137,7 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
 
     const c = await book({ title: "Answered one" });
     const sentC = await services.bookingSendBacks.send(c.itemId, "Which campus?", owner);
-    await services.bookingSendBacks.resubmit(sentC.token, request({ title: "Answered one" }), "");
+    await services.bookingSendBacks.resubmit(sentC.token, request({ title: "Answered one", dueDate: "2026-12-10" }), "");
     await expect(services.bookingSendBacks.open(sentC.token)).rejects.toThrow(/already sent/);
     await expect(services.bookingSendBacks.resubmit(sentC.token, request({ title: "Answered one" }), "")).rejects.toThrow(/already sent/);
   });
@@ -194,6 +196,18 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     expect((await updates(receipt.itemId)).some((b) => b.includes("No longer asked for (still on Assets): Flyer."))).toBe(true);
   });
 
+  it("the form sent straight back, a reply alone included, is refused and the link still works", async () => {
+    const receipt = await book();
+    const sent = await services.bookingSendBacks.send(receipt.itemId, "Which campus?", owner);
+    const opened = await services.bookingSendBacks.open(sent.token);
+    await expect(services.bookingSendBacks.resubmit(sent.token, opened.prefill!, "")).rejects.toThrow(/Change something/);
+    await expect(services.bookingSendBacks.resubmit(sent.token, opened.prefill!, "It's for City campus.")).rejects.toThrow(/Change something/);
+    expect((await services.bookingSendBacks.open(sent.token)).note).toBe("Which campus?");
+    // One answer different is enough.
+    const changed = { ...opened.prefill!, answers: { ...opened.prefill!.answers, "design-what": { kind: "text" as const, text: "Six A1 posters for City campus." } } };
+    await services.bookingSendBacks.resubmit(sent.token, changed, "");
+  });
+
   it("a form that fails its own rules is refused and the link still works", async () => {
     const receipt = await book();
     const sent = await services.bookingSendBacks.send(receipt.itemId, "Which campus?", owner);
@@ -215,12 +229,13 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     expect(((await services.repos.items.getById(receipt.itemId)) as unknown as { bookingBrief?: string }).bookingBrief ?? "").toContain("For Hanoi.");
   });
 
-  it("cancelling: the link stops, the task leaves Waiting, and an update says so", async () => {
+  it("cancelling: the link stops, the task leaves Waiting, and its activity says so (no update)", async () => {
     const receipt = await book();
     const sent = await services.bookingSendBacks.send(receipt.itemId, "Which campus?", owner);
     await services.bookingSendBacks.cancel(receipt.itemId, owner);
     expect((await cells(receipt.itemId)).statusId).not.toBe("waiting");
-    expect((await updates(receipt.itemId)).some((b) => b.startsWith("Send back recalled"))).toBe(true);
+    expect(await updates(receipt.itemId)).toEqual([]);
+    expect((await services.repos.activities.listByItem(receipt.itemId)).some((a) => a.eventType === "BOOKING_SEND_BACK_CANCELLED")).toBe(true);
     await expect(services.bookingSendBacks.resubmit(sent.token, request(), "")).rejects.toThrow(/no longer needs/);
     // And it can be sent back again.
     const again = await services.bookingSendBacks.send(receipt.itemId, "Actually, which campus?", owner);

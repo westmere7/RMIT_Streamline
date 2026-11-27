@@ -809,6 +809,18 @@ export class StakeholderPortalService {
     return (await Promise.all(boards.map((board) => this.repos.boards.listColumns(board.id)))).flat();
   }
 
+  /**
+   * Whether the workspace's portal is open and shows this task, whoever it was
+   * for and whenever it was booked: where a shared task's page may send
+   * somebody to see it there (ItemOpeningsService).
+   */
+  async showsItem(workspaceId: EntityId, itemId: EntityId): Promise<boolean> {
+    const portal = await this.repos.stakeholderPortals.getUnifiedPortal(workspaceId);
+    if (!portal || !portal.enabled) return false;
+    const { entries } = await this.scopeWithItems({ portal, workspaceId }, EVERYTHING);
+    return entries.some((entry) => entry.itemId === itemId);
+  }
+
   /** The workspace's portal, made on first use. Created switched off. */
   async ensurePortal(workspaceId: EntityId): Promise<StakeholderPortal> {
     const existing = await this.repos.stakeholderPortals.getUnifiedPortal(workspaceId);

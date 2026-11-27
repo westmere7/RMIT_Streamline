@@ -52,8 +52,11 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
   const m = activity.metadata;
   const item = includeItem && m.itemName ? <> on <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention></> : null;
   const synced = m.syncedFrom ? <span className="text-muted-foreground"> · synced from {m.syncedFrom}</span> : null;
-  // The task this entry is about: where a name in it (an asset, a new name) leads.
+  // The task this entry is about: where a new name leads.
   const task = links?.board(activity.boardId, activity.itemId) ?? null;
+  // A deliverable named in the entry opens the task's Assets tab; a column, the task on that field.
+  const assets = links?.part(activity.boardId, activity.itemId, { tab: "assets" }) ?? task;
+  const field = m.columnId ? (links?.part(activity.boardId, activity.itemId, { field: m.columnId }) ?? null) : null;
   // The other side of a link: the task itself when the entry kept its id, else its board by name.
   const linkedTask = m.linkedBoardId ? links?.board(m.linkedBoardId, m.linkedItemId) : null;
   const linkedBoard = (m.linkedBoardId ? links?.board(m.linkedBoardId) : null) ?? links?.boardNamed(m.linkedBoardName) ?? null;
@@ -138,7 +141,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
                 {" "}removed <People ids={removed} users={users} links={links} />
               </>
             )}
-            {added.length === 0 && removed.length === 0 && <> updated {m.columnName}</>}
+            {added.length === 0 && removed.length === 0 && <> updated <Mention href={field}>{m.columnName}</Mention></>}
             {item}
           </>
         );
@@ -146,7 +149,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       if (m.columnType === "CHECKBOX") {
         return (
           <>
-            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.to === "Checked" ? "checked" : "unchecked"} <Mention>{m.columnName}</Mention>
+            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.to === "Checked" ? "checked" : "unchecked"} <Mention href={field}>{m.columnName}</Mention>
             {item}
           </>
         );
@@ -158,7 +161,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       if (isDocumentColumn(m.columnType)) {
         return (
           <>
-            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.reverted ? "put back the booked" : m.from ? "edited" : "wrote"} <Mention>{m.columnName}</Mention>
+            <Mention href={links?.person(activity.actorId)}>{actor}</Mention> {m.reverted ? "put back the booked" : m.from ? "edited" : "wrote"} <Mention href={field}>{m.columnName}</Mention>
             {item}
             {synced}
           </>
@@ -166,7 +169,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       }
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> changed <Mention>{m.columnName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> changed <Mention href={field}>{m.columnName}</Mention>
           {m.from ? (
             <>
               {" "}from <Mention>{formatValue(m.columnType, m.from)}</Mention>
@@ -181,7 +184,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
     case "ASSET_ADDED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> added {m.assetName ? <Mention href={task}>{m.assetName}</Mention> : <Mention>{`${m.count ?? 0} assets`}</Mention>} to the asset list
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> added {m.assetName ? <Mention href={assets}>{m.assetName}</Mention> : <Mention href={assets}>{`${m.count ?? 0} assets`}</Mention>} to the asset list
           {item}
         </>
       );
@@ -195,13 +198,13 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
             <Mention href={links?.person(activity.actorId)}>{actor}</Mention>
             {added.length > 0 && (
               <>
-                {" "}put <People ids={added} users={users} links={links} /> in charge of <Mention href={task}>{m.assetName}</Mention>
+                {" "}put <People ids={added} users={users} links={links} /> in charge of <Mention href={assets}>{m.assetName}</Mention>
               </>
             )}
             {added.length > 0 && removed.length > 0 && " and"}
             {removed.length > 0 && (
               <>
-                {" "}took <People ids={removed} users={users} links={links} /> off {added.length > 0 ? "it" : <Mention href={task}>{m.assetName}</Mention>}
+                {" "}took <People ids={removed} users={users} links={links} /> off {added.length > 0 ? "it" : <Mention href={assets}>{m.assetName}</Mention>}
               </>
             )}
             {item}
@@ -210,7 +213,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       }
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> set {m.assetField} on <Mention href={task}>{m.assetName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> set {m.assetField} on <Mention href={assets}>{m.assetName}</Mention>
           {m.from ? (
             <>
               {" "}from <Mention>{m.from}</Mention>
@@ -223,21 +226,21 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
     case "ASSET_REMOVED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> removed <Mention href={task}>{m.assetName}</Mention> from the asset list
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> removed <Mention href={assets}>{m.assetName}</Mention> from the asset list
           {item}
         </>
       );
     case "ASSET_COMPLETED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> ticked off <Mention href={task}>{m.assetName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> ticked off <Mention href={assets}>{m.assetName}</Mention>
           {item}
         </>
       );
     case "ASSET_REOPENED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> reopened <Mention href={task}>{m.assetName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> reopened <Mention href={assets}>{m.assetName}</Mention>
           {item}
         </>
       );
@@ -250,7 +253,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
     case "BOOKING_SENT_BACK":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> sent this back{m.requesterName ? <> to <Mention>{m.requesterName}</Mention></> : null} for more information{item}
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> sent this back{m.requesterName ? <> to <Mention href={links?.personNamed(m.requesterName)}>{m.requesterName}</Mention></> : null} for more information{m.summary ? <>: “{m.summary}”</> : null}{item}
         </>
       );
     case "BOOKING_RESUBMITTED":
@@ -364,7 +367,7 @@ export function describeActivityText(activity: Activity, users: readonly User[])
     case "COMMENT_ADDED":
       return `${actor} posted an update`;
     case "BOOKING_SENT_BACK":
-      return `${actor} sent this back${m.requesterName ? ` to ${m.requesterName}` : ""} for more information`;
+      return `${actor} sent this back${m.requesterName ? ` to ${m.requesterName}` : ""} for more information${m.summary ? `: “${m.summary}”` : ""}`;
     case "BOOKING_RESUBMITTED":
       return `${actor} sent it again${m.summary ? ` · ${m.summary}` : ""}`;
     case "BOOKING_SEND_BACK_CANCELLED":

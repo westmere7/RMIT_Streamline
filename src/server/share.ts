@@ -1,10 +1,13 @@
+import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import type { BoardShare, BoardShareGate, PublicBoardPayload, PublicItemPayload } from "@/domain";
+import type { BoardShare, BoardShareGate, ItemOpenings, PublicBoardPayload, PublicItemPayload } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
 import { routeRepositoriesThrough } from "@/data/supabase/client";
 import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { gateShare, loadSharedBoardIfChanged, ShareAccessError, type ShareRefreshAnswer, type ShareViewer } from "@/services/board-share-service";
-import { gateItemShare, loadSharedItemIfChanged } from "@/services/item-share-service";
+import { admitSharedItem, gateItemShare, loadSharedItemIfChanged } from "@/services/item-share-service";
+import type { BoardSight } from "@/services/item-openings-service";
+import { portalServices } from "./portal";
 import { readWorkspaceRevision } from "./workspace-revision";
 
 /**
@@ -81,4 +84,44 @@ export function shareErrorStatus(error: ShareAccessError): number {
 function serviceRoleRepositories() {
   routeRepositoriesThrough(getSupabaseAdminClient());
   return createSupabaseRepositories();
+}
+
+/** The caller's own session token, when one came with the request. */
+export function bearerOf(request: Request): string | null {
+  const header = request.headers.get("authorization") ?? "";
+  const jwt = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  return jwt || null;
+}
+
+/**
+ * Whether the caller can see a board, asked with their own session so the
+ * database's own rules decide (as allocation checks a target board). Null with
+ * no session: nobody signed in has a board to be sent to.
+ */
+export function boardSightOf(jwt: string | null): BoardSight {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+  if (!jwt || !url || !anon) return null;
+  const asCaller = createClient(url, anon, {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+  return async (board) => {
+    const row = await asCaller.from("boards").select("id").eq("id", board.id).maybeSingle();
+    return !row.error && !!row.data;
+  };
+}
+
+/** Where else a shared task opens for the caller, behind the same checks as the task itself. */
+export async function loadShareItemOpenings(token: string, password: string | null, request: Request): Promise<ItemOpenings> {
+  const services = portalServices();
+  const { item, board } = await admitSharedItem(services.repos, token, password, await shareViewer(request));
+  return services.itemOpenings.for(item, board, boardSightOf(bearerOf(request)));
+}
+
+/** The same for a booking's task link. */
+export async function loadTaskLinkOpenings(token: string, request: Request): Promise<ItemOpenings> {
+  const services = portalServices();
+  const { item, board } = await services.taskLinks.admit(token);
+  return services.itemOpenings.for(item, board, boardSightOf(bearerOf(request)));
 }

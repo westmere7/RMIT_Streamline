@@ -22,6 +22,8 @@ import {
   columnLabels,
   keywordsOf,
   webhookUrlProblem,
+  describeTimeCondition,
+  isConditionTime,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { AutomationEngine, DrainReport } from "./automation-engine";
@@ -338,6 +340,10 @@ function validate(
   for (const condition of conditions) {
     if (condition.kind === "column" && !column(condition.columnId)) throw new AutomationError("Pick a column for every condition.");
     if (condition.kind === "group" && !group(condition.groupId)) throw new AutomationError("Pick a group for every condition.");
+    if (condition.kind === "time") {
+      const span = condition.op === "between" || condition.op === "outside";
+      if (!isConditionTime(condition.from?.time) || (span && !isConditionTime(condition.to?.time))) throw new AutomationError("Give every time check its time, as hours and minutes.");
+    }
   }
 
   // A rule woken by a task arriving that then adds a task to the same board
@@ -640,6 +646,8 @@ export function describeCondition(condition: AutomationCondition, vocabulary: Ru
       return `${condition.op === "is" ? "" : "anybody but "}${vocabulary.users.find((u) => u.id === condition.userId)?.displayName ?? "someone"} made the change`;
     case "item_kind":
       return condition.is === "subitem" ? "it is a subitem" : "it is a top-level task";
+    case "time":
+      return describeTimeCondition(condition);
   }
 }
 

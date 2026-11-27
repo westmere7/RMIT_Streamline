@@ -49,6 +49,9 @@ export function LinkedItemsSection({ item }: { item: Item }) {
   };
 
   const views = links.data ?? [];
+  // Nothing linked and nothing a reader can do about it (a shared page or a
+  // requester's own link included): no section at all.
+  if (!canEdit && !links.isLoading && views.length === 0) return null;
 
   return (
     <section data-testid="linked-items">
@@ -70,9 +73,7 @@ export function LinkedItemsSection({ item }: { item: Item }) {
         <p className="text-[13px] text-muted-foreground">
           {queued
             ? "Nothing here can be linked while it is waiting to be allocated. Place it with a team and the request moves there — links come after that."
-            : canEdit
-              ? "Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share."
-              : "Not linked to any other item."}
+            : "Not linked to any other item yet. Linked items stay in sync across boards — name, description and every column both boards share."}
         </p>
       ) : (
         <ul className="divide-y divide-border/60 rounded-xl border border-border/70 bg-card shadow-xs">

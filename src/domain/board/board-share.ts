@@ -147,6 +147,19 @@ export interface PublicItemPayload extends PublicBoardPayload {
 }
 
 /**
+ * Where else the person holding a task's link may open it, worked out for them
+ * by the server: its board when they are signed in and can see that board (the
+ * board's archive once the task is archived), and the workspace's portal while
+ * it is open and shows the task. Null where they cannot.
+ */
+export interface ItemOpenings {
+  board: string | null;
+  portal: string | null;
+}
+
+export const NO_ITEM_OPENINGS: ItemOpenings = { board: null, portal: null };
+
+/**
  * A person as a public link may name them.
  *
  * An allowlist, written out field by field. It used to be `{ ...user, email: "" }`,

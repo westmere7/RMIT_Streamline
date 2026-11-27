@@ -15,7 +15,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { DEPARTED_TASK_ACTIONS, MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, intakeGroupOf, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem } from "@/domain";
+import { DEPARTED_TASK_ACTIONS, MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, intakeGroupOf, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem, describeTimeCondition, timeConditionHolds } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { CommentService } from "./comment-service";
 import type { ItemService } from "./item-service";
@@ -581,6 +581,9 @@ export class AutomationEngine {
         const actual = context.values.get(condition.columnId) ?? emptyValueFor(column.type);
         return compare(condition.op, actual, condition.value ?? null, context);
       }
+      case "time":
+        // When the change was made, not when the queue got to it; a schedule's own run is now.
+        return timeConditionHolds(condition, context.event ? new Date(context.event.createdAt) : this.now(), this.timezone);
       default:
         return false;
     }
@@ -1163,6 +1166,8 @@ function describeCondition(condition: AutomationCondition, context: FiringContex
     }
     case "item_kind":
       return condition.is === "subitem" ? "it is a subitem" : "it is a top-level task";
+    case "time":
+      return describeTimeCondition(condition);
     case "column": {
       const column = context.columns.find((c) => c.id === condition.columnId);
       const name = column?.name ?? "a column that is gone";

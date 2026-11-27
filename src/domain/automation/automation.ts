@@ -184,7 +184,80 @@ export type AutomationCondition =
   /** Who set the change off. `actor` is whoever's write raised the event. */
   | { kind: "actor"; op: "is" | "is_not"; userId: EntityId }
   /** A subitem, or a top-level task. Rules that should not run twice over a tree want this. */
-  | { kind: "item_kind"; is: "item" | "subitem" };
+  | { kind: "item_kind"; is: "item" | "subitem" }
+  /**
+   * When the change happened, in the workspace's timezone: before or after a
+   * moment, or between two (or outside them). `scope: "day"` reads only the time
+   * of day ("before 17:00"); `"week"` reads the day as well ("before Sunday
+   * 17:00", "between Friday 17:00 and Monday 09:00"), the week running Monday
+   * to Sunday. A span that wraps (22:00 to 06:00) runs across midnight, or the
+   * weekend.
+   */
+  | { kind: "time"; op: TimeConditionOp; scope: "day" | "week"; from: ConditionTimePoint; to?: ConditionTimePoint | null };
+
+export const TIME_CONDITION_OPS = ["before", "after", "between", "outside"] as const;
+export type TimeConditionOp = (typeof TIME_CONDITION_OPS)[number];
+
+/** A time of day ("17:00"), and on a weekly check the day too: 0 Monday … 6 Sunday. */
+export interface ConditionTimePoint {
+  day?: number | null;
+  time: string;
+}
+
+export const CONDITION_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
+const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+export function isConditionTime(time: string | null | undefined): boolean {
+  return !!time && TIME_OF_DAY.test(time);
+}
+
+/** Minutes into the day, or into the week (from Monday 00:00). */
+function minutesOf(point: ConditionTimePoint, scope: "day" | "week"): number {
+  const match = TIME_OF_DAY.exec(point.time);
+  const minutes = match ? Number(match[1]) * 60 + Number(match[2]) : 0;
+  const day = Math.min(6, Math.max(0, Math.trunc(Number(point.day ?? 0)) || 0));
+  return scope === "week" ? day * 1440 + minutes : minutes;
+}
+
+/** Where an instant falls in the workspace's own day and week, not the server's. */
+export function wallClockIn(instant: Date, timezone: string): { minuteOfDay: number; dayOfWeek: number } {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short" }).formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // Midnight comes back as "24" from some implementations of hour12: false.
+  return { minuteOfDay: (Number(get("hour")) % 24) * 60 + Number(get("minute")), dayOfWeek: Math.max(0, days.indexOf(get("weekday"))) };
+}
+
+/** Whether a time condition holds at this instant. */
+export function timeConditionHolds(condition: Extract<AutomationCondition, { kind: "time" }>, instant: Date, timezone: string): boolean {
+  const clock = wallClockIn(instant, timezone);
+  const now = condition.scope === "week" ? clock.dayOfWeek * 1440 + clock.minuteOfDay : clock.minuteOfDay;
+  const from = minutesOf(condition.from, condition.scope);
+  if (condition.op === "before") return now < from;
+  if (condition.op === "after") return now >= from;
+  if (!condition.to) return false;
+  const to = minutesOf(condition.to, condition.scope);
+  // From up to (not including) the end; a span that wraps runs across midnight or the weekend.
+  const inside = from <= to ? now >= from && now < to : now >= from || now < to;
+  return condition.op === "between" ? inside : !inside;
+}
+
+/** "before Sunday 17:00", "between 09:00 and 17:00", "not between Friday 17:00 and Monday 09:00". */
+export function describeTimeCondition(condition: Extract<AutomationCondition, { kind: "time" }>): string {
+  const at = (point: ConditionTimePoint | null | undefined) =>
+    point ? `${condition.scope === "week" ? `${CONDITION_WEEKDAYS[Math.min(6, Math.max(0, point.day ?? 0))]} ` : ""}${point.time}` : "a time";
+  switch (condition.op) {
+    case "before":
+      return `it is before ${at(condition.from)}`;
+    case "after":
+      return `it is after ${at(condition.from)}`;
+    case "between":
+      return `it is between ${at(condition.from)} and ${at(condition.to)}`;
+    case "outside":
+      return `it is not between ${at(condition.from)} and ${at(condition.to)}`;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Actions

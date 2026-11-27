@@ -1,4 +1,4 @@
-import type { BoardShareGate, PublicBoardPayload, PublicItemPayload } from "@/domain";
+import type { BoardShareGate, ItemOpenings, PublicBoardPayload, PublicItemPayload } from "@/domain";
 import type { PublicShareTransport } from "@/services/board-share-service";
 import { ShareAccessError, type ShareFailure } from "@/services/board-share-service";
 import type { PublicItemTransport } from "@/services/item-share-service";
@@ -39,6 +39,10 @@ export class HttpItemShareTransport implements PublicItemTransport {
     return this.held.refresh([token, password], (revision) =>
       call<RefreshReply<PublicItemPayload>>(`/api/share/item/${encodeURIComponent(token)}`, { method: "POST", body: JSON.stringify({ password, revision }) }),
     );
+  }
+
+  async openings(token: string, password: string | null): Promise<ItemOpenings> {
+    return call<ItemOpenings>(`/api/share/item/${encodeURIComponent(token)}/openings`, { method: "POST", body: JSON.stringify({ password }) });
   }
 }
 

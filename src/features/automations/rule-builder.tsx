@@ -16,9 +16,11 @@ import type {
   ColumnValue,
   ConditionMatch,
   ConditionOp,
+  ConditionTimePoint,
+  TimeConditionOp,
   EntityId,
 } from "@/domain";
-import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, MAX_ACTIONS_PER_RULE, T_SHIRT_SIZES, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
+import { AUTOMATION_ACTION_KINDS, CONDITION_OPS, CONDITION_WEEKDAYS, MAX_ACTIONS_PER_RULE, T_SHIRT_SIZES, actionsAllowedFor, columnLabels, emptyValueFor } from "@/domain";
 import type { RuleVocabulary } from "@/services";
 import { TEXTUAL_COLUMNS } from "@/services";
 import { cn } from "@/lib/utils";
@@ -616,8 +618,11 @@ function ConditionEditor({
           { value: "group", label: "the group" },
           { value: "actor", label: "who changed it" },
           { value: "item_kind", label: "task or subitem" },
+          { value: "time", label: "the time" },
         ]}
       />
+
+      {condition.kind === "time" && <TimeConditionEditor condition={condition} onChange={onChange} />}
 
       {condition.kind === "column" && (
         <>
@@ -675,6 +680,84 @@ function ConditionEditor({
           onChange={(is) => onChange({ ...condition, is: is as "item" | "subitem" })}
           options={[{ value: "item", label: "is a top-level task" }, { value: "subitem", label: "is a subitem" }]}
         />
+      )}
+    </>
+  );
+}
+
+/**
+ * When the change happened: before or after a time, or between two (or outside
+ * them), every day or on given days of the week. Read in the workspace's timezone.
+ */
+function TimeConditionEditor({ condition, onChange }: { condition: Extract<AutomationCondition, { kind: "time" }>; onChange: (next: AutomationCondition) => void }) {
+  const span = condition.op === "between" || condition.op === "outside";
+  const week = condition.scope === "week";
+  const point = (which: "from" | "to") => {
+    const value = (which === "from" ? condition.from : condition.to) ?? { day: week ? 6 : null, time: "17:00" };
+    const set = (patch: Partial<ConditionTimePoint>) => onChange({ ...condition, [which]: { ...value, ...patch } });
+    return (
+      <>
+        {week && (
+          <Picker
+            value={String(value.day ?? 0)}
+            label={which === "from" ? "Day" : "Until day"}
+            onChange={(day) => set({ day: Number(day) })}
+            options={CONDITION_WEEKDAYS.map((name, index) => ({ value: String(index), label: name }))}
+            testId={`condition-time-${which}-day`}
+          />
+        )}
+        <Input
+          type="time"
+          value={value.time}
+          onChange={(e) => set({ time: e.target.value })}
+          aria-label={which === "from" ? "Time" : "Until"}
+          className="h-8 w-32"
+          data-testid={`condition-time-${which}`}
+        />
+      </>
+    );
+  };
+  return (
+    <>
+      <Picker
+        value={condition.op}
+        label="Test"
+        onChange={(op) => {
+          const next = op as TimeConditionOp;
+          const spans = next === "between" || next === "outside";
+          // A span needs its other end: the working day, or Friday evening to Monday morning.
+          const to = spans ? (condition.to ?? (week ? { day: 4, time: "17:00" } : { time: "17:00" })) : null;
+          const from = spans && !condition.to ? (week ? { day: 0, time: "09:00" } : { time: "09:00" }) : condition.from;
+          onChange({ ...condition, op: next, from, to });
+        }}
+        options={[
+          { value: "before", label: "is before" },
+          { value: "after", label: "is after" },
+          { value: "between", label: "is between" },
+          { value: "outside", label: "is not between" },
+        ]}
+        testId="condition-time-op"
+      />
+      <Picker
+        value={condition.scope}
+        label="Days"
+        onChange={(scope) => {
+          const toWeek = scope === "week";
+          const withDay = (p: ConditionTimePoint | null | undefined, day: number) => (p ? { ...p, day: toWeek ? (p.day ?? day) : null } : p);
+          onChange({ ...condition, scope: scope as "day" | "week", from: withDay(condition.from, span ? 0 : 6)!, to: withDay(condition.to, 4) ?? null });
+        }}
+        options={[
+          { value: "day", label: "any day" },
+          { value: "week", label: "in the week" },
+        ]}
+        testId="condition-time-scope"
+      />
+      {point("from")}
+      {span && (
+        <>
+          <span className="text-[13px] text-muted-foreground">and</span>
+          {point("to")}
+        </>
       )}
     </>
   );
@@ -1257,6 +1340,8 @@ function defaultCondition(vocabulary: RuleVocabulary, kind: AutomationCondition[
       return { kind, op: "is", userId: vocabulary.users[0]?.id ?? "" };
     case "item_kind":
       return { kind, is: "item" };
+    case "time":
+      return { kind, op: "before", scope: "day", from: { time: "17:00" }, to: null };
     default:
       return { kind: "column", columnId: vocabulary.columns[0]?.id ?? "", op: "is_not_empty", value: null };
   }

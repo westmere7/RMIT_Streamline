@@ -59,6 +59,14 @@ test("the receipt's task link: same link for the task's life, archived included,
     expect(first.status(), await first.text()).toBe(200);
     expect((await first.json()).itemId).toBe(itemId);
 
+    // Where else it opens: no board for nobody; the board for a member who can see it.
+    const openings = (jwt?: string) => request.get(`/api/booking-link/${token}/openings`, jwt ? { headers: { Authorization: `Bearer ${jwt}` } } : {});
+    expect((await (await openings()).json()).board).toBeNull();
+    const signedIn = await createClient(URL_, env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, { auth: { persistSession: false } }).auth.signInWithPassword({ email: "admin@rmit.local", password: "admin123" });
+    const jwt = signedIn.data.session!.access_token;
+    expect((await (await openings(jwt)).json()).board).toBe(`/workspace/contents/boards/task-allocation?item=${itemId}`);
+    expect((await request.get(`/api/booking-link/${itemId}.${"0".repeat(40)}/openings`)).status()).toBe(404);
+
     // Tampered: another signature, or this signature on another id.
     expect((await request.get(`/api/booking-link/${itemId}.${"0".repeat(40)}`)).status()).toBe(404);
     expect((await request.get(`/api/booking-link/${"11111111-1111-4111-8111-111111111111"}.${token.split(".")[1]}`)).status()).toBe(404);
@@ -77,6 +85,7 @@ test("the receipt's task link: same link for the task's life, archived included,
     const archived = await open();
     expect(archived.status(), await archived.text()).toBe(200);
     expect((await archived.json()).itemId).toBe(itemId);
+    expect((await (await openings(jwt)).json()).board).toMatch(/\/archive\?item=[0-9a-f-]{36}$/);
 
     // Switched off: closed. Back on: the same link opens again.
     await setLink(false);

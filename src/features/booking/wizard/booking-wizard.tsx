@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { BookingForm as BookingFormData, BookingFormTemplate, BookingPastSummary, BookingReceipt, BookingRequest, BookingStandardKey, BookingStep, User } from "@/domain";
 import { UserAvatar } from "@/components/shared/user-avatar";
-import { serviceById } from "@/domain";
+import { changedParts, NOTHING_CHANGED, serviceById } from "@/domain";
 import { formatShortDate } from "@/lib/dates/dates";
 import { newId } from "@/lib/ids";
 import { colorClasses } from "@/lib/colors";
@@ -277,6 +277,9 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     [request, assets, template, omit, itemId, allAssetTypes, form.version],
   );
 
+  // Sent back: the form has to come back different from what was sent (the server checks too).
+  const unchanged = !!resubmit && !!initial && changedParts(initial, buildRequest()).length === 0;
+
   // Who the wizard is booking as without having to ask: the account first, and
   // then whatever this browser remembers.
   const known = account ?? memory.requester;
@@ -368,6 +371,10 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     // like the rest, and `onSubmit` is the caller's stand-in for one.
     if (preview) {
       submit.mutate(value);
+      return;
+    }
+    if (unchanged) {
+      setFailure(NOTHING_CHANGED);
       return;
     }
     for (const [at, candidate] of steps.entries()) {
@@ -513,6 +520,11 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
               with the same one. A ticket is a number in the team's series now,
               so the team gives it, and the first place it can honestly appear is
               the receipt. */}
+          {last && unchanged && (
+            <p className="text-2xs text-muted-foreground" data-testid="resubmit-unchanged">
+              Change something to send it again.
+            </p>
+          )}
           {last && template.review.submitNote && (
             <p className="text-2xs text-muted-foreground">
               <InlineRichText text={template.review.submitNote} />
@@ -524,7 +536,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
             <ArrowLeft /> Back
           </Button>
           {last ? (
-            <Button type="button" size="lg" onClick={confirm} disabled={busy} className="sm:min-w-44" data-testid="booking-submit">
+            <Button type="button" size="lg" onClick={confirm} disabled={busy || unchanged} className="sm:min-w-44" data-testid="booking-submit">
               {busy ? (
                 <>
                   <LoaderCircle className="animate-spin" /> Booking…

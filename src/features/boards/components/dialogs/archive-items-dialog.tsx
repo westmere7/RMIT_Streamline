@@ -69,7 +69,9 @@ export function ArchiveItemsDialog() {
         ) : asking ? (
           `${linked === ids.length ? (ids.length === 1 ? "It is" : "They are") : `${linked} of them are`} linked to ${pluralize(connected, "item")} on ${boardNames.length > 0 ? boardNames.join(", ") : "another board"}.`
         ) : (
-          "It comes off the board and keeps everything on it. You can restore it from the board's archive."
+          ids.length === 1
+            ? "It comes off the board and keeps everything on it. You can restore it from the board's archive."
+            : "They come off the board and keep everything on them. You can restore them from the board's archive."
         )
       }
       confirmLabel="Archive"

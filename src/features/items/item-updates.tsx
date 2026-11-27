@@ -16,11 +16,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import { COMMENT_REACTIONS, LINK_FIELD_UPDATES, groupReactions, orderUpdates, overviewPinOf, pinStateOf, threadPinOf, type Activity, type Comment, type CommentPinState } from "@/domain";
+import { useBoardContext } from "@/features/boards/board-context";
 import { describeActivity } from "@/features/activity/format-activity";
 import { useCommentMutations, useComments } from "@/features/comments/hooks";
 import { mergeFeed, type FeedEntry, type FeedOrder } from "@/features/items/item-feed";
 import { useItemLinks } from "@/features/items/link-hooks";
-import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
+import { Mention, useMentionLinks, useMentionLinksHere } from "@/features/workspace/mention-link";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canDeleteComment, canEditComment } from "@/lib/permissions/permissions";
@@ -261,7 +262,10 @@ export function ItemUpdates({
 /** One line of the task's history among its updates: who did what, and when. Quieter than an update. */
 function LogLine({ activity, faded }: { activity: Activity; faded: boolean }) {
   const ws = useWorkspace();
-  const links = useMentionLinks();
+  const { board } = useBoardContext();
+  // Everything in this feed is about the task open here, on the board it is on now.
+  const own = React.useMemo(() => new Set(activity.itemId ? [activity.itemId] : []), [activity.itemId]);
+  const links = useMentionLinksHere(board.id, own);
   return (
     <li className="flex items-center gap-2.5 px-1 text-[12.5px] leading-snug text-muted-foreground" data-testid="feed-log">
       <UserAvatar user={ws.userById(activity.actorId)} size="xs" />

@@ -67,7 +67,7 @@ import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { PANEL_WIDTHS, PanelSizeProvider, usePanelSize, useResizablePanel } from "@/features/items/panel-size";
 import { BriefEditedNote, useBriefSource } from "@/features/items/brief-source";
 import { BriefRowValue, RichTextDocument } from "@/features/items/rich-text-field";
-import { Mention, useMentionLinks } from "@/features/workspace/mention-link";
+import { Mention, useMentionLinks, useMentionLinksHere } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -78,6 +78,7 @@ import { cn } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 import { FollowControl } from "@/features/notifications/follow-control";
 import { StarTaskButton } from "@/features/my-work/star-task-button";
+import { SharedPanelMenu } from "@/features/items/shared-panel-menu";
 
 const FIELD_WIDTH = 260;
 
@@ -217,7 +218,9 @@ function ItemDetailPanelBody({ itemId, onClose, overlay = false, shared = false,
   const narrow = useMediaQuery("(max-width: 1023px)");
   // Two panes need the room for two panes. Below that the pop-up is the panel,
   // which is already full screen on a phone.
-  const asPopup = popup && !narrow;
+  // A shared task's page always takes the pop-up's layout, on the page itself
+  // rather than in a dialog: the task is all there is to look at.
+  const asPopup = (popup || shared) && !narrow;
   // Only the panel beside a board takes a width of its own: a shared page fills
   // the page, a phone fills the screen, and the pop-up has its own frame.
   const resizable = !narrow && !shared && !asPopup;
@@ -289,6 +292,30 @@ function ItemDetailPanelBody({ itemId, onClose, overlay = false, shared = false,
    */
   const settledItemId = React.useDeferredValue(loading ? "" : itemId, "");
   const ready = !!item && settledItemId === itemId;
+  // A column named in the task's activity, followed here: brought into view
+  // and marked for a moment, once the fields are on screen.
+  const requestedField = useBoardUiStore((s) => s.requestedField);
+  const setRequestedField = useBoardUiStore((s) => s.setRequestedField);
+  React.useEffect(() => {
+    if (!ready || !requestedField || requestedField.itemId !== itemId) return;
+    let tries = 0;
+    let frame = 0;
+    const find = () => {
+      const row = document.querySelector<HTMLElement>(`[data-testid="panel-field-${requestedField.columnId}"]`);
+      if (row) {
+        row.scrollIntoView({ block: "center", behavior: "smooth" });
+        row.animate?.([{ boxShadow: "inset 0 0 0 2px var(--primary)" }, { boxShadow: "inset 0 0 0 2px transparent" }], { duration: 1800, easing: "ease-in" });
+        row.dataset.requested = "true";
+        setRequestedField(null);
+        return;
+      }
+      // Hidden from the panel, or gone: nothing to show, and nothing left asking.
+      if (++tries < 30) frame = requestAnimationFrame(find);
+      else setRequestedField(null);
+    };
+    frame = requestAnimationFrame(find);
+    return () => cancelAnimationFrame(frame);
+  }, [ready, requestedField, itemId, setRequestedField]);
   // Opening a task is visiting it (Home's recently visited tasks); not on a
   // shared link or the portal, where the reader has no Home.
   useRecordItemVisit(itemId, ready && !shared && !hideMenu);
@@ -395,7 +422,7 @@ function ItemDetailPanelBody({ itemId, onClose, overlay = false, shared = false,
     </>
   );
 
-  if (asPopup) {
+  if (asPopup && !shared) {
     return (
       <Dialog open onOpenChange={(next) => !next && onClose()}>
         {/* Its own frame rather than the panel's: centred, none of the dialog's
@@ -755,7 +782,9 @@ function PanelHeader({
             {/* Anyone signed in who can see the task can follow it, on it or not. */}
             {!shared && !hideMenu && <StarTaskButton item={item} />}
             {!shared && !hideMenu && <FollowControl target={{ boardId: item.boardId, itemId: item.id }} kind="task" size="icon-xs" />}
-            {!hideMenu && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} onJourney={() => setJourneyOpen(true)} shared={shared} popup={popup} />}
+            {/* A shared page has a menu of its own: nothing on it reaches the board. */}
+            {!hideMenu && shared && <SharedPanelMenu />}
+            {!hideMenu && !shared && <PanelMenu item={item} canEdit={canEdit} canManage={canManage} onShare={() => setSharing(true)} onJourney={() => setJourneyOpen(true)} shared={shared} popup={popup} />}
             {!hideClose && (
               <Button variant="ghost" size="icon-xs" onClick={onClose} aria-label="Close panel" data-testid="close-panel">
                 <X />
@@ -1707,6 +1736,10 @@ function SubOwners({ userIds }: { userIds: string[] }) {
 
 function ItemActivity({ item }: { item: Item }) {
   const activity = useItemActivity(item.id);
+  const { board, model } = useBoardContext();
+  // This task and its subitems lead to the board they are on now.
+  const own = React.useMemo(() => new Set([item.id, ...(model.subitemsByParent.get(item.id) ?? []).map((i) => i.id)]), [item.id, model.subitemsByParent]);
+  const links = useMentionLinksHere(board.id, own);
   if (activity.isLoading) {
     return (
       <div className="space-y-2 py-4">
@@ -1714,5 +1747,5 @@ function ItemActivity({ item }: { item: Item }) {
       </div>
     );
   }
-  return <ActivityFeed activities={activity.data ?? []} className="divide-y py-2" emptyTitle="No activity recorded for this item yet." />;
+  return <ActivityFeed activities={activity.data ?? []} className="divide-y py-2" emptyTitle="No activity recorded for this item yet." links={links} />;
 }

@@ -83,10 +83,17 @@ export const routes = {
     const query = options?.itemId ? `?item=${encodeURIComponent(options.itemId)}` : "";
     return `/workspace/${slug}/boards/${boardSlug}/archive${query}`;
   },
-  board: (slug: string, boardSlug: string, options?: { view?: BoardViewKind; itemId?: string | null }) => {
+  /**
+   * A board, or one of its tasks. `tab` opens the task on one of its tabs
+   * (assets, updates, activity) and `field` on one of its columns, brought
+   * into view; both are read once and taken off the address.
+   */
+  board: (slug: string, boardSlug: string, options?: { view?: BoardViewKind; itemId?: string | null; tab?: "assets" | "updates" | "activity" | null; field?: string | null }) => {
     const params = new URLSearchParams();
     if (options?.view && options.view !== "table") params.set("view", options.view);
     if (options?.itemId) params.set("item", options.itemId);
+    if (options?.itemId && options.tab) params.set("tab", options.tab);
+    if (options?.itemId && options.field) params.set("field", options.field);
     const query = params.toString();
     return `/workspace/${slug}/boards/${boardSlug}${query ? `?${query}` : ""}`;
   },

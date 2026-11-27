@@ -11,6 +11,7 @@ import { BugReportService, type BugReportTransport } from "./bug-report-service"
 import { CommentService } from "./comment-service";
 import { DashboardService, type PublicDashboardTransport } from "./dashboard-service";
 import { ItemMoveService } from "./item-move-service";
+import { ItemOpeningsService } from "./item-openings-service";
 import { ReallocationService, type ReallocationTransport } from "./reallocation-service";
 import { ItemAssetService } from "./item-asset-service";
 import { ItemLinkService } from "./item-link-service";
@@ -63,6 +64,8 @@ export interface Services {
   bookingSendBacks: BookingSendBackService;
   /** The link a booking's receipt gives to its task. */
   taskLinks: BookingTaskLinkService;
+  /** Where a task behind a shared link may also be opened: its board, the portal. */
+  itemOpenings: ItemOpeningsService;
   /** Bug reports, onto the App development board. */
   bugReports: BugReportService;
   portals: StakeholderPortalService;
@@ -113,6 +116,10 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
   booking.useDepartments((workspaceId) => portals.ensureDepartments(workspaceId));
   const comments = new CommentService(repos, notifications, links);
+  const itemShares = new ItemShareService(repos, options.itemShareTransport ?? null);
+  const itemOpenings = new ItemOpeningsService(repos, portals);
+  itemShares.useOpenings(itemOpenings);
+  taskLinks.useOpenings(itemOpenings);
   // Constructed in every set so the local provider can drive it from a test and
   // run a quick run without a server. The unattended passes are only ever
   // started from a server: see src/server/automations.ts.
@@ -131,7 +138,7 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     boards,
     boardTemplates: new BoardTemplateService(repos, boards, items),
     shares: new BoardShareService(repos, options.shareTransport ?? null),
-    itemShares: new ItemShareService(repos, options.itemShareTransport ?? null),
+    itemShares,
     dashboard: new DashboardService(repos, options.dashboardTransport ?? null),
     items,
     links,
@@ -139,6 +146,7 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     booking,
     bookingSendBacks: new BookingSendBackService(repos, booking, items, assets, comments, options.sendBackTransport ?? null),
     taskLinks,
+    itemOpenings,
     /** Moving a task to another board, columns mapped and losses reported first. */
     itemMoves: new ItemMoveService(repos, assets),
     /** Sending a task back to Task Allocation, reset as if just booked. */
@@ -183,6 +191,7 @@ export type { ResubmitForm, SendBackTransport } from "./booking-send-back-servic
 export { SendBackLinkError } from "./booking-send-back-service";
 export type { TaskLinkSigner, TaskLinkTransport } from "./booking-task-link-service";
 export { hmacHex } from "./booking-task-link-service";
+export type { BoardSight } from "./item-openings-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";
 export type { PublicItemTransport } from "./item-share-service";
 export type { DashboardShareSettings, PublicDashboardTransport } from "./dashboard-service";

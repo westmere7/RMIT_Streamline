@@ -67,6 +67,17 @@ test.describe("the receipt's task link", () => {
     // Opens the task, read-only, with nobody signed in.
     await page.goto(new URL(link).pathname);
     await expect(page.getByTestId("task-link-page")).toContainText(TITLE, { timeout: 30_000 });
+    // The pop-up's layout, and nothing the team does from here: no allocation hint, no empty links.
+    const linkPage = page.getByTestId("task-link-page");
+    await expect(linkPage.getByTestId("popup-card")).toBeVisible();
+    await expect(linkPage.getByTestId("allocation-section")).toHaveCount(0);
+    await expect(linkPage.getByTestId("linked-items")).toHaveCount(0);
+    await expect(linkPage.getByTestId("panel-menu")).toHaveCount(0);
+    // Its own menu: the link to copy; no board for somebody signed out.
+    await linkPage.getByTestId("shared-menu").click();
+    await expect(page.getByTestId("shared-menu-copy")).toBeVisible();
+    await expect(page.getByTestId("shared-menu-open-board")).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     // Archived by the team: the same link still opens it.
     await signInAs(page, "Danh");
@@ -82,6 +93,10 @@ test.describe("the receipt's task link", () => {
     await page.goto(new URL(link).pathname);
     await expect(page.getByTestId("task-link-page")).toContainText(TITLE, { timeout: 30_000 });
     await expect(page.getByTestId("task-link-archived")).toBeVisible();
+    // Signed in: the menu opens it where it is, the board's archive.
+    await page.getByTestId("shared-menu").click();
+    await page.getByTestId("shared-menu-open-board").click();
+    await expect(page).toHaveURL(/\/workspace\/rmit\/boards\/[^/]+\/archive\?item=/, { timeout: 30_000 });
 
     // Switched off in the editor: the link closes.
     await setTaskLink(page, false);

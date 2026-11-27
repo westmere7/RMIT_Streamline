@@ -272,6 +272,21 @@ function BoardScreen({ boardId }: { boardId: string }) {
     [replaceParams, setOpenItemId, setOpenItemMode, preferredOpen],
   );
   const setRequestedItemTab = useBoardUiStore((s) => s.setRequestedItemTab);
+  const setRequestedField = useBoardUiStore((s) => s.setRequestedField);
+  // A link to one part of a task (from its activity: an asset, a column) opens
+  // the task there, then leaves the address as a plain link to the task.
+  const urlTab = searchParams.get("tab");
+  const urlField = searchParams.get("field");
+  React.useEffect(() => {
+    if (!urlItemId || (!urlTab && !urlField)) return;
+    if (urlField) {
+      setRequestedItemTab({ itemId: urlItemId, tab: "overview" });
+      setRequestedField({ itemId: urlItemId, columnId: urlField });
+    } else if (urlTab === "assets" || urlTab === "updates" || urlTab === "activity") {
+      setRequestedItemTab({ itemId: urlItemId, tab: urlTab });
+    }
+    replaceParams({ tab: null, field: null });
+  }, [urlItemId, urlTab, urlField, setRequestedItemTab, setRequestedField, replaceParams]);
   const openItemUpdates = React.useCallback(
     (id: string) => {
       setRequestedItemTab({ itemId: id, tab: "updates" });

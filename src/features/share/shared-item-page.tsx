@@ -6,6 +6,7 @@ import type { PublicItemPayload } from "@/domain";
 import { useServices } from "@/features/data/data-context";
 import { ShareClosed, ShareGuestProviders, SharePasswordPrompt, SharePlaceholder, ShareSignIn, SHARE_REFRESH_MS } from "@/features/share/share-shell";
 import { SharedItemScreen } from "@/features/share/shared-item-screen";
+import { useReaderOpenings } from "@/features/items/shared-panel-menu";
 import { ShareAccessError } from "@/services";
 import { routes } from "@/lib/routes";
 
@@ -41,6 +42,16 @@ export function SharedItemPage({ token }: { token: string }) {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
+  // Where else it opens for this reader: asked once the task is through its checks, and once only.
+  const openings = useQuery({
+    queryKey: ["share-item-openings", token, password],
+    queryFn: () => services.itemShares.openings(token, password),
+    enabled: !!payload.data,
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const readerOpenings = useReaderOpenings(openings.data);
 
   if (gate.isPending) return <SharePlaceholder label="Opening the shared task…" />;
 
@@ -57,7 +68,7 @@ export function SharedItemPage({ token }: { token: string }) {
   if (payload.data) {
     return (
       <ShareGuestProviders payload={payload.data} path={routes.itemShare(token)}>
-        <SharedItemScreen payload={payload.data} />
+        <SharedItemScreen payload={payload.data} openings={readerOpenings} />
       </ShareGuestProviders>
     );
   }

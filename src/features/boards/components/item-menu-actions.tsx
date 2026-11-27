@@ -111,7 +111,7 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
           { type: "separator" },
         ];
 
-  const sendBack: MenuAction[] = offered && !sentBack ? [{ type: "item", label: "Send back for more information…", icon: <Undo2 />, onSelect: () => setSendingBack(true), testId: "menu-send-back" }] : [];
+  const sendBack: MenuAction[] = offered && !sentBack ? [{ type: "item", label: "Send back", icon: <Undo2 />, accent: true, onSelect: () => setSendingBack(true), testId: "menu-send-back" }] : [];
   // Under Allocate to, inside its section; on its own section where there is no allocating.
   const top: MenuAction[] = allocate.length > 0 ? [...allocate.slice(0, -1), ...sendBack, { type: "separator" }] : sendBack.length > 0 ? [...sendBack, { type: "separator" }] : [];
 

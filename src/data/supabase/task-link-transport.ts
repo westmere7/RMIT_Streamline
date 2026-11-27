@@ -1,4 +1,4 @@
-import type { PublicItemPayload } from "@/domain";
+import type { ItemOpenings, PublicItemPayload } from "@/domain";
 import type { TaskLinkTransport } from "@/services";
 import { callApi } from "./api-call";
 
@@ -6,5 +6,10 @@ import { callApi } from "./api-call";
 export class HttpTaskLinkTransport implements TaskLinkTransport {
   async open(token: string): Promise<PublicItemPayload> {
     return callApi<PublicItemPayload>(`/api/booking-link/${encodeURIComponent(token)}`, { method: "GET" }, { auth: "optional" });
+  }
+
+  /** Signed in or not: the server answers for whoever's session comes with it. */
+  async openings(token: string): Promise<ItemOpenings> {
+    return callApi<ItemOpenings>(`/api/booking-link/${encodeURIComponent(token)}/openings`, { method: "GET" }, { auth: "optional" });
   }
 }

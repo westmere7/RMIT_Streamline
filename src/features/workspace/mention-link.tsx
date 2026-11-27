@@ -34,6 +34,8 @@ export interface MentionLinks {
   boardNamed: (name: string | null | undefined) => string | null;
   /** The board's archive, opened on a task that has been put away. */
   archived: (boardId: string | null | undefined, itemId?: string | null) => string | null;
+  /** One part of a task: its Assets tab, or one of its fields brought into view. */
+  part: (boardId: string | null | undefined, itemId: string | null | undefined, part: { tab: "assets" } | { field: string }) => string | null;
 }
 
 /** Where each kind of mention points in this workspace. */
@@ -64,7 +66,29 @@ export function useMentionLinks(): MentionLinks {
         const board = ws.boardById(boardId);
         return board ? routes.boardArchive(slug, board.slug, itemId ? { itemId } : undefined) : null;
       },
+      part: (boardId, itemId, part) => {
+        const board = ws.boardById(boardId);
+        if (!board || !itemId) return null;
+        return ws.boardPath(board, "tab" in part ? { itemId, tab: part.tab } : { itemId, field: part.field });
+      },
     }),
     [slug, users, ws],
   );
+}
+
+/**
+ * The same links for a feed inside one task. The task may have moved board
+ * since an entry was written; anything about it (or its subitems) leads to the
+ * board it is on now.
+ */
+export function useMentionLinksHere(boardId: string, itemIds: ReadonlySet<string>): MentionLinks {
+  const links = useMentionLinks();
+  return React.useMemo(() => {
+    const here = (b: string | null | undefined, itemId?: string | null) => (itemId && itemIds.has(itemId) ? boardId : b);
+    return {
+      ...links,
+      board: (b, itemId) => links.board(here(b, itemId), itemId),
+      part: (b, itemId, part) => links.part(here(b, itemId), itemId, part),
+    };
+  }, [links, boardId, itemIds]);
 }

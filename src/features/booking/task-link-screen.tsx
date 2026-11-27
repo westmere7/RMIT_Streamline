@@ -5,6 +5,7 @@ import * as React from "react";
 import { useServices } from "@/features/data/data-context";
 import { ShareClosed, ShareGuestProviders, SharePlaceholder, SHARE_REFRESH_MS } from "@/features/share/share-shell";
 import { SharedItemScreen } from "@/features/share/shared-item-screen";
+import { useReaderOpenings } from "@/features/items/shared-panel-menu";
 import { formatShortDate } from "@/lib/dates/dates";
 
 /**
@@ -24,6 +25,16 @@ export function TaskLinkScreen({ token }: { token: string }) {
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
+  // Where else it opens for this reader (its board, the portal): asked once the task has opened, and once only.
+  const openings = useQuery({
+    queryKey: ["task-link-openings", token],
+    queryFn: () => services.taskLinks.openings(token),
+    enabled: !!payload.data,
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const readerOpenings = useReaderOpenings(openings.data);
 
   // An archived task is still the requester's: shown as it is, with a line saying so.
   // The shared-task view leaves archived rows out, so it is handed them as live.
@@ -39,7 +50,7 @@ export function TaskLinkScreen({ token }: { token: string }) {
               The team archived this request on {formatShortDate(archivedAt.slice(0, 10))}.
             </p>
           )}
-          <SharedItemScreen payload={shown} />
+          <SharedItemScreen payload={shown} openings={readerOpenings} />
         </div>
       </ShareGuestProviders>
     );

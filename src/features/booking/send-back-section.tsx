@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Copy, LoaderCircle, Undo2 } from "lucide-react";
+import { Clock3, Copy, Link2, LoaderCircle, Lock, Undo2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 import { RelativeTime } from "@/components/shared/relative-time";
@@ -150,6 +150,18 @@ export function SendBackDialog({ item, open, onOpenChange }: { item: Item; open:
               aria-label="What's missing"
               data-testid="send-back-note"
             />
+            {/* What sending back does to the task, before it is done. */}
+            <ul className="space-y-1.5 text-xs leading-snug text-muted-foreground [&_svg]:mt-px [&_svg]:size-3.5 [&_svg]:shrink-0" data-testid="send-back-warning">
+              <li className="flex gap-2">
+                <Lock className="text-amber-500" /> The task is locked until they answer or you recall it. Updates can still be posted.
+              </li>
+              <li className="flex gap-2">
+                <Clock3 className="text-amber-500" /> Status becomes Waiting, then goes back to the board&apos;s first status.
+              </li>
+              <li className="flex gap-2">
+                <Link2 /> Their answer rewrites what they change. The link works once, for 14 days.
+              </li>
+            </ul>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
@@ -193,7 +205,7 @@ export function SendBackSection({ item }: { item: Item }) {
     return (
       <>
         <Button type="button" variant="outline" size="sm" className="w-full justify-center" onClick={() => setAsking(true)} data-testid="send-back-open">
-          <Undo2 /> Send back for more information
+          <Undo2 /> Send back
         </Button>
         {dialog}
       </>

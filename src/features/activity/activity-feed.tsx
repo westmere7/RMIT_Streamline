@@ -8,7 +8,7 @@ import { RelativeTime } from "@/components/shared/relative-time";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import type { Activity } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
-import { useMentionLinks } from "@/features/workspace/mention-link";
+import { useMentionLinks, type MentionLinks } from "@/features/workspace/mention-link";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 
 export interface ActivityFeedProps {
@@ -17,11 +17,14 @@ export interface ActivityFeedProps {
   showItem?: boolean;
   emptyTitle?: string;
   className?: string;
+  /** Links of the feed's own (a task's feed leads to the board the task is on now). */
+  links?: MentionLinks;
 }
 
-export function ActivityFeed({ activities, showItem = false, emptyTitle = "No activity yet.", className }: ActivityFeedProps) {
+export function ActivityFeed({ activities, showItem = false, emptyTitle = "No activity yet.", className, links: given }: ActivityFeedProps) {
   const ws = useWorkspace();
-  const links = useMentionLinks();
+  const own = useMentionLinks();
+  const links = given ?? own;
   if (activities.length === 0) return <EmptyState icon={History} title={emptyTitle} compact />;
   return (
     <ol className={className}>

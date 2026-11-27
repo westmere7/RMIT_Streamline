@@ -71,8 +71,12 @@ export function useMenuFocusGuard() {
   );
 }
 
-/** The one entry a menu exists for: the brand's colour, and a tint behind it. */
-const ACCENT_ITEM = "bg-primary/[0.07] font-medium text-primary focus:bg-primary/15 focus:text-primary data-[state=open]:bg-primary/15 data-[state=open]:text-primary [&_svg]:text-primary";
+/**
+ * The entries a menu exists for (allocating, sending back): a heavier label in
+ * full-contrast text and the icon in the brand's colour. No tint behind them,
+ * which would read as the row the pointer is on.
+ */
+const ACCENT_ITEM = "font-semibold text-foreground focus:text-foreground data-[state=open]:text-foreground [&_svg]:text-primary!";
 
 /** Renders actions as right-click menu entries. */
 export function renderContext(actions: MenuAction[]): React.ReactNode {

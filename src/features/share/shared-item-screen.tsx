@@ -9,7 +9,7 @@ import { ErrorState } from "@/components/shared/error-state";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
 import { Badge } from "@/components/ui/badge";
 import { SimpleTooltip } from "@/components/ui/tooltip";
-import type { PublicItemPayload } from "@/domain";
+import type { ItemOpenings, PublicItemPayload } from "@/domain";
 import { BoardContextProvider, type BoardContextValue } from "@/features/boards/board-context";
 import { buildBoardModel } from "@/features/boards/board-model";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
@@ -17,6 +17,7 @@ import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
 import { useBoardUpdates } from "@/features/comments/updates";
 import { EMPTY_FILTERS } from "@/stores/board-ui-store";
 import { ItemDetailPanel } from "@/features/items/item-detail-panel";
+import { SharedTaskMenuProvider, type SharedTaskMenu } from "@/features/items/shared-panel-menu";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate } from "@/lib/dates/dates";
 import { cn } from "@/lib/utils";
@@ -29,7 +30,7 @@ import { cn } from "@/lib/utils";
  * board somebody may read but not change. There is no board around it, because
  * the payload holds only this task: nothing to click through to.
  */
-export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
+export function SharedItemScreen({ payload, openings = null }: { payload: PublicItemPayload; openings?: ItemOpenings | null }) {
   const board = payload.board;
   // One size for every shared page this visitor opens: there is no account to keep it on.
   const scale = useVisitorScale(SHARE_SCALE_KEY);
@@ -37,11 +38,16 @@ export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
   const snapshot = useBoardSnapshot(board.id);
   const mutations = useBoardMutations(board.id);
   const [now] = React.useState(() => new Date());
+  // Columns the team keeps out of sight, shown on this page only when asked: nothing is saved.
+  const [showHidden, setShowHidden] = React.useState(false);
+  const hiddenCount = snapshot.data ? snapshot.data.columns.filter((c) => c.hidden || c.hiddenInPanel).length : 0;
 
-  const model = React.useMemo(
-    () => (snapshot.data ? buildBoardModel(snapshot.data, { search: "", filters: EMPTY_FILTERS, sort: null, now, userName: (id) => payload.users.find((u) => u.id === id)?.displayName }) : null),
-    [snapshot.data, now, payload.users],
-  );
+  const model = React.useMemo(() => {
+    if (!snapshot.data) return null;
+    const data = showHidden ? { ...snapshot.data, columns: snapshot.data.columns.map((c) => ({ ...c, hidden: false, hiddenInPanel: false })) } : snapshot.data;
+    return buildBoardModel(data, { search: "", filters: EMPTY_FILTERS, sort: null, now, userName: (id) => payload.users.find((u) => u.id === id)?.displayName });
+  }, [snapshot.data, now, payload.users, showHidden]);
+  const menu = React.useMemo<SharedTaskMenu>(() => ({ openings, hiddenCount, showHidden, setShowHidden }), [openings, hiddenCount, showHidden]);
   const itemIds = React.useMemo(() => payload.items.map((i) => i.id), [payload.items]);
   const updates = useBoardUpdates(board.id, itemIds);
 
@@ -76,10 +82,12 @@ export function SharedItemScreen({ payload }: { payload: PublicItemPayload }) {
       {snapshot.isError && <ErrorState title="Something went wrong while opening this task." error={snapshot.error} onRetry={() => snapshot.refetch()} />}
       {contextValue && (
         <BoardContextProvider value={contextValue}>
-          {/* The panel is the page here, so it fills the width instead of sitting beside a board. */}
-          <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col p-2.5 sm:p-4">
-            <ItemDetailPanel itemId={payload.itemId} onClose={() => undefined} shared />
-          </div>
+          <SharedTaskMenuProvider value={menu}>
+            {/* The pop-up's card, on the page: as wide as the pop-up gets, centred. */}
+            <div className="mx-auto flex min-h-0 w-full max-w-[1320px] flex-1 flex-col p-2.5 sm:p-4">
+              <ItemDetailPanel itemId={payload.itemId} onClose={() => undefined} shared />
+            </div>
+          </SharedTaskMenuProvider>
         </BoardContextProvider>
       )}
     </div>

@@ -1,9 +1,10 @@
-import type { Board, BoardShareGate, EntityId, Item, ItemShare, PublicItemPayload } from "@/domain";
+import type { Board, BoardShareGate, EntityId, Item, ItemOpenings, ItemShare, PublicItemPayload } from "@/domain";
 import { generateShareToken, isPlausibleShareToken, refuseShare, shownColumns, toPublicUser, type ShareLike } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { hashPassword, newSalt } from "@/lib/auth/password-hash";
 import { todayISO } from "@/lib/dates/dates";
+import type { ItemOpeningsService } from "./item-openings-service";
 import {
   checkShareAccess,
   checkSharePassword,
@@ -27,7 +28,12 @@ const ITEM_ACTIVITY_LIMIT = 100;
 export interface PublicItemTransport {
   gate(token: string): Promise<BoardShareGate>;
   load(token: string, password: string | null): Promise<PublicItemPayload>;
+  /** Where else the task opens for whoever is asking (its board, the portal). */
+  openings(token: string, password: string | null): Promise<ItemOpenings>;
 }
+
+/** The local demo's visitor: whoever is using this browser, who is in every workspace it holds. */
+const LOCAL_VIEWER = { userId: "local", isWorkspaceMember: true };
 
 /**
  * Sharing one task by link.
@@ -39,10 +45,16 @@ export interface PublicItemTransport {
  * a link to one brief cannot be walked back into the board it came from.
  */
 export class ItemShareService {
+  private where: ItemOpeningsService | null = null;
+
   constructor(
     private readonly repos: Repositories,
     private readonly transport: PublicItemTransport | null = null,
   ) {}
+
+  useOpenings(openings: ItemOpeningsService): void {
+    this.where = openings;
+  }
 
   /** The task's link, or null when it has never been shared. */
   async get(itemId: EntityId): Promise<ItemShare | null> {
@@ -92,7 +104,15 @@ export class ItemShareService {
 
   async load(token: string, password: string | null): Promise<PublicItemPayload> {
     if (this.transport) return this.transport.load(token, password);
-    return loadSharedItem(this.repos, token, password, { userId: "local", isWorkspaceMember: true });
+    return loadSharedItem(this.repos, token, password, LOCAL_VIEWER);
+  }
+
+  /** Where else the task opens: on the server for the caller; in the local demo, for its one user. */
+  async openings(token: string, password: string | null): Promise<ItemOpenings> {
+    if (this.transport) return this.transport.openings(token, password);
+    const { item, board } = await admitSharedItem(this.repos, token, password, LOCAL_VIEWER);
+    if (!this.where) throw new Error("Item openings are not wired.");
+    return this.where.for(item, board, async () => true);
   }
 }
 
@@ -137,7 +157,7 @@ export async function loadSharedItemIfChanged(
 }
 
 /** The link's checks, in order, and the task still being on its board; the share, task and board when they hold. */
-async function admitSharedItem(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<{ share: ItemShare; item: Item; board: Board }> {
+export async function admitSharedItem(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<{ share: ItemShare; item: Item; board: Board }> {
   const share = isPlausibleShareToken(token) ? await repos.itemShares.getByToken(token) : null;
   const refusal = refuseShare(share, todayISO());
   if (refusal || !share) throw new ShareAccessError(refusal ?? "unknown", shareAccessMessage(refusal ?? "unknown"));

@@ -18,6 +18,23 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.170.0",
+    date: "2026-11-27",
+    title: "One page for a shared task, with somewhere to go from it",
+    changes: [
+      "A task opened from Share by link or from a booking's task link shows the same page, laid out like the pop-up: the card on the left, the columns on the right.",
+      "Its … menu has Copy link; Open in its board when you are signed in and can see that board (its archive once the task is archived); Open in the portal while the portal is open and shows the task; and Show hidden columns, on that page only. Nothing there is saved back to the board.",
+      "The page no longer shows the team's allocation hint or an empty Linked items section; read-only viewers of a board no longer see them either.",
+      "A task link that has been switched off says so in plain words. Archiving several tasks: the confirmation now reads “They come off the board”.",
+      "On a booked task's menu, Allocate to and Send back (now just that) stand out at the top in full-contrast text.",
+      "A sent-back form has to change before it can be sent again: Send again waits until something on the form is different. A reply alone is not enough.",
+      "Sending back and recalling no longer post an update: the task's activity says so, the note included, and the journey keeps every round.",
+      "Automations can check the time: Only if → the time, before or after a time, between two (or not), any day or in the week, such as before Sunday 17:00 or between Friday 17:00 and Monday 09:00. Read at the moment of the change.",
+      "The Send back window says what it does: the task locks, its status becomes Waiting, and the link works once for 14 days.",
+      "In activity, an asset's name opens the task's Assets tab, a column's name opens the task on that field, and the requester's name opens their profile. A task that has moved board since opens where it is now.",
+    ],
+  },
+  {
     version: "0.169.1",
     date: "2026-11-27",
     title: "Booked by Form, held by the database too",

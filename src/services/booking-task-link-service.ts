@@ -1,9 +1,10 @@
-import type { EntityId, PublicItemPayload } from "@/domain";
+import type { Board, EntityId, Item, ItemOpenings, PublicItemPayload } from "@/domain";
 import { parseTaskLinkToken, taskLinkPath, taskLinkToken } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { ShareAccessError, shareAccessMessage } from "./board-share-service";
 import { bookingFormForSubmission } from "./booking-service";
 import { readPublicItem } from "./item-share-service";
+import type { ItemOpeningsService } from "./item-openings-service";
 
 /** Works out a task's signature. The server's uses a secret only it holds; the local demo's, one of its own. */
 export type TaskLinkSigner = (itemId: EntityId) => Promise<string>;
@@ -11,6 +12,8 @@ export type TaskLinkSigner = (itemId: EntityId) => Promise<string>;
 /** How a visitor's browser asks for a task by its link on Supabase: the server checks the signature. */
 export interface TaskLinkTransport {
   open(token: string): Promise<PublicItemPayload>;
+  /** Where else the task opens for whoever is asking (its board, the portal). */
+  openings(token: string): Promise<ItemOpenings>;
 }
 
 /**
@@ -23,6 +26,7 @@ export interface TaskLinkTransport {
  */
 export class BookingTaskLinkService {
   private signer: TaskLinkSigner = localSigner;
+  private where: ItemOpeningsService | null = null;
 
   constructor(
     private readonly repos: Repositories,
@@ -34,6 +38,10 @@ export class BookingTaskLinkService {
     this.signer = signer;
   }
 
+  useOpenings(openings: ItemOpeningsService): void {
+    this.where = openings;
+  }
+
   /** The task's link, as a path under the site. */
   async linkFor(itemId: EntityId, workspaceSlug: string): Promise<string> {
     return taskLinkPath(workspaceSlug, taskLinkToken(itemId, await this.signer(itemId)));
@@ -42,6 +50,24 @@ export class BookingTaskLinkService {
   /** The task behind a link, read-only. */
   async open(token: string): Promise<PublicItemPayload> {
     if (this.transport) return this.transport.open(token);
+    const { item, board } = await this.admit(token);
+    return readPublicItem(this.repos, item, board, null);
+  }
+
+  /** Where else the task opens: on the server for the caller; in the local demo, for its one user. */
+  async openings(token: string): Promise<ItemOpenings> {
+    if (this.transport) return this.transport.openings(token);
+    const { item, board } = await this.admit(token);
+    if (!this.where) throw new Error("Item openings are not wired.");
+    return this.where.for(item, board, async () => true);
+  }
+
+  /**
+   * The link's checks, in order: the signature, a booked task that still
+   * exists (archived is still that task), and the form's switch as it is now.
+   * The task and its board when they hold.
+   */
+  async admit(token: string): Promise<{ item: Item; board: Board }> {
     const parsed = parseTaskLinkToken(token);
     const unknown = () => new ShareAccessError("unknown", shareAccessMessage("unknown"));
     if (!parsed || !sameText(parsed.signature, await this.signer(parsed.itemId))) throw unknown();
@@ -54,8 +80,8 @@ export class BookingTaskLinkService {
     if (!workspace) throw unknown();
     // The form's switch, as it is now: off closes every link it gave out.
     const live = await bookingFormForSubmission(this.repos, workspace, null);
-    if (live.template.review.shareTaskLink !== true) throw new ShareAccessError("off", shareAccessMessage("off"));
-    return readPublicItem(this.repos, item, board, null);
+    if (live.template.review.shareTaskLink !== true) throw new ShareAccessError("off", "The team has turned off task links on their booking form.");
+    return { item, board };
   }
 }
 

@@ -49,6 +49,9 @@ export interface StoredBookingRequest {
 /** What a second send-back of the same task is told, however it lost the race. */
 export const ALREADY_WAITING = "This task is already waiting on its requester.";
 
+/** A sent-back form has to come back different: the team asked for something that was missing. */
+export const NOTHING_CHANGED = "Change something before sending it again: the team asked for what was missing.";
+
 /** How long a requester has to answer before the link stops working. */
 export const SEND_BACK_DAYS = 14;
 /** Long enough that nobody guesses it; the shape the database checks. */
