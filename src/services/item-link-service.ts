@@ -727,7 +727,7 @@ function linkActivity(eventType: "ITEM_LINKED" | "ITEM_UNLINKED", item: Item, bo
     itemId: item.id,
     actorId,
     eventType,
-    metadata: { itemName: item.name, linkedItemName: other.name, linkedBoardName: otherBoard.name },
+    metadata: { itemName: item.name, linkedItemName: other.name, linkedBoardName: otherBoard.name, linkedItemId: other.id, linkedBoardId: otherBoard.id },
   };
 }
 

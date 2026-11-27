@@ -18,6 +18,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.168.1",
+    date: "2026-11-27",
+    title: "Clickable profiles, Send back in the task menu",
+    changes: [
+      "A profile's figures open the list they count: Overdue tasks opens Tasks on Overdue, Assets overdue opens Assets on Overdue, and so on. Each deliverable opens its task.",
+      "In activity, task and board names lead where they say, the other side of a link included, and look like links.",
+      "A task's menu has Send back for more information under Allocate to, and Recall send back while it waits.",
+      "The Internal portal shows Sent back too, on the boards you can edit.",
+      "Booked by Form takes new bookings only: nothing can be moved or dragged back into it, booked or not.",
+      "Sending back from the panel keeps the Link ready window open; the requester's form shows who asked in a box of its own.",
+    ],
+  },
+  {
     version: "0.168.0",
     date: "2026-11-27",
     title: "Send a booking back for what's missing",

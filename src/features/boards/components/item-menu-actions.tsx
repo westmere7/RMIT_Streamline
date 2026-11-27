@@ -1,11 +1,14 @@
 "use client";
 
 import { Archive, ArrowRightLeft, Copy, CornerDownRight, Hash, Link2, Maximize2, Pencil, PictureInPicture2, Plus, Share2, SquareKanban, Trash2, Undo2 } from "lucide-react";
-import type * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import type { BoardGroup, Item } from "@/domain";
-import { useBoardContext } from "@/features/boards/board-context";
+import { useBoardContext, useCanEditUnlocked, useItemSentBack } from "@/features/boards/board-context";
+import { SendBackDialog, recallSendBack, useSendBackOffer } from "@/features/booking/send-back-section";
+import { useServices } from "@/features/data/data-context";
 import { useAllocation } from "@/features/booking/use-allocation";
 import { useTaskMenuExtras } from "@/features/items/use-task-menu-extras";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -47,9 +50,23 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
   const extras = useTaskMenuExtras(item, canEdit);
   const allocation = useAllocation();
   const phone = options.phone ?? false;
+  // Sending back for what's missing: offered under Allocate; while it waits, Recall in its place.
+  const services = useServices();
+  const queryClient = useQueryClient();
+  const sentBack = useItemSentBack(item.id);
+  const canAct = useCanEditUnlocked();
+  const { offered } = useSendBackOffer(item);
+  const [sendingBack, setSendingBack] = React.useState(false);
+  const sendBackDialog = sendingBack ? <SendBackDialog item={item} open onOpenChange={setSendingBack} /> : null;
+  const dialogs = (
+    <>
+      {extras.dialogs}
+      {sendBackDialog}
+    </>
+  );
 
   // A view over somewhere else: Open, then that page's own entries, and nothing that would act on the view's copy.
-  if (itemMenu) return { actions: [{ type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) }, ...itemMenu.extra(item)], dialogs: extras.dialogs };
+  if (itemMenu) return { actions: [{ type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) }, ...itemMenu.extra(item)], dialogs };
 
   const open: MenuAction[] = [
     { type: "item", label: "Open", icon: <Maximize2 />, onSelect: () => openItem(item.id) },
@@ -59,10 +76,15 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
 
   // A subitem lives in its parent's group and goes where its task goes: open, rename, delete.
   if (item.parentItemId) {
-    if (!canEdit) return { actions: open, dialogs: extras.dialogs };
-    return { actions: [...open, { type: "separator" }, { type: "item", label: "Rename", icon: <Pencil />, onSelect: handlers.onRename }, { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: handlers.onDelete }], dialogs: extras.dialogs };
+    if (!canEdit) return { actions: open, dialogs };
+    return { actions: [...open, { type: "separator" }, { type: "item", label: "Rename", icon: <Pencil />, onSelect: handlers.onRename }, { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: handlers.onDelete }], dialogs };
   }
-  if (!canEdit) return { actions: [...open, ...extras.reading], dialogs: extras.dialogs };
+  // Sent back and waiting: locked, so reading, and the way out.
+  if (sentBack && canAct) {
+    const recall: MenuAction = { type: "item", label: "Recall send back", icon: <Undo2 />, accent: true, onSelect: () => void recallSendBack(services, queryClient, item, ws.currentUser.id), testId: "menu-recall-send-back" };
+    return { actions: [recall, { type: "separator" }, ...open, ...extras.reading], dialogs };
+  }
+  if (!canEdit) return { actions: [...open, ...extras.reading], dialogs };
 
   // On Task Allocation: send this request, or the selection it belongs to, straight to a team's board.
   const allocating = options.allocating && options.allocating.length > 0 ? [...options.allocating] : [item.id];
@@ -89,9 +111,13 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
           { type: "separator" },
         ];
 
+  const sendBack: MenuAction[] = offered && !sentBack ? [{ type: "item", label: "Send back for more information…", icon: <Undo2 />, onSelect: () => setSendingBack(true), testId: "menu-send-back" }] : [];
+  // Under Allocate to, inside its section; on its own section where there is no allocating.
+  const top: MenuAction[] = allocate.length > 0 ? [...allocate.slice(0, -1), ...sendBack, { type: "separator" }] : sendBack.length > 0 ? [...sendBack, { type: "separator" }] : [];
+
   const targets = model.moveTargetsFor([item.id]).filter((g) => g.id !== group.id);
   const actions: MenuAction[] = [
-    ...allocate,
+    ...top,
     ...open,
     ...extras.reading,
     { type: "separator" },
@@ -136,5 +162,5 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
     { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },
     { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: handlers.onDelete },
   ];
-  return { actions, dialogs: extras.dialogs };
+  return { actions, dialogs };
 }

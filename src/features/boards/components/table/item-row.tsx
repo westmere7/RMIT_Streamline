@@ -13,7 +13,7 @@ import { useAllocation, useMovingItems } from "@/features/booking/use-allocation
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
-import { ItemEditScope, useBoardContext } from "@/features/boards/board-context";
+import { ItemEditScope, useBoardContext, useCanEditUnlocked } from "@/features/boards/board-context";
 import { TicketCell, TicketSpacer } from "@/features/boards/components/table/ticket-cell";
 import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
@@ -43,6 +43,7 @@ export const ItemRow = React.memo(function ItemRow(props: ItemRowProps) {
 
 function ItemRowBody({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
   const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates } = useBoardContext();
+  const canEditUnlocked = useCanEditUnlocked();
   const layout = useTableLayout();
   const showTicket = useShowTicket();
   // Boolean selectors, not the whole UI slice: on a board of a few hundred rows
@@ -298,7 +299,8 @@ function ItemRowBody({ item, group, dndEnabled, widthOverrides }: ItemRowProps) 
                       <Maximize2 className="size-3.5" />
                     </button>
                   </SimpleTooltip>
-                  {canEdit && (
+                  {/* While it waits on its requester the row is locked, and Recall lives here. */}
+                  {(canEdit || canEditUnlocked) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button

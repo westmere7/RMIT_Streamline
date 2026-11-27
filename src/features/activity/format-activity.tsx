@@ -52,34 +52,40 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
   const m = activity.metadata;
   const item = includeItem && m.itemName ? <> on <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention></> : null;
   const synced = m.syncedFrom ? <span className="text-muted-foreground"> · synced from {m.syncedFrom}</span> : null;
+  // The task this entry is about: where a name in it (an asset, a new name) leads.
+  const task = links?.board(activity.boardId, activity.itemId) ?? null;
+  // The other side of a link: the task itself when the entry kept its id, else its board by name.
+  const linkedTask = m.linkedBoardId ? links?.board(m.linkedBoardId, m.linkedItemId) : null;
+  const linkedBoard = (m.linkedBoardId ? links?.board(m.linkedBoardId) : null) ?? links?.boardNamed(m.linkedBoardName) ?? null;
+  const quiet = "font-normal text-muted-foreground";
 
   switch (activity.eventType) {
     case "ITEM_CREATED":
       return (
         <>
           <Mention href={links?.person(activity.actorId)}>{actor}</Mention> created <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention>
-          {m.groupName ? <> in {m.groupName}</> : null}
+          {m.groupName ? <> in <Mention href={links?.board(activity.boardId)} className={quiet}>{m.groupName}</Mention></> : null}
         </>
       );
     case "ITEM_RENAMED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> renamed <Mention>{m.from}</Mention> to <Mention>{m.to}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> renamed <Mention>{m.from}</Mention> to <Mention href={task}>{m.to}</Mention>
           {synced}
         </>
       );
     case "ITEM_LINKED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> linked {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "this item"} with <Mention>{m.linkedItemName}</Mention>
-          {m.linkedBoardName ? <span className="text-muted-foreground"> on {m.linkedBoardName}</span> : null}
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> linked {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "this item"} with <Mention href={linkedTask}>{m.linkedItemName}</Mention>
+          {m.linkedBoardName ? <span className="text-muted-foreground"> on <Mention href={linkedBoard} className={quiet}>{m.linkedBoardName}</Mention></span> : null}
         </>
       );
     case "ITEM_UNLINKED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> unlinked {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "this item"} from <Mention>{m.linkedItemName}</Mention>
-          {m.linkedBoardName ? <span className="text-muted-foreground"> on {m.linkedBoardName}</span> : null}
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> unlinked {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "this item"} from <Mention href={linkedTask}>{m.linkedItemName}</Mention>
+          {m.linkedBoardName ? <span className="text-muted-foreground"> on <Mention href={linkedBoard} className={quiet}>{m.linkedBoardName}</Mention></span> : null}
         </>
       );
     case "ITEM_MOVED": {
@@ -89,10 +95,10 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
           <Mention href={links?.person(activity.actorId)}>{actor}</Mention> moved {includeItem && m.itemName ? <Mention href={links?.board(activity.boardId, activity.itemId)}>{m.itemName}</Mention> : "the item"}
           {ends.to ? (
             <>
-              {" "}to <Mention>{ends.to}</Mention>
+              {" "}to <Mention href={m.toGroupName ? links?.board(activity.boardId) : links?.boardNamed(ends.to)}>{ends.to}</Mention>
             </>
           ) : null}
-          {ends.from ? <span className="text-muted-foreground"> from {ends.from}</span> : null}
+          {ends.from ? <span className="text-muted-foreground"> from {m.toGroupName ? ends.from : <Mention href={links?.boardNamed(ends.from)} className={quiet}>{ends.from}</Mention>}</span> : null}
         </>
       );
     }
@@ -175,7 +181,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
     case "ASSET_ADDED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> added {m.assetName ? <Mention>{m.assetName}</Mention> : <Mention>{`${m.count ?? 0} assets`}</Mention>} to the asset list
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> added {m.assetName ? <Mention href={task}>{m.assetName}</Mention> : <Mention>{`${m.count ?? 0} assets`}</Mention>} to the asset list
           {item}
         </>
       );
@@ -189,13 +195,13 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
             <Mention href={links?.person(activity.actorId)}>{actor}</Mention>
             {added.length > 0 && (
               <>
-                {" "}put <People ids={added} users={users} links={links} /> in charge of <Mention>{m.assetName}</Mention>
+                {" "}put <People ids={added} users={users} links={links} /> in charge of <Mention href={task}>{m.assetName}</Mention>
               </>
             )}
             {added.length > 0 && removed.length > 0 && " and"}
             {removed.length > 0 && (
               <>
-                {" "}took <People ids={removed} users={users} links={links} /> off {added.length > 0 ? "it" : <Mention>{m.assetName}</Mention>}
+                {" "}took <People ids={removed} users={users} links={links} /> off {added.length > 0 ? "it" : <Mention href={task}>{m.assetName}</Mention>}
               </>
             )}
             {item}
@@ -204,7 +210,7 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
       }
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> set {m.assetField} on <Mention>{m.assetName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> set {m.assetField} on <Mention href={task}>{m.assetName}</Mention>
           {m.from ? (
             <>
               {" "}from <Mention>{m.from}</Mention>
@@ -217,21 +223,21 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
     case "ASSET_REMOVED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> removed <Mention>{m.assetName}</Mention> from the asset list
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> removed <Mention href={task}>{m.assetName}</Mention> from the asset list
           {item}
         </>
       );
     case "ASSET_COMPLETED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> ticked off <Mention>{m.assetName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> ticked off <Mention href={task}>{m.assetName}</Mention>
           {item}
         </>
       );
     case "ASSET_REOPENED":
       return (
         <>
-          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> reopened <Mention>{m.assetName}</Mention>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> reopened <Mention href={task}>{m.assetName}</Mention>
           {item}
         </>
       );

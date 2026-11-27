@@ -76,6 +76,9 @@ export interface ActivityMetadata {
   /** For ITEM_LINKED / ITEM_UNLINKED: the item on the other side of the link. */
   linkedItemName?: string;
   linkedBoardName?: string;
+  /** The other task and its board, so the line can lead there (since v0.168.1; older entries have names only). */
+  linkedItemId?: EntityId;
+  linkedBoardId?: EntityId;
   /** Set when the change was mirrored from a linked item rather than made directly. */
   syncedFrom?: string;
   /** For the ASSET_* events: which deliverable, and which of its details changed. */

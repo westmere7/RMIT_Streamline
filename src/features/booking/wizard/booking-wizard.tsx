@@ -462,7 +462,14 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
             emailCheck={emailCheck}
             identity={
               resubmit ? (
-                initial ? <p className="text-[13px] text-muted-foreground" data-testid="resubmit-identity">As {initial.requesterName || initial.requesterEmail}</p> : null
+                // Where the account card sits, the same height as the department beside it.
+                initial ? (
+                  <div className="flex h-11 min-w-0 items-center gap-2 rounded-lg border border-border/70 bg-surface/60 px-3 text-[13px]" data-testid="resubmit-identity">
+                    <span className="shrink-0 text-muted-foreground">Requested by</span>
+                    <span className="truncate font-medium">{initial.requesterName || initial.requesterEmail}</span>
+                    {initial.requesterName && initial.requesterEmail && <span className="truncate text-muted-foreground">· {initial.requesterEmail}</span>}
+                  </div>
+                ) : null
               ) : <Identity
                 account={account ?? null}
                 known={known ?? null}

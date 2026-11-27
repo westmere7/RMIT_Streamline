@@ -139,9 +139,12 @@ export class ItemService {
     private readonly notifications: NotificationService,
   ) {}
 
-  /** Refuses moving a task a team made into Task Allocation's intake group: it holds bookings only. */
+  /**
+   * Refuses moving any task into Task Allocation's intake group. New bookings
+   * land there and nothing ever goes back in, booked or not (decided 2026-11-27).
+   */
   private async refuseIntakeMove(boardId: EntityId, groups: readonly BoardGroup[], toGroupId: EntityId, moving: readonly Item[]): Promise<void> {
-    if (!moving.some((i) => !i.parentItemId && !i.bookedVia)) return;
+    if (!moving.some((i) => !i.parentItemId)) return;
     if (intakeGroupOf(groups)?.id !== toGroupId) return;
     if ((await this.repos.boards.getById(boardId))?.system !== "TASK_ALLOCATION") return;
     throw new Error(INTAKE_MOVE_MESSAGE);

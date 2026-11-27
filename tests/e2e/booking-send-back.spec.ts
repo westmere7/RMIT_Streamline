@@ -139,6 +139,20 @@ test.describe("sending a booking back", () => {
     await expect(panel.getByText(/Changed: Brief\./).first()).toBeVisible();
     await panel.getByRole("tab", { name: /Overview/ }).click();
 
+    // From the row's menu too: Send back sits under Allocate to, and Recall takes its place while it waits.
+    await clickRowButton(request, `More actions for ${TITLE}`);
+    await page.getByTestId("menu-send-back").click();
+    const fromMenu = page.getByTestId("send-back-dialog");
+    await fromMenu.getByTestId("send-back-note").fill("From the menu: which size?");
+    await fromMenu.getByTestId("send-back-submit").click();
+    await expect(fromMenu.getByTestId("send-back-link")).toBeVisible({ timeout: 20_000 });
+    await fromMenu.getByRole("button", { name: "Done" }).click();
+    await expect(request.getByTestId("sent-back-chip")).toBeVisible({ timeout: 20_000 });
+    await clickRowButton(request, `More actions for ${TITLE}`);
+    await expect(page.getByTestId("menu-send-back")).toHaveCount(0);
+    await page.getByTestId("menu-recall-send-back").click();
+    await expect(request.getByTestId("sent-back-chip")).toHaveCount(0, { timeout: 20_000 });
+
     // A second round, recalled this time.
     await panel.getByTestId("send-back-open").click();
     await page.getByTestId("send-back-note").fill("And the size?");
@@ -154,6 +168,7 @@ test.describe("sending a booking back", () => {
     await expect(journey).toContainText("Sent back to Priya Nair", { timeout: 20_000 });
     await expect(journey).toContainText("Sent again by Priya Nair");
     await expect(journey).toContainText("Sent back to Priya Nair (2nd time)");
+    await expect(journey).toContainText("Sent back to Priya Nair (3rd time)");
     await expect(journey).toContainText("Send back recalled");
   });
 });

@@ -16,7 +16,7 @@ export interface ProfileBoard {
 
 /** The deliverables with this person's name on them, and what they add up to. */
 export interface ProfileAssets {
-  /** Outstanding first, then the most recently finished. */
+  /** Every line, outstanding first, then the most recently finished: the page shows the head and filters the rest. */
   lines: ItemAsset[];
   /** How many lines in total, done or not. */
   total: number;
@@ -54,8 +54,6 @@ export interface ProfileWork {
 export type ProfileView = ProfileSummary & ProfileWork;
 
 const ACTIVITY_SHOWN = 12;
-/** A person's asset list can be long; the page shows the head of it. */
-const ASSETS_SHOWN = 12;
 
 /**
  * Everything the profile page shows about one person: who they are, the teams
@@ -186,8 +184,7 @@ function summariseAssets(theirs: readonly ItemAsset[]): ProfileAssets {
         if (open !== 0) return open;
         if (a.completedAt && b.completedAt) return b.completedAt.localeCompare(a.completedAt);
         return (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999");
-      })
-      .slice(0, ASSETS_SHOWN),
+      }),
     total: theirs.length,
     done,
     units: theirs.reduce((sum, asset) => sum + assetCount(asset), 0),

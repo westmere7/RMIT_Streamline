@@ -55,8 +55,25 @@ export function ProfilePage({ userId }: { userId: string }) {
   const assetTypes = useWorkspaceList(ws.workspace.id, "ASSET_TYPES");
   const links = useMentionLinks();
   const [editing, setEditing] = React.useState(false);
-  const [taskFilter, setTaskFilter] = React.useState<"open" | "done">("open");
+  const [taskFilter, setTaskFilter] = React.useState<TaskFilter>("open");
+  const [assetFilter, setAssetFilter] = React.useState<AssetFilter>("todo");
   const [showAll, setShowAll] = React.useState(false);
+  const [showAllAssets, setShowAllAssets] = React.useState(false);
+  const [tab, setTab] = React.useState("tasks");
+  const listsRef = React.useRef<HTMLDivElement>(null);
+  /** A figure opens the list it counts, filtered to what it counted. */
+  const showTasks = (filter: TaskFilter) => {
+    setTab("tasks");
+    setTaskFilter(filter);
+    setShowAll(false);
+    listsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const showAssets = (filter: AssetFilter) => {
+    setTab("assets");
+    setAssetFilter(filter);
+    setShowAllAssets(false);
+    listsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const isSelf = me.id === userId;
 
@@ -95,10 +112,26 @@ export function ProfilePage({ userId }: { userId: string }) {
 
   const open = tasks.filter((t) => !t.isDone);
   const done = tasks.filter((t) => t.isDone);
-  const listed = taskFilter === "open" ? open : done;
   const buckets = { overdue: 0, today: 0, thisWeek: 0, later: 0, noDate: 0 };
   for (const task of open) buckets[bucketDate(task.dueDate)] += 1;
-  const inProgress = open.filter((t) => isProgressLabel(t.statusColumn, t.status?.id)).length;
+  const dueThisWeek = (date: string | null | undefined) => ["today", "thisWeek"].includes(bucketDate(date));
+  const taskLists: Record<TaskFilter, typeof tasks> = {
+    open,
+    overdue: open.filter((t) => bucketDate(t.dueDate) === "overdue"),
+    week: open.filter((t) => dueThisWeek(t.dueDate)),
+    progress: open.filter((t) => isProgressLabel(t.statusColumn, t.status?.id)),
+    done,
+  };
+  const listed = taskLists[taskFilter];
+  const inProgress = taskLists.progress.length;
+  // The same tests the figures use, over every line: still to do, past due, due this week, done.
+  const assetLists: Record<AssetFilter, typeof assets.lines> = {
+    todo: assets.lines.filter((a) => !a.completedAt),
+    overdue: assets.lines.filter((a) => !a.completedAt && bucketDate(a.dueDate) === "overdue"),
+    week: assets.lines.filter((a) => !a.completedAt && dueThisWeek(a.dueDate)),
+    done: assets.lines.filter((a) => !!a.completedAt),
+  };
+  const assetsListed = assetLists[assetFilter];
   const stuck = open.filter((t) => isStuckLabel(t.statusColumn, t.status?.id)).length;
   const urgent = open.filter((t) => priorityStrength(t.priority?.id) >= 2).length;
 
@@ -189,18 +222,18 @@ export function ProfilePage({ userId }: { userId: string }) {
           <>
             {/* ---- What they are carrying, in figures: tasks, then deliverables ------ */}
             <div className="mt-3 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border/70 bg-border/60 shadow-xs lg:grid-cols-4" data-testid="profile-figures">
-              <Figure label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length}`} />
-              <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today} due today`} />
-              <Figure label="Due this week" value={buckets.today + buckets.thisWeek} hint={`${buckets.later} later · ${buckets.noDate} no date`} />
-              <Figure label="In progress" value={inProgress} hint={`${stuck} stuck · ${urgent} high priority`} />
-              <Figure label="Assets done" value={`${assets.done}/${assets.total}`} hint={`${assetsPercent}%${assets.units === assets.total ? "" : ` · ${assets.units} units`}`} progress={assets.total > 0 ? assets.done / assets.total : undefined} />
-              <Figure label="Assets overdue" value={assets.overdue} urgent={assets.overdue > 0} hint="past their due date" />
-              <Figure label="Assets due this week" value={assets.dueThisWeek} hint={`${assets.total - assets.done - assets.overdue - assets.dueThisWeek} later or undated`} />
-              <Figure label="Units to make" value={assets.openUnits} hint={`of ${assets.units} in total`} />
+              <Figure label="Open tasks" value={open.length} hint={`${done.length} done of ${tasks.length}`} onOpen={() => showTasks("open")} />
+              <Figure label="Overdue tasks" value={buckets.overdue} urgent={buckets.overdue > 0} hint={`${buckets.today} due today`} onOpen={() => showTasks("overdue")} />
+              <Figure label="Due this week" value={buckets.today + buckets.thisWeek} hint={`${buckets.later} later · ${buckets.noDate} no date`} onOpen={() => showTasks("week")} />
+              <Figure label="In progress" value={inProgress} hint={`${stuck} stuck · ${urgent} high priority`} onOpen={() => showTasks("progress")} />
+              <Figure label="Assets done" value={`${assets.done}/${assets.total}`} hint={`${assetsPercent}%${assets.units === assets.total ? "" : ` · ${assets.units} units`}`} progress={assets.total > 0 ? assets.done / assets.total : undefined} onOpen={() => showAssets("done")} />
+              <Figure label="Assets overdue" value={assets.overdue} urgent={assets.overdue > 0} hint="past their due date" onOpen={() => showAssets("overdue")} />
+              <Figure label="Assets due this week" value={assets.dueThisWeek} hint={`${assets.total - assets.done - assets.overdue - assets.dueThisWeek} later or undated`} onOpen={() => showAssets("week")} />
+              <Figure label="Units to make" value={assets.openUnits} hint={`of ${assets.units} in total`} onOpen={() => showAssets("todo")} />
             </div>
 
             {/* ---- The lists, one at a time ------------------------------------------ */}
-            <Tabs defaultValue="tasks" className="mt-3 rounded-xl border border-border/70 bg-card shadow-xs">
+            <Tabs value={tab} onValueChange={setTab} ref={listsRef} className="mt-3 scroll-mt-4 rounded-xl border border-border/70 bg-card shadow-xs">
               <UnderlineTabsList className="px-3">
                 <TabLabel value="tasks" icon={ListChecks} label="Tasks" count={tasks.length} />
                 <TabLabel value="assets" icon={Boxes} label="Assets" count={assets.total} />
@@ -213,8 +246,8 @@ export function ProfilePage({ userId }: { userId: string }) {
                   <Muted>Nothing assigned right now.</Muted>
                 ) : (
                   <>
-                    <div role="radiogroup" aria-label="Which tasks" className="mb-2 inline-flex items-center rounded-full border border-border/70 p-0.5">
-                      {(["open", "done"] as const).map((key) => (
+                    <div role="radiogroup" aria-label="Which tasks" className="mb-2 inline-flex flex-wrap items-center rounded-full border border-border/70 p-0.5">
+                      {TASK_FILTERS.map((key) => (
                         <button
                           key={key}
                           type="button"
@@ -227,12 +260,12 @@ export function ProfilePage({ userId }: { userId: string }) {
                           className={cn("h-7 rounded-full px-3 text-2xs font-medium transition-colors", taskFilter === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
                           data-testid={`profile-tasks-${key}`}
                         >
-                          {key === "open" ? `Open ${open.length}` : `Done ${done.length}`}
+                          {`${TASK_FILTER_LABEL[key]} ${taskLists[key].length}`}
                         </button>
                       ))}
                     </div>
                     {listed.length === 0 ? (
-                      <Muted>{taskFilter === "open" ? "Nothing open right now." : "Nothing finished yet."}</Muted>
+                      <Muted>{TASK_FILTER_EMPTY[taskFilter]}</Muted>
                     ) : (
                       <ul className="divide-y divide-border/50">
                         {(showAll ? listed : listed.slice(0, TASKS_SHOWN)).map((task) => {
@@ -273,13 +306,36 @@ export function ProfilePage({ userId }: { userId: string }) {
                 {assets.total === 0 ? (
                   <Muted>No deliverables assigned.</Muted>
                 ) : (
+                  <>
+                  <div role="radiogroup" aria-label="Which deliverables" className="mb-2 inline-flex flex-wrap items-center rounded-full border border-border/70 p-0.5">
+                    {ASSET_FILTERS.map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        role="radio"
+                        aria-checked={assetFilter === key}
+                        onClick={() => {
+                          setAssetFilter(key);
+                          setShowAllAssets(false);
+                        }}
+                        className={cn("h-7 rounded-full px-3 text-2xs font-medium transition-colors", assetFilter === key ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground")}
+                        data-testid={`profile-assets-${key}`}
+                      >
+                        {`${ASSET_FILTER_LABEL[key]} ${assetLists[key].length}`}
+                      </button>
+                    ))}
+                  </div>
+                  {assetsListed.length === 0 ? (
+                    <Muted>{ASSET_FILTER_EMPTY[assetFilter]}</Muted>
+                  ) : (
                   <ul className="divide-y divide-border/50" data-testid="profile-assets">
-                    {assets.lines.map((asset) => {
+                    {(showAllAssets ? assetsListed : assetsListed.slice(0, TASKS_SHOWN)).map((asset) => {
                       const type = assetTypeLabel(asset.assetType, assetTypes);
                       const finished = asset.completedAt !== null;
                       const late = !finished && isOverdue(asset.dueDate);
                       return (
-                        <li key={asset.id} className="flex items-center gap-2 px-2 py-2 text-[13px]">
+                        <li key={asset.id}>
+                          <AssetRow href={links.board(asset.boardId, asset.itemId)}>
                           <span className={cn("min-w-0 flex-1 truncate", finished && "text-muted-foreground line-through")}>{asset.name}</span>
                           {type && <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-2xs font-medium", colorClasses(type.color).soft)}>{type.name}</span>}
                           <span className="shrink-0 text-2xs text-muted-foreground tabular">×{assetCount(asset)}</span>
@@ -288,11 +344,18 @@ export function ProfilePage({ userId }: { userId: string }) {
                               {formatShortDate(asset.dueDate)}
                             </span>
                           )}
+                          </AssetRow>
                         </li>
                       );
                     })}
-                    {assets.total > assets.lines.length && <li className="px-2 pt-2 text-2xs text-muted-foreground">and {assets.total - assets.lines.length} more</li>}
                   </ul>
+                  )}
+                  {assetsListed.length > TASKS_SHOWN && (
+                    <button type="button" onClick={() => setShowAllAssets((v) => !v)} className="mt-2 px-2 text-2xs font-medium text-foreground/80 underline-offset-4 hover:underline">
+                      {showAllAssets ? "Show fewer" : `Show all ${assetsListed.length}`}
+                    </button>
+                  )}
+                  </>
                 )}
               </TabsContent>
 
@@ -340,9 +403,14 @@ export function ProfilePage({ userId }: { userId: string }) {
 }
 
 /** One figure in the strip: what it counts, the number, and a line under it. */
-function Figure({ label, value, hint, urgent, progress }: { label: string; value: number | string; hint?: string; urgent?: boolean; progress?: number }) {
+function Figure({ label, value, hint, urgent, progress, onOpen }: { label: string; value: number | string; hint?: string; urgent?: boolean; progress?: number; onOpen?: () => void }) {
+  const Shell = onOpen ? "button" : "div";
   return (
-    <div className="flex flex-col bg-card px-5 py-4">
+    <Shell
+      {...(onOpen ? { type: "button" as const, onClick: onOpen, "aria-label": `${label}: ${value}. Show them` } : {})}
+      className={cn("flex flex-col bg-card px-5 py-4 text-left", onOpen && "cursor-pointer transition-colors hover:bg-accent/60 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring")}
+      data-testid="profile-figure"
+    >
       <p className="text-[12px] text-muted-foreground">{label}</p>
       <p className={cn("mt-1 text-[26px] leading-tight font-semibold tracking-tight tabular", urgent && "text-red-600 dark:text-red-400")}>{value}</p>
       {progress !== undefined && (
@@ -351,9 +419,41 @@ function Figure({ label, value, hint, urgent, progress }: { label: string; value
         </span>
       )}
       {hint && <p className="mt-auto pt-1.5 text-2xs text-muted-foreground">{hint}</p>}
-    </div>
+    </Shell>
   );
 }
+
+/** One deliverable, leading to the task it is part of when there is one to open. */
+function AssetRow({ href, children }: { href: string | null; children: React.ReactNode }) {
+  const className = "flex items-center gap-2 rounded-lg px-2 py-2 text-[13px]";
+  if (!href) return <div className={className}>{children}</div>;
+  return (
+    <Link href={href} className={cn(className, "transition-colors hover:bg-accent/70 max-md:min-h-11")} data-testid="profile-asset">
+      {children}
+    </Link>
+  );
+}
+
+type TaskFilter = "open" | "overdue" | "week" | "progress" | "done";
+const TASK_FILTERS: readonly TaskFilter[] = ["open", "overdue", "week", "progress", "done"];
+const TASK_FILTER_LABEL: Record<TaskFilter, string> = { open: "Open", overdue: "Overdue", week: "This week", progress: "In progress", done: "Done" };
+const TASK_FILTER_EMPTY: Record<TaskFilter, string> = {
+  open: "Nothing open right now.",
+  overdue: "Nothing overdue.",
+  week: "Nothing due this week.",
+  progress: "Nothing under way right now.",
+  done: "Nothing finished yet.",
+};
+
+type AssetFilter = "todo" | "overdue" | "week" | "done";
+const ASSET_FILTERS: readonly AssetFilter[] = ["todo", "overdue", "week", "done"];
+const ASSET_FILTER_LABEL: Record<AssetFilter, string> = { todo: "To do", overdue: "Overdue", week: "This week", done: "Done" };
+const ASSET_FILTER_EMPTY: Record<AssetFilter, string> = {
+  todo: "Nothing left to make.",
+  overdue: "Nothing overdue.",
+  week: "Nothing due this week.",
+  done: "Nothing delivered yet.",
+};
 
 function TabLabel({ value, icon: Icon, label, count }: { value: string; icon: React.ComponentType<{ className?: string }>; label: string; count: number }) {
   return (

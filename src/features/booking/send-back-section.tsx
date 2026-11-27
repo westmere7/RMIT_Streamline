@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Copy, LoaderCircle, Undo2 } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
@@ -15,6 +15,7 @@ import { useOpenSendBack, useSendBackMutations } from "@/features/booking/send-b
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { queryKeys } from "@/lib/query/keys";
+import type { Services } from "@/services";
 
 /** The requester's link, whole, for copying. */
 function linkOf(workspaceSlug: string, sendBack: BookingSendBack): string {
@@ -32,70 +33,91 @@ async function copy(text: string) {
 }
 
 /**
- * Sending a booked task back to its requester, on the task's panel.
- *
- * Offered on a task booked through the form that nobody has started. While it
- * waits, the panel says so with the note and the link, and the task is locked
- * (ItemEditScope) until the requester answers or the team takes it back.
+ * Whether this task may be sent back now (booked through the form, a task not
+ * a subitem, not archived, nobody started), and who asked, for the words.
  */
-export function SendBackSection({ item }: { item: Item }) {
-  const { model, board } = useBoardContext();
-  const canAct = useCanEditUnlocked();
+export function useSendBackOffer(item: Item): { offered: boolean; requester: string } {
+  const { model } = useBoardContext();
   const ws = useWorkspace();
-  const queryClient = useQueryClient();
-  const booked = !!item.bookedVia && item.parentItemId === null;
-  const open = useOpenSendBack(item.id, canAct && booked);
-  const { send, cancel } = useSendBackMutations(item.id);
-  const [asking, setAsking] = React.useState(false);
-  const [note, setNote] = React.useState("");
-  const [sent, setSent] = React.useState<BookingSendBack | null>(null);
-
-  if (!canAct || !booked) return null;
-  const waiting = open.data ?? null;
   const statusColumn = model.statusColumn;
   const statusValue = statusColumn ? model.getValue(item.id, statusColumn.id) : undefined;
-  const refusal = sendBackRefusal(item, statusColumn ?? null, statusValue?.type === "STATUS" ? statusValue.labelId : statusColumn?.settings.kind === "status" ? statusColumn.settings.defaultLabelId : null);
-  if (!waiting && refusal) return null;
-  if (open.isLoading) return null;
+  const labelId = statusValue?.type === "STATUS" ? statusValue.labelId : statusColumn?.settings.kind === "status" ? statusColumn.settings.defaultLabelId : null;
+  const offered = !!item.bookedVia && item.parentItemId === null && sendBackRefusal(item, statusColumn ?? null, labelId) === null;
+  const column = model.columns.find((c) => c.type === "REQUESTER");
+  const value = column ? model.getValue(item.id, column.id) : undefined;
+  const id = value && "userIds" in value ? value.userIds[0] : undefined;
+  return { offered, requester: (id && ws.userById(id)?.displayName) || "the requester" };
+}
 
-  const refreshBoard = () => {
+/** Refreshes the board behind a send-back or a recall, which change its status and lock. */
+function useRefreshBoard() {
+  const { board } = useBoardContext();
+  const queryClient = useQueryClient();
+  return React.useCallback(() => {
     publishDataChange({ kinds: ["items", "board"] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.boardSnapshot(board.id) });
-  };
+  }, [board.id, queryClient]);
+}
+
+/** Recall: the link stops working and the task is the team's again. */
+export function useRecallSendBack(item: Item) {
+  const { cancel } = useSendBackMutations(item.id);
+  const refresh = useRefreshBoard();
+  const recall = () =>
+    cancel.mutate(undefined, {
+      onSuccess: () => {
+        toast.success("Send back recalled");
+        refresh();
+      },
+      onError: (error) => toast.error(error instanceof Error ? error.message : "Could not recall it"),
+    });
+  return { recall, pending: cancel.isPending };
+}
+
+/**
+ * Recall from somewhere that keeps no hooks of its own per task (a row's menu):
+ * the same call and refreshes as the panel's button.
+ */
+export async function recallSendBack(services: Services, queryClient: QueryClient, item: Item, actorId: string): Promise<void> {
+  try {
+    await services.bookingSendBacks.cancel(item.id, actorId);
+    toast.success("Send back recalled");
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : "Could not recall it");
+  } finally {
+    publishDataChange({ kinds: ["items", "board"] });
+    for (const queryKey of [["send-back", item.id], ["send-backs"], ["comments"], ["activity"], ["internal-portal"], queryKeys.boardSnapshot(item.boardId)]) void queryClient.invalidateQueries({ queryKey });
+  }
+}
+
+/**
+ * Asking for what's missing, then the link to pass on: from the task's panel
+ * or from its "…" menu. The app sends no email, so the link is the hand-off.
+ */
+export function SendBackDialog({ item, open, onOpenChange }: { item: Item; open: boolean; onOpenChange: (open: boolean) => void }) {
+  const ws = useWorkspace();
+  const { requester } = useSendBackOffer(item);
+  const { send } = useSendBackMutations(item.id);
+  const refresh = useRefreshBoard();
+  const [note, setNote] = React.useState("");
+  const [sent, setSent] = React.useState<BookingSendBack | null>(null);
 
   const submit = () => {
     send.mutate(note, {
       onSuccess: (result) => {
         setSent(result);
         setNote("");
-        refreshBoard();
+        refresh();
       },
       onError: (error) => toast.error(error instanceof Error ? error.message : "Could not send it back"),
     });
   };
 
-  const takeBack = () => {
-    cancel.mutate(undefined, {
-      onSuccess: () => {
-        toast.success("Send back recalled");
-        refreshBoard();
-      },
-      onError: (error) => toast.error(error instanceof Error ? error.message : "Could not recall it"),
-    });
-  };
-
-  const requesterOf = (): string => {
-    const column = model.columns.find((c) => c.type === "REQUESTER");
-    const value = column ? model.getValue(item.id, column.id) : undefined;
-    const id = value && "userIds" in value ? value.userIds[0] : undefined;
-    return (id && ws.userById(id)?.displayName) || "the requester";
-  };
-
-  const dialog = (
+  return (
     <Dialog
-      open={asking}
+      open={open}
       onOpenChange={(next) => {
-        setAsking(next);
+        onOpenChange(next);
         if (!next) setSent(null);
       }}
     >
@@ -104,11 +126,11 @@ export function SendBackSection({ item }: { item: Item }) {
           <>
             <DialogHeader>
               <DialogTitle>Link ready</DialogTitle>
-              <DialogDescription>Send this to {requesterOf()}. The task waits until they answer.</DialogDescription>
+              <DialogDescription>Send this to {requester}. The task waits until they answer.</DialogDescription>
             </DialogHeader>
             <LinkRow url={linkOf(ws.slug, sent)} />
             <DialogFooter>
-              <Button type="button" onClick={() => setAsking(false)}>
+              <Button type="button" onClick={() => onOpenChange(false)}>
                 Done
               </Button>
             </DialogFooter>
@@ -116,7 +138,7 @@ export function SendBackSection({ item }: { item: Item }) {
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Send back to {requesterOf()}</DialogTitle>
+              <DialogTitle>Send back to {requester}</DialogTitle>
               <DialogDescription>They get a link to their form, filled in, to add what&apos;s missing.</DialogDescription>
             </DialogHeader>
             <Textarea
@@ -129,7 +151,7 @@ export function SendBackSection({ item }: { item: Item }) {
               data-testid="send-back-note"
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAsking(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="button" onClick={submit} disabled={!note.trim() || send.isPending} data-testid="send-back-submit">
@@ -141,6 +163,31 @@ export function SendBackSection({ item }: { item: Item }) {
       </DialogContent>
     </Dialog>
   );
+}
+
+/**
+ * Sending a booked task back to its requester, on the task's panel.
+ *
+ * Offered on a task booked through the form that nobody has started. While it
+ * waits, the panel says so with the note and the link, and the task is locked
+ * (ItemEditScope) until the requester answers or the team recalls it.
+ */
+export function SendBackSection({ item }: { item: Item }) {
+  const canAct = useCanEditUnlocked();
+  const ws = useWorkspace();
+  const booked = !!item.bookedVia && item.parentItemId === null;
+  const open = useOpenSendBack(item.id, canAct && booked);
+  const { offered, requester } = useSendBackOffer(item);
+  const { recall, pending } = useRecallSendBack(item);
+  const [asking, setAsking] = React.useState(false);
+
+  if (!canAct || !booked || open.isLoading) return null;
+  const waiting = open.data ?? null;
+  if (!waiting && !offered) return null;
+
+  // In the same place in both states: "Link ready" is shown just as the task
+  // starts waiting, and a dialog that moved in the tree would start over.
+  const dialog = <SendBackDialog key="send-back-dialog" item={item} open={asking} onOpenChange={setAsking} />;
 
   if (!waiting) {
     return (
@@ -155,9 +202,10 @@ export function SendBackSection({ item }: { item: Item }) {
 
   const expired = isExpiredSendBack(waiting);
   return (
+    <>
     <section className="rounded-xl border border-amber-300/70 bg-amber-50 p-3 text-[13px] shadow-xs dark:border-amber-400/30 dark:bg-amber-500/10" data-testid="send-back-waiting">
       <p className="flex items-center gap-1.5 font-semibold text-amber-900 dark:text-amber-200">
-        <Undo2 className="size-3.5" aria-hidden /> Sent back to {requesterOf()}
+        <Undo2 className="size-3.5" aria-hidden /> Sent back to {requester}
         <RelativeTime iso={waiting.sentAt} className="font-normal text-amber-800/70 dark:text-amber-200/60" />
       </p>
       <p className="mt-1.5 whitespace-pre-line text-amber-950/90 dark:text-amber-100/90" data-testid="send-back-note-shown">
@@ -171,13 +219,13 @@ export function SendBackSection({ item }: { item: Item }) {
         </div>
       )}
       <div className="mt-2.5 flex justify-end">
-        <Button type="button" variant="outline" size="sm" onClick={takeBack} disabled={cancel.isPending} data-testid="send-back-cancel">
-          {cancel.isPending && <LoaderCircle className="animate-spin" />} Recall send back
+        <Button type="button" variant="outline" size="sm" onClick={recall} disabled={pending} data-testid="send-back-cancel">
+          {pending && <LoaderCircle className="animate-spin" />} Recall send back
         </Button>
       </div>
-      {/* Still mounted once it waits: "Link ready" is shown just as the task starts waiting. */}
-      {dialog}
     </section>
+    {dialog}
+    </>
   );
 }
 

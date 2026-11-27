@@ -55,6 +55,7 @@ export function useSendBackMutations(itemId: string) {
     void queryClient.invalidateQueries({ queryKey: ["send-backs"] });
     void queryClient.invalidateQueries({ queryKey: ["comments"] });
     void queryClient.invalidateQueries({ queryKey: ["activity"] });
+    void queryClient.invalidateQueries({ queryKey: ["internal-portal"] });
   };
   const send = useMutation({
     mutationFn: (note: string) => services.bookingSendBacks.send(itemId, note, ws.currentUser.id),

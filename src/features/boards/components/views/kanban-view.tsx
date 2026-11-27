@@ -5,6 +5,7 @@ import { arrayMove, horizontalListSortingStrategy, SortableContext, useSortable,
 import { CSS } from "@dnd-kit/utilities";
 import { Archive, Boxes, Hourglass, ChevronRight, ChevronsLeftRight, ChevronsRightLeft, Copy, CornerDownRight, GripVertical, Maximize2, PanelRight, PictureInPicture2, Plus, RefreshCw, SlidersHorizontal } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
 import { InlineEdit } from "@/components/shared/inline-edit";
 import { LabelPill } from "@/components/shared/label-pill";
 import { PriorityPill } from "@/components/shared/priority-signal";
@@ -13,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { ColumnLabel, Item, User } from "@/domain";
-import { columnLabels, isStuckLabel, recapAssets } from "@/domain";
+import { INTAKE_MOVE_MESSAGE, columnLabels, isStuckLabel, recapAssets } from "@/domain";
 import { ItemEditScope, useBoardContext, useItemSentBack } from "@/features/boards/board-context";
 import { SentBackPill } from "@/features/booking/sent-back-pill";
 import { useBoardUiStore, type ItemOpenMode } from "@/stores/board-ui-store";
@@ -344,6 +345,11 @@ export function KanbanView() {
       // Lanes are groups, so the ghost's position is a real position: keep it.
       const unchanged = target === source && working.lanes[target]!.join() === laneItemIds[source]!.join();
       if (unchanged) return;
+      // Booked by Form takes new bookings only: nothing is dropped back into it.
+      if (target !== source && target === model.intakeGroupId) {
+        toast.info(INTAKE_MOVE_MESSAGE);
+        return;
+      }
       void mutations.moveItem({ itemId: item.id, toGroupId: target, orderedIdsInTargetGroup: working.lanes[target]!, orderedIdsInSourceGroup: target === source ? working.lanes[target]! : working.lanes[source]! });
       return;
     }

@@ -136,7 +136,8 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     groups,
     addableGroups,
     intakeGroupId,
-    moveTargetsFor: (itemIds) => (intakeGroupId && !itemIds.every((id) => !!itemById.get(id)?.bookedVia) ? addableGroups : groups),
+    // Booked by Form takes new bookings only: nothing is ever moved into it, booked or not.
+    moveTargetsFor: () => addableGroups,
     // While a search or a filter is on, a group with nothing left in it is a
     // heading over an empty space — three of them turn one result into a page
     // of scrolling. Unfiltered they all stay: an empty group is somewhere to

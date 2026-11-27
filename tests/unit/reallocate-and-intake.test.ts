@@ -53,18 +53,23 @@ describe("Task Allocation: Booked by Form, re-allocating, and links", () => {
       expect(after.slice(1)).toEqual(rest);
     });
 
-    it("refuses a task a team made, by drag or by Move to group; a booked task may go back in", async () => {
+    it("refuses every move into it, by drag or by Move to group: a team's task and a booked one alike", async () => {
       const own = await services.items.createItem({ boardId: queue.id, groupId: other.id, name: "Admin's note" }, danh);
-      await expect(services.items.moveItemsToGroup(queue.id, [own.id], intake.id, danh)).rejects.toThrow("Only tasks booked through the form");
-      await expect(services.items.moveItem({ boardId: queue.id, itemId: own.id, toGroupId: intake.id, orderedIdsInTargetGroup: [own.id] }, danh)).rejects.toThrow("Only tasks booked through the form");
+      await expect(services.items.moveItemsToGroup(queue.id, [own.id], intake.id, danh)).rejects.toThrow("takes new bookings only");
+      await expect(services.items.moveItem({ boardId: queue.id, itemId: own.id, toGroupId: intake.id, orderedIdsInTargetGroup: [own.id] }, danh)).rejects.toThrow("takes new bookings only");
       expect((await repos.items.getById(own.id))?.groupId).toBe(other.id);
+      // A booking lands there, may leave, and does not come back (decided 2026-11-27).
       const booked = await services.items.createItem({ boardId: queue.id, groupId: intake.id, name: "Booked", activity: { via: "booking" } }, danh);
       await services.items.moveItemsToGroup(queue.id, [booked.id], other.id, danh);
-      await services.items.moveItemsToGroup(queue.id, [booked.id], intake.id, danh);
-      expect((await repos.items.getById(booked.id))?.groupId).toBe(intake.id);
-      // A mixed selection is refused as a whole.
-      await expect(services.items.moveItemsToGroup(queue.id, [own.id, booked.id], other.id, danh)).resolves.toBeUndefined();
-      await expect(services.items.moveItemsToGroup(queue.id, [own.id, booked.id], intake.id, danh)).rejects.toThrow("Only tasks booked through the form");
+      await expect(services.items.moveItemsToGroup(queue.id, [booked.id], intake.id, danh)).rejects.toThrow("takes new bookings only");
+      await expect(services.items.moveItem({ boardId: queue.id, itemId: booked.id, toGroupId: intake.id, orderedIdsInTargetGroup: [booked.id] }, danh)).rejects.toThrow("takes new bookings only");
+      expect((await repos.items.getById(booked.id))?.groupId).toBe(other.id);
+      await expect(services.items.moveItemsToGroup(queue.id, [own.id, booked.id], intake.id, danh)).rejects.toThrow("takes new bookings only");
+      // Reordering inside it is not a move into it.
+      const second = await services.items.createItem({ boardId: queue.id, groupId: intake.id, name: "Booked 2", activity: { via: "booking" } }, danh);
+      const third = await services.items.createItem({ boardId: queue.id, groupId: intake.id, name: "Booked 3", activity: { via: "booking" } }, danh);
+      await services.items.moveItem({ boardId: queue.id, itemId: third.id, toGroupId: intake.id, orderedIdsInTargetGroup: [third.id, second.id] }, danh);
+      expect((await repos.items.getById(third.id))?.groupId).toBe(intake.id);
     });
   });
 

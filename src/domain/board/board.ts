@@ -116,7 +116,7 @@ export interface BoardGroup {
 export type BoardGroupRole = "INTAKE";
 
 /** Why a task a team made cannot be moved into the intake group (the database says the same, migration 0136). */
-export const INTAKE_MOVE_MESSAGE = "Only tasks booked through the form can go in Booked by Form.";
+export const INTAKE_MOVE_MESSAGE = "Booked by Form takes new bookings only. Nothing moves back into it.";
 
 /**
  * A new order for a board's groups with Task Allocation's intake group kept

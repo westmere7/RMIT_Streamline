@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 export function Mention({ href, children, className }: { href?: string | null; children: React.ReactNode; className?: string }) {
   if (!href) return <span className={cn("font-medium text-foreground", className)}>{children}</span>;
   return (
-    <Link href={href} className={cn("font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring", className)} data-testid="mention-link">
+    <Link href={href} className={cn("font-medium text-foreground underline decoration-foreground/25 decoration-dotted underline-offset-2 hover:decoration-solid hover:decoration-foreground/70 focus-visible:outline-2 focus-visible:outline-ring", className)} data-testid="mention-link">
       {children}
     </Link>
   );
@@ -30,6 +30,8 @@ export interface MentionLinks {
   team: (teamId: string | null | undefined) => string | null;
   /** A board, or one of its items when `itemId` is given. */
   board: (boardId: string | null | undefined, itemId?: string | null) => string | null;
+  /** A board from the name an older activity entry kept, when exactly one live board has it. */
+  boardNamed: (name: string | null | undefined) => string | null;
   /** The board's archive, opened on a task that has been put away. */
   archived: (boardId: string | null | undefined, itemId?: string | null) => string | null;
 }
@@ -49,6 +51,12 @@ export function useMentionLinks(): MentionLinks {
       board: (boardId, itemId) => {
         const board = ws.boardById(boardId);
         return board ? ws.boardPath(board, itemId ? { itemId } : undefined) : null;
+      },
+      boardNamed: (name) => {
+        const wanted = name?.trim().toLowerCase();
+        if (!wanted) return null;
+        const found = ws.boards.filter((b) => b.archivedAt === null && b.name.trim().toLowerCase() === wanted);
+        return found.length === 1 ? ws.boardPath(found[0]!) : null;
       },
       // A task that has been put away is not on the board any more; a link to
       // it goes to the board's archive, opened on that task.

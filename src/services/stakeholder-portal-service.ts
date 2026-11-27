@@ -771,6 +771,9 @@ export class StakeholderPortalService {
       ...payload,
       totals,
       awaiting: { ids: [], teamName: null },
+      // Read through the reader's session: the tasks they can edit show "Sent back" (policies/0040).
+      // Only booked tasks can be; a portal still opens if this cannot be read.
+      sentBack: { ids: await this.repos.bookingSendBacks.openItemIds(inScope.filter((item) => item.bookedVia).map((item) => item.id)).catch(() => []) },
       servedAt: now.toISOString(),
       boardOfItem: Object.fromEntries(inScope.map((item) => [item.id, item.boardId])),
       teamOfItem: Object.fromEntries(

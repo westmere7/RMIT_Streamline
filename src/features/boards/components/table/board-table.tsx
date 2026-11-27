@@ -17,6 +17,8 @@ import { restrictToHorizontalAxis, restrictToVerticalAxis } from "@dnd-kit/modif
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { LoaderCircle, Plus, SearchX } from "lucide-react";
 import * as React from "react";
+import { toast } from "sonner";
+import { INTAKE_MOVE_MESSAGE } from "@/domain";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Button } from "@/components/ui/button";
 import { useBoardContext } from "@/features/boards/board-context";
@@ -130,6 +132,11 @@ export const BoardTable = React.memo(function BoardTable() {
       setDropTarget(null);
       return;
     }
+    // Booked by Form takes new bookings only: no slot opens there for a task from elsewhere.
+    if ("groupId" in overData && overData.groupId === model.intakeGroupId && activeData.groupId !== model.intakeGroupId) {
+      setDropTarget(null);
+      return;
+    }
     if (overData.type === "item") {
       const groupItems = model.itemsByGroup.get(overData.groupId) ?? [];
       const index = groupItems.findIndex((i) => i.id === overData.itemId);
@@ -195,6 +202,10 @@ export const BoardTable = React.memo(function BoardTable() {
       return;
     }
 
+    if (targetGroupId === model.intakeGroupId) {
+      toast.info(INTAKE_MOVE_MESSAGE);
+      return;
+    }
     const nextSource = sourceIds.filter((id) => id !== itemId);
     const nextTarget = [...targetIds];
     if (overData.type === "item") {
