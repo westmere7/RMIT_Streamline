@@ -106,6 +106,8 @@ export interface BookingForm {
   publishedAt?: string | null;
   /** Which form this is: "default", or the id of the scheduled window being served. Sent back with the booking. */
   version?: string;
+  /** The team's holidays from today on (the Calendar's), so a requester sees when nobody is in. */
+  closures?: Array<{ name: string; startsOn: ISODate; endsOn: ISODate; halfDay: "AM" | "PM" | null }>;
 }
 
 /** One deliverable in a booking: what, how many, and the spec it has to meet. */

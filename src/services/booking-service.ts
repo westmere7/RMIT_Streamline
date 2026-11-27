@@ -374,7 +374,13 @@ export class BookingService {
     // The stakeholder groups, so "school or department" is picked from a list
     // rather than typed six different ways.
     const departments: TagOption[] = (await this.activeDepartments(workspaceId)).map((row) => ({ name: row.name, color: row.color as TagOption["color"] }));
-    return { workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template, publishedAt: live.schedule ? new Date(windowOpensAt(live.schedule)).toISOString() : (workspace.bookingFormPublishedAt ?? null), version: live.version };
+    // The team's closures from today on. A store without the Calendar yet has none.
+    const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+    const closures = (await this.repos.calendar.listHolidays(workspaceId).catch(() => []))
+      .filter((h) => h.endsOn >= today)
+      .slice(0, 40)
+      .map((h) => ({ name: h.name, startsOn: h.startsOn, endsOn: h.endsOn, halfDay: h.halfDay }));
+    return { closures, workspaceId, workspaceName: workspace.name, workspaceSlug: workspace.slug, assetTypes, departments, priorities, teams: options, boards: routedBoards, ticketPrefix: ticketPrefixOf(workspace.ticketPrefix), template, publishedAt: live.schedule ? new Date(windowOpensAt(live.schedule)).toISOString() : (workspace.bookingFormPublishedAt ?? null), version: live.version };
   }
 
   /**

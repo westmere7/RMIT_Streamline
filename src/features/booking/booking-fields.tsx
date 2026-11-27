@@ -276,12 +276,22 @@ export function StandardField({ field, form, draft, onChange, error, preview, re
           <Input id={id("booking-title")} value={draft.title} onChange={(e) => onChange({ title: e.target.value })} aria-invalid={!!error} disabled={preview} className="h-11" data-testid={tid("booking-title")} />
         </Field>
       );
-    case "dueDate":
+    case "dueDate": {
+      // The team is closed then: said, not refused. The requester may still mean it.
+      const due = draft.dueDate;
+      const closed = due ? form.closures?.find((c) => c.startsOn <= due && due <= c.endsOn && !c.halfDay) : undefined;
+      const weekend = due ? [0, 6].includes(new Date(`${due}T00:00:00Z`).getUTCDay()) : false;
       return (
         <Field id={id("booking-due")} {...shell}>
           <Input id={id("booking-due")} type="date" min={todayISO()} value={draft.dueDate ?? ""} onChange={(e) => onChange({ dueDate: e.target.value || null })} aria-invalid={!!error} disabled={preview} className="h-11" data-testid={tid("booking-due")} />
+          {(closed || weekend) && (
+            <p className="mt-1.5 text-[12.5px] text-amber-700 dark:text-amber-300" data-testid={tid("booking-due-closed")}>
+              {closed ? `The team is closed then: ${closed.name}.` : "That is a weekend."}
+            </p>
+          )}
         </Field>
       );
+    }
     case "priority":
       return (
         <Field id={id("booking-priority")} {...shell}>

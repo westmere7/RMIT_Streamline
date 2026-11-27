@@ -18,6 +18,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.175.0",
+    date: "2026-11-28",
+    title: "Calendar",
+    changes: [
+      "New Calendar in the menu: every board's dated tasks, holidays, leave and key dates in month, week, agenda, roster and year views.",
+      "Drag a task to another day to move its deadline, where you can edit the board.",
+      "Add your leave; admins add anyone's, plus holidays and key dates. Vietnam's holidays are filled in.",
+      "Deadlines on a holiday, a weekend or someone's leave are flagged, with a one-click move to the working day before.",
+      "Settings → Holidays, a Leave tab on profiles, and who's away on Home.",
+      "Subscribe to your own calendar feed in Google, Outlook or Apple Calendar.",
+      "Booking forms say when the team is closed on the date asked for.",
+      "Automations can count working days.",
+    ],
+  },
+  {
     version: "0.174.2",
     date: "2026-11-28",
     title: "Fewer reads on every page",

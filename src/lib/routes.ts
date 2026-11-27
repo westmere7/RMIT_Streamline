@@ -53,6 +53,8 @@ export const routes = {
   inbox: (slug: string) => `/workspace/${slug}/inbox`,
   /** The workspace dashboard: what every team delivers, live. */
   dashboard: (slug: string) => `/workspace/${slug}/dashboard`,
+  /** The workspace Calendar: dated tasks, leave, holidays and key dates. */
+  calendar: (slug: string) => `/workspace/${slug}/calendar`,
   /** Every rule on every board the reader can see, and what they have been doing. */
   automations: (slug: string) => `/workspace/${slug}/automations`,
   /** Every task on every team board, as the portal shows it, for admins and allocators. */

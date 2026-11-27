@@ -60,6 +60,7 @@ import type {
   WorkspaceMember,
 } from "@/domain";
 import type { ActivityEventType, LastActivity } from "@/domain";
+import type { CalendarFeed, CalendarKeyDate, CalendarKeyDateInput, CalendarKeyDatePatch, CalendarTaskRow, ISODate, LeaveEntry, LeaveEntryInput, LeaveEntryPatch, WorkspaceHoliday, WorkspaceHolidayInput, WorkspaceHolidayPatch } from "@/domain";
 import type { ArchivePage, ArchiveQuery, ItemBaseline, ItemBaselineInput, BoardShare, BoardShareInput, SavedBoardTemplate, SavedBoardTemplateInput, SavedBoardView, SavedBoardViewInput, SavedBoardViewPatch, ItemShare, ItemShareInput, BoardViewKind, BookingSavedBlock, BookingSavedBlockInput, BookingTemplate, BookingTemplateInput, BookingFormPublication, BookingFormPublicationInput, BookingFormSchedule, BookingFormScheduleInput, BookingFormSchedulePatch, DashboardShare, DashboardShareInput, ItemAsset, ItemAssetInput, ItemAssetPatch, WorkspaceListKey, WorkspaceListOption, WorkspaceListOptionInput, StakeholderPortal, StakeholderPortalInput, PortalPatch, PortalRequest, PortalRequestInput, PortalSubmission, StakeholderDepartment, StakeholderDepartmentInput, SelfJoinInput, SelfJoinPreview, Subscription, SubscriptionInput } from "@/domain";
 
 /**
@@ -257,6 +258,8 @@ export interface BoardRepository {
   reorderGroups(boardId: EntityId, orderedIds: EntityId[]): Promise<BoardGroup[]>;
 
   listColumns(boardId: EntityId): Promise<BoardColumn[]>;
+  /** Several boards' columns in one read (the Calendar's). */
+  listColumnsForBoards(boardIds: readonly EntityId[]): Promise<BoardColumn[]>;
   getColumn(id: EntityId): Promise<BoardColumn | null>;
   createColumn(input: BoardColumnInput & { position?: number; id?: EntityId }): Promise<BoardColumn>;
   updateColumn(id: EntityId, patch: Partial<Omit<BoardColumn, "id" | "boardId" | "createdAt">>): Promise<BoardColumn>;
@@ -604,6 +607,28 @@ export interface BookingScheduleRepository {
   delete(id: EntityId): Promise<void>;
 }
 
+/** The workspace Calendar (migration 0162): holidays, leave, key dates, feeds and the page's one read. */
+export interface CalendarRepository {
+  listHolidays(workspaceId: EntityId): Promise<WorkspaceHoliday[]>;
+  createHoliday(input: WorkspaceHolidayInput): Promise<WorkspaceHoliday>;
+  updateHoliday(id: EntityId, patch: WorkspaceHolidayPatch): Promise<WorkspaceHoliday>;
+  deleteHoliday(id: EntityId): Promise<void>;
+  listLeave(workspaceId: EntityId): Promise<LeaveEntry[]>;
+  createLeave(input: LeaveEntryInput): Promise<LeaveEntry>;
+  updateLeave(id: EntityId, patch: LeaveEntryPatch): Promise<LeaveEntry>;
+  deleteLeave(id: EntityId): Promise<void>;
+  listKeyDates(workspaceId: EntityId): Promise<CalendarKeyDate[]>;
+  createKeyDate(input: CalendarKeyDateInput): Promise<CalendarKeyDate>;
+  updateKeyDate(id: EntityId, patch: CalendarKeyDatePatch): Promise<CalendarKeyDate>;
+  deleteKeyDate(id: EntityId): Promise<void>;
+  /** Dated tasks meeting the range in one read, or null where the store has no such read (the service then builds it). */
+  listTasks(workspaceId: EntityId, from: ISODate, to: ISODate): Promise<CalendarTaskRow[] | null>;
+  /** This person's live feed in the workspace, if any. */
+  getFeed(workspaceId: EntityId, userId: EntityId): Promise<CalendarFeed | null>;
+  createFeed(workspaceId: EntityId, userId: EntityId, token: string): Promise<CalendarFeed>;
+  revokeFeed(id: EntityId): Promise<void>;
+}
+
 /** Board layouts saved under a name, per workspace, for new boards to start from. */
 export interface BoardTemplateRepository {
   listByWorkspace(workspaceId: EntityId): Promise<SavedBoardTemplate[]>;
@@ -878,6 +903,7 @@ export interface Repositories {
   bookingTemplates: BookingTemplateRepository;
   bookingPublications: BookingPublicationRepository;
   bookingSchedules: BookingScheduleRepository;
+  calendar: CalendarRepository;
   boardTemplates: BoardTemplateRepository;
   savedViews: SavedViewRepository;
   baselines: BaselineRepository;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Boxes, CalendarCheck, Clock, History, ListChecks, Mail, MessageSquare, Pencil, SquareKanban, Users } from "lucide-react";
+import { Boxes, CalendarCheck, Clock, History, ListChecks, Mail, MessageSquare, Palmtree, Pencil, SquareKanban, Users } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, UnderlineTabsList, UnderlineTabsTrigger } from "@/components/ui/tabs";
+import { ProfileLeave, useProfileLeave } from "@/features/calendar/profile-leave";
 import type { WorkspaceRole } from "@/domain";
 import { assetCount, formatWorkHours, isProgressLabel, isStuckLabel, priorityStrength } from "@/domain";
 import { describeActivity } from "@/features/activity/format-activity";
@@ -76,6 +77,7 @@ export function ProfilePage({ userId }: { userId: string }) {
   };
 
   const isSelf = me.id === userId;
+  const upcomingLeave = useProfileLeave(userId);
 
   if (profile.isLoading) {
     return (
@@ -239,6 +241,7 @@ export function ProfilePage({ userId }: { userId: string }) {
                 <TabLabel value="assets" icon={Boxes} label="Assets" count={assets.total} />
                 <TabLabel value="boards" icon={SquareKanban} label="Boards" count={boards.length} />
                 <TabLabel value="activity" icon={History} label="Activity" count={activity.length} />
+                <TabLabel value="leave" icon={Palmtree} label="Leave" count={upcomingLeave.length} />
               </UnderlineTabsList>
 
               <TabsContent value="tasks" className="p-3">
@@ -375,6 +378,10 @@ export function ProfilePage({ userId }: { userId: string }) {
                     ))}
                   </ul>
                 )}
+              </TabsContent>
+
+              <TabsContent value="leave" className="p-3">
+                <ProfileLeave userId={userId} />
               </TabsContent>
 
               {/* ---- And what they have been up to -------------------------------- */}

@@ -6,6 +6,7 @@ import { BoardTemplateService } from "./board-template-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
 import { BookingSendBackService, type SendBackTransport } from "./booking-send-back-service";
+import { CalendarService } from "./calendar-service";
 import { BookingTaskLinkService, type TaskLinkTransport } from "./booking-task-link-service";
 import { BugReportService, type BugReportTransport } from "./bug-report-service";
 import { CommentService } from "./comment-service";
@@ -62,6 +63,7 @@ export interface Services {
   booking: BookingService;
   /** Booked tasks sent back to their requester for missing information. */
   bookingSendBacks: BookingSendBackService;
+  calendar: CalendarService;
   /** The link a booking's receipt gives to its task. */
   taskLinks: BookingTaskLinkService;
   /** Where a task behind a shared link may also be opened: its board, the portal. */
@@ -145,6 +147,7 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     assets,
     booking,
     bookingSendBacks: new BookingSendBackService(repos, booking, items, assets, comments, options.sendBackTransport ?? null),
+    calendar: new CalendarService(repos),
     taskLinks,
     itemOpenings,
     /** Moving a task to another board, columns mapped and losses reported first. */

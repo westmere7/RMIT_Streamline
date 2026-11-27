@@ -324,9 +324,9 @@ export type AutomationAction =
   | { kind: "assign_person"; columnId: EntityId; userIds: EntityId[]; useActor?: boolean; useCreator?: boolean }
   | { kind: "unassign_person"; columnId: EntityId; userIds: EntityId[]; all?: boolean }
   /** Move a date column by a number of days, in either direction. Does nothing to an empty cell. */
-  | { kind: "shift_date"; columnId: EntityId; days: number }
-  /** Set a date column to today plus (or minus) a number of days. */
-  | { kind: "set_date_relative"; columnId: EntityId; days: number }
+  | { kind: "shift_date"; columnId: EntityId; days: number; working?: boolean }
+  /** Set a date column to today plus (or minus) a number of days. `working`: count working days (no weekends or holidays). */
+  | { kind: "set_date_relative"; columnId: EntityId; days: number; working?: boolean }
   /** Rename the task. A template: "{ticket} · {item}" is the usual reason. */
   | { kind: "set_name"; name: string }
   /** Replace the task's description. Empty clears it. */

@@ -971,6 +971,15 @@ function ActionEditor({
                       : `${-days} days earlier`,
             }))}
           />
+          <Picker
+            value={action.working ? "working" : "calendar"}
+            label="Counting"
+            onChange={(v) => onChange({ ...action, working: v === "working" })}
+            options={[
+              { value: "calendar", label: "every day" },
+              { value: "working", label: "working days" },
+            ]}
+          />
         </>
       )}
 

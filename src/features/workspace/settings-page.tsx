@@ -1,35 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Archive,
-  ArchiveRestore,
-  BookOpen,
-  Building2,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  DatabaseBackup,
-  Hash,
-  Info,
-  Layers,
-  LayoutGrid,
-  Minus,
-  Monitor,
-  Moon,
-  Palette,
-  Pencil,
-  Plus,
-  Shapes,
-  ShieldCheck,
-  Shirt,
-  Sun,
-  Trash2,
-  TriangleAlert,
-  UserCog,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Archive, ArchiveRestore, BookOpen, Building2, Check, ChevronLeft, ChevronRight, DatabaseBackup, Hash, Info, Layers, LayoutGrid, Minus, Monitor, Moon, Palette, Palmtree, Pencil, Plus, Shapes, ShieldCheck, Shirt, Sun, Trash2, TriangleAlert, UserCog, Users, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
@@ -52,6 +24,7 @@ import { AboutDialog } from "@/features/version/about-dialog";
 import { ListSection } from "@/features/workspace/lists-section";
 import { WorkTypesSection } from "@/features/workspace/work-types-section";
 import { SizesSection } from "@/features/workspace/sizes-section";
+import { HolidaysSection } from "@/features/calendar/holidays-section";
 import { DangerZoneSection } from "@/features/workspace/danger-zone-section";
 import { SnapshotsSection } from "@/features/workspace/snapshots-section";
 import { WorkspacesSection } from "@/features/workspace/workspaces-section";
@@ -68,7 +41,7 @@ import { useThemePreference, type ThemePreference } from "@/lib/theme";
 import { cn, pluralize } from "@/lib/utils";
 import { useUiStore } from "@/stores/ui-store";
 
-const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "sizes", "permissions", "view", "workspaces", "snapshots", "danger", "documentation"] as const;
+const SECTIONS = ["general", "tickets", "teams", "departments", "asset-types", "sizes", "holidays", "permissions", "view", "workspaces", "snapshots", "danger", "documentation"] as const;
 type Section = (typeof SECTIONS)[number];
 
 /**
@@ -100,6 +73,7 @@ const SECTION_META: Record<Section, SectionMeta> = {
   general: { label: "Overview", icon: LayoutGrid, description: "The workspace's name, address, size and menu.", width: "narrow", scope: "workspace" },
   tickets: { label: "Tickets", icon: Hash, description: "The code every task is stamped with.", width: "narrow", scope: "workspace" },
   teams: { label: "Teams", icon: Users, description: "Teams hold boards and people. An archived team leaves the sidebar.", width: "narrow", scope: "workspace" },
+  holidays: { label: "Holidays", icon: Palmtree, description: "The days the team is closed. Deadlines on them are flagged on the Calendar.", width: "wide", scope: "workspace" },
   sizes: { label: "Sizes", icon: Shirt, description: "What each T-shirt size means in working time, and the work it covers.", width: "wide", scope: "workspace" },
   "asset-types": { label: "Asset & Work types", icon: Shapes, description: "What a deliverable can be, how long each one takes, and the work types they group into.", width: "wide", scope: "workspace" },
   permissions: { label: "Roles", icon: ShieldCheck, description: "What each role can do. Owners run every workspace; the other roles are per workspace.", width: "narrow", scope: "workspace" },
@@ -117,7 +91,7 @@ const SECTION_META: Record<Section, SectionMeta> = {
  * own name, so which one is being changed is never in doubt.
  */
 const NAV_GROUPS: Array<{ label: string; scope: SectionScope; sections: Section[]; about?: boolean }> = [
-  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "sizes", "permissions", "danger"] },
+  { label: "This workspace", scope: "workspace", sections: ["general", "tickets", "teams", "asset-types", "sizes", "holidays", "permissions", "danger"] },
   { label: "Every workspace", scope: "app", sections: ["departments", "workspaces", "snapshots"] },
   { label: "You", scope: "you", sections: ["view"] },
   { label: "Help", scope: "help", sections: ["documentation"], about: true },
@@ -213,6 +187,7 @@ export function SettingsPage() {
             {section === "departments" && <ListSection listKey="STAKEHOLDER_GROUPS" />}
             {section === "asset-types" && <AssetAndWorkTypesSection tab={raw === "work-types" ? "work-types" : "asset-types"} />}
             {section === "sizes" && <SizesSection />}
+            {section === "holidays" && <HolidaysSection />}
             {section === "permissions" && <PermissionsSection />}
             {section === "view" && <AppearanceSection />}
             {section === "documentation" && <DocumentationSection />}

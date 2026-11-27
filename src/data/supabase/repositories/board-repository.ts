@@ -194,6 +194,14 @@ export class SupabaseBoardRepository implements BoardRepository {
     return unwrapList<BoardColumnRow>(result, "board_columns.listColumns").map(toBoardColumn);
   }
 
+  async listColumnsForBoards(boardIds: readonly string[]): Promise<BoardColumn[]> {
+    // Chunked so the id list never outgrows a URL.
+    const chunks: string[][] = [];
+    for (let i = 0; i < boardIds.length; i += 80) chunks.push(boardIds.slice(i, i + 80));
+    const results = await Promise.all(chunks.map((ids) => db().from("board_columns").select(COLUMN).in("board_id", ids).order("position", { ascending: true })));
+    return results.flatMap((result) => unwrapList<BoardColumnRow>(result, "board_columns.listColumnsForBoards").map(toBoardColumn));
+  }
+
   async getColumn(id: string): Promise<BoardColumn | null> {
     const result = await db().from("board_columns").select(COLUMN).eq("id", id).maybeSingle();
     const row = unwrapMaybe<BoardColumnRow>(result, "board_columns.getColumn");

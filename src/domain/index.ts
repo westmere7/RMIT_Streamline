@@ -46,6 +46,7 @@ export * from "./auth/auth";
 export * from "./booking/booking";
 export * from "./booking/booking-template";
 export * from "./booking/form-schedule";
+export * from "./calendar/calendar";
 export * from "./booking/send-back";
 export * from "./booking/task-link";
 export * from "./bug-report/bug-report";

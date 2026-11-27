@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Archive, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
+import { Archive, CalendarDays, Check, ChevronDown, ChevronRight, ChevronsUpDown, ClipboardPen, ExternalLink, Eye, FileSpreadsheet, FileText, Home, Inbox, LayoutDashboard, Link2, Palette, SquareKanban, ListTodo, Plus, Search, Settings2, Star, Trash2, UserPlus, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -255,6 +255,7 @@ function SidebarBody({ variant, onNavigate }: { variant?: "drawer"; onNavigate?:
             badges={unread}
           />
           <NavItem href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" active={isActivePath(routes.dashboard(ws.slug))} collapsed={collapsed} />
+          <NavItem href={routes.calendar(ws.slug)} icon={CalendarDays} label="Calendar" active={isActivePath(routes.calendar(ws.slug))} collapsed={collapsed} />
           <NavItem
             href={routes.automations(ws.slug)}
             icon={Zap}

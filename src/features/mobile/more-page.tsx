@@ -1,6 +1,6 @@
 "use client";
 
-import { Bug, Building2, Check, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Plus, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
+import { Bug, Building2, CalendarDays, Check, ChevronRight, ClipboardPen, Info, LayoutDashboard, LogOut, MessageSquare, Moon, Plus, Settings2, Sun, SunMoon, UserRound, Users, Zap } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as React from "react";
@@ -57,6 +57,7 @@ export function MorePage() {
 
         <Group title="Work">
           <Row href={routes.dashboard(ws.slug)} icon={LayoutDashboard} label="Dashboard" />
+          <Row href={routes.calendar(ws.slug)} icon={CalendarDays} label="Calendar" />
           {/* This page is never a board, so anything running is running out of sight. */}
           <Row href={routes.automations(ws.slug)} icon={Zap} label="Automations" busy={automationsRunning} testId="more-automations" />
           {ws.workspace.showPortalMenu !== false && <Row href={routes.book(ws.slug)} icon={ClipboardPen} label="Portal and Booking" />}

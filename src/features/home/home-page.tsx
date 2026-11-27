@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { sectionFor } from "@/services/my-work-service";
 import { NotificationPrompt } from "@/features/notifications/notification-prompt";
 import { PortalLinks } from "@/features/portal/portal-links";
+import { AwayToday } from "@/features/calendar/away-today";
 
 function greeting(now: Date): string {
   const h = now.getHours();
@@ -82,7 +83,10 @@ function HomeDesktop() {
             </h1>
             <p className="text-[13px] text-muted-foreground">Here is what is moving across {ws.workspace.name}.</p>
           </div>
-          <p className="text-[13px] text-muted-foreground">{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+          <div className="flex flex-col items-end gap-1.5">
+            <p className="text-[13px] text-muted-foreground">{now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}</p>
+            <AwayToday />
+          </div>
         </header>
         <NotificationPrompt className="mb-6" />
 

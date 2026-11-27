@@ -15,7 +15,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { DEPARTED_TASK_ACTIONS, MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, intakeGroupOf, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem, describeTimeCondition, timeConditionHolds } from "@/domain";
+import { addWorkingDays, DEPARTED_TASK_ACTIONS, MAX_EVENT_DEPTH, TRIGGER_TIMING, WEBHOOK_TIMEOUT_MS, actionNeedsItem, emptyValueFor, intakeGroupOf, isEmptyValue, keywordsOf, mentionsAny, webhookUrlProblem, describeTimeCondition, timeConditionHolds } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import type { CommentService } from "./comment-service";
 import type { ItemService } from "./item-service";
@@ -651,15 +651,19 @@ export class AutomationEngine {
         const column = columns.find((c) => c.id === action.columnId);
         if (!column) throw new Error("That column is no longer on this board.");
         const current = context.values.get(column.id) ?? null;
+        const days = numberOf(action.days, 0);
+        // Working days skip weekends and the workspace's holidays (the Calendar's).
+        const holidays = action.working ? await this.repos.calendar.listHolidays(board.workspaceId).catch(() => []) : [];
+        const shift = (from: string) => (action.working ? addWorkingDays({ holidays }, from, days) : shiftDate(from, days));
         let next: string;
         if (action.kind === "set_date_relative") {
-          next = shiftDate(this.clock().date, numberOf(action.days, 0));
+          next = shift(this.clock().date);
         } else {
           const from = current?.type === "DATE" ? current.date : current?.type === "TIMELINE" ? current.end : null;
           // Nothing to move. Said rather than guessed: a rule that pushes a
           // deadline back a week should not invent one for a task that has none.
           if (!from) return `${column.name} is empty, so there was nothing to move`;
-          next = shiftDate(from, numberOf(action.days, 0));
+          next = shift(from);
         }
         const value: ColumnValue =
           column.type === "TIMELINE"

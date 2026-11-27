@@ -257,6 +257,10 @@ export class LocalBoardRepository implements BoardRepository {
 
   // ---- Columns -------------------------------------------------------------
 
+  async listColumnsForBoards(boardIds: readonly string[]): Promise<BoardColumn[]> {
+    return (await Promise.all(boardIds.map((id) => this.listColumns(id)))).flat();
+  }
+
   async listColumns(boardId: string): Promise<BoardColumn[]> {
     const db = await this.conn.getDb();
     // Columns of a type the app no longer has (the removed Files column) are skipped.
