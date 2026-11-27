@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.170.1",
+    date: "2026-11-27",
+    title: "Save over a saved form",
+    changes: ["Editing the booking form with no saved form picked: each saved form in the list has a save icon that replaces it with what is in the editor, after a warning. The form in use and scheduled days are not affected."],
+  },
+  {
     version: "0.170.0",
     date: "2026-11-27",
     title: "One page for a shared task, with somewhere to go from it",

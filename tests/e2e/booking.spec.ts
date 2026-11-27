@@ -344,4 +344,33 @@ test.describe("task booking", () => {
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.getByTestId("template-quick-select")).toContainText("No saved forms yet");
   });
+
+  test("with no saved form picked, one can be saved over from the list, after a warning", async ({ page }) => {
+    await signInAs(page, "Danh");
+    await openBookPage(page);
+    await page.getByTestId("template-save").click();
+    await page.getByTestId("template-name").fill("Built-in copy");
+    await page.getByTestId("template-save-submit").click();
+    await expect(page.getByTestId("template-save-dialog")).toHaveCount(0);
+
+    // Back to the built-in form: no saved form picked. Change it, then save it over the saved one.
+    await page.getByTestId("booking-editor-reset").click();
+    const confirmReset = page.getByRole("button", { name: /^(Start|Reset)/ }).last();
+    if (await confirmReset.isVisible().catch(() => false)) await confirmReset.click();
+    await expect(page.getByTestId("template-quick-select")).toContainText("Choose a saved form");
+    await page.getByTestId("editor-basics-title").fill("Your request");
+    await page.getByTestId("template-quick-select").click();
+    await page.locator('[data-testid^="template-overwrite-"]').first().click();
+    await expect(page.getByText("Save over “Built-in copy”?")).toBeVisible();
+    await page.getByRole("button", { name: "Save over it" }).click();
+    await expect(page.getByText("Save over “Built-in copy”?")).toHaveCount(0);
+
+    // Loading it back brings the change with it.
+    await page.getByTestId("booking-editor-reset").click();
+    if (await confirmReset.isVisible().catch(() => false)) await confirmReset.click();
+    await expect(page.getByTestId("editor-basics-title")).toHaveValue("About you and your request");
+    await page.getByTestId("template-quick-select").click();
+    await page.getByRole("option", { name: "Built-in copy" }).click();
+    await expect(page.getByTestId("editor-basics-title")).toHaveValue("Your request");
+  });
 });

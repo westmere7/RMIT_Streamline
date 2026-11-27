@@ -52,6 +52,9 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
   const [typed, setTyped] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [deleting, setDeleting] = React.useState<BookingTemplate | null>(null);
+  // Editing with no saved form picked: one of them can be saved over with what is in the editor.
+  const [overwriting, setOverwriting] = React.useState<BookingTemplate | null>(null);
+  const [listOpen, setListOpen] = React.useState(false);
   const trimmed = name.trim();
   const loaded = templates.find((t) => t.id === loadedId) ?? null;
   const replaces = templates.find((t) => t.name.toLowerCase() === trimmed.toLowerCase());
@@ -88,6 +91,8 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
         <div className="flex items-center gap-1.5">
           <Select
             value={loadedId ?? ""}
+            open={listOpen}
+            onOpenChange={setListOpen}
             onValueChange={(id) => {
               // Opened once the list has closed, so the dialog keeps its focus.
               if (id === SAVE_NEW) return void window.setTimeout(() => setSaveOpen(true), 0);
@@ -99,11 +104,38 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
               <SelectValue placeholder={templates.length ? "Choose a saved form" : "No saved forms yet"} />
             </SelectTrigger>
             <SelectContent>
-              {templates.map((t) => (
-                <SelectItem key={t.id} value={t.id} data-testid={`template-quick-${t.id}`}>
-                  {t.name}
-                </SelectItem>
-              ))}
+              {templates.map((t) =>
+                loaded ? (
+                  <SelectItem key={t.id} value={t.id} data-testid={`template-quick-${t.id}`}>
+                    {t.name}
+                  </SelectItem>
+                ) : (
+                  // Not tied to a saved form: each one can be saved over, from its own row.
+                  <div key={t.id} className="group/row relative">
+                    <SelectItem value={t.id} className="pr-10" data-testid={`template-quick-${t.id}`}>
+                      {t.name}
+                    </SelectItem>
+                    <SimpleTooltip label={`Save the editor over “${t.name}”`}>
+                      <button
+                        type="button"
+                        aria-label={`Save over ${t.name}`}
+                        className="absolute top-1/2 right-1.5 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onPointerUp={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setListOpen(false);
+                          // Asked once the list has closed, so the dialog keeps its focus.
+                          window.setTimeout(() => setOverwriting(t), 0);
+                        }}
+                        data-testid={`template-overwrite-${t.id}`}
+                      >
+                        <Save className="size-3.5" />
+                      </button>
+                    </SimpleTooltip>
+                  </div>
+                ),
+              )}
               {templates.length > 0 && <SelectSeparator />}
               <SelectItem value={SAVE_NEW} data-testid="template-quick-save-new">
                 <span className="flex items-center gap-2">
@@ -196,6 +228,25 @@ export function TemplatesPanel({ templates, current, onLoad, onSaveTemplate, onD
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={overwriting !== null}
+        onOpenChange={(open) => !open && setOverwriting(null)}
+        title={`Save over “${overwriting?.name ?? ""}”?`}
+        description="What it holds now is replaced by the form in the editor, for everyone, and cannot be got back. The form in use, and any days it is scheduled for, are not affected."
+        confirmLabel="Save over it"
+        destructive
+        onConfirm={async () => {
+          if (!overwriting) return;
+          try {
+            await onSaveTemplate({ name: overwriting.name, description: overwriting.description, template: current });
+            toast.success(`“${overwriting.name}” updated`);
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Could not save the form");
+          }
+          setOverwriting(null);
+        }}
+      />
 
       <ConfirmDialog
         open={deleting !== null}
