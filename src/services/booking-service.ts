@@ -178,6 +178,17 @@ export class BookingService {
     return (this.requesterDirectory ??= localRequesterDirectory(this.repos));
   }
 
+  /** This workspace's person for an email, by whichever directory is in use. */
+  async requesterOf(workspaceId: EntityId, email: string): Promise<{ userId: EntityId; name: string } | null> {
+    const clean = email.trim().toLowerCase();
+    return clean ? this.requesters.find(workspaceId, clean) : null;
+  }
+
+  /** Who a booking is written as on this board when nobody signed in made it. */
+  bookingActor(members: readonly WorkspaceMember[], board: Board): EntityId {
+    return this.actorFor(members, board, null);
+  }
+
   /** This workspace's name for an email, by whichever directory is in use (the portal's lookup, in local mode). */
   async requesterNameFor(workspaceId: EntityId, email: string): Promise<string | null> {
     return (await this.requesters.find(workspaceId, email.trim().toLowerCase()))?.name ?? null;
@@ -373,7 +384,13 @@ export class BookingService {
     return (await this.departmentsOf(workspaceId)).filter((d) => d.status === undefined || d.status === "ACTIVE");
   }
 
-  async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
+  /**
+   * A request checked the way every booking is: against the form it was filled
+   * in on, with only the answers that form asks, by the form's own rules, the
+   * department from the list, and the brief composed here. A new booking and a
+   * task sent back and answered again both go through this.
+   */
+  async prepareRequest(workspaceId: EntityId, rawRequest: BookingRequest, stakeholder: string | null = null) {
     const request = bookingRequestSchema.parse(rawRequest) as BookingRequest;
     const { workspace, board: allocation, teams } = await this.systemEntities(workspaceId);
     // The form the visitor filled in: the live one, or the one live a moment
@@ -412,6 +429,11 @@ export class BookingService {
     // The brief is composed here, from the template and the answers, whatever
     // the caller sent as one. What the team reads is what the form asked for.
     request.brief = composeBrief(request, template, { at: new Date() });
+    return { request, template, service, team, workspace, allocation, teams, department };
+  }
+
+  async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
+    const { request, template, service, team, allocation, teams, department } = await this.prepareRequest(workspaceId, rawRequest, stakeholder);
 
     // Where it goes: the service's own rules when it has them switched on, else
     // the team's nominated board. A board a rule names that has gone (archived,
@@ -502,6 +524,9 @@ export class BookingService {
 
     // The brief on the task itself, so a Brief column on whichever board it ends up on can show it.
     if (request.brief.trim()) await this.repos.items.setBookingBrief(item.id, request.brief);
+    // The booking as sent, so it can open filled in if the team sends it back.
+    // The task is booked either way: without this, the requester retypes it.
+    await this.repos.bookingRequests.put({ itemId: item.id, workspaceId, request: { ...request, itemId: item.id } }).catch((error: unknown) => console.error("Could not keep the booking's answers", error));
     await this.notifyAdmins(members, board, item, request, team, actorId);
     // A figure for the form editor. The booking has landed either way, so a
     // counter that cannot be bumped is not a reason to tell the stakeholder no.

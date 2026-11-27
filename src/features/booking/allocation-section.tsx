@@ -66,6 +66,8 @@ export function AllocationSection({ item }: { item: Item }) {
   const loose = ws.boards.filter((b) => b.archivedAt === null && !b.system && !b.teamId && canViewBoard(ws.permissions, b)).sort(byName);
   // Nowhere to send it: say so rather than offer an empty list.
   const nowhere = groups.length === 0 && loose.length === 0;
+  // Nothing to do here (read-only, or the task is sent back and locked): no empty box.
+  if (!canEdit && !nowhere) return null;
 
   return (
     <section data-testid="allocation-section">

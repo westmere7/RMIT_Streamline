@@ -9,6 +9,8 @@ import type {
   BoardShare,
   DashboardShare,
   ItemShare,
+  BookingSendBack,
+  StoredBookingRequest,
   BoardViewKind,
   BoardColumn,
   BoardFavourite,
@@ -123,6 +125,9 @@ export interface StreamlineDB extends DBSchema {
   portalRequests: { key: string; value: PortalRequest; indexes: { byWorkspace: string; byDepartment: string; byItem: string } };
   portalSubmissions: { key: string; value: PortalSubmission; indexes: { byPortal: string; byKey: [string, string] } };
   itemShares: { key: string; value: ItemShare; indexes: { byItem: string; byToken: string } };
+  /** Keyed by the item: one stored booking per task. */
+  bookingRequests: { key: string; value: StoredBookingRequest; indexes: { byWorkspace: string } };
+  bookingSendBacks: { key: string; value: BookingSendBack; indexes: { byItem: string; byToken: string } };
   itemReads: { key: string; value: ItemRead & { id: string }; indexes: { byUser: string } };
   automationRules: { key: string; value: AutomationRule; indexes: { byBoard: string; byWorkspace: string } };
   automationEvents: { key: string; value: AutomationEvent; indexes: { byBoard: string } };
@@ -183,6 +188,8 @@ export const ALL_STORES: StoreName[] = [
   "portalRequests",
   "portalSubmissions",
   "itemShares",
+  "bookingRequests",
+  "bookingSendBacks",
   "itemReads",
   "activities",
   "automationRules",
@@ -201,7 +208,7 @@ export const ALL_STORES: StoreName[] = [
 
 export const DB_NAME = "rmit-streamline";
 /** Bump when adding stores or indexes and extend `upgradeSchema` for the new version. */
-export const DB_VERSION = 21;
+export const DB_VERSION = 22;
 
 export type StreamlineDatabase = IDBPDatabase<StreamlineDB>;
 export type WriteTx<Names extends StoreName[]> = IDBPTransaction<StreamlineDB, Names, "readwrite">;
@@ -460,6 +467,16 @@ function createItemFavouritesStore(db: IDBPDatabase<StreamlineDB>): void {
   db.createObjectStore("itemFavourites", { keyPath: "id" }).createIndex("byUser", "userId");
 }
 
+/** v22: bookings as last sent, and tasks sent back to their requester. */
+function createBookingSendBackStores(db: IDBPDatabase<StreamlineDB>): void {
+  if (!db.objectStoreNames.contains("bookingRequests")) db.createObjectStore("bookingRequests", { keyPath: "itemId" }).createIndex("byWorkspace", "workspaceId");
+  if (!db.objectStoreNames.contains("bookingSendBacks")) {
+    const sendBacks = db.createObjectStore("bookingSendBacks", { keyPath: "id" });
+    sendBacks.createIndex("byItem", "itemId");
+    sendBacks.createIndex("byToken", "token", { unique: true });
+  }
+}
+
 /** Applies every schema step between the installed version and DB_VERSION. */
 function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void {
   if (oldVersion < 1) createSchema(db);
@@ -483,6 +500,7 @@ function upgradeSchema(db: IDBPDatabase<StreamlineDB>, oldVersion: number): void
   if (oldVersion < 19) createItemFavouritesStore(db);
   if (oldVersion < 20) createSavedViewsStore(db);
   if (oldVersion < 21) createDocsStore(db);
+  if (oldVersion < 22) createBookingSendBackStores(db);
 }
 
 export interface OpenDatabaseOptions {

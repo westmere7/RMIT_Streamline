@@ -34,6 +34,7 @@ import { useBoardLockStore, useLockedForMe } from "@/features/boards/board-lock"
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { useSentBackItems } from "@/features/booking/send-back-hooks";
 import { useLastUpdatedValues } from "@/features/boards/hooks/use-last-updated";
 import { useActiveSavedView, useSavedViewStore } from "@/features/boards/saved-views/saved-view-store";
 import { SavedViewsContext, useSavedViewsController } from "@/features/boards/saved-views/saved-views";
@@ -351,6 +352,8 @@ function BoardScreen({ boardId }: { boardId: string }) {
 
   const itemIds = React.useMemo(() => (snapshot.data ? snapshot.data.items.map((item) => item.id) : []), [snapshot.data]);
   const updates = useBoardUpdates(board.id, itemIds);
+  // Tasks waiting on their requester: "Sent back" in place of their status, and locked.
+  const sentBackItemIds = useSentBackItems(board.id, snapshot.data?.items, snapshot.dataUpdatedAt);
 
   const contextValue = React.useMemo<BoardContextValue | null>(
     () =>
@@ -374,9 +377,10 @@ function BoardScreen({ boardId }: { boardId: string }) {
             feedOptions: feedOptionsOf(tableSettings),
             setFeedOptions: (patch) => updateTableSettings(feedSettingsPatch(patch)),
             updates,
+            sentBackItemIds,
           }
         : null,
-    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket, rememberOpenMode, preferredOpen, tableSettings, updateTableSettings],
+    [board, model, boardMutations, ws.activeUsers, ws.permissions, canEdit, openItem, openItemUpdates, now, updates, tableSettings.showTicket, setShowTicket, rememberOpenMode, preferredOpen, tableSettings, updateTableSettings, sentBackItemIds],
   );
 
   // Next holds this page on screen until the next one is ready, so a board

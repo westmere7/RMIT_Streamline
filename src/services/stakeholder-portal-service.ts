@@ -236,8 +236,8 @@ export interface PortalOverview {
  * how the local suite exercises the real behaviour rather than a stand-in.
  */
 /** The events Task journey draws, and the only details of them it shows (src/features/journey/journey.ts). */
-const JOURNEY_EVENTS = new Set<Activity["eventType"]>(["ITEM_CREATED", "ITEM_MOVED", "ITEM_COLUMN_VALUE_UPDATED", "ASSET_ADDED", "ASSET_REMOVED", "ASSET_COMPLETED", "ASSET_REOPENED", "ITEM_ARCHIVED", "ITEM_RESTORED"]);
-const JOURNEY_METADATA = ["boardName", "via", "requesterName", "department", "groupName", "from", "to", "fromGroupName", "toGroupName", "columnType", "assetName"] as const;
+const JOURNEY_EVENTS = new Set<Activity["eventType"]>(["ITEM_CREATED", "ITEM_MOVED", "ITEM_COLUMN_VALUE_UPDATED", "ASSET_ADDED", "ASSET_REMOVED", "ASSET_COMPLETED", "ASSET_REOPENED", "ITEM_ARCHIVED", "ITEM_RESTORED", "BOOKING_SENT_BACK", "BOOKING_RESUBMITTED", "BOOKING_SEND_BACK_CANCELLED"]);
+const JOURNEY_METADATA = ["boardName", "via", "requesterName", "department", "groupName", "from", "to", "fromGroupName", "toGroupName", "columnType", "assetName", "summary"] as const;
 
 export interface PortalTransport {
   gate(token: string): Promise<PortalGate>;
@@ -594,6 +594,8 @@ export class StakeholderPortalService {
       ...payload,
       totals,
       awaiting: { ids: awaitingIds, teamName: intakeTeam?.name ?? null },
+      // Read beside the board, never instead of it: a portal still opens if this cannot be.
+      sentBack: { ids: await this.repos.bookingSendBacks.openItemIds(tasks.map((entry) => entry.task.id)).catch(() => []) },
       servedAt: new Date().toISOString(),
       // Each request's team, for grouping by team: null while it waits on Task Allocation.
       teamOfItem: Object.fromEntries(tasks.map((entry) => {

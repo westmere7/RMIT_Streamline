@@ -201,6 +201,7 @@ export class LocalWorkspaceRepository implements WorkspaceRepository {
       ["automationRules", "createdBy"],
       ["boardShares", "createdBy"],
       ["itemShares", "createdBy"],
+      ["bookingSendBacks", "sentBy"],
       ["dashboardShares", "createdBy"],
       ["itemLinks", "createdBy"],
     ];

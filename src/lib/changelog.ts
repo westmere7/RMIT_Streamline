@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.168.0",
+    date: "2026-11-27",
+    title: "Send a booking back for what's missing",
+    changes: [
+      "A booked task nobody has started has Send back for more information, under its description. Say what's missing and copy the link it gives you to the requester: the app sends no email.",
+      "The link opens their form with their answers in it and your note at the top. They change what's needed and send it again: the same task and ticket take the new answers. Only what they changed is rewritten, new asset lines are added, and an update says what changed and mentions you.",
+      "While it waits, the task shows Sent back in place of its status (board, Guest portal and Internal portal) and is locked, so nothing collides with their answer. Updates can still be posted. Recall send back stops the link.",
+      "Every round is on the task's journey with its time: sent back, sent again, recalled, as many times as it happens.",
+      "Links work once and run out after 14 days. Bookings keep their answers from now on; one booked before this opens the form empty.",
+    ],
+  },
+  {
     version: "0.167.1",
     date: "2026-11-27",
     title: "The Default view keeps track of Hide and where tasks open",

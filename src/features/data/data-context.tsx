@@ -6,6 +6,7 @@ import type { AuthProvider } from "@/domain";
 import { createRepositories } from "@/data/provider";
 import { HttpReallocationTransport } from "@/data/supabase/reallocation-transport";
 import { HttpBookingTransport } from "@/data/supabase/booking-transport";
+import { HttpSendBackTransport } from "@/data/supabase/send-back-transport";
 import { HttpBugReportTransport } from "@/data/supabase/bug-report-transport";
 import { HttpDashboardTransport } from "@/data/supabase/dashboard-transport";
 import { HttpAutomationTransport } from "@/data/supabase/automation-transport";
@@ -36,6 +37,7 @@ export function DataProviderContext({ children, value }: { children: React.React
     const supabase = providerKind === "supabase";
     const services = createServices(repos, {
       bookingTransport: supabase ? new HttpBookingTransport() : null,
+      sendBackTransport: supabase ? new HttpSendBackTransport() : null,
       reallocationTransport: supabase ? new HttpReallocationTransport() : null,
       bugReportTransport: supabase ? new HttpBugReportTransport() : null,
       shareTransport: supabase ? new HttpShareTransport() : null,

@@ -45,7 +45,7 @@ import { BookedChip } from "@/features/items/booked-chip";
 import { MenuSheet } from "@/components/layout/menu-sheet";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import type { MenuAction } from "@/components/layout/row-menu";
-import { useBoardContext } from "@/features/boards/board-context";
+import { ItemEditScope, useBoardContext, useCanEditUnlocked } from "@/features/boards/board-context";
 import { DEFAULT_FEED_OPTIONS } from "@/features/boards/table-view-settings";
 import { CellRenderer } from "@/features/boards/components/cells/cell-renderer";
 import { CellStretchProvider } from "@/features/boards/components/cells/cell-shell";
@@ -62,6 +62,7 @@ import { useRecordItemVisit } from "@/features/items/item-visits";
 import { ItemCover } from "@/features/items/item-cover";
 import { useBoardUiStore } from "@/stores/board-ui-store";
 import { AllocationSection } from "@/features/booking/allocation-section";
+import { SendBackSection } from "@/features/booking/send-back-section";
 import { LinkedItemsSection } from "@/features/items/linked-items-section";
 import { PANEL_WIDTHS, PanelSizeProvider, usePanelSize, useResizablePanel } from "@/features/items/panel-size";
 import { BriefEditedNote, useBriefSource } from "@/features/items/brief-source";
@@ -178,15 +179,7 @@ function PanelBlocks({ onClose, hideClose = false }: { onClose: () => void; hide
  * column beside it — wide enough to read the task and its updates at once, so
  * the tabs stop being a choice between them.
  */
-export function ItemDetailPanel({
-  itemId,
-  onClose,
-  overlay = false,
-  shared = false,
-  popup = false,
-  hideMenu = false,
-  notice,
-}: {
+type ItemDetailPanelProps = {
   itemId: string;
   onClose: () => void;
   overlay?: boolean;
@@ -202,8 +195,24 @@ export function ItemDetailPanel({
   hideMenu?: boolean;
   /** Something the reader should know about this task before anything else, shown under its header. */
   notice?: React.ReactNode;
-}) {
+};
+
+/**
+ * A task, beside the board or over it. Locked while the task waits on its
+ * requester (ItemEditScope): read-only throughout, but updates may still be
+ * posted and the send-back taken back.
+ */
+export function ItemDetailPanel(props: ItemDetailPanelProps) {
+  return (
+    <ItemEditScope itemId={props.itemId}>
+      <ItemDetailPanelBody {...props} />
+    </ItemEditScope>
+  );
+}
+
+function ItemDetailPanelBody({ itemId, onClose, overlay = false, shared = false, popup = false, hideMenu = false, notice }: ItemDetailPanelProps) {
   const { model, canEdit, board } = useBoardContext();
+  const canComment = useCanEditUnlocked();
   const item = model.itemById.get(itemId);
   const narrow = useMediaQuery("(max-width: 1023px)");
   // Two panes need the room for two panes. Below that the pop-up is the panel,
@@ -370,7 +379,7 @@ export function ItemDetailPanel({
               <Overview key={item.id} item={item} onOpenUpdates={() => setTab("updates")} />
             </TabsContent>
             <TabsContent value="updates" className="min-h-0 flex-1">
-              <ItemUpdates itemId={item.id} canComment={canEdit} />
+              <ItemUpdates itemId={item.id} canComment={canComment} />
             </TabsContent>
             {deliverables && (
               <TabsContent value="assets" className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
@@ -500,6 +509,7 @@ function PopupCard({
 }) {
   const activity = useItemActivity(item.id);
   const { feedOptions = DEFAULT_FEED_OPTIONS } = useBoardContext();
+  const canComment = useCanEditUnlocked();
   const [collapseSlot, setCollapseSlot] = React.useState<HTMLDivElement | null>(null);
   return (
     // The overview takes three-eighths of the width (never under 420px) and the
@@ -536,7 +546,7 @@ function PopupCard({
             {/* The composer stays under the tab bar (h-11) while the feed scrolls. */}
             <ItemUpdates
               itemId={item.id}
-              canComment={canEdit}
+              canComment={canComment}
               log={feedOptions.activity ? (activity.data ?? []) : []}
               embedded
               order={feedOptions.updatesOnTop ? "updatesFirst" : "time"}
@@ -594,6 +604,7 @@ function PopupBody({
   /** False on App development: no Assets tab, the pane is the activity. */
   deliverables: boolean;
 }) {
+  const canComment = useCanEditUnlocked();
   return (
     // Two equal columns, whatever either one holds. As flex items the two asked
     // for equal shares, but a flex item will not shrink below its content, and
@@ -618,7 +629,7 @@ function PopupBody({
             <Overview key={item.id} item={item} onOpenUpdates={() => onLeftChange("updates")} />
           </TabsContent>
           <TabsContent value="updates" className="min-h-0 flex-1">
-            <ItemUpdates itemId={item.id} canComment={canEdit} />
+            <ItemUpdates itemId={item.id} canComment={canComment} />
           </TabsContent>
         </Tabs>
       </section>
@@ -1276,6 +1287,8 @@ function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpd
       <div className="space-y-6 px-7 py-6">
         {/* Above the columns, as the card's own text: read as it is, edited only once clicked. */}
         <DescriptionSection item={item} canEdit={canEdit} />
+        {/* Missing something? Back to whoever booked it; while it waits, it says so here. */}
+        <SendBackSection item={item} />
         {/* A request waiting on Task Allocation: placing it is the job, so it comes first. */}
         <AllocationSection item={item} />
         {fields}
@@ -1289,6 +1302,7 @@ function Overview({ item, onOpenUpdates, part = "all" }: { item: Item; onOpenUpd
       {/* The update pinned to the overview, read before the description. */}
       <PinnedUpdate itemId={item.id} canEdit={canEdit} onOpenUpdates={onOpenUpdates} />
       <DescriptionSection item={item} canEdit={canEdit} />
+      <SendBackSection item={item} />
       <AllocationSection item={item} />
       {fields}
       <LinkedItemsSection item={item} />

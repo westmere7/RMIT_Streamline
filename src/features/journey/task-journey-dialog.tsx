@@ -20,6 +20,9 @@ import {
   RotateCcw,
   Route,
   Send,
+  CircleSlash,
+  Redo2,
+  Undo2,
 } from "lucide-react";
 import * as React from "react";
 import { UserAvatar } from "@/components/shared/user-avatar";
@@ -49,6 +52,9 @@ const KIND: Record<MilestoneKind, { icon: React.ComponentType<{ className?: stri
   "asset-reopened": { icon: RotateCcw, color: "#f97316" },
   archived: { icon: Archive, color: "#475569" },
   restored: { icon: ArchiveRestore, color: "#0ea5e9" },
+  "sent-back": { icon: Undo2, color: "#f59e0b" },
+  resubmitted: { icon: Redo2, color: "#8b5cf6" },
+  "send-back-cancelled": { icon: CircleSlash, color: "#64748b" },
 };
 
 /**

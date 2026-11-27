@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
+import type * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
 import type { Board, BoardColumn, Item, User } from "@/domain";
 import type { BoardModel } from "@/features/boards/board-model";
@@ -55,9 +56,46 @@ export interface BoardContextValue {
    * so they are left to the real panel the page opens.
    */
   itemMenu?: { extra: (item: Item) => MenuAction[] };
+  /**
+   * Tasks sent back to their requester and not answered yet. Each shows "Sent
+   * back" in place of its status, and nobody edits it until the requester
+   * answers or the team takes it back: their answer would land on top.
+   */
+  sentBackItemIds?: ReadonlySet<string>;
+  /**
+   * Inside a sent-back task's scope, whether the reader could edit it were it
+   * not waiting: they may still post updates and take the send-back back.
+   * Absent outside one, where `canEdit` says the same.
+   */
+  canEditUnlocked?: boolean;
 }
 
 const BoardContext = createContext<BoardContextValue | null>(null);
+
+/**
+ * One task's part of the board: its row, card or panel. While the task waits
+ * on its requester, everything inside reads `canEdit` as false, so every cell,
+ * menu and field the board already gates on it stays put without each needing
+ * to know why. Always a provider, so nothing remounts when the lock comes or goes.
+ */
+export function ItemEditScope({ itemId, children }: { itemId: string; children: React.ReactNode }) {
+  const ctx = useContext(BoardContext);
+  const locked = !!ctx && ctx.canEdit && !!ctx.sentBackItemIds?.has(itemId);
+  const value = useMemo(() => (ctx && locked ? { ...ctx, canEdit: false, canEditUnlocked: true } : ctx), [ctx, locked]);
+  return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>;
+}
+
+/** Whether this task waits on its requester, for whatever draws it. */
+export function useItemSentBack(itemId: string | null | undefined): boolean {
+  const ctx = useContext(BoardContext);
+  return !!itemId && !!ctx?.sentBackItemIds?.has(itemId);
+}
+
+/** Whether the reader may post updates on, or act on the send-back of, the task in scope: the right the lock leaves alone. */
+export function useCanEditUnlocked(): boolean {
+  const ctx = useContext(BoardContext);
+  return !!ctx && (ctx.canEditUnlocked ?? ctx.canEdit);
+}
 
 export const BoardContextProvider = BoardContext.Provider;
 

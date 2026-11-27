@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetItem } from "@/components/ui/sheet";
 import type { BoardColumn, BoardGroup, ColumnLabel, Item } from "@/domain";
 import { columnLabels, isStuckLabel, priorityStrength } from "@/domain";
-import { useBoardContext } from "@/features/boards/board-context";
+import { ItemEditScope, useBoardContext, useItemSentBack } from "@/features/boards/board-context";
+import { SentBackPill } from "@/features/booking/sent-back-pill";
 import { UpdatesBadge } from "@/features/items/updates-badge";
 import { colorClasses } from "@/lib/colors";
 import { formatShortDate, isOverdue, toISODate } from "@/lib/dates/dates";
@@ -41,14 +42,7 @@ type Editing = "status" | "priority" | "date" | null;
  * name is the button that opens the item; the chips sit beside it rather than
  * inside it, because a button inside a button is not a thing.
  */
-export function MobileItemCard({
-  item,
-  group,
-  selectMode,
-  indent = false,
-  footer,
-  menuLead,
-}: {
+type MobileItemCardProps = {
   item: Item;
   group: BoardGroup;
   selectMode: boolean;
@@ -56,7 +50,19 @@ export function MobileItemCard({
   footer?: React.ReactNode;
   /** Entries a view puts first in the card's menu: Kanban's Move to lane. */
   menuLead?: MenuAction[];
-}) {
+};
+
+/** A task's card on a phone, locked while the task waits on its requester (ItemEditScope). */
+export function MobileItemCard(props: MobileItemCardProps) {
+  return (
+    <ItemEditScope itemId={props.item.id}>
+      <MobileItemCardBody {...props} />
+    </ItemEditScope>
+  );
+}
+
+function MobileItemCardBody({ item, group, selectMode, indent = false, footer, menuLead }: MobileItemCardProps) {
+  const sentBack = useItemSentBack(item.id);
   const { board, model, mutations, canEdit, openItem, openItemUpdates, updates } = useBoardContext();
   const selected = useBoardUiStore((s) => (s.boards[board.id]?.selectedItemIds ?? EMPTY_BOARD_UI.selectedItemIds).includes(item.id));
   const expanded = useBoardUiStore((s) => (s.boards[board.id]?.expandedItemIds ?? EMPTY_BOARD_UI.expandedItemIds).includes(item.id));
@@ -144,7 +150,9 @@ export function MobileItemCard({
           </button>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-            {statusColumn &&
+            {sentBack ? (
+              <SentBackPill className="h-6.5 px-2 text-xs" />
+            ) : statusColumn &&
               chip(
                 "status",
                 `Change status of ${item.name}`,

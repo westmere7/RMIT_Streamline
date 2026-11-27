@@ -1,4 +1,6 @@
 import type {
+  BookingSendBack,
+  StoredBookingRequest,
   Activity,
   ActivityInput,
   StatusChange,
@@ -524,6 +526,37 @@ export interface ItemShareRepository {
 }
 
 /**
+ * The booking as last sent (src/domain/booking/send-back.ts), kept so a task
+ * sent back opens the form with its answers in it. Only the server's service
+ * role reads and writes these on Supabase: they hold the requester's email.
+ */
+export interface BookingRequestRepository {
+  get(itemId: EntityId): Promise<StoredBookingRequest | null>;
+  /** Writes it whole, made or replaced. */
+  put(input: Pick<StoredBookingRequest, "itemId" | "workspaceId" | "request">): Promise<StoredBookingRequest>;
+}
+
+/**
+ * Tasks sent back to their requester. At most one open per task. Read on
+ * Supabase by people who can edit the task (the token is in the row); written
+ * by the server's routes alone.
+ */
+export interface BookingSendBackRepository {
+  /** The one waiting on the requester (expired included), if any. */
+  openFor(itemId: EntityId): Promise<BookingSendBack | null>;
+  getByToken(token: string): Promise<BookingSendBack | null>;
+  create(input: Omit<BookingSendBack, "id" | "sentAt" | "resubmittedAt" | "cancelledAt">): Promise<BookingSendBack>;
+  update(id: EntityId, patch: Partial<Pick<BookingSendBack, "resubmittedAt" | "cancelledAt">>): Promise<BookingSendBack>;
+  /** Of these tasks, the ones waiting on their requester. */
+  openItemIds(itemIds: readonly EntityId[]): Promise<EntityId[]>;
+  /**
+   * Marks it answered only if it is still open, in one step: true when this
+   * call did it. Two submissions at once cannot both go through.
+   */
+  claimResubmission(id: EntityId, at: string): Promise<boolean>;
+}
+
+/**
  * The public link of a workspace's dashboard: at most one per workspace, looked
  * up either from the workspace (to manage it) or from the token in the link (to
  * serve it).
@@ -844,6 +877,8 @@ export interface Repositories {
   itemFavourites: ItemFavouriteRepository;
   boardShares: BoardShareRepository;
   itemShares: ItemShareRepository;
+  bookingRequests: BookingRequestRepository;
+  bookingSendBacks: BookingSendBackRepository;
   dashboardShares: DashboardShareRepository;
   itemReads: ItemReadRepository;
   itemVisits: ItemVisitRepository;

@@ -25,7 +25,13 @@ export type MilestoneKind =
   | "assets-complete"
   | "asset-reopened"
   | "archived"
-  | "restored";
+  | "restored"
+  /** Sent back to the requester for missing information. */
+  | "sent-back"
+  /** The requester sent it again. */
+  | "resubmitted"
+  /** The team recalled the send back. */
+  | "send-back-cancelled";
 
 export interface JourneyStatus {
   name: string;
@@ -220,6 +226,17 @@ export function buildJourney(activities: readonly Activity[], ctx: JourneyContex
         raw.push({ id: event.id, kind: "asset-reopened", at: event.createdAt, actorId: event.actorId, title: "Deliverable reopened", detail: meta.assetName, progress: { done, total } });
         break;
       }
+      case "BOOKING_SENT_BACK": {
+        const round = raw.filter((m) => m.kind === "sent-back").length + 1;
+        raw.push({ id: event.id, kind: "sent-back", at: event.createdAt, actorId: event.actorId, title: `Sent back${meta.requesterName ? ` to ${meta.requesterName}` : ""}${round > 1 ? ` (${ordinal(round)} time)` : ""}`, detail: meta.summary });
+        break;
+      }
+      case "BOOKING_RESUBMITTED":
+        raw.push({ id: event.id, kind: "resubmitted", at: event.createdAt, actorId: event.actorId, title: `Sent again${meta.requesterName ? ` by ${meta.requesterName}` : ""}`, detail: meta.summary });
+        break;
+      case "BOOKING_SEND_BACK_CANCELLED":
+        raw.push({ id: event.id, kind: "send-back-cancelled", at: event.createdAt, actorId: event.actorId, title: "Send back recalled" });
+        break;
       case "ITEM_ARCHIVED":
         raw.push({ id: event.id, kind: "archived", at: event.createdAt, actorId: event.actorId, title: "Archived", detail: meta.boardName ? `from ${meta.boardName}` : undefined });
         ended = true;
@@ -324,4 +341,11 @@ export function formatSpan(ms: number): string {
   if (d < 14) return h % 24 ? `${d}d ${h % 24}h` : `${d}d`;
   const w = Math.floor(d / 7);
   return d % 7 ? `${w}w ${d % 7}d` : `${w}w`;
+}
+
+/** "2nd", "3rd": how many times a task has been sent back. */
+function ordinal(n: number): string {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) return `${n}th`;
+  return `${n}${({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th"}`;
 }

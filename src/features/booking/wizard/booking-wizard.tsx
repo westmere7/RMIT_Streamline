@@ -83,6 +83,12 @@ export interface BookingWizardProps {
   /** Where the booked item can be opened, for people who may see its board. Null hides the link. */
   itemHref?: (receipt: BookingReceipt) => string | null;
   onBooked?: (receipt: BookingReceipt) => void;
+  /**
+   * The form sent back to its requester (src/domain/booking/send-back.ts): it
+   * opens on `initial`, who asked is fixed (their link is theirs), the button
+   * sends it again, and the receipt says the team has it, with nothing to book next.
+   */
+  resubmit?: { initial: BookingRequest | null } | null;
 }
 
 /** Who the app knows is signed in, with enough about them to be shown as a person and not a pair of boxes. */
@@ -129,9 +135,10 @@ interface StepDef {
   label: string;
 }
 
-function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, lookupRequester, pastBookings, itemHref, onBooked }: BookingWizardProps) {
+function Wizard({ form, defaults, account, signInHref, omit, remember, preview, onSubmit, lookupRequester, pastBookings, itemHref, onBooked, resubmit }: BookingWizardProps) {
   const template = form.template;
-  const memory = useBookingMemory(remember ?? null);
+  const memory = useBookingMemory(resubmit ? null : (remember ?? null));
+  const initial = resubmit?.initial ?? null;
 
   const steps = React.useMemo<StepDef[]>(
     () =>
@@ -144,7 +151,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     [template.assets.enabled],
   );
 
-  const [request, setRequest] = React.useState<BookingRequest>(() => ({
+  const [request, setRequest] = React.useState<BookingRequest>(() => initial ? { ...emptyBookingRequest(), ...structuredClone(initial), department: listedDepartment(form.departments, initial.department), itemId: null } : ({
     ...emptyBookingRequest(),
     ...(memory.draft?.request ?? {}),
     requesterName: memory.draft?.request.requesterName || account?.name || memory.requester?.name || defaults?.requesterName || "",
@@ -154,7 +161,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
     department: listedDepartment(form.departments, memory.draft?.request.department ?? defaults?.department),
     itemId: null,
   }));
-  const [assets, setAssets] = React.useState<AssetRow[]>(() => (memory.draft?.request.assets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "", assetType: line.assetType ?? null })));
+  const [assets, setAssets] = React.useState<AssetRow[]>(() => (initial?.assets ?? memory.draft?.request.assets ?? []).map((line) => ({ ...newAssetRow(line.name), quantity: line.quantity, notes: line.spec ?? "", assetType: line.assetType ?? null })));
   const [restored, setRestored] = React.useState(!!memory.draft);
   /**
    * The asset types the deliverables already name. They are part of the answer
@@ -427,7 +434,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
   const pastFor = !preview && showPast && pastBookings && submitted?.requesterEmail.trim() ? submitted.requesterEmail.trim() : null;
   // A preview books nothing and looks nobody up: made-up rows, so the list can be seen as it will look.
   const past = preview && showPast ? { email: "preview", load: async () => [] as BookingPastSummary[], sample: samplePastBookings(form.ticketPrefix) } : pastFor && pastBookings ? { email: pastFor, load: pastBookings } : null;
-  if (receipt) return <Receipt receipt={receipt} request={template.review.offerPdf === false ? null : submitted} past={past} workspaceName={form.workspaceName} template={template} itemHref={itemHref} onAnother={() => {
+  if (receipt) return <Receipt receipt={receipt} request={template.review.offerPdf === false ? null : submitted} past={resubmit ? null : past} workspaceName={form.workspaceName} template={template} itemHref={itemHref} resubmitted={!!resubmit} onAnother={() => {
     setReceipt(null);
     setSubmitted(null);
     setItemId(newId());
@@ -450,10 +457,13 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
             // Signed in and booking as themselves: the card says who, and the
             // two boxes it answers are not on the form. "Booking for someone
             // else?" is what brings them back, empty.
-            hiddenKeys={account && knownRequester ? ACCOUNT_KEYS : undefined}
+            // Sent back: who asked is whoever the link was made for, fixed.
+            hiddenKeys={resubmit && initial ? ACCOUNT_KEYS : account && knownRequester ? ACCOUNT_KEYS : undefined}
             emailCheck={emailCheck}
             identity={
-              <Identity
+              resubmit ? (
+                initial ? <p className="text-[13px] text-muted-foreground" data-testid="resubmit-identity">As {initial.requesterName || initial.requesterEmail}</p> : null
+              ) : <Identity
                 account={account ?? null}
                 known={known ?? null}
                 knownRequester={knownRequester}
@@ -513,7 +523,7 @@ function Wizard({ form, defaults, account, signInHref, omit, remember, preview, 
                   <LoaderCircle className="animate-spin" /> Booking…
                 </>
               ) : (
-                template.review.submitLabel
+                resubmit ? "Send again" : template.review.submitLabel
               )}
             </Button>
           ) : (
@@ -725,8 +735,11 @@ function Receipt({
   itemHref,
   onAnother,
   past,
+  resubmitted = false,
 }: {
   receipt: BookingReceipt;
+  /** Sent again after the team sent it back: the same task, nothing new booked. */
+  resubmitted?: boolean;
   /** What was sent, for the PDF; null hides the button. */
   request: BookingRequest | null;
   /** The email the booking was made with and how to list its other bookings; null lists nothing. `sample` is shown instead (a preview). */
@@ -737,7 +750,7 @@ function Receipt({
   onAnother: () => void;
 }) {
   const href = itemHref?.(receipt) ?? null;
-  const reply = template.review.autoReply.trim();
+  const reply = resubmitted ? "" : template.review.autoReply.trim();
   const [saving, setSaving] = React.useState(false);
   // Loaded on the click: the PDF library is large and most people never press it.
   const downloadPdf = async () => {
@@ -759,8 +772,8 @@ function Receipt({
           <CheckCircle2 className="size-5" />
         </span>
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold tracking-tight">Booked. Thank you.</h2>
-          <p className="mt-0.5 text-[13px] text-muted-foreground">Quote the ticket below if you follow up with the team.</p>
+          <h2 className="text-lg font-semibold tracking-tight">{resubmitted ? "Sent. Thank you." : "Booked. Thank you."}</h2>
+          <p className="mt-0.5 text-[13px] text-muted-foreground">{resubmitted ? "The team has your answers on the same ticket." : "Quote the ticket below if you follow up with the team."}</p>
         </div>
       </div>
       <dl className="grid gap-2.5 rounded-xl border border-border/60 bg-surface/60 p-4 text-[13px] sm:grid-cols-[120px_minmax(0,1fr)]">
@@ -773,9 +786,13 @@ function Receipt({
           {receipt.itemName}
           {receipt.assetCount > 0 && <span className="ml-1.5 font-normal text-muted-foreground">· {receipt.assetCount === 1 ? "1 asset" : `${receipt.assetCount} assets`}</span>}
         </dd>
-        <dt className="text-muted-foreground">Going to</dt>
-        <dd>{receipt.teamName ? `${receipt.teamName} (${receipt.boardName})` : "The allocation queue — a manager will place it with the right team."}</dd>
-        <dt className="text-muted-foreground">Booked</dt>
+        {!resubmitted && (
+          <>
+            <dt className="text-muted-foreground">Going to</dt>
+            <dd>{receipt.teamName ? `${receipt.teamName} (${receipt.boardName})` : "The allocation queue — a manager will place it with the right team."}</dd>
+          </>
+        )}
+        <dt className="text-muted-foreground">{resubmitted ? "Sent" : "Booked"}</dt>
         <dd>{formatShortDate(receipt.submittedAt.slice(0, 10))}</dd>
       </dl>
       {reply && (
@@ -793,9 +810,11 @@ function Receipt({
             {saving ? <LoaderCircle className="animate-spin" /> : <FileDown />} {template.review.pdfLabel?.trim() || "Download PDF"}
           </Button>
         )}
-        <Button type="button" variant="outline" onClick={onAnother} data-testid="booking-another">
-          Book another task
-        </Button>
+        {!resubmitted && (
+          <Button type="button" variant="outline" onClick={onAnother} data-testid="booking-another">
+            Book another task
+          </Button>
+        )}
         {href && (
           <Button type="button" asChild>
             <a href={href}>Open on {receipt.boardName}</a>

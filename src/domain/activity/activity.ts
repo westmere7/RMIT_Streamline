@@ -15,6 +15,12 @@ export const ACTIVITY_EVENT_TYPES = [
   "ASSET_REMOVED",
   "ASSET_COMPLETED",
   "ASSET_REOPENED",
+  /** Sent back to its requester for missing information (migrations/0158). */
+  "BOOKING_SENT_BACK",
+  /** The requester sent it again. */
+  "BOOKING_RESUBMITTED",
+  /** The team took the send-back back before the requester answered. */
+  "BOOKING_SEND_BACK_CANCELLED",
   "COMMENT_ADDED",
   "BOARD_CREATED",
   "BOARD_RENAMED",
@@ -65,6 +71,8 @@ export interface ActivityMetadata {
   removedUserIds?: EntityId[];
   memberName?: string;
   count?: number;
+  /** A send-back's note, or what the requester's answer changed, cut short for a line. */
+  summary?: string;
   /** For ITEM_LINKED / ITEM_UNLINKED: the item on the other side of the link. */
   linkedItemName?: string;
   linkedBoardName?: string;

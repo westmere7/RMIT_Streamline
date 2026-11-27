@@ -330,6 +330,18 @@ export function createMemoryRepositories(
       update: readOnly("changing a link"),
       delete: readOnly("removing a link"),
     },
+    bookingRequests: {
+      get: async () => null,
+      put: readOnly("keeping a booking"),
+    },
+    bookingSendBacks: {
+      openFor: async () => null,
+      getByToken: async () => null,
+      create: readOnly("sending a task back"),
+      update: readOnly("changing a send-back"),
+      openItemIds: async () => [],
+      claimResubmission: readOnly("answering a send-back"),
+    },
     boardShares: {
       getByBoard: async () => null,
       getByToken: async () => null,

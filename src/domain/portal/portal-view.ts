@@ -230,6 +230,12 @@ export interface PortalBoardPayload extends PublicBoardPayload {
    * task that seems to have gone nowhere.
    */
   awaiting: { ids: EntityId[]; teamName: string | null };
+  /**
+   * The requests the team has sent back to their requester for more
+   * information, not answered yet: "Sent back" in place of their status. The
+   * link to answer is the requester's alone and is never part of this.
+   */
+  sentBack?: { ids: EntityId[] };
   /** When the server assembled this. Shown so stale data is visible as stale. */
   servedAt: string;
   /**

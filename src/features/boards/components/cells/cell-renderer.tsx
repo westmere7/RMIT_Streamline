@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ExternalLink, FileText, Link2, Pencil } from "lucide-react";
+import { Check, ExternalLink, FileText, Link2, Pencil, Undo2 } from "lucide-react";
 import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
@@ -16,7 +16,7 @@ import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-
 import { itemHours } from "@/features/boards/components/views/workload-hours";
 import { sizeEvidence, useAssetRates, useSizeScale } from "@/features/boards/size-fit";
 import { routes } from "@/lib/routes";
-import { useBoardContext } from "@/features/boards/board-context";
+import { useBoardContext, useItemSentBack } from "@/features/boards/board-context";
 import { BRIEF_TEXT_WIDTH, columnAlign, columnAlignAt } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
 import { colorClasses, tagColorFor } from "@/lib/colors";
@@ -53,7 +53,7 @@ function valueOf<T extends ColumnValue["type"]>(type: T, value: ColumnValue | un
 export function CellRenderer(props: CellProps) {
   switch (props.column.type) {
     case "STATUS":
-      return <StatusCell {...props} />;
+      return <StatusOrSentBack {...props} />;
     case "DROPDOWN":
       return <DropdownCell {...props} />;
     case "PRIORITY":
@@ -147,6 +147,38 @@ function doneLabelColor(column: BoardColumn): string | null {
 }
 
 // ---- Status / Priority -----------------------------------------------------
+
+/** The status, or "Sent back" while the task waits on its requester. */
+function StatusOrSentBack(props: CellProps) {
+  const sentBack = useItemSentBack(props.item.id);
+  return sentBack ? <SentBackStatus {...props} /> : <StatusCell {...props} />;
+}
+
+/**
+ * Where the status would be, while the requester has the task back: one chip
+ * that says so, in the board's table, the panels and both portals. The other
+ * columns stay as they are; the status underneath comes back with the answer.
+ */
+export function SentBackStatus({ item, column, width }: Pick<CellProps, "item" | "column" | "width">) {
+  const pill = useCellStretchMode() !== "table";
+  return (
+    <CellShell width={width ?? column.width} interactive={false} align={columnAlign(column.type)} aria-label={`${column.name}: Sent back for ${item.name}`} data-testid="status-cell" data-sent-back="true">
+      <span className={cn("flex h-full w-full items-center", pill ? "justify-center py-1" : "p-1.5")} title="Sent back to the requester for more information">
+        <span
+          className={cn(
+            "flex items-center justify-center gap-1.5 truncate font-semibold shadow-xs ring-2 ring-amber-300/70 ring-inset dark:ring-amber-300/40",
+            pill ? "h-7 min-w-36 max-w-full rounded-md px-2.5 text-[13px]" : "h-full w-full rounded-lg px-2 text-xs",
+            "bg-amber-500 text-white dark:bg-amber-500/90",
+          )}
+          data-testid="sent-back-chip"
+        >
+          <Undo2 className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">Sent back</span>
+        </span>
+      </span>
+    </CellShell>
+  );
+}
 
 export function StatusCell({ item, column, value, onChange, readOnly, width }: CellProps) {
   const { openEditLabels } = useBoardContext();

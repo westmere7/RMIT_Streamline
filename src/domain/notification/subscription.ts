@@ -74,6 +74,9 @@ export function subscriptionEventFor(activity: Pick<Activity, "eventType" | "met
     case "ITEM_ARCHIVED":
     case "ITEM_RESTORED":
     case "ITEM_DELETED":
+    case "BOOKING_SENT_BACK":
+    case "BOOKING_RESUBMITTED":
+    case "BOOKING_SEND_BACK_CANCELLED":
       return "tasks";
     default:
       return null;
@@ -103,6 +106,12 @@ export function subscriptionMessage(activity: Pick<Activity, "eventType" | "meta
       return { title: `${actorName} reopened "${m.assetName ?? "an asset"}" on ${task}`, body: null };
     case "ITEM_CREATED":
       return { title: `${actorName} added ${task}${m.boardName ? ` to ${m.boardName}` : ""}`, body: m.groupName ?? null };
+    case "BOOKING_SENT_BACK":
+      return { title: `${actorName} sent ${task} back${m.requesterName ? ` to ${m.requesterName}` : ""}`, body: m.summary ?? null };
+    case "BOOKING_RESUBMITTED":
+      return { title: `${actorName} sent ${task} again`, body: m.summary ?? null };
+    case "BOOKING_SEND_BACK_CANCELLED":
+      return { title: `${actorName} recalled the send back on ${task}`, body: null };
     case "ITEM_MOVED": {
       const ends = moveEnds(m);
       return { title: `${actorName} moved ${task}${ends.to ? ` to ${ends.to}` : ""}`, body: ends.from ? `From ${ends.from}` : null };

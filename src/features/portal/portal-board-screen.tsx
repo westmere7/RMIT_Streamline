@@ -4,7 +4,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDownUp, CalendarSearch, ClipboardPen, ClipboardX, GripVertical, Hourglass, Inbox, Rows3, SearchX } from "lucide-react";
+import { ArrowDownUp, CalendarSearch, ClipboardPen, ClipboardX, GripVertical, Hourglass, Inbox, Rows3, SearchX, Undo2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
 import { FullPageLoader } from "@/components/layout/full-page-loader";
@@ -136,7 +136,7 @@ export function PortalBoardScreen({
 
   return (
     <ShareGuestProviders payload={shown} path={home ?? `/portal/${encodeURIComponent(token)}`} activityFor={loadJourney} linksStayHere={linksStayHere}>
-      <PortalBoard payload={shown} itemMenu={itemMenu} onOpenModeChange={onOpenModeChange} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={groupings} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} onShowAll={onShowAll} />
+      <PortalBoard payload={shown} itemMenu={itemMenu} onOpenModeChange={onOpenModeChange} ownPanel={taskPanel === "own"} bookHref={bookHref} rangePicker={rangePicker} statusOrder={grouping === "status" && statusLabels.length > 1 ? { labels: statusLabels, onApply: saveStatusOrder } : null} defaultView={defaultView} grouping={grouping} groupings={groupings} onSearchChange={onSearchChange} searchingAllYears={searchingAllYears} refreshing={refreshing} awaiting={payload.awaiting} sentBack={payload.sentBack} onShowAll={onShowAll} />
     </ShareGuestProviders>
   );
 }
@@ -149,6 +149,24 @@ export function PortalBoardScreen({
  * status of its own and nobody on it, which reads as lost; this says it arrived
  * and who has it, and stands out so it is the first thing read.
  */
+function SentBackNotice() {
+  return (
+    <div
+      role="status"
+      className="mx-4 mt-3 flex shrink-0 items-start gap-3 rounded-xl border border-amber-400/60 bg-amber-50 px-3.5 py-3 text-[13px] dark:border-amber-400/30 dark:bg-amber-500/10"
+      data-testid="portal-sent-back"
+    >
+      <span aria-hidden className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white">
+        <Undo2 className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="font-semibold text-amber-950 dark:text-amber-100">Sent back for more information</p>
+        <p className="mt-0.5 text-amber-900/80 dark:text-amber-200/70">The requester has a link to add what&apos;s missing. The latest update says what.</p>
+      </div>
+    </div>
+  );
+}
+
 function AwaitingAllocation({ teamName }: { teamName: string | null }) {
   return (
     <div
@@ -193,6 +211,7 @@ function PortalBoard({
   searchingAllYears,
   refreshing,
   awaiting,
+  sentBack,
   onShowAll,
 }: {
   onShowAll?: () => void;
@@ -204,6 +223,7 @@ function PortalBoard({
   refreshing: boolean;
   /** The requests still waiting on Task Allocation, and the team holding them. */
   awaiting: PortalBoardPayload["awaiting"] | undefined;
+  sentBack: PortalBoardPayload["sentBack"] | undefined;
   bookHref: string | null | false;
   rangePicker?: React.ReactNode;
   /** The status groups in their current order and where a new order goes; null when not grouped by status. */
@@ -216,6 +236,10 @@ function PortalBoard({
   searchingAllYears?: boolean;
 }) {
   const board = payload.board;
+  // The server's list, as a set; a new one only when the list itself changes.
+  const sentBackKey = (sentBack?.ids ?? []).join(",");
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the ids, not the array the payload re-creates
+  const sentBackItemIds = React.useMemo<ReadonlySet<string>>(() => new Set(sentBack?.ids ?? []), [sentBackKey]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const snapshot = useBoardSnapshot(board.id);
@@ -318,10 +342,11 @@ function PortalBoard({
             setFeedOptions: (patch) => updateTableSettings(feedSettingsPatch(patch)),
             updates: new Map(),
             itemMenu,
+            sentBackItemIds,
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateTableSettings is stable per board
-    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen, tableSettings],
+    [board, model, mutations, payload.users, openItem, now, tableSettings.showTicket, itemMenu, rememberOpenMode, preferredOpen, tableSettings, sentBackItemIds],
   );
 
   if (!contextValue) return <FullPageLoader label="Opening your requests…" />;
@@ -333,7 +358,8 @@ function PortalBoard({
   // Nothing to show: a blank table says nothing, so it says why and what to do.
   const shownCount = model ? [...model.itemsByGroup.values()].reduce((sum, items) => sum + items.length, 0) : 0;
   const empty = model && shownCount === 0 ? <PortalEmpty search={ui.search} filtered={activeFilterCount(ui.filters) > 0} onShowAll={onShowAll} bookHref={bookHref || null} /> : null;
-  const notice = openTaskId && awaiting?.ids.includes(openTaskId) ? <AwaitingAllocation teamName={awaiting.teamName} /> : undefined;
+  // Sent back says more than "waiting for allocation": it is with the requester now.
+  const notice = openTaskId && sentBackItemIds.has(openTaskId) ? <SentBackNotice /> : openTaskId && awaiting?.ids.includes(openTaskId) ? <AwaitingAllocation teamName={awaiting.teamName} /> : undefined;
 
   return (
     <BoardContextProvider value={contextValue}>

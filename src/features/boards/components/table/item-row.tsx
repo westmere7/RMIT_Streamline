@@ -13,7 +13,7 @@ import { useAllocation, useMovingItems } from "@/features/booking/use-allocation
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { SimpleTooltip } from "@/components/ui/tooltip";
 import type { BoardGroup, Item } from "@/domain";
-import { useBoardContext } from "@/features/boards/board-context";
+import { ItemEditScope, useBoardContext } from "@/features/boards/board-context";
 import { TicketCell, TicketSpacer } from "@/features/boards/components/table/ticket-cell";
 import { BlockedDot } from "@/features/boards/components/blocked-dot";
 import { UpdatesBadge } from "@/features/items/updates-badge";
@@ -32,7 +32,16 @@ export interface ItemRowProps {
   widthOverrides: Record<string, number>;
 }
 
-export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
+/** A task's row, locked while the task waits on its requester (ItemEditScope). */
+export const ItemRow = React.memo(function ItemRow(props: ItemRowProps) {
+  return (
+    <ItemEditScope itemId={props.item.id}>
+      <ItemRowBody {...props} />
+    </ItemEditScope>
+  );
+});
+
+function ItemRowBody({ item, group, dndEnabled, widthOverrides }: ItemRowProps) {
   const { board, model, mutations, canEdit, canManage, openItem, openItemUpdates, updates } = useBoardContext();
   const layout = useTableLayout();
   const showTicket = useShowTicket();
@@ -344,7 +353,7 @@ export const ItemRow = React.memo(function ItemRow({ item, group, dndEnabled, wi
       {menuDialogs}
     </>
   );
-});
+}
 
 /** Small chain icon on rows that are kept in sync with items on other boards. */
 /**

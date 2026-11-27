@@ -241,6 +241,25 @@ export function describeActivity(activity: Activity, users: readonly User[], inc
           <Mention href={links?.person(activity.actorId)}>{actor}</Mention> posted an update{item}
         </>
       );
+    case "BOOKING_SENT_BACK":
+      return (
+        <>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> sent this back{m.requesterName ? <> to <Mention>{m.requesterName}</Mention></> : null} for more information{item}
+        </>
+      );
+    case "BOOKING_RESUBMITTED":
+      return (
+        <>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> sent it again{m.summary ? <> · {m.summary}</> : null}
+          {item}
+        </>
+      );
+    case "BOOKING_SEND_BACK_CANCELLED":
+      return (
+        <>
+          <Mention href={links?.person(activity.actorId)}>{actor}</Mention> recalled the send back{item}
+        </>
+      );
     case "BOARD_CREATED":
       return (
         <>
@@ -338,6 +357,12 @@ export function describeActivityText(activity: Activity, users: readonly User[])
       return `${actor} reopened ${m.assetName}`;
     case "COMMENT_ADDED":
       return `${actor} posted an update`;
+    case "BOOKING_SENT_BACK":
+      return `${actor} sent this back${m.requesterName ? ` to ${m.requesterName}` : ""} for more information`;
+    case "BOOKING_RESUBMITTED":
+      return `${actor} sent it again${m.summary ? ` · ${m.summary}` : ""}`;
+    case "BOOKING_SEND_BACK_CANCELLED":
+      return `${actor} recalled the send back`;
     default:
       return `${actor} ${activity.eventType.toLowerCase().replace(/_/g, " ")}`;
   }

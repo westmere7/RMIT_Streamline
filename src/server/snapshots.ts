@@ -598,6 +598,7 @@ export async function removePerson(workspaceId: string, userId: string, caller: 
         ["automation_rules", "created_by"],
         ["board_shares", "created_by"],
         ["item_shares", "created_by"],
+        ["booking_sendbacks", "sent_by"],
         ["dashboard_shares", "created_by"],
         ["item_links", "created_by"],
       ] as const) {

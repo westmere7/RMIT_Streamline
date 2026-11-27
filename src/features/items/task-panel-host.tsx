@@ -9,6 +9,7 @@ import { buildBoardModel } from "@/features/boards/board-model";
 import { useBoardMutations } from "@/features/boards/hooks/use-board-mutations";
 import { useBoardRealtime } from "@/features/boards/hooks/use-board-realtime";
 import { useBoardSnapshot } from "@/features/boards/hooks/use-board-snapshot";
+import { useSentBackItems } from "@/features/booking/send-back-hooks";
 import { useBoardUpdates } from "@/features/comments/updates";
 import { ItemDetailPanel, ItemPanelSkeleton } from "@/features/items/item-detail-panel";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -39,6 +40,7 @@ export function TaskPanelHost({ boardId, itemId, onOpen, onClose, popup = false 
   );
   const itemIds = React.useMemo(() => (snapshot.data ? snapshot.data.items.map((item) => item.id) : []), [snapshot.data]);
   const updates = useBoardUpdates(boardId, itemIds);
+  const sentBackItemIds = useSentBackItems(boardId, snapshot.data?.items, snapshot.dataUpdatedAt);
 
   const openItem = React.useCallback((id: string | null) => (id ? onOpen(id) : onClose()), [onOpen, onClose]);
   const contextValue = React.useMemo<BoardContextValue | null>(
@@ -59,9 +61,10 @@ export function TaskPanelHost({ boardId, itemId, onOpen, onClose, popup = false 
             showTicket: true,
             setShowTicket: () => undefined,
             updates,
+            sentBackItemIds,
           }
         : null,
-    [board, model, mutations, ws.activeUsers, ws.users, ws.permissions, openItem, now, updates],
+    [board, model, mutations, ws.activeUsers, ws.users, ws.permissions, openItem, now, updates, sentBackItemIds],
   );
 
   if (!contextValue || !board) return <ItemPanelSkeleton onClose={onClose} />;
