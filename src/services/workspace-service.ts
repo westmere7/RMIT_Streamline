@@ -80,8 +80,8 @@ export class WorkspaceService {
     this.onCreated = hook;
   }
 
-  async getWorkspaceBySlug(slug: string): Promise<Workspace | null> {
-    return this.repos.workspaces.getBySlug(slug);
+  async getWorkspaceBySlug(slug: string, options?: { keys?: boolean }): Promise<Workspace | null> {
+    return this.repos.workspaces.getBySlug(slug, options);
   }
 
   /**

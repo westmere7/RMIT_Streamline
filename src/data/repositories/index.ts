@@ -103,7 +103,8 @@ export interface WorkspaceRepository {
   getJoinApproval(workspaceId: EntityId): Promise<boolean>;
   setJoinApproval(workspaceId: EntityId, on: boolean): Promise<void>;
   getById(id: EntityId): Promise<Workspace | null>;
-  getBySlug(slug: string): Promise<Workspace | null>;
+  /** `keys: false` leaves out the join and booking keys (an admin's, read by a second call). */
+  getBySlug(slug: string, options?: { keys?: boolean }): Promise<Workspace | null>;
   update(id: EntityId, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace>;
   /**
    * A new workspace. Every Owner is seated in it as OWNER on the way in (the

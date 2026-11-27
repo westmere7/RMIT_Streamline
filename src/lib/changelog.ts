@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.174.2",
+    date: "2026-11-28",
+    title: "Fewer reads on every page",
+    changes: [
+      "Opening a board reads your saved view settings once, not six times.",
+      "Opening the workspace skips a read it didn't need.",
+      "Reset booking can't run twice at once on the same task.",
+    ],
+  },
+  {
     version: "0.174.1",
     date: "2026-11-27",
     title: "Faster My Work and sidebar counts",

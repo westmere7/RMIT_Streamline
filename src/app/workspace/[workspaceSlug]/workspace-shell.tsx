@@ -31,7 +31,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
 
   const workspaceQuery = useQuery({
     queryKey: queryKeys.workspace(slug),
-    queryFn: () => services.workspace.getWorkspaceBySlug(slug),
+    // The gate needs the workspace and its id; the keys come with the context
+    // (loadContext), so asking for them here was a round trip on every load.
+    queryFn: () => services.workspace.getWorkspaceBySlug(slug, { keys: false }),
     enabled: status === "signed-in",
     // Whether this person may open it can change at any moment (approved,
     // added, deactivated): always asked again, never answered from before.

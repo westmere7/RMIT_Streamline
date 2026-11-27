@@ -59,10 +59,11 @@ export class SupabaseWorkspaceRepository implements WorkspaceRepository {
     assertOk(await db().from("workspaces").update({ join_needs_approval: on }).eq("id", workspaceId), "workspaces.setJoinApproval");
   }
 
-  async getBySlug(slug: string): Promise<Workspace | null> {
+  async getBySlug(slug: string, options: { keys?: boolean } = {}): Promise<Workspace | null> {
     const result = await db().from("workspaces").select(WORKSPACE).eq("slug", slug).maybeSingle();
     const row = unwrapMaybe<WorkspaceRow>(result, "workspaces.getBySlug");
-    return row ? toWorkspace((await withKeys([row]))[0]!) : null;
+    if (!row) return null;
+    return toWorkspace(options.keys === false ? row : (await withKeys([row]))[0]!);
   }
 
   async update(id: string, patch: Partial<Omit<Workspace, "id" | "createdAt">>): Promise<Workspace> {

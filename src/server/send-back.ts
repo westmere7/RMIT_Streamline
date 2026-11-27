@@ -8,6 +8,7 @@ import { BookingValidationError } from "@/services/booking-service";
 import { bookingRequestSchema } from "@/services/booking";
 import { HttpError } from "./http";
 import { portalServices } from "./portal";
+import { withExclusiveLock } from "@/server/advisory-lock";
 
 /**
  * Sending a booked task back to its requester, for the Supabase provider.
@@ -97,7 +98,8 @@ export async function cancelSendBackRequest(request: Request, input: z.infer<typ
 export async function resetBookingRequest(request: Request, input: z.infer<typeof resetBodySchema>): Promise<{ ok: true }> {
   const userId = await caller(request, "change this task");
   await requireEditor(userId, input.itemId, "Only people who can edit this task can reset it.");
-  await portalServices().bookingSendBacks.reset(input.itemId, userId);
+  // One reset of a task at a time: two at once each removed and re-added the asset lines.
+  await withExclusiveLock(`booking-reset:${input.itemId}`, "Already resetting.", () => portalServices().bookingSendBacks.reset(input.itemId, userId));
   return { ok: true };
 }
 

@@ -84,7 +84,28 @@ const personalQueues = new Map<string, { waiting: Map<PersonalViewKey, Record<st
  * side (Discard resets the open mode and the hidden columns together) would
  * each write back the other's old value.
  */
+/** How long one read of a person's settings for a board answers every view that asks. */
+const SHARED_READ_MS = 2_000;
+const sharedReads = new Map<string, { at: number; read: Promise<Record<string, unknown>> }>();
+
+/**
+ * A person's saved settings for a board, read once for every view hook and the
+ * saved-views controller that mount together: each used to read the same
+ * board_visits row itself, six reads on every board opened. A save drops the
+ * shared read, so nothing older than the save is handed out.
+ */
+export function readBoardViewSettings(services: Services, userId: string, boardId: string): Promise<Record<string, unknown>> {
+  const key = `${userId}:${boardId}`;
+  const shared = sharedReads.get(key);
+  if (shared && Date.now() - shared.at < SHARED_READ_MS) return shared.read;
+  const read = services.repos.admin.getBoardViewSettings(userId, boardId);
+  sharedReads.set(key, { at: Date.now(), read });
+  read.catch(() => sharedReads.delete(key));
+  return read;
+}
+
 export function savePersonalViewSettings(services: Services, userId: string, boardId: string, view: PersonalViewKey, settings: Record<string, unknown>): void {
+  sharedReads.delete(`${userId}:${boardId}`);
   writeLocal(`${userId}:${boardId}:${view}`, settings);
   setPending(`${userId}:${boardId}:${view}`, true);
   const queueKey = `${userId}:${boardId}`;
@@ -163,8 +184,7 @@ export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: s
         cancelled = true;
       };
     }
-    void services.repos.admin
-      .getBoardViewSettings(user.id, board.id)
+    void readBoardViewSettings(services, user.id, board.id)
       .then((all) => {
         const remote = all[view];
         if (cancelled || touched.current || !remote || typeof remote !== "object") return;

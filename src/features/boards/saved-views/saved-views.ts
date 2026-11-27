@@ -5,7 +5,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { BOARD_VIEWS, DEFAULT_VIEW_NAME, EMPTY_VIEW_FILTERS, boardViewsFor, cleanViewName, sameViewConfig, type Board, type BoardColumn, type BoardViewKind, type SavedBoardView, type SavedBoardViewPatch, type SavedViewConfig } from "@/domain";
 import type { PersonalViewKey } from "@/data/repositories";
-import { personalViewSettingsPending, readPersonalViewSettings, savePersonalViewSettings } from "@/features/boards/components/views/view-settings";
+import { personalViewSettingsPending, readBoardViewSettings, readPersonalViewSettings, savePersonalViewSettings } from "@/features/boards/components/views/view-settings";
 import { UNSAVED_DEFAULT_ID, useActiveSavedView, useSavedViewStore, viewDefaults, type ActiveSavedView } from "@/features/boards/saved-views/saved-view-store";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
@@ -156,8 +156,7 @@ export function useSavedViewsController({
     store.activateDraft(board.id, build({}, false));
     const started = useSavedViewStore.getState().boards[board.id] ?? null;
     kept.current = started;
-    void services.repos.admin
-      .getBoardViewSettings(userId, board.id)
+    void readBoardViewSettings(services, userId, board.id)
       .then((remote) => {
         // Only onto the copy it started from: a change made since, or another view opened, wins.
         if (useSavedViewStore.getState().boards[board.id] !== started) return;
