@@ -516,6 +516,10 @@ export class ItemService {
   }
 
   /** How many tasks are on a board now, for the sidebar beside its name. */
+  countLiveMany(boardIds: EntityId[]): Promise<Map<EntityId, number>> {
+    return this.repos.items.countLiveMany(boardIds);
+  }
+
   countLive(boardId: EntityId): Promise<number> {
     return this.repos.items.countLive(boardId);
   }

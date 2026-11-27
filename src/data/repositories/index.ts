@@ -283,6 +283,8 @@ export interface ItemRepository {
   countArchived(boardId: EntityId): Promise<number>;
   /** Tasks on the board now: top-level and not archived. A count only, no rows. */
   countLive(boardId: EntityId): Promise<number>;
+  /** countLive for several boards at once; every board asked for has an entry. */
+  countLiveMany(boardIds: EntityId[]): Promise<Map<EntityId, number>>;
   listByIds(ids: EntityId[]): Promise<Item[]>;
   /** Whoever already holds this ticket, across the boards given. For the uniqueness check. */
   listByTicket(boardIds: EntityId[], ticket: string): Promise<Item[]>;

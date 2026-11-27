@@ -207,3 +207,5 @@ migrations/0157_automation_tick_gate.sql
 migrations/0158_booking_send_backs.sql
 policies/0040_booking_send_backs.sql
 migrations/0159_intake_takes_nothing_back.sql
+migrations/0160_values_naming_user.sql
+migrations/0161_board_item_counts.sql

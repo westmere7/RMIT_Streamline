@@ -125,6 +125,14 @@ export class SupabaseItemRepository implements ItemRepository {
     return result.count ?? 0;
   }
 
+  /** Live top-level tasks on each board, in one read (board_item_counts, 0161; the caller's own RLS). */
+  async countLiveMany(boardIds: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>(boardIds.map((id) => [id, 0]));
+    const pages = await Promise.all(chunk(boardIds).map((part) => db().rpc("board_item_counts", { p_board_ids: part })));
+    for (const page of pages) for (const row of unwrapList<{ board_id: string; live: number | string }>(page, "items.countLiveMany")) out.set(row.board_id, Number(row.live));
+    return out;
+  }
+
   /** A head request: the count comes back in a header and no rows travel. */
   async countLive(boardId: string): Promise<number> {
     const result = await db()
@@ -397,14 +405,10 @@ export class SupabaseItemRepository implements ItemRepository {
     const pages = await Promise.all(
       chunk(boardIds).map((part) =>
         unwrapAll<ItemColumnValueRow>(
-          (from, to) =>
-            db()
-              .from("item_column_values")
-              .select(VALUE)
-              .in("board_id", part)
-              .contains("value_json", { userIds: [userId] })
-              .order("id", { ascending: true })
-              .range(from, to),
+          // values_naming_user (0160): the jsonb test first, then can_view_item on
+          // what is left. Through RLS the check ran on every value of those
+          // boards first, 1.4 s a read on live.
+          (from, to) => db().rpc("values_naming_user", { p_board_ids: part, p_user_id: userId }).range(from, to),
           "item_column_values.listValuesNamingUser",
         ),
       ),

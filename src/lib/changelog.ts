@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.174.1",
+    date: "2026-11-27",
+    title: "Faster My Work and sidebar counts",
+    changes: [
+      "My Work and profile pages find your tasks in a fraction of the time.",
+      "The task counts in the sidebar load in one request instead of one per board.",
+    ],
+  },
+  {
     version: "0.174.0",
     date: "2026-11-27",
     title: "Faster tasks and boards",

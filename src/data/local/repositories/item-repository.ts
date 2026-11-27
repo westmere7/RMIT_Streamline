@@ -49,6 +49,10 @@ export class LocalItemRepository implements ItemRepository {
     return (await this.archivedOf(boardId)).length;
   }
 
+  async countLiveMany(boardIds: string[]): Promise<Map<string, number>> {
+    return new Map(await Promise.all(boardIds.map(async (id) => [id, await this.countLive(id)] as const)));
+  }
+
   async countLive(boardId: string): Promise<number> {
     const db = await this.conn.getDb();
     const items = await db.getAllFromIndex("items", "byBoard", boardId);

@@ -3,6 +3,7 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { ColorToken } from "@/domain";
 import { useServices } from "@/features/data/data-context";
+import { loadBoardCount } from "@/features/boards/count-batch";
 import { colorClasses } from "@/lib/colors";
 import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
@@ -12,8 +13,8 @@ import { useUiStore } from "@/stores/ui-store";
  * How many tasks a board holds now, as a small rounded badge beside its name
  * (the sidebar, a team's board list).
  *
- * A count only: the read is a head request and no rows travel. Every badge for
- * one board shares one query, which the board's own writes and its live channel
+ * A count only, and every badge on the page in one read (count-batch.ts). Every
+ * badge for one board shares one query, which the board's own writes and its live channel
  * refresh (use-board-mutations, use-board-realtime).
  *
  * Settings → Appearance can switch the counts off for this browser
@@ -24,7 +25,7 @@ export function BoardItemCount({ boardId, className }: { boardId: string; classN
   const show = useUiStore((s) => s.showBoardCounts);
   const count = useQuery({
     queryKey: queryKeys.boardItemCount(boardId),
-    queryFn: () => services.items.countLive(boardId),
+    queryFn: () => loadBoardCount(services.items, boardId),
     staleTime: 60_000,
     enabled: show,
   });
@@ -50,7 +51,7 @@ export function TeamItemCount({ boardIds, color, className }: { boardIds: readon
   const counts = useQueries({
     queries: boardIds.map((boardId) => ({
       queryKey: queryKeys.boardItemCount(boardId),
-      queryFn: () => services.items.countLive(boardId),
+      queryFn: () => loadBoardCount(services.items, boardId),
       staleTime: 60_000,
     })),
   });

@@ -144,6 +144,7 @@ export function createMemoryRepositories(
       },
       countArchived: async (boardId) => items(boardId).filter((i) => i.archivedAt !== null && i.parentItemId === null).length,
       countLive: async (boardId) => items(boardId).filter((i) => i.archivedAt === null && i.parentItemId === null).length,
+      countLiveMany: async (boardIds) => new Map(boardIds.map((id) => [id, items(id).filter((i) => i.archivedAt === null && i.parentItemId === null).length])),
       listByIds: async (ids) => payload().items.filter((i) => ids.includes(i.id)),
       listByTicket: async (boardIds, ticket) => payload().items.filter((i) => boardIds.includes(i.boardId) && i.ticket === ticket),
       ticketTaken: async () => false,
