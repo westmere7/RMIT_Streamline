@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.173.4",
+    date: "2026-11-27",
+    title: "Fewer requests on a board; unlinking keeps the older task's ticket",
+    changes: [
+      "A board reads its booked briefs in one request, not one per row.",
+      "After unlinking, the older task keeps the ticket and the newer one takes the next.",
+    ],
+  },
+  {
     version: "0.173.3",
     date: "2026-11-27",
     title: "Unlinking gives each task its own ticket",

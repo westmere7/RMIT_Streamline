@@ -355,28 +355,30 @@ export class ItemLinkService {
     const [boardA, boardB] = await Promise.all([this.repos.boards.getById(a.boardId), this.repos.boards.getById(b.boardId)]);
     if (!boardA || !boardB) return;
     await this.repos.activities.createMany([linkActivity("ITEM_UNLINKED", a, boardA, b, boardB, actorId), linkActivity("ITEM_UNLINKED", b, boardB, a, boardA, actorId)]);
-    await this.splitTicket(a, b, boardB);
+    // The older task keeps the ticket; the pair is stored in id order, so which end is "a" says nothing.
+    const [keeper, other, otherBoard] = Date.parse(b.createdAt) < Date.parse(a.createdAt) ? [b, a, boardA] : [a, b, boardB];
+    await this.splitTicket(keeper, other, otherBoard);
   }
 
   /**
    * One ticket is one piece of work (TicketService). A link that carried it is
-   * gone, so unless the two are still joined some other way, B's side takes the
-   * next ticket in the series and A, the side the link was made from, whose
-   * ticket the link copied, keeps its own.
+   * gone, so unless the two are still joined some other way, the newer side
+   * (and whatever is still linked to it on that ticket) takes the next ticket
+   * in the series and the older task keeps its own.
    */
-  private async splitTicket(a: Item, b: Item, boardB: Board): Promise<void> {
-    if (!a.ticket || a.ticket !== b.ticket) return;
-    if ((await this.ticketChainIds(a.id)).includes(b.id)) return;
-    const holders = [b.id, ...(await this.ticketChainIds(b.id))];
-    const workspace = await this.repos.workspaces.getById(boardB.workspaceId);
+  private async splitTicket(keeper: Item, other: Item, otherBoard: Board): Promise<void> {
+    if (!keeper.ticket || keeper.ticket !== other.ticket) return;
+    if ((await this.ticketChainIds(keeper.id)).includes(other.id)) return;
+    const holders = [other.id, ...(await this.ticketChainIds(other.id))];
+    const workspace = await this.repos.workspaces.getById(otherBoard.workspaceId);
     if (!workspace) return;
     const ticket =
-      boardB.system === "APP_DEVELOPMENT"
+      otherBoard.system === "APP_DEVELOPMENT"
         ? formatTicket(BUG_TICKET_PREFIX, await this.repos.workspaces.allocateBugTicketNumbers(workspace.id, 1))
         : formatTicket(ticketPrefixOf(workspace.ticketPrefix), await this.repos.workspaces.allocateTicketNumbers(workspace.id, 1));
     for (const id of holders) {
       const item = await this.repos.items.getById(id);
-      if (item?.ticket === a.ticket) await this.repos.items.update(id, { ticket });
+      if (item?.ticket === keeper.ticket) await this.repos.items.update(id, { ticket });
     }
   }
 

@@ -7,6 +7,7 @@ import type { BoardColumn } from "@/domain/board/column";
 import type { Item } from "@/domain/item/item";
 import type { User } from "@/domain/user/user";
 import { useItemActivity } from "@/features/activity/hooks";
+import { loadBookingBrief } from "@/features/items/brief-batch";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { formatDateTime } from "@/lib/dates/dates";
@@ -35,7 +36,8 @@ export function useBriefSource(item: Pick<Item, "id">, column: Pick<BoardColumn,
   const ws = useWorkspace();
   const source = useQuery({
     queryKey: queryKeys.bookingBrief(item.id),
-    queryFn: async () => (await services.repos.items.listBookingBriefs([item.id])).get(item.id) ?? null,
+    // Gathered with every other Brief cell on the board into one read (brief-batch.ts).
+    queryFn: () => loadBookingBrief(services.repos.items, item.id),
     enabled: column.type === "BRIEF",
     // Written once, at booking.
     staleTime: 10 * 60_000,

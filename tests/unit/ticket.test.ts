@@ -184,6 +184,8 @@ describe("linked tasks and the ticket they share", () => {
   async function twoTasks() {
     const { services } = freshServices();
     const a = await task(services, SEED_BOARD_IDS.rmitinerary, "Poster set");
+    // A moment apart, so a is the older of the two (unlinking keeps the ticket on the older task).
+    await new Promise((resolve) => setTimeout(resolve, 5));
     const b = await task(services, SEED_BOARD_IDS.dooh, "Poster set");
     return { services, a, b };
   }
@@ -237,7 +239,7 @@ describe("linked tasks and the ticket they share", () => {
     await expect(services.tickets.setTicket(SEED_WORKSPACE_ID, c.id, SPARE, DANH)).rejects.toBeInstanceOf(TicketError);
   });
 
-  it("unlinked, the far side takes the next ticket and the near side keeps its own", async () => {
+  it("unlinked, the newer task takes the next ticket and the older keeps its own", async () => {
     const { services, a, b } = await twoTasks();
     await services.tickets.setTicket(SEED_WORKSPACE_ID, a.id, SPARE, DANH);
     const link = await services.links.link(a.id, b.id, DANH, { seedFrom: "item" });
