@@ -17,11 +17,13 @@ import {
   sendBackRefusal,
   serviceById,
   waitingLabelId,
+  emptyValueFor,
 } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { describeBooking, mapBookingToColumns } from "./booking";
 import type { BookingService } from "./booking-service";
+import { bookingFormForSubmission } from "./booking-service";
 import type { CommentService } from "./comment-service";
 import type { ItemAssetService } from "./item-asset-service";
 import type { ItemService } from "./item-service";
@@ -40,6 +42,9 @@ export interface ResubmitForm {
 }
 
 /** Why a requester's link does not open, worded for them. */
+/** Columns that keep themselves (when it was booked, when it last changed, counts and buttons): a reset leaves them. */
+const RESET_SKIPS = new Set<string>(["BOOKED_AT", "LAST_UPDATED", "ASSETS_RECAP", "PROGRESS", "BUTTON", "DEPENDENCY"]);
+
 export class SendBackLinkError extends RefusedError {
   constructor(
     message: string,
@@ -60,6 +65,7 @@ export interface SendBackTransport {
   cancel(input: { itemId: EntityId }): Promise<void>;
   open(input: { token: string }): Promise<ResubmitForm>;
   resubmit(input: { token: string; request: BookingRequest; reply: string }): Promise<BookingReceipt>;
+  reset(input: { itemId: EntityId }): Promise<void>;
 }
 
 export class BookingSendBackService {
@@ -129,6 +135,65 @@ export class BookingSendBackService {
     const users = await this.repos.users.list();
     await this.log(item, board, actorId, "BOOKING_SEND_BACK_CANCELLED", {}).catch((error: unknown) => console.error("Could not log the cancel", error));
     await this.restoreStatus(item, board, status, users, actorId);
+  }
+
+  /**
+   * Puts a booked task still on Task Allocation back the way its booking made
+   * it: its name, description and brief, every column the booking fills (and
+   * every other one emptied, as it was then), its asset lines as they were
+   * asked for, and no subitems. Updates and the task's history stay; each
+   * change is on its activity. Not while it waits on its requester: their
+   * answer is on its way.
+   */
+  async reset(itemId: EntityId, actorId: EntityId): Promise<void> {
+    if (this.transport) return this.transport.reset({ itemId });
+    const { item, board, columns, values } = await this.taskOf(itemId);
+    if (!item.bookedVia || item.parentItemId) throw new RefusedError("Only a task booked through the form can be reset to its booking.");
+    if (board.system !== "TASK_ALLOCATION") throw new RefusedError("Only a booking still on Task Allocation can be reset.");
+    if (item.archivedAt) throw new RefusedError("Restore the task before resetting it.");
+    if (await this.repos.bookingSendBacks.openFor(itemId)) throw new RefusedError("It is waiting on its requester. Recall the send back first.");
+    const stored = await this.repos.bookingRequests.get(itemId);
+    if (!stored) throw new RefusedError("This task was booked before its answers were kept, so there is nothing to reset it to.");
+    const request = stored.request;
+    const workspace = await this.repos.workspaces.getById(board.workspaceId);
+    if (!workspace) throw new NotFoundError("Workspace", board.workspaceId);
+    const template = (await bookingFormForSubmission(this.repos, workspace, request.formVersion)).template;
+    const team = request.teamId ? await this.repos.teams.getById(request.teamId) : null;
+    const requester = request.requesterEmail ? await this.booking.requesterOf(board.workspaceId, request.requesterEmail) : null;
+    const placement = mapBookingToColumns(request, columns, { team, template, stakeholder: request.department, requesterId: requester?.userId ?? null, teamOwnsBoard: false });
+    const users = await this.repos.users.list();
+
+    // Every column the team could have changed: what the booking put there, else empty as it was.
+    for (const column of columns) {
+      if (RESET_SKIPS.has(column.type)) continue;
+      const booked = placement.values.find((v) => v.columnId === column.id)?.value ?? emptyValueFor(column.type);
+      const now = values.find((v) => v.columnId === column.id)?.value ?? emptyValueFor(column.type);
+      if (sameJson(now, booked) || (isEmptyValue(now) && isEmptyValue(booked))) continue;
+      await this.items.setValue(item.id, column.id, booked, { column, item, board, users }, actorId);
+    }
+    if (item.name.trim() !== request.title.trim()) await this.items.renameItem(item.id, request.title, actorId);
+    const description = describeBooking(request, placement) || null;
+    if ((item.description ?? null) !== description) await this.items.updateDescription(item.id, description, actorId);
+    if (request.brief.trim()) await this.repos.items.setBookingBrief(item.id, request.brief);
+
+    // Its asset lines as asked for: the ones added since go, the ones asked for come back fresh.
+    const assetType = request.assetTypes.length === 1 ? request.assetTypes[0]! : null;
+    const wanted = request.assets.map((asset) => ({ itemId: item.id, boardId: board.id, name: asset.name, assetType: asset.assetType?.trim() || assetType, quantity: asset.quantity, dueDate: request.dueDate, notes: asset.spec?.trim() || null }));
+    const current = await this.repos.itemAssets.listByItem(item.id);
+    const untouched =
+      current.length === wanted.length &&
+      wanted.every((w, i) => {
+        const c = current[i]!;
+        return c.name === w.name && (c.assetType ?? null) === (w.assetType ?? null) && (c.quantity ?? null) === (w.quantity ?? null) && (c.notes ?? null) === w.notes && !c.completedAt && c.assigneeIds.length === 0;
+      });
+    if (!untouched) {
+      for (const line of current) await this.assets.remove(line.id, item.id, board.id, actorId);
+      if (wanted.length) await this.assets.addMany(wanted, actorId);
+    }
+
+    // A booking makes no subitems.
+    const subitems = (await this.repos.items.listByBoard(board.id)).filter((i) => i.parentItemId === item.id);
+    if (subitems.length) await this.repos.items.deleteMany(subitems.map((s) => s.id));
   }
 
   // ---- the requester -------------------------------------------------------

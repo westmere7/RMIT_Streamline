@@ -1,9 +1,11 @@
 "use client";
 
-import { Archive, ArrowRightLeft, Copy, CornerDownRight, Hash, Link2, Maximize2, Pencil, PictureInPicture2, Plus, Share2, SquareKanban, Trash2, Undo2 } from "lucide-react";
+import { Archive, ArrowRightLeft, Copy, CornerDownRight, Hash, Link2, Maximize2, Pencil, PictureInPicture2, Plus, RotateCcw, Share2, SquareKanban, Trash2, Undo2 } from "lucide-react";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import type { MenuAction } from "@/components/layout/row-menu";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { DynamicIcon } from "@/components/shared/dynamic-icon";
 import type { BoardGroup, Item } from "@/domain";
 import { useBoardContext, useCanEditUnlocked, useItemSentBack } from "@/features/boards/board-context";
@@ -14,6 +16,7 @@ import { useTaskMenuExtras } from "@/features/items/use-task-menu-extras";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { copyToClipboard } from "@/features/members/hooks";
 import { colorClasses } from "@/lib/colors";
+import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { canEditBoard } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 import { useBoardUiStore } from "@/stores/board-ui-store";
@@ -58,10 +61,33 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
   const { offered } = useSendBackOffer(item);
   const [sendingBack, setSendingBack] = React.useState(false);
   const sendBackDialog = sendingBack ? <SendBackDialog item={item} open onOpenChange={setSendingBack} /> : null;
+  // Back to the booking as it came in: a booked task still on Task Allocation, asked first.
+  const [resetting, setResetting] = React.useState(false);
+  const resetDialog = (
+    <ConfirmDialog
+      open={resetting}
+      onOpenChange={setResetting}
+      title={`Reset “${item.name}” to its booking?`}
+      description="Its name, description, brief, columns and asset lines go back to what was booked, and its subitems are removed. Updates stay. This cannot be undone."
+      confirmLabel="Reset booking"
+      destructive
+      onConfirm={async () => {
+        try {
+          await services.bookingSendBacks.reset(item.id, ws.currentUser.id);
+          publishDataChange({ kinds: ["items", "board"] });
+          await queryClient.invalidateQueries();
+          toast.success("Reset to the booking");
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "Could not reset the booking");
+        }
+      }}
+    />
+  );
   const dialogs = (
     <>
       {extras.dialogs}
       {sendBackDialog}
+      {resetDialog}
     </>
   );
 
@@ -159,6 +185,10 @@ function useItemMenuList(item: Item, group: BoardGroup, handlers: ItemMenuHandle
     ...(!board.system && canReallocate && item.bookedVia ? [{ type: "item", label: "Re-allocate…", icon: <Undo2 />, onSelect: () => setReallocateRequest(item.id), testId: "item-reallocate" } satisfies MenuAction] : []),
     ...extras.columns,
     { type: "separator" },
+    // Undo everything since it was booked: only while it is a booking on the queue, not waiting on its requester.
+    ...(board.system === "TASK_ALLOCATION" && item.bookedVia && !item.parentItemId && !sentBack
+      ? [{ type: "item", label: "Reset booking", icon: <RotateCcw />, onSelect: () => setResetting(true), testId: "menu-reset-booking" } satisfies MenuAction]
+      : []),
     { type: "item", label: "Archive", icon: <Archive />, onSelect: () => setArchiveRequest([item.id]) },
     { type: "item", label: "Delete", icon: <Trash2 />, destructive: true, onSelect: handlers.onDelete },
   ];

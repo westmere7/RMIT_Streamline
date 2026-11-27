@@ -241,6 +241,44 @@ describe("sending a booking back", { timeout: 30_000 }, () => {
     const again = await services.bookingSendBacks.send(receipt.itemId, "Actually, which campus?", owner);
     expect(again.token).not.toBe(sent.token);
   });
+
+  describe("Reset booking", () => {
+    it("puts a booked task back the way its booking made it", async () => {
+      const receipt = await book();
+      const before = await cells(receipt.itemId);
+      const priority = before.columns.find((c) => c.name === "Priority")!;
+      const board = (await services.repos.boards.getById(before.item.boardId))!;
+      const users = await services.repos.users.list();
+      const bookedPriority = before.byName("Priority");
+      const bookedAssets = (await services.repos.itemAssets.listByItem(receipt.itemId)).map((a) => a.name);
+      // The team changes it about.
+      await services.items.renameItem(receipt.itemId, "Renamed by the team", owner);
+      await services.items.updateDescription(receipt.itemId, "Our own notes", owner);
+      const otherLabel = (priority.settings as { labels: Array<{ id: string }> }).labels.find((l) => (bookedPriority as { labelId?: string } | undefined)?.labelId !== l.id)!.id;
+      await services.items.setValue(receipt.itemId, priority.id, { type: "PRIORITY", labelId: otherLabel }, { column: priority, item: before.item, board, users }, owner);
+      await services.assets.add({ itemId: receipt.itemId, boardId: board.id, name: "Extra flyer", assetType: null, quantity: 1, dueDate: null, notes: null }, owner);
+      await services.items.createItem({ boardId: board.id, groupId: before.item.groupId, parentItemId: receipt.itemId, name: "A subitem" }, owner);
+
+      await services.bookingSendBacks.reset(receipt.itemId, owner);
+
+      const after = await cells(receipt.itemId);
+      expect(after.item.name).toBe("Open Day posters");
+      expect(after.item.description).toBe(before.item.description);
+      expect(after.byName("Priority")).toEqual(bookedPriority);
+      expect((await services.repos.itemAssets.listByItem(receipt.itemId)).map((a) => a.name)).toEqual(bookedAssets);
+      expect((await services.repos.items.listByBoard(board.id)).filter((i) => i.parentItemId === receipt.itemId)).toEqual([]);
+    });
+
+    it("is refused while it waits on its requester, and once it has left Task Allocation", async () => {
+      const receipt = await book();
+      await services.bookingSendBacks.send(receipt.itemId, "Which campus?", owner);
+      await expect(services.bookingSendBacks.reset(receipt.itemId, owner)).rejects.toThrow(/Recall the send back first/);
+      await services.bookingSendBacks.cancel(receipt.itemId, owner);
+      const target = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).find((b) => !b.system && !b.archivedAt)!;
+      await services.booking.allocate(receipt.itemId, target.id, owner);
+      await expect(services.bookingSendBacks.reset(receipt.itemId, owner)).rejects.toThrow(/still on Task Allocation/);
+    });
+  });
 });
 
 describe("send-back helpers", () => {

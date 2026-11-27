@@ -16,6 +16,10 @@ export class HttpSendBackTransport implements SendBackTransport {
     await callApi<{ ok: true }>("/api/booking-send-back/cancel", { method: "POST", body: JSON.stringify(input) }, { auth: "required" });
   }
 
+  async reset(input: { itemId: string }): Promise<void> {
+    await callApi<{ ok: true }>("/api/booking-reset", { method: "POST", body: JSON.stringify(input) }, { auth: "required" });
+  }
+
   async open(input: { token: string }): Promise<ResubmitForm> {
     return callApi<ResubmitForm>(`/api/booking-resubmit/${encodeURIComponent(input.token)}`, { method: "GET" }, { auth: "optional" });
   }

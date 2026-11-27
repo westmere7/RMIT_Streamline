@@ -546,6 +546,7 @@ export const GUIDE_ARTICLES: GuideArticle[] = [
         "The link works once, for 14 days.",
         "The requester must change something before Send again works. A reply alone is not enough.",
         "No update is posted for sending back or recalling. The activity shows it with your note; the journey keeps every round.",
+        "Reset booking, above Archive in a booked task's menu on Task Allocation, puts it back exactly as booked: name, description, brief, columns and asset lines. Subitems go; updates stay. It asks first and cannot be undone.",
       ] },
       { title: "Shape the form", figures: [
         { shot: "form-editor", alt: "The booking form editor on the Brief step, with services and their questions" },

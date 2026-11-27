@@ -57,4 +57,19 @@ test.describe("leaving Booked by Form", () => {
     await page.getByTestId("confirm-action").click();
     await expect(row(page, task)).toHaveCount(0, { timeout: 30_000 });
   });
+
+  test("Reset booking sits above Archive on a booked task, and asks first", async ({ page }) => {
+    await page.goto(QUEUE);
+    const task = "Research impact video – 90s";
+    await expect(row(page, task)).toBeVisible({ timeout: 30_000 });
+    await clickRowButton(row(page, task), `More actions for ${task}`);
+    const items = await page.getByRole("menuitem").allTextContents();
+    const reset = items.findIndex((t) => t.includes("Reset booking"));
+    expect(reset).toBeGreaterThan(-1);
+    expect(items[reset + 1]).toContain("Archive");
+    await page.getByTestId("menu-reset-booking").click();
+    await expect(page.getByTestId("confirm-dialog")).toContainText(`Reset “${task}” to its booking?`);
+    await page.getByTestId("confirm-cancel").click();
+    await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+  });
 });

@@ -23,6 +23,7 @@ import { portalServices } from "./portal";
 
 export const sendBackBodySchema = z.object({ itemId: z.uuid(), note: z.string().max(SEND_BACK_NOTE_MAX + 200) });
 export const cancelBodySchema = z.object({ itemId: z.uuid() });
+export const resetBodySchema = z.object({ itemId: z.uuid() });
 export const resubmitBodySchema = z.object({ request: bookingRequestSchema, reply: z.string().max(RESUBMIT_REPLY_MAX + 200).optional() });
 
 /** The signed-in caller, from their bearer token. */
@@ -47,7 +48,7 @@ interface BoardRow {
 }
 
 /** Refuses unless the caller can edit the board the task is on, by the app's own rule (as src/server/allocation.ts). */
-async function requireEditor(userId: string, itemId: string): Promise<void> {
+async function requireEditor(userId: string, itemId: string, refused = "Only people who can edit this task can send it back."): Promise<void> {
   const admin = getSupabaseAdminClient();
   const item = await admin.from("items").select("id, board_id").eq("id", itemId).maybeSingle();
   if (item.error) throw new HttpError(500, `items.lookup: ${item.error.message}`);
@@ -76,7 +77,7 @@ async function requireEditor(userId: string, itemId: string): Promise<void> {
     boardMembers: ((seats.data ?? []) as Array<{ id: string; board_id: string; user_id: string; role: "OWNER" | "EDITOR" | "VIEWER" }>).map((m) => ({ id: m.id, boardId: m.board_id, userId: m.user_id, role: m.role })),
   });
   const allowed = canEditBoard(ctx, { id: board.id, ownerId: board.owner_id, visibility: board.visibility, teamId: board.team_id, system: board.system, followsTeam: board.follows_team ?? undefined, editScope: board.edit_scope ?? undefined });
-  if (!allowed) throw new HttpError(403, "Only people who can edit this task can send it back.");
+  if (!allowed) throw new HttpError(403, refused);
 }
 
 export async function sendBackRequest(request: Request, input: z.infer<typeof sendBackBodySchema>): Promise<BookingSendBack> {
@@ -89,6 +90,14 @@ export async function cancelSendBackRequest(request: Request, input: z.infer<typ
   const userId = await caller(request, "change this task");
   await requireEditor(userId, input.itemId);
   await portalServices().bookingSendBacks.cancel(input.itemId, userId);
+  return { ok: true };
+}
+
+/** Puts a booked task on Task Allocation back the way its booking made it. */
+export async function resetBookingRequest(request: Request, input: z.infer<typeof resetBodySchema>): Promise<{ ok: true }> {
+  const userId = await caller(request, "change this task");
+  await requireEditor(userId, input.itemId, "Only people who can edit this task can reset it.");
+  await portalServices().bookingSendBacks.reset(input.itemId, userId);
   return { ok: true };
 }
 

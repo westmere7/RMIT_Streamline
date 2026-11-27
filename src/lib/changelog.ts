@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.173.0",
+    date: "2026-11-27",
+    title: "Reset a booking",
+    changes: [
+      "A booked task on Task Allocation has Reset booking in its menu, above Archive. It puts the task back exactly as it was booked: its name, description, brief, every column and its asset lines. Subitems are removed; updates and history stay.",
+      "It asks first, and cannot be undone. Not offered while the task waits on its requester, or once it has been allocated.",
+    ],
+  },
+  {
     version: "0.172.0",
     date: "2026-11-27",
     title: "Statuses nobody sets",
