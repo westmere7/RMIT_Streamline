@@ -250,6 +250,9 @@ test.describe("task booking", () => {
     await page.getByTestId("allocation-target").click();
     await page.getByTestId("allocation-board-rmitinerary-2026").click();
     await page.getByTestId("allocation-submit").click();
+    // Out of Booked by Form for good: asked first, in allocation's words.
+    await expect(page.getByTestId("confirm-dialog")).toContainText("Allocate this request to RMITinerary 2026?");
+    await page.getByTestId("confirm-action").click();
     // The request moves rather than being copied, so the panel showing it on
     // Task Allocation has nothing left to show and closes behind it.
     await expect(page.getByTestId("item-panel")).toHaveCount(0, { timeout: 15_000 });

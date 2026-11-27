@@ -18,6 +18,7 @@ import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
 import { publishDataChange } from "@/lib/realtime/local-realtime";
 import { cn } from "@/lib/utils";
+import { askLeaveIntake } from "./leave-intake-confirm";
 import { ALLOCATE_KEY } from "./use-allocation";
 
 /**
@@ -31,7 +32,7 @@ import { ALLOCATE_KEY } from "./use-allocation";
  * queue, so the panel closes behind it.
  */
 export function AllocationSection({ item }: { item: Item }) {
-  const { board, canEdit, openItem } = useBoardContext();
+  const { board, canEdit, openItem, model } = useBoardContext();
   const ws = useWorkspace();
   const user = useCurrentUser();
   const services = useServices();
@@ -115,7 +116,14 @@ export function AllocationSection({ item }: { item: Item }) {
                 )}
               </SelectContent>
             </Select>
-            <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => allocate.mutate({ itemIds: [item.id], boardId: targetId })} data-testid="allocation-submit">
+            <Button type="button" size="sm" className="h-9" disabled={!targetId || allocate.isPending} onClick={() => {
+                // Out of Booked by Form for good: asked first, in allocation's own words.
+                const vars = { itemIds: [item.id], boardId: targetId };
+                if (!model.intakeGroupId || item.groupId !== model.intakeGroupId) return allocate.mutate(vars);
+                void askLeaveIntake({ kind: "allocate", count: 1, to: ws.boardById(targetId)?.name ?? "that board" }).then((yes) => {
+                  if (yes) allocate.mutate(vars);
+                });
+              }} data-testid="allocation-submit">
               {allocate.isPending ? <LoaderCircle className="animate-spin" /> : <ArrowRightLeft />} Allocate
             </Button>
           </div>

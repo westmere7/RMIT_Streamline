@@ -1,11 +1,12 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { askLeaveIntake } from "@/features/booking/leave-intake-confirm";
 import { useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst, intakeGroupOf } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -368,9 +369,29 @@ export function useBoardMutations(boardId: string) {
     [run, services, boardId, user.id, removeItems],
   );
 
+  /**
+   * Leaving Booked by Form cannot be undone (nothing moves back into it), so
+   * it is asked first. True to go ahead: nothing here was in it, or they said yes.
+   */
+  const leavesIntake = useCallback(
+    async (itemIds: readonly string[], toGroupId: string): Promise<boolean> => {
+      const snapshot = queryClient.getQueryData<BoardSnapshot>(key);
+      if (!snapshot || snapshot.board.system !== "TASK_ALLOCATION") return true;
+      const intake = intakeGroupOf(snapshot.groups)?.id;
+      if (!intake || toGroupId === intake) return true;
+      const leaving = itemIds.filter((id) => snapshot.items.find((i) => i.id === id)?.groupId === intake).length;
+      if (leaving === 0) return true;
+      const to = snapshot.groups.find((g) => g.id === toGroupId)?.name ?? "another group";
+      return askLeaveIntake({ kind: "move", count: leaving, to });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- key is derived from boardId
+    [queryClient, boardId],
+  );
+
   const moveItem = useCallback(
-    (input: Omit<MoveItemInput, "boardId">) =>
-      run(
+    async (input: Omit<MoveItemInput, "boardId">) => {
+      if (!(await leavesIntake([input.itemId], input.toGroupId))) return undefined;
+      return run(
         (s) => {
           const targetOrder = new Map(input.orderedIdsInTargetGroup.map((id, i) => [id, i]));
           const sourceOrder = new Map((input.orderedIdsInSourceGroup ?? []).map((id, i) => [id, i]));
@@ -387,8 +408,9 @@ export function useBoardMutations(boardId: string) {
         },
         () => services.items.moveItem({ ...input, boardId }, user.id),
         "Could not move the item",
-      ),
-    [run, services, boardId, user.id],
+      );
+    },
+    [run, services, boardId, user.id, leavesIntake],
   );
 
   const moveToGroup = useCallback(
@@ -414,6 +436,7 @@ export function useBoardMutations(boardId: string) {
 
   const moveItemsToGroup = useCallback(
     async (itemIds: string[], toGroupId: string) => {
+      if (!(await leavesIntake(itemIds, toGroupId))) return undefined;
       // Where each one came from, so a move of items from two groups goes back to two.
       const snapshot = queryClient.getQueryData<BoardSnapshot>(key);
       const from = new Map<string, string[]>();

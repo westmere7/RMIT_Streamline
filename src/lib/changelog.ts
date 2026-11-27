@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.171.1",
+    date: "2026-11-27",
+    title: "Leaving Booked by Form asks first",
+    changes: [
+      "Moving a task out of Booked by Form (a drag, Move to group, the selection bar) asks first, since nothing can go back into it.",
+      "Allocating a request from Booked by Form asks in its own words: which board it goes to, and that it leaves the allocation queue for good.",
+    ],
+  },
+  {
     version: "0.171.0",
     date: "2026-11-27",
     title: "Mention everyone at once, and in the description",

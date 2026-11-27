@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { LeaveIntakeConfirm } from "@/features/booking/leave-intake-confirm";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -112,6 +113,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
     <WorkspaceProvider workspace={workspace}>
       <PersonCardProvider value={renderPersonCard}>
         <AppShell>{children}</AppShell>
+        <LeaveIntakeConfirm />
       </PersonCardProvider>
     </WorkspaceProvider>
   );

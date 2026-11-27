@@ -7,6 +7,7 @@ import type { Board } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useBoardContext } from "@/features/boards/board-context";
 import { useServices } from "@/features/data/data-context";
+import { askLeaveIntake } from "@/features/booking/leave-intake-confirm";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { canViewBoard } from "@/lib/permissions/permissions";
 import { queryKeys } from "@/lib/query/keys";
@@ -117,5 +118,26 @@ export function useAllocation() {
    */
   const empty = targets.length === 0;
 
-  return { available, empty, targets, allocate, pending: allocate.isPending };
+  /**
+   * Allocating takes a request out of Booked by Form for good, so it is asked
+   * first: its own words, not a group move's. Requests already elsewhere on
+   * the queue go without a question.
+   */
+  const { model } = useBoardContext();
+  const confirmed = React.useMemo(
+    () => ({
+      ...allocate,
+      mutate: (vars: { itemIds: string[]; boardId: string }) => {
+        const leaving = vars.itemIds.filter((id) => model.intakeGroupId && model.itemById.get(id)?.groupId === model.intakeGroupId).length;
+        if (leaving === 0) return allocate.mutate(vars);
+        const to = ws.boardById(vars.boardId)?.name ?? "that board";
+        void askLeaveIntake({ kind: "allocate", count: vars.itemIds.length, to }).then((yes) => {
+          if (yes) allocate.mutate(vars);
+        });
+      },
+    }),
+    [allocate, model, ws],
+  );
+
+  return { available, empty, targets, allocate: confirmed, pending: allocate.isPending };
 }
