@@ -1,5 +1,5 @@
 import type { BoardViewKind } from "@/domain";
-import type { DataAdminRepository, DataExport } from "@/data/repositories";
+import type { DataAdminRepository, DataExport, PersonalViewKey } from "@/data/repositories";
 import { seedDatabase } from "@/data/seed/apply-seed";
 import { nowIso } from "@/lib/ids";
 import type { LocalConnection } from "../connection";
@@ -26,7 +26,7 @@ export class LocalAdminRepository implements DataAdminRepository {
     return (await db.get("boardVisits", `${userId}:${boardId}`))?.viewSettings ?? {};
   }
 
-  async saveBoardViewSettings(userId: string, boardId: string, view: BoardViewKind, settings: Record<string, unknown>): Promise<void> {
+  async saveBoardViewSettings(userId: string, boardId: string, view: PersonalViewKey, settings: Record<string, unknown>): Promise<void> {
     const db = await this.conn.getDb();
     const id = `${userId}:${boardId}`;
     const existing = await db.get("boardVisits", id);

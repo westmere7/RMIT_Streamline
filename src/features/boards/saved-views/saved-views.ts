@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as React from "react";
 import { toast } from "sonner";
 import { BOARD_VIEWS, DEFAULT_VIEW_NAME, EMPTY_VIEW_FILTERS, boardViewsFor, cleanViewName, sameViewConfig, type Board, type BoardColumn, type BoardViewKind, type SavedBoardView, type SavedBoardViewPatch, type SavedViewConfig } from "@/domain";
-import { readPersonalViewSettings } from "@/features/boards/components/views/view-settings";
-import { useActiveSavedView, useSavedViewStore, viewDefaults } from "@/features/boards/saved-views/saved-view-store";
+import type { PersonalViewKey } from "@/data/repositories";
+import { personalViewSettingsPending, readPersonalViewSettings, savePersonalViewSettings } from "@/features/boards/components/views/view-settings";
+import { UNSAVED_DEFAULT_ID, useActiveSavedView, useSavedViewStore, viewDefaults, type ActiveSavedView } from "@/features/boards/saved-views/saved-view-store";
 import { useServices } from "@/features/data/data-context";
 import { queryKeys } from "@/lib/query/keys";
 import { hasActiveFilters, useBoardUi, useBoardUiStore } from "@/stores/board-ui-store";
@@ -42,6 +43,10 @@ function writeOpen(userId: string, boardId: string, viewId: string | null): void
   }
 }
 
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
+
 /** The board's saved views, for anything under the board page that opens one (the toolbar's own buttons). Null off the board page. */
 export const SavedViewsContext = React.createContext<SavedViewsController | null>(null);
 
@@ -76,7 +81,9 @@ export interface SavedViewsController {
  * its view settings and hidden columns in the saved-view store, and its view in
  * the URL. The Default view is the board with no other view open: once an
  * editor saves it, it opens like any other (but stays out of the URL);
- * until then it is the person's own settings on a clean board.
+ * until then it is a working copy of the person's own settings and the board's
+ * hidden columns, so a change to either (Hide, where a task opens) shows as an
+ * edit, as filters and sort do, and is kept only by saving the Default view.
  */
 export function useSavedViewsController({
   board,
@@ -111,10 +118,68 @@ export function useSavedViewsController({
   const defaultView = all.find((v) => v.isDefault) ?? null;
   const working = useActiveSavedView(board.id);
   const ui = useBoardUi(board.id);
-  const active = working ? (all.find((v) => v.id === working.id) ?? null) : null;
-  const onDefault = !working || !!active?.isDefault;
+  const unsavedDefault = working?.id === UNSAVED_DEFAULT_ID;
+  const active = working && !unsavedDefault ? (all.find((v) => v.id === working.id) ?? null) : null;
+  const onDefault = !working || unsavedDefault || !!active?.isDefault;
+  const columnsRef = React.useRef(columns);
+  React.useEffect(() => {
+    columnsRef.current = columns;
+  }, [columns]);
+  // The working copy as last kept for this person: a change past it is saved for them.
+  const kept = React.useRef<ActiveSavedView | null>(null);
 
-  /** Null is the Default view: the saved one if there is one, else a clean board. */
+  /**
+   * The unsaved Default view: this person's own settings and hidden columns
+   * (the board's, until they hide one), as this browser has them, then as the
+   * database has them unless they have changed something in the meantime.
+   */
+  const startUnsavedDefault = React.useCallback(() => {
+    const defaults = viewDefaults();
+    const boardHidden = () => columnsRef.current.filter((c) => c.hidden).map((c) => c.id);
+    const build = (remote: Record<string, unknown>, fromRemote: boolean): ActiveSavedView => {
+      const own = (key: PersonalViewKey): Record<string, unknown> => {
+        const local = readPersonalViewSettings(userId, board.id, key);
+        const far = remote[key];
+        // A change not yet saved to the database is the newer one.
+        if (!fromRemote || personalViewSettingsPending(userId, board.id, key) || !far || typeof far !== "object") return local;
+        return far as Record<string, unknown>;
+      };
+      const settings: SavedViewConfig["settings"] = {};
+      for (const kind of BOARD_VIEWS) {
+        const merged = { ...defaults[kind], ...own(kind) };
+        if (Object.keys(merged).length > 0) settings[kind] = merged;
+      }
+      const hidden = own("columns").hidden;
+      return { id: UNSAVED_DEFAULT_ID, settings, hiddenColumnIds: Array.isArray(hidden) ? hidden.filter((id): id is string => typeof id === "string") : boardHidden() };
+    };
+    const store = useSavedViewStore.getState();
+    store.activateDraft(board.id, build({}, false));
+    const started = useSavedViewStore.getState().boards[board.id] ?? null;
+    kept.current = started;
+    void services.repos.admin
+      .getBoardViewSettings(userId, board.id)
+      .then((remote) => {
+        // Only onto the copy it started from: a change made since, or another view opened, wins.
+        if (useSavedViewStore.getState().boards[board.id] !== started) return;
+        useSavedViewStore.getState().activateDraft(board.id, build(remote, true));
+        kept.current = useSavedViewStore.getState().boards[board.id] ?? null;
+      })
+      .catch(() => undefined);
+  }, [services, userId, board.id]);
+
+  // Each change to the unsaved Default view is kept for this person, view by view.
+  React.useEffect(() => {
+    if (!working || working.id !== UNSAVED_DEFAULT_ID || working === kept.current) return;
+    const before = kept.current;
+    kept.current = working;
+    for (const kind of BOARD_VIEWS) {
+      const next = working.settings[kind];
+      if (next && JSON.stringify(next) !== JSON.stringify(before?.settings[kind])) savePersonalViewSettings(services, userId, board.id, kind, next);
+    }
+    if (!before || !sameIds(before.hiddenColumnIds, working.hiddenColumnIds)) savePersonalViewSettings(services, userId, board.id, "columns", { hidden: working.hiddenColumnIds });
+  }, [working, services, userId, board.id]);
+
+  /** Null is the Default view: the saved one if there is one, else the board as it stands. */
   const open = React.useCallback(
     (wanted: SavedBoardView | null, keepView = false) => {
       const next = wanted ?? queryClient.getQueryData<SavedBoardView[]>(key)?.find((v) => v.isDefault) ?? null;
@@ -128,7 +193,7 @@ export function useSavedViewsController({
         store.setSort(board.id, c.sort);
         if (!keepView && boardViewsFor(board).includes(c.view)) setView(c.view);
       } else {
-        useSavedViewStore.getState().clear(board.id);
+        startUnsavedDefault();
         store.setSearch(board.id, "");
         store.clearFilters(board.id);
         store.setSort(board.id, null);
@@ -138,7 +203,7 @@ export function useSavedViewsController({
       writeOpen(userId, board.id, named);
       replaceParams({ sv: named });
     },
-    [board, setView, replaceParams, userId, queryClient, key],
+    [board, setView, replaceParams, userId, queryClient, key, startUnsavedDefault],
   );
 
   // Once the list is in: the view the link asks for, else the one this person
@@ -159,10 +224,21 @@ export function useSavedViewsController({
     else if (query.data.some((v) => v.isDefault)) open(null, !!requestedView);
   }, [query.data, requestedId, requestedView, userId, board.id, open, replaceParams]);
 
+  // No saved Default view and nothing else open: the unsaved one starts once the
+  // board's columns are in (it starts from their hidden ones). Read from the
+  // store, not `working`: a view opened by the effect above is already there.
+  const columnsIn = columns.length > 0;
+  React.useEffect(() => {
+    if (!started.current || !query.data || !columnsIn) return;
+    if (useSavedViewStore.getState().boards[board.id]) return;
+    if (query.data.some((v) => v.isDefault)) return;
+    startUnsavedDefault();
+  }, [query.data, columnsIn, board.id, startUnsavedDefault, working]);
+
   // Deleted, or made private, by somebody else while it was open.
   React.useEffect(() => {
-    if (working && query.data && !query.data.some((v) => v.id === working.id)) open(null);
-  }, [working, query.data, open]);
+    if (working && !unsavedDefault && query.data && !query.data.some((v) => v.id === working.id)) open(null);
+  }, [working, unsavedDefault, query.data, open]);
 
   const currentConfig = React.useCallback((): SavedViewConfig => {
     const store = useBoardUiStore.getState().boards[board.id];
@@ -186,6 +262,12 @@ export function useSavedViewsController({
     };
   }, [board.id, columns, userId, view]);
 
+  /** The board with nothing chosen: what an unsaved Default view counts its edits from, and what Discard puts back. */
+  const cleanBoard = React.useCallback(
+    (): SavedViewConfig => ({ view, search: "", filters: EMPTY_VIEW_FILTERS, sort: null, hiddenColumnIds: columns.filter((c) => c.hidden).map((c) => c.id), settings: {} }),
+    [view, columns],
+  );
+
   // What a save in flight is writing. It counts as saved the moment Save is
   // pressed, so the Edited mark goes then rather than when the server answers,
   // and comes back if the save fails.
@@ -203,9 +285,14 @@ export function useSavedViewsController({
       const now: SavedViewConfig = { view, search: ui.search, filters: ui.filters, sort: ui.sort, hiddenColumnIds: working.hiddenColumnIds, settings: working.settings };
       return !sameViewConfig(now, active.config, viewDefaults());
     }
-    // An unsaved default has nothing to compare with but a clean board.
+    // An unsaved default has nothing to compare with but a clean board: no
+    // search, filters or sort, every view at its defaults, the board's own hidden columns.
+    if (unsavedDefault && working) {
+      const now: SavedViewConfig = { view, search: ui.search, filters: ui.filters, sort: ui.sort, hiddenColumnIds: working.hiddenColumnIds, settings: working.settings };
+      return !sameViewConfig(now, cleanBoard(), viewDefaults());
+    }
     return !working && (ui.search.trim() !== "" || hasActiveFilters(ui.filters) || ui.sort !== null);
-  }, [saving, active, working, view, ui.search, ui.filters, ui.sort, currentConfig]);
+  }, [saving, active, working, unsavedDefault, view, ui.search, ui.filters, ui.sort, currentConfig, cleanBoard]);
 
   const maySave = active ? canChangeView(active, userId, canEdit) : onDefault && canEdit;
 
@@ -268,8 +355,15 @@ export function useSavedViewsController({
   };
 
   const discard = () => {
-    if (active) open(active);
-    else open(null);
+    if (active) return open(active);
+    open(null);
+    // An unsaved Default view goes back to a clean board, and is kept that way for this person.
+    if (!defaultView) {
+      const defaults = viewDefaults();
+      const settings: SavedViewConfig["settings"] = {};
+      for (const kind of BOARD_VIEWS) if (defaults[kind]) settings[kind] = { ...defaults[kind] };
+      useSavedViewStore.getState().activateDraft(board.id, { id: UNSAVED_DEFAULT_ID, settings, hiddenColumnIds: cleanBoard().hiddenColumnIds });
+    }
   };
 
   return { views, defaultView, active, onDefault, dirty, maySave, canEdit, userId, open, discard, saveChanges, create, update, remove };

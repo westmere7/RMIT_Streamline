@@ -19,6 +19,7 @@ import type {
   ActivityRepository,
   CommentRepository,
   DataAdminRepository,
+  PersonalViewKey,
   DataExport,
   DeliverableNotification,
   ItemReadRepository,
@@ -411,7 +412,7 @@ export class SupabaseAdminRepository implements DataAdminRepository {
     return row?.view_settings ?? {};
   }
 
-  async saveBoardViewSettings(userId: string, boardId: string, view: BoardViewKind, settings: Record<string, unknown>): Promise<void> {
+  async saveBoardViewSettings(userId: string, boardId: string, view: PersonalViewKey, settings: Record<string, unknown>): Promise<void> {
     const current = await this.getBoardViewSettings(userId, boardId);
     assertOk(
       await db()

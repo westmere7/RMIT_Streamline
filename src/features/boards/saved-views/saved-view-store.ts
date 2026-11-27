@@ -16,9 +16,18 @@ export interface ActiveSavedView {
   hiddenColumnIds: string[];
 }
 
+/**
+ * The working copy's id while the board's Default view has never been saved:
+ * it starts as the board stands (this person's settings, the board's hidden
+ * columns), so a change to either shows as an edit to the Default view.
+ */
+export const UNSAVED_DEFAULT_ID = "default:unsaved";
+
 interface SavedViewStore {
   boards: Record<string, ActiveSavedView | undefined>;
   activate: (boardId: string, view: SavedBoardView) => void;
+  /** A working copy with no saved row behind it (the unsaved Default view). */
+  activateDraft: (boardId: string, draft: ActiveSavedView) => void;
   clear: (boardId: string) => void;
   setSettings: (boardId: string, kind: BoardViewKind, settings: Record<string, unknown>) => void;
   setHidden: (boardId: string, columnId: string, hidden: boolean) => void;
@@ -28,6 +37,8 @@ export const useSavedViewStore = create<SavedViewStore>()((set) => ({
   boards: {},
   activate: (boardId, view) =>
     set((s) => ({ boards: { ...s.boards, [boardId]: { id: view.id, settings: structuredClone(view.config.settings), hiddenColumnIds: [...view.config.hiddenColumnIds] } } })),
+  activateDraft: (boardId, draft) =>
+    set((s) => ({ boards: { ...s.boards, [boardId]: { id: draft.id, settings: structuredClone(draft.settings), hiddenColumnIds: [...draft.hiddenColumnIds] } } })),
   clear: (boardId) => set((s) => ({ boards: { ...s.boards, [boardId]: undefined } })),
   setSettings: (boardId, kind, settings) =>
     set((s) => {

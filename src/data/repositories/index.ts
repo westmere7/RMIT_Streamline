@@ -783,6 +783,9 @@ export interface NotificationPreferencesRepository {
 }
 
 /** Administrative operations that only make sense for a resettable local store. */
+/** A key of a person's own settings on a board: a view's, or "columns" for the columns they hid on an unsaved Default view. */
+export type PersonalViewKey = BoardViewKind | "columns";
+
 export interface DataAdminRepository {
   /** Wipes all data and re-applies the seed. */
   resetToSeed(): Promise<void>;
@@ -793,8 +796,8 @@ export interface DataAdminRepository {
   getBoardVisitView(userId: EntityId, boardId: EntityId): Promise<BoardViewKind | null>;
   /** Per-view settings this person chose on the board, keyed by view kind. */
   getBoardViewSettings(userId: EntityId, boardId: EntityId): Promise<Record<string, unknown>>;
-  /** Replaces one view's settings on the board for this person, leaving the other views' alone. */
-  saveBoardViewSettings(userId: EntityId, boardId: EntityId, view: BoardViewKind, settings: Record<string, unknown>): Promise<void>;
+  /** Replaces one view's settings (or, under "columns", the person's hidden columns) on the board for this person, leaving the rest alone. */
+  saveBoardViewSettings(userId: EntityId, boardId: EntityId, view: PersonalViewKey, settings: Record<string, unknown>): Promise<void>;
   listRecentBoardIds(userId: EntityId, limit: number): Promise<EntityId[]>;
   /** Serialises every store so the state can be moved to another browser. */
   exportAll(): Promise<DataExport>;

@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.167.1",
+    date: "2026-11-27",
+    title: "The Default view keeps track of Hide and where tasks open",
+    changes: [
+      "On a Default view nobody has saved yet, hiding a column, Side panel / Pop-up and the other view settings now show the Edited dot, as filters and sort do. They are still kept for you; Discard goes back to the board as it comes, and Save makes them the Default view for everyone.",
+      "Hiding a column there hides it for you, not for everyone on the board straight away.",
+      "Two view settings changed at once (Discard does this) could save over each other, so one came back after a reload. They now save one after the other.",
+    ],
+  },
+  {
     version: "0.167.0",
     date: "2026-11-26",
     title: "An automation builder that reads as it runs",

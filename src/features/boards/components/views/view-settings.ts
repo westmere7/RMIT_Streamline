@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import type { PersonalViewKey } from "@/data/repositories";
 import type { BoardViewKind } from "@/domain";
+import type { Services } from "@/services";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useBoardContext } from "@/features/boards/board-context";
 import { useServices } from "@/features/data/data-context";
@@ -60,9 +62,52 @@ function writeLocal(storageKey: string, value: Record<string, unknown>): void {
   }
 }
 
-/** This person's own settings for a view on a board, as this browser last kept them. */
-export function readPersonalViewSettings(userId: string, boardId: string, view: BoardViewKind): Record<string, unknown> {
+/** This person's own settings for a view on a board (or, as "columns", the columns they hid), as this browser last kept them. */
+export function readPersonalViewSettings(userId: string, boardId: string, view: PersonalViewKey): Record<string, unknown> {
   return readLocal(`${userId}:${boardId}:${view}`);
+}
+
+/** A change to this person's own settings that this browser has not saved to the database yet. */
+export function personalViewSettingsPending(userId: string, boardId: string, view: PersonalViewKey): boolean {
+  return pendingKeys().has(`${userId}:${boardId}:${view}`);
+}
+
+/** Per person and board: the changes waiting for the database, the timer, and the save in flight. */
+const personalQueues = new Map<string, { waiting: Map<PersonalViewKey, Record<string, unknown>>; timer: number | null; chain: Promise<void> }>();
+
+/**
+ * Keeps this person's own settings (the unsaved Default view's working copy):
+ * in this browser at once, in the database 600 ms later.
+ *
+ * One board's changes go to the database one after another: a save replaces
+ * the person's whole settings record with one key changed, so two side by
+ * side (Discard resets the open mode and the hidden columns together) would
+ * each write back the other's old value.
+ */
+export function savePersonalViewSettings(services: Services, userId: string, boardId: string, view: PersonalViewKey, settings: Record<string, unknown>): void {
+  writeLocal(`${userId}:${boardId}:${view}`, settings);
+  setPending(`${userId}:${boardId}:${view}`, true);
+  const queueKey = `${userId}:${boardId}`;
+  const queue = personalQueues.get(queueKey) ?? { waiting: new Map(), timer: null, chain: Promise.resolve() };
+  personalQueues.set(queueKey, queue);
+  queue.waiting.set(view, settings);
+  if (queue.timer) window.clearTimeout(queue.timer);
+  queue.timer = window.setTimeout(() => {
+    queue.timer = null;
+    const batch = [...queue.waiting];
+    queue.waiting.clear();
+    for (const [key, value] of batch) {
+      queue.chain = queue.chain.then(() =>
+        services.repos.admin
+          .saveBoardViewSettings(userId, boardId, key, value)
+          // Pending until the newest change to this key is saved.
+          .then(() => {
+            if (!queue.waiting.has(key)) setPending(`${userId}:${boardId}:${key}`, false);
+          })
+          .catch(() => undefined),
+      );
+    }
+  }, 600);
 }
 
 /**
@@ -74,7 +119,9 @@ export function readPersonalViewSettings(userId: string, boardId: string, view: 
  *
  * While a saved view is open on the board, the settings are that view's
  * instead: read from it and written to its working copy, and this person's own
- * are left as they were for when they go back.
+ * are left as they were for when they go back. On a Default view nobody has
+ * saved, the working copy is this person's own, and the saved-views controller
+ * keeps it for them.
  */
 export function useViewSettings<T extends Record<string, unknown>>(view: BoardViewKind, defaults: T): [T, (patch: Partial<T>) => void] {
   const { board } = useBoardContext();
@@ -101,7 +148,6 @@ export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: s
   // eslint-disable-next-line react-hooks/exhaustive-deps -- defaults is a fresh literal each render; its JSON is what counts
   const savedState = React.useMemo(() => ({ ...defaults, ...savedSettings }) as T, [defaultsKey, savedSettings]);
   const touched = React.useRef(false);
-  const timer = React.useRef<number | null>(null);
 
   // Once per board and view: what the database remembers, unless the person has
   // already changed something in this session (their choice wins).
@@ -111,10 +157,8 @@ export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: s
     // A change made here and not saved yet (the page was left inside the save's
     // 600 ms): this browser's copy is the newer one, so it is saved now and wins.
     if (pendingKeys().has(storageKey)) {
-      void services.repos.admin
-        .saveBoardViewSettings(user.id, board.id, view, readLocal(storageKey))
-        .then(() => setPending(storageKey, false))
-        .catch(() => undefined);
+      // Through the board's queue: other views may be catching up at the same moment.
+      savePersonalViewSettings(services, user.id, board.id, view, readLocal(storageKey));
       return () => {
         cancelled = true;
       };
@@ -140,21 +184,11 @@ export function useViewSettingsFor<T extends Record<string, unknown>>(boardId: s
       touched.current = true;
       setState((prev) => {
         const next = { ...prev, ...patch };
-        writeLocal(storageKey, next);
-        setPending(storageKey, true);
-        if (timer.current) window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(
-          () =>
-            void services.repos.admin
-              .saveBoardViewSettings(user.id, board.id, view, next)
-              .then(() => setPending(storageKey, false))
-              .catch(() => undefined),
-          600,
-        );
+        savePersonalViewSettings(services, user.id, board.id, view, next);
         return next;
       });
     },
-    [services, user.id, board.id, view, storageKey],
+    [services, user.id, board.id, view],
   );
 
   const updateSaved = React.useCallback(
