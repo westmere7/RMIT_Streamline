@@ -23,8 +23,13 @@ This document is the technical and operational reference for developers, maintai
 
 **Brought up to date on 22 November 2026** (package `0.153.1`, revision `c41c315`). The second changes table below and the sections it points to describe the app as it is now; older paragraphs that the new behaviour replaced were rewritten, the rest stand. Compiled from the commit messages v0.91 → v0.153 and the SQL itself; where this prose and the code disagree, the code wins.
 
-- **Heads now:** migration **0151** (149 files; there is no 0069 or 0141), policy **0039**, `supabase/sequence.txt` listing all 188 SQL files, IndexedDB **21**.
+- **Heads then:** migration **0151** (149 files; there is no 0069 or 0141), policy **0039**, `supabase/sequence.txt` listing all 188 SQL files, IndexedDB **21**.
 - **The app is live for the team** (since 18 November). Every SQL file in `supabase/` on `main` is applied to production on the next build: draft and prove new SQL on the disposable stack (§19) first.
+
+**Brought up to date again on 27 November 2026** (package `0.170.1`, revision `1eb728c2`). The third changes table below covers v0.154 → v0.170.1, compiled from `src/lib/changelog.ts`, the commit messages and the code; each named file, symbol, route and migration was checked in the repository.
+
+- **Heads now:** migration **0159** (157 files; still no 0069 or 0141), policy **0040** (40 files), `supabase/sequence.txt` listing all 197 SQL files, IndexedDB **22**.
+- **Counted, not estimated:** 38 `page.tsx` files and 50 `route.ts` files under `src/app`; 35 repositories in `Repositories`; 1,855 unit tests in 195 files (`vitest list`); 329 Playwright tests in 52 files on the default config (`playwright test --list`), 53 spec files in all.
 
 **Evidence precedence.** When sources disagree, trust them in this order:
 
@@ -72,6 +77,29 @@ What was executed for this rewrite, and what was only read, is recorded in the a
 | Automations | A board move raises `item_created` on arrival and `item_moved` on departure (0137); Create a task never lands in Booked by Form. §13e |
 | Phone | Keyboard-aware sheets (`KeyboardInset`); task, group, lane and column menus shared with desktop; Browse with the sidebar's menus. §13d |
 | Look | Dim theme removed; RMIT logo on visitor pages; no hover outlines on cards and rows; Tech stack in About; team rows aligned with the menu (v0.153.1). |
+
+### Changes since the 22 November update (v0.153 → v0.170.1)
+
+| Area | What changed |
+| --- | --- |
+| Brief | The brief as booked is kept and can't be overwritten (0152, v0.154); Edited note and Revert; work types under the service; the brief is edited as it reads, with the service as a heading (v0.165). §12 |
+| Form editor | Bold, italic, underline and links in hints, help lines and questions (`FormattingTextBox`, `plainLabel`, v0.155); a running schedule leads the panel (`ScheduledFormCard`); Live badge (v0.162); save over a saved form from the list (v0.170.1). §12 |
+| Links and forms | Short keyless links `/<ws>/portal` and `/<ws>/booking`, old links redirect (v0.156); in the app every Book a task opens the pop-up form; booked tasks say Via booking form. §6, §12 |
+| Landing groups | `boards.landing_group_id` (0153): every board has one (chosen, else first open group); allocation picks a board only and lands there (v0.156.1). §10 |
+| Portals | Internal portal for admins and allocators (v0.157–v0.159); the stakeholders' portal is the Guest portal; both group by team; skeleton loading. §13c |
+| Dashboard | Matrix figures open their tasks; tasks open in a new tab (switch); the year day by day under the month chart; T-shirt size split; Aging work and Departments removed; days in the reader's timezone (`localDateOf`). §13b |
+| Trackers | Drag-select, fill handle, column/row moves, cell formats (v0.160); 2 s batched saves with the remote copy held; New sheet for a task in an existing tracker (v0.164); tab menus. §15 |
+| Saving | Write holds, folded board-cell saves, batched asset/checklist writes, `quickSave`/`lastSave` everywhere, flush on leave (v0.161). §16 |
+| Realtime | Catch-up when the feed is up, `workspace_changed_within` probe (0154); saved views and baselines in the publication. The new-tasks dot came and went (0155/0156). §16 |
+| Task pop-up | Card layout, one merged feed, wider right column (v0.166); feed options saved with the view, Open tasks in, Sort / Filter as one button (v0.166–v0.167.1). §11 |
+| Linked tasks | Missing status/dropdown labels are added on the other board; Updates and replies stay in sync (v0.165). §11 |
+| Automations | When / Only if / Then builder with insert chips (v0.167); the cron tick calls the app only when there is work (0157); "the time" condition (v0.170). §13e |
+| Send back | A booked task goes back to its requester for what's missing: one-time 14-day link, lock, Sent back chip, journey rounds (0158, p0040, v0.168–v0.170). §12 |
+| Intake | Nothing moves back into Booked by Form, in the app and in the database (0159, v0.168.1–v0.169.1). §10 |
+| Concurrency | Equal positions sort the same everywhere (`byPosition`); a second send-back is 409; concurrent allocation is 409 `MOVED_MEANWHILE` (v0.169). §11, §12 |
+| Task link | Signed read-only link to the task on the receipt (`review.shareTaskLink`, v0.169). §12 |
+| Shared task page | Share by link and the task link render one page in the pop-up layout, with a menu that knows where else the task opens (v0.170). §13 |
+| Activity | Task, board, asset, column and requester names in activity open where they say (v0.168.1, v0.170); profile figures open their lists. §14 |
 
 ### Navigation
 
@@ -332,10 +360,8 @@ Use `src/lib/routes.ts` for links. Slugs are distinct from ids.
 | `/` | Loading screen ("Checking your session…"), then the workspace or `/login`. |
 | `/login` | Sign-in. Signed-in visitors see the loader, never the form (v0.45.2). `?next=` follows same-site paths only. |
 | `/join/[token]` | Onboarding: preview, password (≥8), profile, photo. |
-| `/book/[slug]/[key]` | Public booking wizard behind the workspace key. |
-| `/book/[slug]` | The same wizard for a signed-in member. |
-| `/portal/[token]` | The workspace portal. |
-| `/portal/[token]/book` | Booking from the portal (opens in a new tab). |
+| `/book/[slug]/[key]`, `/book/[slug]` | Since v0.156: redirect to `/<slug>/booking`. |
+| `/portal/[token]`, `/portal/[token]/book` | Since v0.156: move to `/<ws>/portal` (or `/booking`) with their query while the token is current (`LegacyPortalLink`); a replaced token keeps its "replaced" page. |
 | `/share/[token]`, `/share/item/[token]` | Read-only board / task share. |
 | `/dashboard/[token]` | Public full-screen dashboard. |
 | `/workspace/[slug]` | Home. |
@@ -402,6 +428,28 @@ Every handler awaits its promised `params`. `src/server/http.ts` wraps them:
 - **The portal's booking routes** resolve with a scope (`StakeholderPortalService.resolve(scope)`): "board" needs the portal open, "booking" needs `allow_booking` whatever the portal switch says; a password applies to both.
 - **`/api/automations/run`**: a session nudge needs an active seat in some workspace.
 
+### Added since v0.153
+
+At v0.170.1 there are 38 page files and 50 route files under `src/app` (counted). New ones:
+
+| Route | What it does |
+| --- | --- |
+| `/[workspace]/portal` | The Guest portal at the workspace's short address (`routes.workspacePortal`, `WorkspacePortalPage` in `src/features/portal/short-links.tsx`). The switches, password and settings still decide what it shows. |
+| `/[workspace]/booking` | The one external booking form (`routes.workspaceBooking`); a signed-in member is still known as the booker. |
+| `/[workspace]/booking/r/[token]` | The requester's send-back form (`ResubmitScreen`); the 32-character token is the only key. noindex, no-referrer. |
+| `/[workspace]/booking/t/[token]` | A booking's task link (`TaskLinkScreen` → `SharedItemScreen`). |
+| `/workspace/[slug]/internal-portal` | Internal portal (admins and allocators, `canUseInternalPortal`). |
+| `GET /api/portal-link/[slug]` | The portal token behind a short address (`StakeholderPortalService.tokenForWorkspace`); makes the portal row, off with booking on, on a first visit. Answers anyone with the address. |
+| `GET /api/portal/[token]/where` | Where an old portal link lives now (`workspaceForToken`); null for a token no longer current. |
+| `POST /api/booking-send-back` | `{itemId, note}`. Bearer session; `requireEditor` checks `canEditBoard` by the app's own rule, then `BookingSendBackService.send` runs with the service role (`src/server/send-back.ts`). |
+| `POST /api/booking-send-back/cancel` | `{itemId}`. Same check; recalls the open send-back. |
+| `GET`, `POST /api/booking-resubmit/[token]` | No session. GET opens the form, prefill, note and sender; POST `{request, reply?}` resubmits. An unknown token is 404, a used, recalled or expired one 410, a validation failure 400, `NOTHING_CHANGED` 409. |
+| `GET /api/booking-link/[token]` | The task behind a receipt's task link, read-only (`portalServices().taskLinks.open`). Share errors map through `shareErrorStatus`. |
+| `GET /api/booking-link/[token]/openings` | Where else that task opens for the caller (`loadTaskLinkOpenings`). |
+| `POST /api/share/item/[token]/openings` | The same for a Share by link task, behind the link's password (`loadShareItemOpenings`). |
+
+Workspace addresses can't take the app's own paths (`RESERVED_WORKSPACE_SLUGS`, `workspace-service.ts`).
+
 ## 7. Domain and persistence
 
 ### Principal entities
@@ -442,7 +490,7 @@ The Supabase provider keeps comments, activities, notifications, preferences and
 
 ### Local database
 
-IndexedDB `rmit-streamline`, **`DB_VERSION` 21** (`src/data/local/database.ts`). Each version added:
+IndexedDB `rmit-streamline`, **`DB_VERSION` 22** (`src/data/local/database.ts`). Each version added:
 
 | Version | Added |
 | --- | --- |
@@ -466,6 +514,7 @@ IndexedDB `rmit-streamline`, **`DB_VERSION` 21** (`src/data/local/database.ts`).
 | 19 | `itemFavourites` |
 | 20 | `savedViews` |
 | 21 | `docs` |
+| 22 | `bookingRequests` (key `itemId`) and `bookingSendBacks` (`byItem`, unique `byToken`): send back (v0.168) |
 
 Tickets, column roles, hidden-in-panel, link pairs and reactions are plain fields on existing stores; reactions and pins live on the comment record. The local demo keeps some things in browser storage rather than IndexedDB: recent visits, booking publications and form schedules. Upgrade callbacks log when another open tab blocks them.
 
@@ -505,6 +554,14 @@ Tickets, column roles, hidden-in-panel, link pairs and reactions are plain field
 - **Form JSON (no migration):** services' `routing` (rules with `match` 'any' or 'exact', `groupId`, an otherwise) and `boardId`; `template.header`; `field.description`; `review.offerPdf`, `pdfLabel`, `showPastBookings`; block kinds `ack`, `allowOwn`, `rich`. A booking carries `formVersion`; `BookingForm.version`.
 - **Domain helpers worth knowing:** `form-schedule.ts` (schedules, `liveBookingForm`), `routeBooking`, `intakeGroupOf`, `moveEnds` (reads both ITEM_MOVED shapes), `size-scale.ts`, `teamAccessFor`/`boardAccessOf`, `readDate`/`readQuantity` (`tracker-values.ts`).
 - **Reads that must stay narrow.** Profile and My Work read one person's rows in the database (`listValuesNamingUser` by jsonb containment, `listAssignedTo` on the GIN index, `listByActor`), never the whole workspace.
+
+### Added since v0.153
+
+- **Repositories:** 35 in `Repositories` now. New: `bookingRequests` (the booking as last sent, one per task) and `bookingSendBacks` (`openFor`, `getByToken`, `openItemIds`, `claimResubmission`). `items.moveToBoard` takes `onlyFromBoardId`, a conditional claim: the Supabase update adds `.eq("board_id", …)` and throws `MOVED_MEANWHILE` when no row comes back (`src/domain/common/errors.ts`).
+- **Tables:** `booking_requests` and `booking_sendbacks` (0158). Counting `create table` minus `drop table` across `supabase/`, migrations make 57 tables in `public`; the runner adds `schema_migrations`.
+- **New fields:** `boards.landing_group_id` (0153). Form JSON (no migration): `review.shareTaskLink`.
+- **Triggers added:** `private.board_landing_group_guard` (0153: own group, never a built-in board), `private.booking_brief_kept` (0152), and `private.intake_booked_tasks_only` redefined by 0159 (§10).
+- **Activity types:** `BOOKING_SENT_BACK`, `BOOKING_RESUBMITTED`, `BOOKING_SEND_BACK_CANCELLED` (0158).
 
 ## 8. Authentication and onboarding
 
@@ -572,6 +629,8 @@ Deactivation (audit F-001, 9 September) takes the active role away before owners
 ## 9. Authorization
 
 ### Workspace and team roles
+
+![Members](public/guide/members.webp)
 
 | Kind | Values |
 | --- | --- |
@@ -867,6 +926,10 @@ v0.47.4 dropped Requester department, Requested team and Allocated to. The top-u
 
 ### Six views
 
+<img src="public/guide/board-table.webp" width="420" alt="Main table"> <img src="public/guide/board-kanban.webp" width="420" alt="Kanban">
+
+<img src="public/guide/board-timeline.webp" width="420" alt="Timeline"> <img src="public/guide/board-workload.webp" width="420" alt="Workload">
+
 | View | Main use | Reads |
 | --- | --- | --- |
 | Main Table | Grouped rows, subitems, typed editing, bulk actions | Every visible column |
@@ -913,10 +976,11 @@ Search, filter, sort and Hide sit on the table toolbar, but filters apply to eve
   - Editors can restore or delete permanently.
 - **Linked items.** Archiving selected linked items offers `cascade` (archive direct counterparts too) or `break` (unlink first). The panel's "Archive task" skips that question (F-149).
 
-### Task Allocation's intake group (v0.139 → v0.143)
+### Task Allocation's intake group (v0.139 → v0.169.1)
 
 - **Booked by Form** is the group with `board_groups.role = 'INTAKE'` (0132; one per board, Task Allocation only, set on its "New" group or first group). It can be renamed, not deleted (trigger and service), except when the whole board or workspace goes. It stays first and has no drag handle (`pinIntakeFirst`), and is drawn framed with a `?` popover.
-- **Bookings only.** `createItem`/`duplicateItem` refuse hand-made tasks there and 0133 refuses them from a session; only booked tasks move in (`INTAKE_MOVE_MESSAGE`, 0136). `addableGroups` keeps New item, kanban lanes and the phone's add row out; `moveTargetsFor` hides it from Move to group unless every chosen task was booked. Automations' Create a task never lands there.
+- **New bookings only** (v0.168.1, 0159). `createItem`/`duplicateItem` refuse hand-made tasks there and 0133 refuses them from a session. Nothing moves into it, booked or not: `moveTargetsFor` returns `addableGroups` (which leave the intake group out) for Move to group, the phone and the bulk bar; the table opens no drop slot there and kanban drops nothing into it; `ItemService` throws `INTAKE_MOVE_MESSAGE` ("Booked by Form takes new bookings only. Nothing moves back into it."). Automations' Create a task never lands there.
+- **The database holds the rule too** (0159, v0.169.1). `private.intake_booked_tasks_only()` refuses, from an `authenticated` or `anon` session, a change of `group_id` into an INTAKE group and a subitem promoted to a task there. Reordering inside the group, moving out, a booking's insert and the server's own writes pass. 0136's earlier rule let booked tasks back in; 0159 replaced it.
 - **Book via form.** Task Allocation's New item opens the booking wizard in a dialog, signed in as the member, while the workspace takes bookings (`usePortalOverview`); otherwise it is plain New item.
 - **Re-allocate** sends a booked task (`booked_via` set) back (§11). The dashboard counts the intake group's requests as Incoming.
 
@@ -929,6 +993,22 @@ Search, filter, sort and Hide sit on the table toolbar, but filters apply to eve
 - **Board and team settings** are tabbed dialogs (`SettingsDialogFrame`). Board: General, Access, Members, Share, Columns, Assets, Permissions, Archive, Danger Zone. Team: General, Access, Members, Bookings (a built-in team shows General and Members). Both read the live object (`ws.teamById`), not a stale copy.
 - **Sidebar.** Team rows: the icon on a tile of the team's colour, aligned with the primary menu's icons, the fold chevron after the name, the open list under a solid 1px line in the team's colour; boards under a team show `SquareKanban`. "Show in sidebar" per team hides trackers or docs (`teamHiddenKinds`, per device). The Admin team is a panel of its own under the primary menu.
 - **Header toggles** share one accent style: star, follow, share (while on), automations (while any rule is on).
+
+### Landing groups (v0.156 → v0.156.1)
+
+- **What.** `boards.landing_group_id` (0153, on delete set null) is where tasks from other boards land: allocated, moved, or booked straight onto the board. `landingGroupOf()` (`src/domain/board/board.ts`) picks it, else the board's first open group, never an intake group. Every board therefore has one, marked beside the group's name.
+- **Where it is set.** Board settings → General lists the groups with the effective one selected; a group's menu offers "Land tasks here" on the others (managers). There is no "Stop landing".
+- **Guard.** `private.board_landing_group_guard`: the board's own group only; built-in boards (Task Allocation, App development) have none.
+- **Allocation picks a board only** (v0.156.1): row menu, phone menu, bulk bar and panel; no `groupId` on `BookingService.allocate` or `/api/allocate`. Move to board keeps its group choice and opens on the landing group. Bookings routed straight to a board land in it.
+
+### Order, views and the toolbar (v0.166 → v0.169)
+
+- **One order everywhere** (v0.169.0). `byPosition` in `board-filtering.ts` breaks position ties by `createdAt`, then id; `sortItems` uses it with and without a sort. Two people dropping tasks into a group at once can leave equal positions, and each screen used to order them its own way.
+- **Open tasks in** (v0.166). The table's view settings (`src/features/boards/table-view-settings.ts`) carry `openIn` (`panel` | `popup`), so a saved view keeps it. Timeline, calendar, Gantt and workload follow it; kanban keeps its own Open cards in. Set from a toolbar menu after Hide (not on kanban, not below 1024 px) or the task menu (`rememberOpenMode`).
+- **Pop-up feed options** live in the same settings: `feedActivity`, `feedUpdatesOnTop`, `feedFade` (§11).
+- **Sort / Filter** is one toolbar button (`SlidersHorizontal`); the sort is the panel's first row, a field picked again turns round. The Sort dropdown is gone.
+- **The unsaved Default view** (v0.167.1) has a working copy of the person's own settings and hidden columns: Hide and Open in show the Edited dot, still kept per person (`board_visits.view_settings`, hidden columns under `columns`). Discard resets to clean, Save makes it the Default view for everyone. Personal view-setting writes for a board run one after another.
+- **New-tasks dot** (v0.163.0, 0155) was removed in v0.165.0 and its function dropped by 0156. 0155 stays in the repository because it was applied.
 
 ## 11. Items, tickets, links, and assets
 
@@ -967,6 +1047,8 @@ An item has an id, board, group, optional parent, name, description, position, c
 
 ### The task panel
 
+![Task side panel](public/guide/task-panel.webp)
+
 - **Header** (`panel-header`), top to bottom:
   1. cover;
   2. breadcrumb (board, or Archived, then group and parent) with the icon row: journey, share (managers), menu, close;
@@ -979,16 +1061,38 @@ An item has an id, board, group, optional parent, name, description, position, c
   - Single pane: Overview, Updates, Assets, Activity.
 - **Overview.** Description, "Columns" (every shown column as a draggable row with its own menu: Insert, Hide on board / in panel / both, Remove), Allocation, Linked items, Subitems.
 - **Pop-up mode.**
-  - "Open in pop-up" (row menu, panel menu) opens the task over the board, up to 1160 × 1040 px.
-  - The mode lives in the board UI store. Only one task is open at a time.
-  - Below 1024 px it falls back to the full-screen panel.
-  - The pop-up body isn't wrapped in `PanelSizeProvider` (F-148).
+  - Opens the task over the board, up to 1320 × 1040 px, when the board's Open tasks in says Pop-up (§10) or from the task menu.
+  - Only one task is open at a time. Below 1024 px it falls back to the full-screen panel.
+  - Its layout since v0.166 is below.
 - **Opening.** The panel is answered on the click and revealed once its comments, assets, links and share state have all loaded.
   - `?item=` deep-links to a task.
   - An archived task redirects to its board's archive.
   - Escape closes the panel unless focus is in a field or a menu.
 
+### The task pop-up (v0.166 → v0.167)
+
+![Task pop-up](public/guide/task-popup.webp)
+
+- **Card layout** (`PopupCard` in `item-detail-panel.tsx`). Left, one scroll: the tab bar (Updates | Assets), the composer pinned under it, then one feed. Right, a column of 3/8 of the width (never under 420 px): description, columns (values centred, labels left, cells through `PanelSizeProvider` "wide"), allocation, links, subitems.
+- **One feed.** `mergeFeed` (`src/features/items/item-feed.ts`) weaves updates and history lines newest first; pinned conversations stay on top; "update posted" lines are dropped because the update is there. There is no Activity tab in the pop-up.
+- **Feed options** (a button beside the tabs, `feed-options-panel`): Activity, Keep Updates on top, Fade activity. Saved with the board's view settings (`feedActivity`, `feedUpdatesOnTop`, `feedFade`; defaults on, off, on). Collapse all is an icon. The pop-up has no Pin to overview and no pinned copy above the feed; the side panel keeps both.
+- **Description** opens only on a click and closes and saves on a press outside or Tab away. Focus moving to the dialog's own frame doesn't count as leaving. Escape inside a field doesn't close the pop-up.
+- **Allocation on Task Allocation** sits right under the description as one row: board picker and Allocate (v0.167).
+- **Portals** use the same pop-up: the Guest portal, shared board links and the Internal portal (`TaskPanelHost` as a pop-up).
+
+![Activity with clickable names](public/guide/task-activity.webp)
+
+### Activity links (v0.168.1, v0.170)
+
+- **Names lead where they say.** Task, board and linked-task names in activity are links that look like links at rest. Link events record the other task's id (v0.168.1).
+- **Parts of a task** (v0.170.0): `MentionLinks.part` (`src/features/workspace/mention-link.tsx`) builds `?item=<id>&tab=assets` for an asset's name and `?item=<id>&field=<columnId>` for a column's name; the requester's name opens their profile.
+- **Moved tasks.** `useMentionLinksHere(boardId, itemIds)` sends a task that has moved board since to where it is now.
+- **On the board.** `board-page.tsx` reads `tab` and `field` once, sets `requestedItemTab` or `requestedField` in the board UI store (`src/stores/board-ui-store.ts`), then clears them from the address so it is a plain task link again.
+
 ### Task journey (v0.34 → v0.47.5)
+
+![Task journey](public/guide/task-journey.webp)
+
 
 - **Opening.** The panel's icon (`open-task-journey`) opens the `task-journey` dialog.
 - **Contents:**
@@ -1042,17 +1146,20 @@ One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
     3. same name with a compatible type (the text family TEXT/LONG_TEXT/RICH_TEXT/BRIEF counts as compatible);
     4. a lone Status/Priority/PIC/Date/Timeline on each side.
 - **How values translate.**
-  - Labels translate by name; a missing label is skipped.
+  - Labels translate by name. Since v0.165.0 a status or dropdown label the other board lacks is added there with the same name and colour, and the value lands (`ItemLinkService.translateCarryingLabel`).
   - Single-person targets keep the first person.
   - Rich text is flattened into plain columns.
 - **Exclusions** (`item_links.excluded`): `name`, `description`, `ticket`, `updates`, column ids. The "Choose what syncs" dialog sets them; assets are always shared.
 - **Propagation** walks links breadth-first and stops at a link that excludes the field. Since v0.153.0 each write to a linked task is tried on its own: one the person may not make (a board they only view) is skipped, their own change stands, and `ItemLinkService.onSyncSkipped` tells the page, which says "Not updated on <board>" (`DataProviderContext`). History entries for linked writes are best-effort. Before, the person got an error after the save but before history and notifications.
 - **Unlinking** needs edit rights on both tasks; a refused delete throws `RefusedError` ("Only someone who can edit both tasks can unlink them.").
 - **New task to link to** (v0.153.0): the link dialog's first row makes a task on a linkable board outside the chain (any group but Booked by Form), links it and fills it from this task; if the link fails the new task is deleted.
-- **Updates.** "Post to linked task(s)", on by default, copies an update across the chain with a shared id, to the linked tasks the person may write to (the rest are reported as above). Replies stay on their own task. Pins and ticks on each copy are that copy's own; a tick shows on every copy (`comment_checks` by words).
+- **Updates.** "Post to linked task(s)", on by default, copies an update across the chain with a shared id, to the linked tasks the person may write to (the rest are reported as above). Pins and ticks on each copy are that copy's own; a tick shows on every copy (`comment_checks` by words).
+- **Updates and replies in sync** (v0.165.0): "What stays in sync" has Updates and replies (`excluded` holds `updates` when it is off). New updates go to every task still sharing updates; a reply is mirrored under each copy of its update with one `shared_id`, so edit and delete reach every copy. Updates written before are never copied (0145's author rule).
 - **Deliverables are shared across links.** A line lives on the task it was added to and shows on every linked task. `ItemAssetService.loadBoard()` returns `lines` (stored here, for totals) and `byItem` (shown, links included).
 
 ### Assets (deliverables)
+
+![Assets tab](public/guide/task-assets.webp)
 
 - **Shape.** An `ItemAsset` has name, asset type, quantity (null counts as 1), several assignees, due date, completion, notes (the spec), `links`, `blockId`/`blockName`/`blockLinks` and position.
 - **Links** (migration 0087) are a list of `{ id, label, url, icon }`, ordered, at most 20. The old `preview_url`/`artwork_url` columns were copied in and are no longer read; a later migration drops them. They live in the row's "…" menu (open, copy, copy all), never on the row. `assetLinkHref()` opens only http(s) and mailto. Booking rows carry no links.
@@ -1068,10 +1175,11 @@ One app-wide offer (`src/stores/undo-store.ts`, `UndoBar`).
 ### Move to board, re-allocate and booked tasks (v0.140 → v0.143)
 
 - **Move to board** (task menu, not on built-in boards; `ItemMoveService.preview/planMove`): the workspace's other open boards the reader can edit, by team; a preview of the columns that come across (paired as links pair them), values left behind and why, subitems; a landing group. The move re-plans from the boards as they are, writes values and the brief first, then re-points links' column pairs (a link the mover can't rewrite no longer aborts it), recomputes the recap and logs `ITEM_MOVED` ("Moved to X from Y", `moveEnds`). Moving needs edit rights on both boards (`items_update`).
-- **`booked_via`** ('booking' or 'portal', 0134) marks a task the form or portal made; it stays wherever the task goes and is never set from a session. The task panel shows a **Via Form / Via Portal** chip whose card gives the booked time, who asked, the department and when it reached a team.
+- **`booked_via`** ('booking' or 'portal', 0134) marks a task the form or portal made; it stays wherever the task goes and is never set from a session. The task panel shows a **Via booking form** chip (one wording for both doors since v0.156.0; the stored value is unchanged) whose card gives the booked time, who asked, the department and when it reached a team.
 - **`allocated_at`** (0135) is when a booked task reached a team: set by a direct booking onto a team board and by `allocate`, kept across team boards, cleared by re-allocate; server-only, fires no automation.
 - **Re-allocate** (`ReallocationService`, booked tasks, people who can edit Task Allocation): the task goes back to a Task Allocation group (never Booked by Form) or a new one. Kept: booking time and first log entry, ticket, description, deliverables, values Task Allocation has columns for. Dropped: people, status, updates, the rest of the log, subitems, links (`ITEM_UNLINKED` on the other side), follows, deliverables' people and ticks. A linked tracker sheet is unlinked with its assets kept.
-- **Allocation** refuses subitems and archived requests; bulk allocation runs one after another. A booking with no landing group uses a group called "Allocated", made once at the top and reused.
+- **Allocation** refuses subitems and archived requests; bulk allocation runs one after another. The task lands in the target board's landing group (§10); a board with no group refuses. A booking routed to a board whose rule names a group that has since gone (or a board with no groups) still falls back to a group called "Allocated", made once at the top and reused.
+- **Two allocators at once** (v0.169.0). `BookingService` moves the task with `moveToBoard(…, { onlyFromBoardId: source.id })`: the loser's conditional update finds no row and gets 409 `MOVED_MEANWHILE` ("Someone moved this task a moment ago. Reload to see where it is.") before anything of theirs is written.
 
 ### Task assets, more
 
@@ -1093,15 +1201,17 @@ Public bucket URLs don't inherit a private board's visibility.
 
 ### Ways in
 
-One `BookingWizard` serves three routes:
+![Booking form, Essentials step](public/guide/booking-essentials.webp)
 
-- `/book/<slug>/<key>` — public, behind the workspace key;
-- `/book/<slug>` — signed-in members;
-- `/portal/<token>/book` — through the portal gate.
+Since v0.156.0 there are two forms, both one `BookingWizard`:
 
-`/workspace/<slug>/book` is the admins' Portal and Booking page; other members are redirected to `/book/<slug>`.
+- **Inside the app**, every "Book a task" (`BookViaFormButton`) opens the form in a pop-up, signed in as the member.
+- **Outside**, one form at the workspace's short address `/<ws>/booking` (`WorkspacePortalPage` with `startOnBooking`), behind the portal's gate: the Booking card's switch and the password decide. `/<ws>/portal` is the Guest portal at the same gate.
+- **Old addresses** redirect: `/book/<slug>` and `/book/<slug>/<key>` to `/<slug>/booking`; `/portal/<token>(/book)` to the short address while the token is current (`GET /api/portal/<token>/where`). Every link the app makes is short; New link is gone. The members' booking page and the keyed public link (`BookingScreen`) were removed.
 
-How the server decides (`src/server/booking.ts`):
+`/workspace/<slug>/book` is Portal and Booking.
+
+How `/api/book/[slug]` decides (`src/server/booking.ts`; the in-app form calls it with the member's session, the external form goes through the portal routes):
 
 | Request | Result |
 | --- | --- |
@@ -1114,6 +1224,8 @@ How the server decides (`src/server/booking.ts`):
 The local provider checks the key only when one is passed.
 
 ### The four steps
+
+![Confirm step](public/guide/booking-confirm.webp)
 
 Essentials → Brief → Assets → Confirm (renamed from Details and Deliverables in v0.105). Assets is dropped when `assets.enabled` is false. The form's own header (`template.header`, else the page's name and "Task booking") and a "Published <date>" footnote frame it; the receipt offers **Download PDF** (`booking-pdf.ts`, jsPDF loaded on click, the Geist font for Vietnamese; `review.offerPdf`, `pdfLabel`) and, when the form switches it on, the email's **past bookings** (≤20, with portal links while the portal is on).
 
@@ -1144,7 +1256,9 @@ Essentials → Brief → Assets → Confirm (renamed from Details and Deliverabl
   - chips or a dropdown;
   - only visible blocks are validated.
 - **Deliverables:** rows, type picker (types already named are shown fixed), skip, reference link.
-- **Confirm:** re-validates every step. The receipt shows the **ticket** (issued by the server), the task, where it went, and "Book another task".
+- **Confirm:** re-validates every step. The receipt shows the **ticket** (issued by the server), the task, where it went, "Book another task", and, when the form offers it, **the task link** (below).
+
+![Booking receipt with the task link](public/guide/booking-receipt.webp)
 
 ### Browser memory
 
@@ -1194,21 +1308,27 @@ These are several writes, not one transaction.
 
 ### Allocation
 
+![Task menu with Allocate to and Send back](public/guide/allocation-menu.webp)
+
 - **Where.** Allocation is offered in three places:
-  - the panel's Allocation section (`allocation-target`, `allocation-submit`);
-  - the row menu ("Allocate to" → a submenu per team, always opening to its boards, plus "No team");
+  - the panel's Allocation section (`allocation-target`, `allocation-submit`), right under the description on Task Allocation (v0.167);
+  - the row menu ("Allocate to" → a submenu per team, always opening to its boards, plus "No team"); boards only, no groups (v0.156.1);
   - the bulk bar.
+- **Emphasis** (v0.170.0). On a booked task's menu, Allocate to and Send back sit at the top in semibold full-contrast text with a brand-red icon: `MenuAction.accent` → `ACCENT_ITEM` in `src/components/layout/row-menu.tsx` (`data-testid="menu-accent"` on the submenu trigger).
+- **Board pickers** that group boards by team (allocation, a service's routing) show teams and boards at one size, each board stepped in under its team (v0.167).
 - **While it runs.** The row shows "Moving…" and a sweep until the task has left.
 - **What it does.** `BookingService.allocate()` **moves the original task**, keeping its id, ticket, assets, subitems and portal provenance.
   - Values map as links do: hand-made pairs, then special types by type, then names.
   - The brief travels as a value. It goes into the description only when the target has no Brief column.
   - Then the recap is recomputed and `ITEM_MOVED` is logged.
 - **Caveats:**
-  - Bulk moves run in parallel (F-159).
   - Trigger 0074 can refuse a department after the move (F-161).
   - Target boards are listed by view rights (F-160).
+  - Concurrent allocation of one task: one wins, the other gets 409 `MOVED_MEANWHILE` (§11).
 
 ### The form editor, saved forms and schedules
+
+![Booking form editor](public/guide/form-editor.webp)
 
 - **The page.** Portal and Booking shows two cards, Portal and Booking form; "Edit form" opens the editor on its own page (`/workspace/<slug>/book/form`), guarded against leaving with unsaved work. Members see the cards read-only (§13c).
 - **Editing.** The editor writes `booking_form_draft`. A step bar of four steps; services in a "Brief for" picker; "Bookings go to" at the bottom of each service (Task Allocation, Auto-allocation… which opens `RoutingDialog` with a group picker per board, or any board by team); fixed questions have editable descriptions. The preview is a barrier-tape strip naming the form it shows, and sends nothing.
@@ -1218,6 +1338,47 @@ These are several writes, not one transaction.
 - **No job switches forms.** `liveBookingForm()` resolves the live form at read time (Asia/Ho_Chi_Minh): `buildForm`, validation, routing, the past-bookings switch and the portal's brief all go through it. A booking's `formVersion` is checked against the form it was made on with a 6-hour grace either side (`formForSubmission`).
 - **Saved blocks** (`booking_saved_blocks`, 0039/0016) insert as copies with fresh ids, follow-ups included.
 - **Legacy forms.** `migrateLegacyTemplate()` reads version-1 forms as a General service.
+- **A running schedule leads the panel** (v0.155.2): `ScheduledFormCard` shows the scheduled form as the published one (name, questions, routing recap, its days, who scheduled it, "Scheduled · N days left"); the default form waits under it in a quieter card that says when it is back.
+- **Live badge** (v0.162.0): `LiveBadge` (`src/components/shared/live-badge.tsx`) on the Booking form card, the editor's Published/Scheduled cards and the Saved forms dialog, only while booking is on (`useBookingFormLive`).
+- **Formatting** (v0.155): hints, help lines, descriptions, text blocks, notes and question labels take bold, italic, underline and a link from a bubble over the selection (`FormattingTextBox`, Tiptap BubbleMenu, `inlineTextToDoc`/`docToInlineText`). The form renders them with `InlineRichText`. Choices, dropdown items and names stay plain; wherever a label is used as words (the brief, errors, the duplicate check, aria-labels, the PDF) it goes through `plainLabel`.
+- **Save over a saved form** (v0.170.1). With no saved form loaded, each row of the saved forms list (`src/features/booking/editor/templates-menu.tsx`) has a save icon (`template-overwrite-<id>`, "Save the editor over …") that replaces that form with what is in the editor, after a warning. The form in use and scheduled days are not affected.
+- **Task link switch** (v0.169.0): the last step's "Link to the task" sets `review.shareTaskLink` (`editor-share-task-link`).
+
+![Saved forms with save icons](public/guide/saved-forms-overwrite.webp)
+
+### The brief as booked (v0.154 → v0.165)
+
+![The Brief step](public/guide/booking-brief.webp)
+
+- **Kept.** `items.booking_brief` is the brief the booking wrote. 0152's `private.booking_brief_kept` (before update) lets a member's session write it the first time but never change or clear it; the booking routes write with the service role and a restore runs with triggers off.
+- **Edited and Revert.** `briefMatchesSource`/`lastBriefEdit` (`src/domain/booking/brief-source.ts`) compare the Brief column with it; when they differ the panel shows Edited, who and when, "not original brief", and Revert writes the booked brief back (logged as put back). A Brief column added later is filled with `briefSourceText`.
+- **What a new brief opens with** (v0.165.0). The service as a heading, then Work types, Booked by and Booked as bold-label lines (Vietnam time), all ordinary editor content: view and edit draw the same document, and the Word export matches. The portal drops the Booked by line. Saving from the editor escapes `* _ # [ ]` so a requester's words stay words; a brief saved unchanged is not marked Edited.
+
+### Send back (v0.168 → v0.170)
+
+![Send back dialog](public/guide/send-back-dialog.webp)
+
+A booked task nobody has started goes back to its requester for what is missing. The team copies a link; the app sends no email.
+
+- **Code.** Domain `src/domain/booking/send-back.ts`; service `src/services/booking-send-back-service.ts` (`BookingSendBackService`); server `src/server/send-back.ts`; UI `src/features/booking/send-back-section.tsx` (`SendBackSection`, `useSendBackOffer`), `send-back-hooks.ts` (`useSentBackItems`, `useSendBackMutations`), `sent-back-pill.tsx`, `resubmit-screen.tsx`. Routes in §6.
+- **Who and when.** Anyone who can edit the task, from the panel (under the description) or the task menu (Send back, and Recall send back while it waits; a locked row keeps its menu). `sendBackRefusal` allows only a task booked through the form, top-level, not archived, whose status is neither done nor in progress.
+- **Sending.** A note of 1–2,000 characters. The link is `/<ws>/booking/r/<token>`, 32 random `[a-z0-9]`, works once and runs out after 14 days (`SEND_BACK_DAYS`). The status moves to the board's Waiting label when it has one. **No update is posted** (v0.170.0): the activity `BOOKING_SENT_BACK` carries the note in `metadata.summary` (first 280 characters), and the journey shows every round. If that activity can't be written the send-back is cancelled again. Recall logs `BOOKING_SEND_BACK_CANCELLED`, also without an update, and restores the status.
+- **One at a time.** The partial unique index `booking_sendbacks_one_open` keeps one open per task. The service checks first (`ALREADY_WAITING`); a race that loses at the index gets Postgres 23505, which the Supabase repository maps to `RefusedError(ALREADY_WAITING)`: 409 (v0.169.0).
+- **While it waits.** The task is locked (`ItemEditScope`, `useItemSentBack`) except for updates and Recall. Board, cards, the Guest portal and the Internal portal show a **Sent back** chip (`sent-back-chip`) in place of the status. A send-back bumps the workspace revision (0158 adds `booking_sendbacks` to `note_dashboard_statement`).
+- **The requester's side.** `open(token)` returns today's form, the stored request as prefill (a service the form no longer offers is cleared), the note, who asked and the expiry. A booking made before v0.168 has no stored request and opens empty.
+- **Resubmitting.** The form must change: `changedParts(before, after)` empty throws `NOTHING_CHANGED` (409), and the wizard checks the same before sending (v0.170.0). The send-back is claimed first (`claimResubmission`, a second press gets "already answered"); then only values whose answer moved are rewritten (`sameJson` ignores jsonb key order), the brief always, the title and the description only while it is still the booking's, new asset lines are added by name (dropped ones stay), `booking_requests` is replaced, and one update says what changed and mentions the sender. `BOOKING_RESUBMITTED` is logged and the status put back. A failure releases the claim.
+- **Data.** `booking_requests` (service role only: it holds the requester's email) and `booking_sendbacks` (0158). Policy 0040: send-backs readable by people who can edit the task (`coalesce(private.can_edit_item(item_id), false)`); nobody's session writes either table.
+
+![Sent back chip on the board](public/guide/sent-back-row.webp)
+
+![The requester's form with the team's note](public/guide/resubmit-form.webp)
+
+### Task link on the receipt (v0.169.0)
+
+- **The link.** `/<ws>/booking/t/<itemId>.<signature>`: 40 hex characters of HMAC-SHA256 of the task id (`src/domain/booking/task-link.ts`, `hmacHex`). Nothing is stored, so it is the same every time for the life of the task.
+- **The secret.** `serverTaskLinkSigner()` (`src/server/task-link-signer.ts`): `BOOKING_LINK_SECRET` when set, else one derived from `SUPABASE_SERVICE_ROLE_KEY`. Changing either (without the first) changes every link. Without both the route answers 503. The local demo signs with its own constant.
+- **Checks** (`BookingTaskLinkService.admit`, `src/services/booking-task-link-service.ts`): the signature in constant time; a task that exists, was booked (`bookedVia`) and is top-level (archived still opens); the live form's `review.shareTaskLink`, read now, so switching it off closes every link ("The team has turned off task links on their booking form.").
+- **What it shows.** `readPublicItem`, read-only, no sign-in, on the shared task page (§13). The receipt and the send-back receipt carry it (`BookingService.taskLinkFor`; `booking-task-link-*` test ids).
 
 ### Limits and retry boundaries
 
@@ -1254,7 +1415,21 @@ These are several writes, not one transaction.
 - **Who sees the link rows.** Share rows (token, password hash) are readable by board managers only; dashboard shares by admins (p0033). The dialog's switch reads "Link is on/off"; there is no address row before the first link.
 - **What is left out** (v0.149.3): archived tasks and their deliverables, cross-board moves, seat changes and removed-column history. An archived board, or a subitem whose task is archived, refuses its link.
 
+### The shared task page (v0.170.0)
+
+![Shared task page with its menu open](public/guide/task-link-page.webp)
+
+- **One page for both links.** Share by link (`/share/item/<token>`, `shared-item-page.tsx`) and a booking's task link (`/<ws>/booking/t/<token>`, `TaskLinkScreen`) both render `SharedItemScreen` (`src/features/share/shared-item-screen.tsx`) in the pop-up's layout: the card on the left, the columns on the right. Share by link still refuses an archived task; the task link opens one.
+- **Its … menu** (`src/features/items/shared-panel-menu.tsx`, `SharedTaskMenuProvider`): Copy link; Open in its board (its archive once archived); Open in the portal; Show hidden columns, on that page only. Nothing there is saved back to the board.
+- **Where it opens** is worked out once per visit, on the server, by `ItemOpeningsService.for` (`src/services/item-openings-service.ts`) through `/api/share/item/<token>/openings` (POST, password in the body) or `/api/booking-link/<token>/openings` (GET):
+  - **board**: only when the caller sends a bearer and their own session can read the board. `boardSightOf(jwt)` in `src/server/share.ts` builds an anon-key client carrying that JWT, so RLS answers, not the service role. Never for an archived board.
+  - **portal**: while the portal is open and shows the task (`StakeholderPortalService.showsItem`); live top-level tasks only.
+  - The local demo answers for its one user (`async () => true`).
+- **Readers see less.** No allocation hint and no empty Linked items section on this page, nor for read-only viewers of a board. A switched-off task link says so in plain words.
+
 ## 13b. Workspace dashboard
+
+![Dashboard](public/guide/dashboard.webp)
 
 One scrolling report (`DashboardBody`): headline figures, the year comparison and mix, current operations (a 2×2 grid beside Asset types) and asset types, named workload, then flow. Every panel has a ? explaining what it shows and what it means for the team (`help.ts`). Requests in, the team/department comparison and Per-person figures were removed on 2026-09-27.
 
@@ -1329,7 +1504,7 @@ Named workload stays.
 
 ### Workspace revisions (0109, 0116, 0117, 0150)
 
-- `public.workspace_revisions` holds one counter per workspace. Statement-level triggers on every table the dashboard, portal and shares read note the touched workspaces in `private.workspace_revision_pending`; a deferred constraint trigger bumps them at commit, in id order (no deadlocks). The function is `private.note_dashboard_statement`, re-created whenever a table joins (portal tables and comments 0116, every board activity 0117, `comment_pins` 0150).
+- `public.workspace_revisions` holds one counter per workspace. Statement-level triggers on every table the dashboard, portal and shares read note the touched workspaces in `private.workspace_revision_pending`; a deferred constraint trigger bumps them at commit, in id order (no deadlocks). The function is `private.note_dashboard_statement`, re-created whenever a table joins (portal tables and comments 0116, every board activity 0117, `comment_pins` 0150, `booking_sendbacks` 0158).
 - **Rule:** a new table any of those snapshots reads needs a revision trigger, or pages stay stale.
 - Snapshot restore (triggers off) calls `private.bump_all_workspace_revisions()`; the rehearsal expects that table to change.
 
@@ -1337,9 +1512,25 @@ Named workload stays.
 
 A drill can carry a `DrillAmount` (unit plus a per-task map): the task list gains an Hours or Units column after Task, totals it and opens sorted by it. `amountOfLines` sums a figure's own deliverable lines; `amountOfTasks` takes whole tasks at the page's `valueOf`.
 
+### Since v0.153
+
+- **Per person, per department** (v0.158.1): every figure in the matrix is a button (Enter or Space) that opens the tasks behind it through `useDrill`; a dash opens nothing, and the shared dashboard keeps plain cells.
+- **Opening a task** from a drill list: an "Open in new tab" switch after Sort, remembered per browser (v0.161.0). On, `window.open` with `noopener` on its board with `?item=`; off, the same tab.
+- **The year day by day** (v0.159): under the month chart, one panel "<measure> by month and day"; each month a block of week columns lined up from the chart's own geometry. Since v0.159.1 days count tasks started only, on the red scale (`activityThresholds`, `src/features/dashboard/activity.ts`). Hover a month to light its days; click a day for its tasks. The PDF has it too.
+- **T-shirt sizes** (`sizeMix`, with No size) join By team, By department and Priority, on screen and in the PDF.
+- **Removed:** Aging work and Departments (v0.159.0).
+- **Days in the reader's timezone** (v0.159.2): `localDateOf` (`src/features/dashboard/local-date.ts`, which also holds `BUSINESS_TIMEZONE`) turns every stored timestamp into a day in the page's timezone; plain dates are left alone. Before, work made between midnight and 7 am in Vietnam counted on the day before.
+- **A board with no columns** no longer breaks the dashboard (v0.156.1).
+
 ## 13c. Stakeholder portal
 
+![Guest portal](public/guide/guest-portal.webp)
+
+Called the **Guest portal** in the UI since v0.159.0 ("Open Guest Portal", Guest portal settings); the code keeps `StakeholderPortalService` and `department_portals`. Its address is `/<ws>/portal` since v0.156 (§12).
+
 ### One workspace link
+
+![Portal and Booking settings](public/guide/portal-booking.webp)
 
 - One `department_portals` row per workspace with `department_id` null (0037), created switched off, with a 32-character token.
 - Old per-department links answer "This link has been replaced". Portal pages set noindex and no-referrer.
@@ -1424,7 +1615,28 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 - **Branding:** RMIT's logo leads the portal top bar and the shared pages (`SharedHeaderEnd`); the Streamline mark is small.
 - **Settings words:** "Left panel heading" and "Left panel text" are the words beside the portal's booking form.
 
+### Portal additions since v0.153
+
+- **Short links** (v0.156): `/<ws>/portal` finds the token through `GET /api/portal-link/<slug>` (making the portal row on a first visit) and opens the existing portal screens. "New link" is gone from the cards.
+- **Group by team** (v0.158): each row's team travels as `teamOfItem` (from the scope entries; null while on Task Allocation); a hidden Team list column built in the browser (`withTeamColumn`, `portal-grouping.ts`) gives Kanban lanes by team.
+- **Loading** shows a skeleton in the board's shape (`PortalBoardSkeleton`).
+- **Sent back** shows in place of a task's status while it waits on its requester (§12).
+- **Pop-up and Sort / Filter** as on boards (v0.166, §11).
+- **Home** lists three links in order: the Guest portal, the Internal portal and the booking form (v0.159.0).
+
+### Internal portal (v0.157 → v0.159)
+
+![Internal portal](public/guide/internal-portal.webp)
+
+- **Who.** Admins and allocators: `canUseInternalPortal` (`src/lib/permissions/permissions.ts`) is a workspace admin, or whoever can edit Task Allocation. Never a guest. Page `/workspace/<slug>/internal-portal` (`src/features/portal/internal-portal-page.tsx`).
+- **Where it opens.** The Internal portal button on Portal and Booking's Portal card (also on "No portal yet") and Home's quick links. In no menu. It follows none of the Guest portal's settings (v0.159.0).
+- **What it shows.** Every open top-level task on the team boards the reader can see (built-in boards left out, linked copies once), on the portal's board with its views, groupings (board, status, department, team), filters, 3-month default range and figures. `StakeholderPortalService.internalBoard` reads through the reader's own session, board by board; no comments, no visitor trimming.
+- **Tasks** open the app's real `ItemDetailPanel` over a board context for their board (`TaskPanelHost`, `src/features/items/task-panel-host.tsx`), editable as on that board, as a pop-up when the page's setting says so. The row menu is Open and "Open task's board"; the panel has an "On <board> · Open board" strip.
+- **Freshness.** Read on open, on focus and after a task closes; since v0.162 it also listens to its tasks, values, links, groups and columns over Realtime. Sent back is read under the reader's own session.
+
 ## 13d. The phone experience
+
+<img src="public/guide/mobile-board.webp" width="280" alt="Board on a phone"> <img src="public/guide/mobile-task.webp" width="280" alt="Task on a phone">
 
 **The boundary and the shell.**
 
@@ -1474,6 +1686,8 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
 ## 13e. Automations
 
+![Board automations](public/guide/automations.webp)
+
 ### Model
 
 `src/domain/automation/automation.ts` defines a rule: `{name, enabled, trigger, conditionMatch: all|any, conditions[], actions[]}` plus `lastRunAt`, `runCount` and `lastError`. Rules are stored as jsonb.
@@ -1484,7 +1698,16 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 | Schedule (3) | `date_arrives` (column, offset days, hour), `column_unchanged_for` (column, 1–365 days, hour), `recurring` (daily/weekdays/weekly/monthly, hour) |
 | Manual (1) | `manual`: a quick run |
 
-**Conditions.** There are four kinds: column, group, actor, and item kind (task/subitem). Each takes one of eleven operations: is, is_not, is_empty, is_not_empty, contains, not_contains, greater_than, less_than, before, after, is_overdue.
+**Conditions.** Column, group, actor and item kind (task/subitem) take one of eleven operations: is, is_not, is_empty, is_not_empty, contains, not_contains, greater_than, less_than, before, after, is_overdue. A fifth kind, **the time** (v0.170.0), is below.
+
+**The time condition** (`kind: "time"`, `src/domain/automation/automation.ts`):
+
+- `{ op: before | after | between | outside, scope: day | week, from, to? }`; a point is `{ time: "HH:MM", day? }` with day 0 Monday … 6 Sunday on a weekly check.
+- `timeConditionHolds(condition, instant, timezone)`: `day` reads the time of day, `week` minutes from Monday 00:00. Between runs from `from` up to, not including, `to`; a span that wraps (22:00 to 06:00, Friday 17:00 to Monday 09:00) runs across midnight or the weekend. `outside` is its negation. `wallClockIn` reads the instant in the workspace's zone via `Intl`.
+- The engine evaluates it at the **event's `createdAt`** (the moment of the change, not when the queue drains), else now, in `AUTOMATION_TIMEZONE` (`automation-engine.ts`).
+- `describeTimeCondition` words it for the builder and "Reads as": "it is before Sunday 17:00", "it is not between Friday 17:00 and Monday 09:00".
+
+![Rule builder with the time condition](public/guide/automation-time.webp)
 
 **Actions (23)**
 
@@ -1509,6 +1732,7 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
 - `{item} {board} {group} {ticket} {actor} {today} {column:Name}`.
 - Unknown placeholders stay as typed.
+- Since v0.167.0 the builder inserts them from a row of chips (Task name, Board, Group, Ticket, Who did it, Today, a column) instead of showing braces.
 
 **Validation** (`automation-service.ts`):
 
@@ -1540,10 +1764,11 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 4. **Re-draining.** While a pass fires something (up to 3 more passes, within half the 50 s budget), the runner drains again, so chains finish in one tick.
 5. **Schedules.** `recurring` rules fire in their hour, `column_unchanged_for` per quiet value, and `date_arrives` per task whose date matches. The clock reads `AUTOMATION_TIMEZONE` through `Intl`, so 9 am stays 9 am across daylight saving. String hours in jsonb are coerced to numbers.
 6. **Receipts.** `automation_schedule_fires` stops the same firing twice. Since 0080 its uniqueness is two partial unique indexes, one each side of a null `item_id`, so a recurring rule's receipt (no task) can be written; before, `item_id` sat in the primary key and every recurring rule failed (F-105).
-7. **Heartbeat and sweep.** The runner writes `automation_heartbeat` on scheduler ticks only. `automation_sweep(30)` clears old queue rows, runs and receipts. The workspace page and the board dialog flag a runner that has been silent for 20 minutes (`HEARTBEAT_STALE_MINUTES`).
+7. **Heartbeat and sweep.** The runner writes `automation_heartbeat` on scheduler ticks only. `automation_sweep(30)` clears old queue rows, runs and receipts, once a day since v0.165.2 (`isSweepTick`: 19:00–19:14 UTC). The workspace page and the board dialog flag a runner that has been silent for 20 minutes (`HEARTBEAT_STALE_MINUTES`).
 8. **Member nudges.** Board and comment mutations nudge the runner 150 ms after they settle (POST `?sweep=0` with the member's session), so rules fire within about a second without waiting for the clock.
 9. **Drivers.**
    - The production driver is `pg_cron` in the database: job `streamline-automations`, every minute, via `pg_net` (`supabase/optional/automations_pg_cron.sql`, set up by hand on 20 September).
+   - **The tick gate** (0157, v0.165.2): the job's command posts only when an event is waiting (`processed_at` and `claimed_at` null, on `automation_events_pending_idx`) or on the quarter hour. Scheduled rules fire on the first tick in their hour, so :00 covers them, and four ticks an hour keep the heartbeat fresh. 0157 reads the command from `cron.job`, so the secret never enters the repository; it is idempotent and skips without pg_cron, without the job, or on a command it doesn't recognise. The idle job had been about 44% of all log lines.
    - `.github/workflows/automations.yml` (every 5 minutes) is kept but has never run on schedule.
    - `vercel.json` deliberately has no `crons` block.
 10. **Local provider.** It queues events but nothing drains them: only quick runs execute, in the browser, with no permission check (F-181).
@@ -1563,7 +1788,7 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 | --- | --- |
 | Workspace page (`/workspace/<slug>/automations`) | **Runner strip:** "The runner is live" / "Nothing is running these", with running / ran-today / with-errors figures. **Tabs:** Board automations (search, board filter, cards with toggle, open and remove — remove doesn't confirm, F-173), Recipes (10, managers only), Activity (refreshes every 30 s) |
 | Board dialog | Rules ("When something changes" / "On the clock"), Quick runs, Activity (refreshes every 15 s). Runner pill, stale banner |
-| Builder (`useRuleEditor`) | When → Only if → Then |
+| Builder (`useRuleEditor`, `automation-rule-dialog.tsx`, `rule-builder.tsx`) | Since v0.167: When / Only if / Then as three coloured steps on a line, a live "Reads as" sentence above, "Every time" with a button when there are no conditions, numbered actions, insert chips, an optional name. A new rule shows on the Automations page without a reload |
 | Running indicator (Supabase only) | Realtime on `automation_events` keeps a busy board lit for ≥1.5 s: a ring on the board's Zap button, an orbit on the sidebar tile for other boards. On phones, a ring on the board menu and the More tab |
 
 **The 10 recipes:** notify-on-done, deadline-reminder, overdue-chase, stuck-escalation, welcome-new-task, assign-on-create, weekly-review, stale-flag, subitems-follow-parent, archive-done.
@@ -1595,9 +1820,11 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
 
 ## 14. Personal work and collaboration
 
+<img src="public/guide/home.webp" width="420" alt="Home"> <img src="public/guide/my-work.webp" width="420" alt="My Work">
+
 ### Home, My Work and search
 
-- **Home** (v0.117): on desktop the Portal and Booking cards (admins and members, while the portal menu is on), Favourites as board cards, **Recently visited** (the 6 latest tasks still open to you, from `item_visits`, 0124, recorded when a task's panel opens), then My work; Recent activity (40 entries) is a sticky column of its own. The phone keeps one Portal and Booking card.
+- **Home** (v0.117): on desktop the Portal and Booking cards (admins and members, while the portal menu is on), Favourites as board cards, **Recently visited** (the 6 latest tasks still open to you, from `item_visits`, 0124, recorded when a task's panel opens), then My work; Recent activity (40 entries) is a sticky column of its own. The phone keeps one Portal and Booking card. Since v0.159.0 the quick links are the Guest portal, the Internal portal (for those who may use it, even with the Guest portal off) and the booking form, in that order.
 - **My Work** (`MyWorkService.listAssigned`) reads every PIC column, removed ones included.
   - **Sections:** Overdue / Today / This week / Later / No date / Completed. Linked copies collapse.
   - **Filters** (`src/features/my-work/filters.ts`): search by kind (Items / People / Boards), PIC, board, status, priority by name, due bucket, type.
@@ -1622,6 +1849,8 @@ A wrong password is 401; other refusals are 404; submission conflicts are 409.
   - **Results.** Groups of 6, items 12. Pending people are marked "Pending onboarding". People open their profile; archived tasks open in the board archive.
 
 ### Notifications
+
+![Inbox](public/guide/inbox.webp)
 
 | Event | Default delivery |
 | --- | --- |
@@ -1674,6 +1903,9 @@ Automation notify actions deliver as ASSIGNED.
   - **Header:** role, pending/deactivated badges, department chip, teams, Message, Edit (yourself or an admin).
   - **Figures,** two rows of four. Tasks: open, overdue, due this week, in progress (with stuck and high priority). Assets: done x/y, overdue, due this week, units still to make.
   - **Tabs:** tasks (open/done), assets, boards, activity (from the workspace's latest 300 events).
+  - **Figures open their lists** (v0.168.1): Overdue tasks opens Tasks on Overdue, Assets overdue opens Assets on Overdue, and so on; each deliverable opens its task. The profile reads every asset line assigned to the person.
+
+![Profile](public/guide/profile.webp)
 - **Person card** (`person-card.tsx`, `PersonName`): avatars and names open a card after 350 ms almost everywhere a person is named (update authors, mentions, cells, inbox, members, kanban, dashboard, assets, trackers); pickers' own lists don't.
   - It shows the name (linking to the profile), title, status, email, department, teams (linking), local time, View profile and Message, with a × close.
   - It stays shut inside a popper, menu or list, and while any popover is open. Outside the workspace layout (shares, portal) it falls back to a name tooltip.
@@ -1683,10 +1915,12 @@ Automation notify actions deliver as ASSIGNED.
 
 ## 15. Trackers and Excel interchange
 
+![Tracker sheet](public/guide/trackers.webp)
+
 - **What a tracker is.** A workbook of ordered sheets, each holding its columns, rows (data, section, subsection) and a frozen-column count.
 - **Column types:** text, longText, list (options with colours), date, url, number (plain, integer, decimal, currency, percent), checkbox, person (v0.91). A person cell stores user ids comma-separated (`personIds`/`personValue`); `tracker-people.ts` holds the workspace directory the grid sets (`useTrackerPeopleDirectory`) so formatting, search, sort, CSV and the workbook show names, and typed or pasted names become ids (`coercePeople`). Switching a column into or out of person converts its cells.
 - **Summaries:** filled, empty, sum, average, min, max, checked and percent checked.
-- **Saving.** `useSheetEditor()` debounces saves by 600 ms and flushes on unmount (audit F-004, 9 September). Undo keeps about 50 snapshots, with a separate redo stack. Since v0.91 a save is compare-and-swap: `TrackerService.saveSheetDraft` writes only if `updated_at` still equals the version the editor started from (`updateSheetIfCurrent`, an `.eq("updated_at", …)` on the PostgREST string, which keeps microseconds); otherwise it returns the current sheet and the editor merges (`mergeSheets`, three-way by row, column and cell id: whichever side changed a thing wins, this side on a clash, deletions stand) and saves again. A realtime version arriving while edits are unsaved is merged the same way. The local store bumps `updatedAt` past the previous value so two saves never share a stamp.
+- **Saving.** `useSheetEditor()` saves after 2 s idle, at most every 10 s in a long run (600 ms before v0.160.0), and flushes on unmount and when the page is left (`onLeaving`: pagehide, hidden tab). A version arriving from elsewhere while edits are unsaved is held for the save's merge rather than merged onto the screen, so quick deletes no longer come back. Undo keeps about 50 snapshots, with a separate redo stack. Since v0.91 a save is compare-and-swap: `TrackerService.saveSheetDraft` writes only if `updated_at` still equals the version the editor started from (`updateSheetIfCurrent`, an `.eq("updated_at", …)` on the PostgREST string, which keeps microseconds); otherwise it returns the current sheet and the editor merges (`mergeSheets`, three-way by row, column and cell id: whichever side changed a thing wins, this side on a clash, deletions stand) and saves again. A realtime version arriving while edits are unsaved is merged the same way. The local store bumps `updatedAt` past the previous value so two saves never share a stamp.
 - **Sheets as task assets (v0.91, migration 0108, policies 0026).** `tracker_sheets.item_id` (unique where set; on delete set null) links a sheet to one task, `asset_mapping` (TrackerAssetMapping) says which column gives each asset's name, type, quantity, PIC, due date, done (checkbox, or dropdown choices), spec and links, each detail optionally a value for every row or for empty cells. `sheetAssetLines()` turns data rows into lines (bands become blocks, block ids made uuids by `asUuid`; a row with neither name nor type is not an asset). After every save `ItemAssetService.syncFromSheet()` diffs them against `item_assets` rows carrying `tracker_sheet_id`/`tracker_row_id` (unique pair; cascade with the sheet), writes only what moved, then recomputes the recap/progress cells, records one summed activity entry and runs the PIC sync, so dashboard, Workload, My Work and recaps count them unchanged. A sheet line can be edited on the task's Assets tab: its fields are a draft until Update, which writes the row through `TrackerService.editLine` (CAS with retry; it throws when the sheet saved but the task's lines could not follow). Sheet lines sit at positions from 100 000 so the task's own lines stay first. Unlinking and deleting a sheet or tracker (service paths) take the lines off and put the recap right; the DB cascade is the backstop.
 - **Who edits a linked sheet.** `private.can_edit_tracker_sheet(tracker, item)`: a tracker editor who can also edit the linked task's board. Sheets are never inserted linked; deleting a tracker is refused while any sheet links a task the caller cannot edit. `can_edit_item` returns NULL (not false) with no board role, so every use is wrapped in `coalesce(…, false)`. Checked by `scripts/tracker-sheet-rls-check.mjs` (disposable stack only).
 - **Mapping a sheet to assets** (Task assets dialog, v0.92 → v0.152). One grid: each part (Asset name, Type, Quantity, PIC, Due date, Done) has a **Sheet column** and an **If the cell is empty** value; Spec and Links span both. Every column list starts with "Pick on the sheet…" (`ColumnPickerDialog`, the whole sheet up to 300 rows). Asset name's fallback (`nameValue`) applies only to rows holding something, so blank rows are never assets; an empty Done cell is not done. Spec columns are ordered and joined by breaks (`SPEC_JOINERS`: `sep` "  |  ", `br` a new line, `sp` a space), offered when pointing between two columns. Any column can give any part (the column menu's Asset role too); quantity parses text, PIC resolves names, a text Done column reads Done/Delivered/Approved.
@@ -1695,6 +1929,9 @@ Automation notify actions deliver as ASSIGNED.
 - **New tracker for this task** makes a tracker on the board's team with one asset sheet (Asset, Type, Quantity, Spec, PIC, Due date, Done; 20 rows), links it and maps it; a fresh sheet (nothing typed, columns still "Column N") is set up the same way. **Move into sheet** places the ticked assets the task shows that no sheet holds (its own, then a linked task's) below existing rows, adding missing columns first; lines keep their ids and dates (`attachToSheet`), so dashboard figures don't move.
 - **Unlink and delete keep assets by default:** unlinking asks first and "Keep the assets" detaches the lines (`detachFromSheet`) so they stay as the task's own; deleting a tracker or a sheet does the same before the cascade.
 - **Who sees a linked sheet.** Since p0035 a sheet linked to a task is readable only while that task is.
+- **Sheet operations** (v0.160): drag across cells selects a block (Delete clears it, keeping formats); the fill handle on the selection's corner fills in any direction (`fillRange` in `sheet-view.ts`: repeats, continues a number run of two or more, skips bands, carries formats); clicking a column letter or row number picks it and dragging a picked block moves it (`TrackerService.moveColumns`/`moveRows`; rows stay put while a sort, search or filter is on). Cell formats: bold, italic, underline, a link and four sizes (`TrackerRow.formats`, `cleanCellFormat`, merged cell by cell), from the toolbar or Ctrl+B/I/U/K, exported to and imported from Excel. A cell link opens from any active linked cell (v0.160.1).
+- **Tabs** (v0.162): a sheet holding a task's assets names the task at the end of the tabs row (`LinkedTaskTip` on hover); every tab has a ⋮ menu with what right-click offers.
+- **New sheet for a task** (v0.164.0): Use a tracker sheet has New sheet beside each tracker; `TrackerService.addSheetForItem` adds a sheet laid out for assets, named after the task, at the end of that tracker and links it, refusing a task that already takes its assets from a sheet and deleting the new sheet if linking fails. Trackers whose sheets all hold a task show too while you may make sheets.
 - **Grid hardening** (v0.129): type-to-edit is synchronous; retyping a column converts its values and drops formats and summaries the new type lacks; widths 60–1200; `coerce` never guesses a date from bare digits outside the Excel range, keeps hex as text, and reads "done" as a tick.
 
 - **Excel.** `tracker-xlsx.ts` (ExcelJS). Person cells export as names, and a reimported names column maps back as a PIC by name (`resolvePeople`).
@@ -1720,6 +1957,16 @@ Automation notify actions deliver as ASSIGNED.
   Errors restore the old state and toast.
 - **Knock-on invalidations** cover linked boards, links, My Work, activity and notifications.
 
+### Quick edits (v0.161.0 → v0.161.1)
+
+Rapid clicks used to flick back: the realtime echo of the first save in a burst repainted the server's older copy over clicks still saving. The pieces, in `src/lib/query/` unless named:
+
+- **Write holds** (`write-holds.ts`). A query with saves waiting or on the wire is held; `useRealtime` defers re-reading it (prefix match both ways) until the last save lands, then reads once.
+- **Board cells** (`useBoardMutations`, `src/features/boards/hooks/use-board-mutations.ts`). A cell's changes within 400 ms fold into one save (`CELL_SAVE_DELAY_MS`; none when it ends where it started); a cell's saves go one after another; a failed save rolls back only when it was the only save in flight.
+- **Batched writes** (`use-batched-writes.ts`, `useBatchedWrites`). Asset lines and checklist ticks show at once, fold per line or box, save after 600 ms one after another, and drop net-zero changes (`netLinePatch` in `asset-hooks.ts`); lists read back once per burst.
+- **Quick saves** (`quick-saves.ts`). `quickSave(key)` gives a save a scope so saves on one list run in order; `meta.holdQuery` holds realtime re-reads; `lastSave` lets only the last save on a list read back or roll back. Used for updates (post, edit, reply, delete, react, pin), asset lines, notifications, follow, star, favourites, board settings, messages and the automation switch.
+- **Leaving.** Every TanStack mutation holds the leave-page prompt (`guardMutations`, `src/lib/unsaved-work.ts`), and saves waiting out a pause are sent at once on `beforeunload`, `pagehide` or a hidden tab (`onLeaving`, `pauseUnlessLeaving`): board cells, batches, sheets, docs.
+
 ### Local cross-tab sync
 
 BroadcastChannel `streamline.data-changes` carries compact invalidation hints between tabs of one origin. It is not a replication transport.
@@ -1733,7 +1980,15 @@ BroadcastChannel `streamline.data-changes` carries compact invalidation hints be
 - re-reads everything after a reconnect;
 - adds one unfiltered DELETE listener per filtered table. With RLS, a deletion arrives as its primary key only, so a filtered listener would never see it.
 
-Channels are shared and reference-counted.
+Channels are shared and reference-counted. Since v0.156.1 each opening takes its own channel name, because reopening a topic while Supabase was still removing the old channel returned the subscribed one ("cannot add postgres_changes callbacks after subscribe()").
+
+**Catch-up** (v0.162.0). A change committed between a page's read and its channel coming up used to reach nobody until the next change. `useRealtime` now catches up once the database feed is really up: on the `postgres_changes` system message (SUBSCRIBED alone was too early), with a 3 s fallback. Per binding:
+
+- `probe` asks `workspace_changed_within(workspace, seconds)` (0154: members only, yes/no from `workspace_revisions.changed_at`) and re-reads only on yes or on error;
+- `refetch` re-reads light queries;
+- `none` for membership tables.
+
+Wired into the board, dashboard, My Work, activity, profile, item links, linked assets, the internal portal and the workspace channels. 0154 also added `board_saved_views` and `item_baselines` to the publication; pinned updates ride the board channel.
 
 | Channel | Mounted by | Covers |
 | --- | --- | --- |
@@ -1778,7 +2033,7 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 
 ### Unsaved-work guard
 
-`beginUnsavedWork()` counts in-flight saves. `beforeunload` asks the browser to confirm while the count is above zero. Tracker autosave uses it; it is not an offline queue.
+`beginUnsavedWork()` counts in-flight saves. `beforeunload` asks the browser to confirm while the count is above zero. Tracker autosave uses it, and since v0.161.0 every TanStack mutation does too (`guardMutations`, mounted in `src/app/providers.tsx`); it is not an offline queue.
 
 ### Connection guard (v0.90)
 
@@ -1788,8 +2043,8 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 
 ### Heads and order
 
-- **Heads:** migrations **0001–0151** (149 files; there is no 0069, and 0141 was renumbered to 0149 before it was ever applied), policies **0001–0039**.
-- **`supabase/sequence.txt`** lists all 188 files in the order they were first applied (plus a comment header). The older part was taken from git history; every new file is appended. Each directory must also stay in numeric order (`tests/unit/sql-sequence.test.ts`).
+- **Heads:** migrations **0001–0159** (157 files; there is no 0069, and 0141 was renumbered to 0149 before it was ever applied), policies **0001–0040**.
+- **`supabase/sequence.txt`** lists all 197 files in the order they were first applied (plus a comment header). The older part was taken from git history; every new file is appended. Each directory must also stay in numeric order (`tests/unit/sql-sequence.test.ts`).
 - **Why the order matters.** Thirteen migrations (0005, 0010, 0013, 0015, 0043, 0050–0052, 0055–0057, 0059, 0070) call `private.*` helpers defined by policy files. "Every migration, then every policy" therefore stops at 0005 on an empty database (audit F-108).
 
 ### Migration runner
@@ -1905,6 +2160,14 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0149 | Column-level SELECT on `workspaces`, without `join_key` and `booking_key` |
 | 0150 | `comment_pins` |
 | 0151 | `booking_form_schedules` |
+| 0152 | `private.booking_brief_kept`: `items.booking_brief` written once from a session, never changed or cleared |
+| 0153 | `boards.landing_group_id` and `board_landing_group_guard` |
+| 0154 | `board_saved_views` and `item_baselines` into realtime; `workspace_changed_within()` for catch-up |
+| 0155 | `boards_with_new_items()` (the new-tasks dot; applied, then unused) |
+| 0156 | Drops `boards_with_new_items()` |
+| 0157 | The pg_cron tick posts only with work waiting or on the quarter hour (edits the live job's command in place) |
+| 0158 | `booking_requests`, `booking_sendbacks` (one open per task), three activity types, send-backs bump the revision |
+| 0159 | `intake_booked_tasks_only()`: nothing moves into Booked by Form from a session |
 
 | Policy | Change |
 | --- | --- |
@@ -1933,10 +2196,11 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 | 0037 | Presence per workspace (`can_use_presence_topic()`) |
 | 0038 | Checklist ticks by the update's author only |
 | 0039 | Replies can be pinned |
+| 0040 | `booking_requests`: no session access; `booking_sendbacks`: SELECT for people who can edit the task, no writes from any session |
 
 **From the 26 September audit** (checked on a disposable stack first): migrations 0079 (comments stay on their task), 0080 (recurring receipts) and 0081 (a prefix rewrite keeps long numbers), and policy 0020 (comment edits need edit rights). They are the last four lines of `sequence.txt`.
 
-`supabase/optional/automations_pg_cron.sql` is applied by hand only. 0114 prunes pg_cron's run log, which had grown to 337 of the database's 381 MB (the Free plan stops at 500 MB); the one-off `VACUUM FULL` that brought it to 53 MB was run by hand, since it can't run in a migration's transaction. 0082 and 0107 create their storage buckets as advisory: create the bucket by hand if the migration role can't.
+`supabase/optional/automations_pg_cron.sql` is applied by hand only; since 0157 it schedules the gated command for new setups. 0114 prunes pg_cron's run log, which had grown to 337 of the database's 381 MB (the Free plan stops at 500 MB); the one-off `VACUUM FULL` that brought it to 53 MB was run by hand, since it can't run in a migration's transaction. 0082 and 0107 create their storage buckets as advisory: create the bucket by hand if the migration role can't.
 
 ### Seeds and data scripts
 
@@ -1997,7 +2261,8 @@ UI stores rehydrate after mount, to avoid hydration mismatches.
 ## 18. Deployment, build identity and updates
 
 - **Vercel** (`vercel.json`): Next.js, `npm ci --legacy-peer-deps --include=dev`, `npm run build`, functions in `sin1`, no `crons`. `prebuild` applies pending SQL whenever `SUPABASE_DB_URL` is set; `SKIP_DB_MIGRATE=1` bypasses it.
-- **Production:** `https://rmit-streamline.vercel.app`, on Supabase project `lfkvrhycyrjgeqkyaiou` in ap-southeast-1.
+- **Production:** `https://rmit-streamline.vercel.app`, on the team's Supabase project in ap-southeast-1.
+- **Task links** sign with `BOOKING_LINK_SECRET` when it is set, else a secret derived from `SUPABASE_SERVICE_ROLE_KEY` (§12). It is not in `.env.example`; setting it later changes every task link already given out.
   - `SUPABASE_DB_URL` must be the session pooler: the direct host is IPv6-only.
   - `NEXT_PUBLIC_*` values are Vercel "Config", not Secrets.
 - **GitHub workflows:**
@@ -2086,7 +2351,16 @@ Set this up whenever RLS, a server route, a trigger, the runner, a restore or a 
 - **Stack-only suites:** `sbstack-booking-allocation` (runs only with `SBSTACK=1` against a local database), `asset-system-supabase.spec.ts` (two people over realtime and RLS), `scripts/tracker-sheet-rls-check.mjs`.
 - **Unit suites added** include `item-move-to-board`, `reallocate-and-intake`, `allocation-time`, `clear-archive`, `assets-recap-settings`, `dashboard-drill-amount`, `automation-board-moves`, `booking-routing`, `booking-past-bookings`, `tracker-grid-ops`, `tracker-asset-linking`, `tracker-wrong-types`, `tracker-nonasset-rows`, `tracker-move-into-sheet`, `item-link-skips`, and the form schedule, pin and check rules. About 1,720 tests in all at v0.153.
 - **Known flakes:** a full run can hit 5 s timeouts under load (the xlsx round trip among them); each passes alone.
-- **Stale e2e tests:** booking's "an admin builds a service in a draft" (clicks a test id removed in v0.121.1) and asset-system's "task lines" and "sheet lines".
+- **Stale e2e tests** listed here at v0.153 were fixed in v0.156.1 (22 updated to the current app).
+
+### Since v0.153
+
+- **Counts at v0.170.1:** 1,855 unit tests in 195 files (`npx vitest list`); 329 Playwright tests in 52 files on the default config (`npx playwright test --list`), 53 spec files with the deployment smoke.
+- **The disposable stack's ports** are now 44321 (API) and 44322 (database), set in `../_streamline_sbstack/supabase/config.toml`; the worktree app stays on :3300.
+- **Unit suites added:** `short-links`, `landing-group`, `internal-portal`, `portal-team`, `brief-source`, `inline-text-doc`, `dashboard-activity`, `dashboard-local-date`, `tracker-sheet-ops`, `tracker-new-sheet-for-item`, `write-holds`, `batched-writes`, `quick-saves`, `unsaved-mutations`, `components/board-cell-batching`, `components/doc-saver`, `item-feed`, `booking-send-back`, `booking-task-link`, `item-openings`, `automation-time-condition`.
+- **E2E specs added:** `internal-portal`, `dashboard-drill`, `tracker-sheet-ops`, `quick-edits` (bursts sampled every 25 ms for flip-backs, then reload), `automation-builder`, `activity-links`, `booking-send-back`, `booking-task-link`.
+- **Stack-only specs** (need `E2E_PROVIDER=supabase` against the disposable stack): `live-sync-supabase` (two people, board, panel, shell, sheets, docs, Gantt, portal, dashboard, automations, members), `booking-send-back-supabase`, `task-link-supabase`, `automation-fire-supabase`, and the guarded `stress-supabase`.
+- **Seeding a fresh test browser** takes several seconds on this machine; first-load waits in account and onboarding specs are 30 s.
 - **`next build` type-checks tests too**, with `noUncheckedIndexedAccess`; a test type error stops a deploy.
 - **Don't use fixed calendar dates** in tests whose seed stamps values with the real now (`nineAmAfter(days)`).
 
@@ -2143,6 +2417,22 @@ For a persistence defect, capture the provider, route, role, ids, operation and 
 | A PIC reverts to another person | Two people share a name | `cellNameFor` writes a unique name, else the email |
 | Database size climbing | pg_cron's run log | 0114 and its schedule |
 | "Former member" in a tracker's people cells | The people directory isn't set | Call `useTrackerPeopleDirectory()` where the grid or dialog renders |
+
+### Since v0.153
+
+| Symptom | Likely area | Check |
+| --- | --- | --- |
+| "Booked by Form takes new bookings only. Nothing moves back into it." | Intake rule (0159) | By design: move it to another group instead |
+| "Someone moved this task a moment ago." on Allocate | Concurrent allocation (`MOVED_MEANWHILE`) | Reload; the other person's allocation stood |
+| "This task is already waiting on its requester." | One open send-back per task | Recall it first, or copy the existing link |
+| Send again stays disabled for the requester | `NOTHING_CHANGED` | The form must differ from what was sent; a reply alone is not enough |
+| Requester's link says it expired or was already used | 14-day, one-time link | Send it back again for a new link |
+| A task link says the team turned them off | `review.shareTaskLink` is off on the live form | Switch Link to the task back on; links reopen unchanged |
+| Every task link changed | The signing secret changed | `BOOKING_LINK_SECRET`, or the service role key when it is unset |
+| Open in its board is missing on a shared task page | Openings are asked as the caller | Not signed in, or their session can't read the board, or the board is archived |
+| A change made just as a page opened shows late | Realtime catch-up | `workspace_changed_within` exists (0154) and the channel's `catchUp` binding |
+| Automations fire, but only every quarter hour from the clock | Tick gate (0157) | Expected for schedules; app changes still fire at once through the nudge |
+| A time condition fires at the wrong hour | Timezone | `AUTOMATION_TIMEZONE`; the check reads the event's time, not the drain's |
 
 ## 21. Development change guides
 
@@ -2266,6 +2556,16 @@ Historical design notes in `docs/` and audits in `Test_prompts/` stay dated.
 | `/api/book` books twice on a retry | Idempotent within an hour (v0.149.6) |
 | A change to a linked task fails when the other side is view-only | It saves, and the other side is skipped with a message (v0.153.0) |
 | The Dim theme | Removed (v0.148.1) |
+| Booked tasks can be moved back into Booked by Form | Nothing moves in, booked or not, in the app and the database (0159) |
+| Allocating lets you pick a group | It picks a board; the task lands in the board's landing group (v0.156.1) |
+| `/book/<slug>/<key>` and `/portal/<token>` are the public links | `/<ws>/booking` and `/<ws>/portal`; the old ones redirect (v0.156) |
+| "Stakeholder portal" in the UI | Guest portal; the code keeps the old names (v0.159) |
+| The pop-up has Updates and Activity tabs | One merged feed with options saved in the view (v0.166–v0.167) |
+| Sending back posts an update | Only the activity records it, note included; the resubmission still posts one (v0.170) |
+| A resubmission may send the same form again | It must change something (v0.170) |
+| Replies stay on their own linked task | They are mirrored while Updates and replies is in sync (v0.165) |
+| A board's task count carries a new-tasks dot | Removed in v0.165.0 (0156) |
+| Tracker sheets save 600 ms after an edit | 2 s idle, at most every 10 s (v0.160) |
 
 Limits to keep in mind:
 
@@ -2278,6 +2578,9 @@ Limits to keep in mind:
 - **Open defects** from the 26 September audit are in `Test_prompts/audits/2026-09-26-full-e2e/FINDINGS.md`.
 - **Accepted after the 22 November audit:** an automation run by an allocation acts as the task's creator; join links issued while approval was off still let people straight in; anonymous booking has no rate limit; `next_ticket_numbers` is callable by members; presence can be spoofed within a shared workspace; INVITED members get no board notifications; viewers can't copy a share link.
 - **Past bookings by email** (off by default) show any booker's tickets to whoever types their email on the form; the owner accepted this.
+- **Task links can't be revoked one by one.** They are signatures, not rows: only the form's switch (all of them) or a new secret (all of them, for good) closes them.
+- **Send-back links travel by hand.** The app sends no email; the team copies the link to the requester.
+- **The short addresses carry no key.** `/<ws>/portal` and `/<ws>/booking` answer anyone with the address; the portal's switches and password are the gate.
 - **The repository is public.** Pushed audit notes are world-readable: ship fixes with or before them.
 
 ## 23. Source index
@@ -2298,12 +2601,18 @@ Limits to keep in mind:
 | Board lifecycle and templates | `src/services/board-service.ts`, `src/services/board-template-service.ts`, `src/domain/board/board-template.ts`, `src/features/boards/board-templates.tsx` |
 | Views and lanes | `src/features/boards/components/views/*`, `kanban-lanes.ts`, `view-aggregates.ts` |
 | Filtering and sorting | `src/features/boards/board-filtering.ts`, `src/stores/board-ui-store.ts` |
-| Task panel, pop-up, journey | `src/features/items/item-detail-panel.tsx`, `panel-size.tsx`, `src/features/journey/*` |
+| Task panel, pop-up, journey | `src/features/items/item-detail-panel.tsx`, `item-feed.ts`, `panel-size.tsx`, `src/features/boards/table-view-settings.ts`, `src/features/journey/*` |
+| Activity links | `src/features/workspace/mention-link.tsx`, `src/features/boards/board-page.tsx`, `src/stores/board-ui-store.ts` |
 | Tickets | `src/domain/item/ticket.ts`, `src/services/ticket-service.ts`, `src/features/workspace/ticket-settings.tsx`, migrations 0050/0051 |
 | Undo | `src/stores/undo-store.ts`, `src/features/undo/undo-bar.tsx` |
 | Search | `src/services/search-service.ts`, `src/features/search/command-palette.tsx` |
 | Links and assets | `src/services/item-link-service.ts`, `src/services/item-link-sync.ts`, `src/services/item-asset-service.ts`, `src/domain/item/item-asset.ts` |
 | Booking | `src/services/booking.ts`, `src/services/booking-service.ts`, `src/server/booking.ts`, `src/server/requesters.ts`, `src/features/booking/**` |
+| Send back | `src/domain/booking/send-back.ts`, `src/services/booking-send-back-service.ts`, `src/server/send-back.ts`, `src/features/booking/send-back-*.ts(x)`, `resubmit-screen.tsx`, migration 0158, policy 0040 |
+| Task link and shared task page | `src/domain/booking/task-link.ts`, `src/services/booking-task-link-service.ts`, `src/server/task-link-signer.ts`, `src/services/item-openings-service.ts`, `src/server/share.ts`, `src/features/share/shared-item-screen.tsx`, `src/features/items/shared-panel-menu.tsx` |
+| Short links and landing groups | `src/features/portal/short-links.tsx`, `src/lib/routes.ts`, `landingGroupOf` in `src/domain/board/board.ts`, migration 0153 |
+| Internal portal | `src/features/portal/internal-portal-page.tsx`, `src/features/items/task-panel-host.tsx`, `canUseInternalPortal` |
+| Quick edits | `src/lib/query/write-holds.ts`, `quick-saves.ts`, `use-batched-writes.ts`, `src/lib/unsaved-work.ts` |
 | Portal | `src/services/stakeholder-portal-service.ts`, `src/services/portal/*`, `src/server/portal.ts`, `src/features/portal/*` |
 | Dashboard | `src/services/dashboard-service.ts`, `src/features/dashboard/*` |
 | Automations | `src/domain/automation/automation.ts`, `src/services/automation-service.ts`, `src/services/automation-engine.ts`, `src/server/automations.ts`, `src/features/automations/*`, migrations 0052–0057, `supabase/optional/*` |

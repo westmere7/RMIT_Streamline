@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { GUIDE_ARTICLES, guideMarkdown, searchGuide } from "@/features/workspace/documentation/guide-content";
 
@@ -26,6 +28,15 @@ describe("the in-app guide", () => {
     const text = guideMarkdown();
     for (const stale of ["being updated", "pending completion", "Demand & Delivery", "Settings → Lists", "Settings → Data", "Export data", "do not synchronize asset lines", "a bar says so", "Admins, shared workspaces only", "Admins: open Settings → Snapshots"]) {
       expect(text, `the guide still says "${stale}"`).not.toContain(stale);
+    }
+  });
+
+  it("shows only screenshots that are there, each with words for a reader who cannot see it", () => {
+    const figures = GUIDE_ARTICLES.flatMap((article) => article.sections.flatMap((section) => (section.figures ?? []).map((figure) => ({ article: article.id, figure }))));
+    expect(figures.length).toBeGreaterThan(20);
+    for (const { article, figure } of figures) {
+      expect(existsSync(join(process.cwd(), "public", "guide", `${figure.shot}.webp`)), `${article} shows ${figure.shot}`).toBe(true);
+      expect(figure.alt.trim().length, `${article}: ${figure.shot} needs alt text`).toBeGreaterThan(5);
     }
   });
 

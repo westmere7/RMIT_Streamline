@@ -10,7 +10,7 @@ import { copyToClipboard } from "@/features/members/hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
 import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
-import { articleText, GUIDE_ARTICLES, guideMarkdown, searchGuide, type GuideArticle, type GuideSection } from "./guide-content";
+import { articleText, GUIDE_ARTICLES, guideMarkdown, guideShotPath, searchGuide, type GuideArticle, type GuideFigure, type GuideSection } from "./guide-content";
 
 const QUICK_STARTS = [
   { id: "quick-start-stakeholder", label: "For departments", hint: "Submit a brief and follow your request" },
@@ -65,7 +65,7 @@ export function DocumentationSection() {
   };
 
   const download = () => {
-    const url = URL.createObjectURL(new Blob([guideMarkdown()], { type: "text/markdown;charset=utf-8" }));
+    const url = URL.createObjectURL(new Blob([guideMarkdown(window.location.origin)], { type: "text/markdown;charset=utf-8" }));
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = "streamline-user-guide.md";
@@ -193,10 +193,32 @@ export function DocumentationSection() {
   );
 }
 
+/**
+ * A section's screenshots, before its words. One fills the width; two sit side
+ * by side; phone shots are narrower. Each opens full size in a new tab.
+ */
+function Figures({ figures }: { figures: GuideFigure[] }) {
+  const pair = figures.length > 1;
+  return (
+    <div className={cn("grid gap-3", pair && "sm:grid-cols-2", figures.every((f) => f.phone) && "grid-cols-2 sm:grid-cols-3")} data-testid="guide-figures">
+      {figures.map((figure) => (
+        <figure key={figure.shot} className={cn("min-w-0", figure.phone && !pair && "max-w-xs")}>
+          <a href={guideShotPath(figure.shot)} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-border/70 bg-muted/30 shadow-xs transition-shadow hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {/* eslint-disable-next-line @next/next/no-img-element -- static screenshots, opened full size on click */}
+            <img src={guideShotPath(figure.shot)} alt={figure.alt} loading="lazy" decoding="async" className="block h-auto w-full" />
+          </a>
+          {figure.caption && <figcaption className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{figure.caption}</figcaption>}
+        </figure>
+      ))}
+    </div>
+  );
+}
+
 function ArticleSection({ section }: { section: GuideSection }) {
   return (
     <section className="min-w-0 space-y-3 text-base leading-7 break-words">
       <h4 className="text-base font-semibold leading-snug">{section.title}</h4>
+      {section.figures && section.figures.length > 0 && <Figures figures={section.figures} />}
       {section.paragraphs?.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
       {section.steps && <ol className="list-decimal space-y-3 pl-6 marker:font-semibold marker:text-muted-foreground">{section.steps.map((step) => <li key={step} className="pl-1">{step}</li>)}</ol>}
       {section.bullets && <ul className="list-disc space-y-2 pl-5 marker:text-muted-foreground">{section.bullets.map((bullet) => <li key={bullet} className="pl-1">{bullet}</li>)}</ul>}

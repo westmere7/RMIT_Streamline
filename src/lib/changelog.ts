@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.170.2",
+    date: "2026-11-27",
+    title: "A guide with pictures",
+    changes: ["Settings → Guide is half as long and shows the screens it talks about: every booking step, send back, the task link, the portals, automations and more. Click a picture to see it full size."],
+  },
+  {
     version: "0.170.1",
     date: "2026-11-27",
     title: "Save over a saved form",
