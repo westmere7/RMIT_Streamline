@@ -3,7 +3,7 @@ import type { BoardColumn, CalendarTaskRow } from "@/domain";
 import { CalendarService } from "@/services/calendar-service";
 import { LocalCalendarRepository, memoryListStore } from "@/data/local/repositories/calendar-repository";
 import type { Repositories } from "@/data/repositories";
-import { buildTaskEvents, stepAnchor, tasksOn, viewRange, weekdayOf } from "@/features/calendar/model";
+import { buildTaskEvents, densityLevel, packLanes, stepAnchor, taskCountByDay, tasksOn, viewRange, weekdayOf } from "@/features/calendar/model";
 
 const col = (id: string, type: BoardColumn["type"], position: number, settings: BoardColumn["settings"] = { kind: "none" } as never, role: BoardColumn["role"] = null): BoardColumn => ({
   id, boardId: "b1", name: id, type, settings, position, width: 120, hidden: false, role, createdAt: "",
@@ -34,11 +34,35 @@ describe("calendar model", () => {
     expect([b.startsOn, b.endsOn, b.dueOn, b.done, b.dateColumn.id]).toEqual(["2026-12-01", "2026-12-10", null, true, "timeline"]);
   });
 
+  it("moves the deadline when a task has one beside its timeline", () => {
+    const [e] = buildTaskEvents([row("x", [{ columnId: "due", value: { type: "DATE", date: "2026-12-04" } }, { columnId: "timeline", value: { type: "TIMELINE", start: "2026-12-01", end: "2026-12-03" } }])], [DUE, TIMELINE], {});
+    expect([e!.startsOn, e!.endsOn, e!.dueOn, e!.dateColumn.id]).toEqual(["2026-12-01", "2026-12-03", "2026-12-04", "due"]);
+  });
+
   it("draws a task on its deadline, or on every day it covers", () => {
     const events = buildTaskEvents([row("b", [{ columnId: "timeline", value: { type: "TIMELINE", start: "2026-12-01", end: "2026-12-03" } }])], [DUE, TIMELINE], {});
     expect(tasksOn(events, "2026-12-02")).toHaveLength(0);
     expect(tasksOn(events, "2026-12-03")).toHaveLength(1);
     expect(tasksOn(events, "2026-12-02", true)).toHaveLength(1);
+  });
+
+  it("counts, shades and stacks the tasks for the density and lines views", () => {
+    const events = buildTaskEvents(
+      [
+        row("a", [{ columnId: "timeline", value: { type: "TIMELINE", start: "2026-12-01", end: "2026-12-03" } }]),
+        row("b", [{ columnId: "timeline", value: { type: "TIMELINE", start: "2026-12-02", end: "2026-12-05" } }]),
+        row("c", [{ columnId: "timeline", value: { type: "TIMELINE", start: "2026-12-04", end: "2026-12-04" } }]),
+        row("d", [{ columnId: "due", value: { type: "DATE", date: "2026-11-20" } }]),
+      ],
+      [DUE, TIMELINE],
+      {},
+    );
+    const running = taskCountByDay(events, "2026-12-01", "2026-12-31", true);
+    expect([running.get("2026-12-02"), running.get("2026-12-04"), running.get("2026-12-06")]).toEqual([2, 2, undefined]);
+    expect(taskCountByDay(events, "2026-12-01", "2026-12-31", false).get("2026-12-03")).toBe(1);
+    expect([densityLevel(0, 9), densityLevel(1, 9), densityLevel(9, 9)]).toEqual([0, 1, 5]);
+    const lanes = packLanes(events, "2026-12-01", "2026-12-31");
+    expect(lanes.map((l) => [l.task.itemId, l.lane])).toEqual([["a", 0], ["b", 1], ["c", 0]]);
   });
 
   it("lays out weeks from Monday", () => {
@@ -47,6 +71,8 @@ describe("calendar model", () => {
     expect(weekdayOf("2026-11-30")).toBe("Mon");
     expect(stepAnchor("month", "2026-01-31", 1)).toBe("2026-02-01");
     expect(stepAnchor("year", "2026-06-15", -1)).toBe("2025-01-01");
+    expect(viewRange("lines", "2026-02-10")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
+    expect(viewRange("density", "2026-11-28")).toEqual(viewRange("month", "2026-11-28"));
   });
 });
 

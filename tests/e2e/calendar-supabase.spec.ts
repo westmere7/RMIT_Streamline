@@ -38,10 +38,19 @@ test("the Calendar shows the workspace's tasks and holidays, and leave saves und
   await expect(page.locator('[data-day="2026-11-24"] [data-testid="calendar-holiday"]')).toContainText("Vietnam Culture Day");
 
   // Each view draws.
-  for (const view of ["week", "agenda", "roster", "year"] as const) {
+  for (const view of ["week", "agenda", "density", "lines", "roster", "year"] as const) {
     await page.getByTestId(`calendar-view-${view}`).click();
     await expect(page.getByTestId(`calendar-${view}`)).toBeVisible({ timeout: 15_000 });
   }
+
+  // Hovering a day reads it in the details panel; hovering a line reads its task.
+  await page.getByTestId("calendar-view-lines").click();
+  await page.locator('[data-testid="lines-day"]').nth(9).hover();
+  await expect(page.getByTestId("calendar-details")).toHaveAttribute("data-day", /2026-11-10/);
+  await page.getByTestId("calendar-line").first().hover({ force: true });
+  await expect(page.getByTestId("calendar-task-detail")).toBeVisible();
+  await page.locator('[data-testid="mini-day"][data-day="2026-11-24"]').hover();
+  await expect(page.getByTestId("calendar-details")).toContainText("Vietnam Culture Day");
 
   // Leave, through the dialog.
   const admin = (await db.from("profiles").select("id").eq("email", "admin@rmit.local").single()).data!;
@@ -74,7 +83,8 @@ test("a task dragged to another day moves its deadline", async ({ page }) => {
   const itemId = (await chip.getAttribute("data-item-id"))!;
   const fromDay = (await chip.locator("xpath=ancestor::*[@data-testid='calendar-day']").getAttribute("data-day"))!;
   const rows = (await db.from("item_column_values").select("id, column_id, value_json").eq("item_id", itemId)).data!;
-  const before = rows.find((r) => (r.value_json as { date?: string }).date === fromDay || (r.value_json as { end?: string }).end === fromDay)!;
+  // The deadline moves where there is one; a timeline only where there is not.
+  const before = rows.find((r) => (r.value_json as { date?: string }).date === fromDay) ?? rows.find((r) => (r.value_json as { end?: string }).end === fromDay)!;
   expect(before).toBeTruthy();
   const toDay = new Date(Date.parse(`${fromDay}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10);
   try {

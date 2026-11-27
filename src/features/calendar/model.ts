@@ -24,9 +24,14 @@ export interface TaskEvent {
   hours: number;
 }
 
-export type CalendarView = "month" | "week" | "agenda" | "roster" | "year";
-export const CALENDAR_VIEWS: readonly CalendarView[] = ["month", "week", "agenda", "roster", "year"];
-export const CALENDAR_VIEW_LABELS: Record<CalendarView, string> = { month: "Month", week: "Week", agenda: "Agenda", roster: "Roster", year: "Year" };
+export type CalendarView = "month" | "week" | "agenda" | "density" | "lines" | "roster" | "year";
+export const CALENDAR_VIEWS: readonly CalendarView[] = ["month", "week", "agenda", "density", "lines", "roster", "year"];
+export const CALENDAR_VIEW_LABELS: Record<CalendarView, string> = { month: "Month", week: "Week", agenda: "Agenda", density: "Density", lines: "Lines", roster: "Roster", year: "Year" };
+
+/** Where the mini month and the details sit around the main calendar. */
+export type CalendarLayout = "left" | "right" | "split";
+export const CALENDAR_LAYOUTS: readonly CalendarLayout[] = ["left", "right", "split"];
+export const CALENDAR_LAYOUT_LABELS: Record<CalendarLayout, string> = { left: "Panel left", right: "Panel right", split: "Either side" };
 
 export type CalendarLayer = "tasks" | "leave" | "holidays" | "keyDates";
 export const CALENDAR_LAYERS: readonly CalendarLayer[] = ["tasks", "leave", "holidays", "keyDates"];
@@ -112,7 +117,8 @@ export function buildTaskEvents(rows: readonly CalendarTaskRow[], columns: reado
       startsOn: span.startsOn,
       endsOn: span.endsOn,
       dueOn,
-      dateColumn: span.column,
+      // A drag moves what the chip is drawn on: the deadline where there is one, else the timeline.
+      dateColumn: due?.type === "DATE" && dueOn && dueColumn ? dueColumn : span.column,
       status,
       done,
       stuck,
@@ -167,7 +173,10 @@ export function addMonths(day: ISODate, n: number): ISODate {
 /** The days a view shows, first to last. */
 export function viewRange(view: CalendarView, anchor: ISODate): { from: ISODate; to: ISODate } {
   switch (view) {
-    case "month": {
+    case "lines":
+      return { from: startOfMonth(anchor), to: endOfMonth(anchor) };
+    case "month":
+    case "density": {
       const from = startOfWeek(startOfMonth(anchor));
       const lastWeek = startOfWeek(endOfMonth(anchor));
       return { from, to: addDaysIso(lastWeek, 6) };
@@ -191,6 +200,8 @@ export function viewRange(view: CalendarView, anchor: ISODate): { from: ISODate;
 export function stepAnchor(view: CalendarView, anchor: ISODate, dir: -1 | 1): ISODate {
   switch (view) {
     case "month":
+    case "density":
+    case "lines":
       return addMonths(anchor, dir);
     case "week":
       return addDaysIso(anchor, 7 * dir);
@@ -225,7 +236,7 @@ export function spanLabel(startsOn: ISODate, endsOn: ISODate): string {
 
 export function periodLabel(view: CalendarView, anchor: ISODate): string {
   const { from, to } = viewRange(view, anchor);
-  if (view === "month") return `${monthName(anchor)} ${anchor.slice(0, 4)}`;
+  if (view === "month" || view === "density" || view === "lines") return `${monthName(anchor)} ${anchor.slice(0, 4)}`;
   if (view === "year") return anchor.slice(0, 4);
   return `${spanLabel(from, to)} ${to.slice(0, 4)}`;
 }
@@ -280,4 +291,42 @@ export function loadByPersonDay(events: readonly TaskEvent[], cal: WorkingCalend
 /** The boards a reader can see on the Calendar: live team boards they may open. */
 export function calendarBoards(boards: readonly Board[], canView: (b: Board) => boolean): Board[] {
   return boards.filter((b) => !b.archivedAt && !b.system && canView(b));
+}
+
+/** How many tasks touch each day: on their deadline, or (spans) every day they run. */
+export function taskCountByDay(events: readonly TaskEvent[], from: ISODate, to: ISODate, spans: boolean): Map<ISODate, number> {
+  const out = new Map<ISODate, number>();
+  for (const e of events) {
+    if (spans) {
+      for (let d = e.startsOn < from ? from : e.startsOn; d <= e.endsOn && d <= to; d = addDaysIso(d, 1)) out.set(d, (out.get(d) ?? 0) + 1);
+    } else {
+      const d = e.dueOn ?? e.endsOn;
+      if (d >= from && d <= to) out.set(d, (out.get(d) ?? 0) + 1);
+    }
+  }
+  return out;
+}
+
+/** 0 (nothing) to 5 (the busiest days in view), so the shades mean the same whatever the month. */
+export function densityLevel(count: number, max: number): 0 | 1 | 2 | 3 | 4 | 5 {
+  if (count <= 0 || max <= 0) return 0;
+  return Math.max(1, Math.min(5, Math.ceil((count / max) * 5))) as 1 | 2 | 3 | 4 | 5;
+}
+
+/**
+ * Tasks laid out as lines across [from, to], each in the first lane free when
+ * it starts: a busy day is one with many lanes running through it.
+ */
+export function packLanes(events: readonly TaskEvent[], from: ISODate, to: ISODate): { task: TaskEvent; lane: number; start: ISODate; end: ISODate }[] {
+  const shown = events
+    .filter((e) => e.startsOn <= to && e.endsOn >= from)
+    .map((task) => ({ task, start: task.startsOn < from ? from : task.startsOn, end: task.endsOn > to ? to : task.endsOn }))
+    .sort((a, b) => a.start.localeCompare(b.start) || b.end.localeCompare(a.end) || a.task.name.localeCompare(b.task.name));
+  const laneEnds: ISODate[] = [];
+  return shown.map((s) => {
+    let lane = laneEnds.findIndex((end) => end < s.start);
+    if (lane === -1) lane = laneEnds.push(s.end) - 1;
+    else laneEnds[lane] = s.end;
+    return { ...s, lane };
+  });
 }

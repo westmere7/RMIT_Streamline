@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.176.0",
+    date: "2026-11-28",
+    title: "Calendar layouts, density and lines",
+    changes: [
+      "The Calendar always shows a small month, the main calendar and a details panel; pick the panel on the left, the right or either side.",
+      "Hover any date, in the small month too, or any task to read it in the details panel. On a phone, tap.",
+      "Density view: how much lands on each day, at a glance.",
+      "Lines view: every task as a line from start to end, so busy days stand out.",
+      "Dragging a task with both a deadline and a timeline now moves its deadline.",
+    ],
+  },
+  {
     version: "0.175.0",
     date: "2026-11-28",
     title: "Calendar",
