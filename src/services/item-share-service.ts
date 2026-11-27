@@ -119,7 +119,7 @@ export async function gateItemShare(repos: Repositories, token: string): Promise
  */
 export async function loadSharedItem(repos: Repositories, token: string, password: string | null, viewer: ShareViewer | null): Promise<PublicItemPayload> {
   const { share, item, board } = await admitSharedItem(repos, token, password, viewer);
-  return readSharedItem(repos, share, item, board);
+  return readPublicItem(repos, item, board, share.expiresAt);
 }
 
 /** The task behind the link, unless the revision the page holds is still the current one (see loadSharedBoardIfChanged). */
@@ -133,7 +133,7 @@ export async function loadSharedItemIfChanged(
   const { share, item, board } = await admitSharedItem(repos, token, password, viewer);
   const current = await revision.current(board.workspaceId, share);
   if (current !== null && current === revision.known) return { unchanged: true, revision: current };
-  return { ...(await readSharedItem(repos, share, item, board)), revision: current };
+  return { ...(await readPublicItem(repos, item, board, share.expiresAt)), revision: current };
 }
 
 /** The link's checks, in order, and the task still being on its board; the share, task and board when they hold. */
@@ -154,7 +154,12 @@ async function admitSharedItem(repos: Repositories, token: string, password: str
   return { share, item, board };
 }
 
-async function readSharedItem(repos: Repositories, share: ItemShare, item: Item, board: Board): Promise<PublicItemPayload> {
+/**
+ * One task as a visitor reads it: the task, its subitems, values, deliverables,
+ * updates and a trimmed history, and nothing else on its board. Shared by a
+ * task's share link and a booking's own task link (booking-task-link-service).
+ */
+export async function readPublicItem(repos: Repositories, item: Item, board: Board, expiresAt: string | null): Promise<PublicItemPayload> {
   const [workspace, groups, allColumns, boardItems, assets, activities, users] = await Promise.all([
     repos.workspaces.getById(board.workspaceId),
     repos.boards.listGroups(board.id),
@@ -169,7 +174,9 @@ async function readSharedItem(repos: Repositories, share: ItemShare, item: Item,
   const columnIds = new Set(columns.map((c) => c.id));
 
   // The task and whatever hangs off it; nothing beside it on the board.
-  const items = boardItems.filter((candidate) => candidate.id === item.id || candidate.parentItemId === item.id);
+  // The task itself as it was handed in: a board's list leaves archived tasks
+  // out, and a booking's task link opens one that has been archived.
+  const items = [item, ...boardItems.filter((candidate) => candidate.id !== item.id && candidate.parentItemId === item.id)];
   const itemIds = new Set(items.map((i) => i.id));
   const [values, comments] = await Promise.all([repos.items.listValuesByBoard(board.id), repos.comments.listByItems([...itemIds])]);
 
@@ -202,6 +209,6 @@ async function readSharedItem(repos: Repositories, share: ItemShare, item: Item,
     activities: shownActivities,
     users: users.filter((u) => named.has(u.id)).map(toPublicUser),
     workspaceName: workspace?.name ?? "",
-    expiresAt: share.expiresAt,
+    expiresAt,
   };
 }

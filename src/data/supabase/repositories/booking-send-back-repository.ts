@@ -1,4 +1,5 @@
 import type { BookingRequest, BookingSendBack, StoredBookingRequest } from "@/domain";
+import { ALREADY_WAITING, RefusedError } from "@/domain";
 import type { BookingRequestRepository, BookingSendBackRepository } from "@/data/repositories";
 import { db, unwrap, unwrapList, unwrapMaybe } from "../client";
 import { pruneUndefined } from "../rows";
@@ -89,6 +90,8 @@ export class SupabaseBookingSendBackRepository implements BookingSendBackReposit
       .insert({ workspace_id: input.workspaceId, item_id: input.itemId, note: input.note, token: input.token, sent_by: input.sentBy, expires_at: input.expiresAt })
       .select(SEND_BACK)
       .single();
+    // Two sent at the same moment: the one-open-per-task index (0158) lets one in, and this is the other.
+    if (result.error?.code === "23505") throw new RefusedError(ALREADY_WAITING);
     return toSendBack(unwrap<SendBackRow>(result, "booking_sendbacks.create"));
   }
 

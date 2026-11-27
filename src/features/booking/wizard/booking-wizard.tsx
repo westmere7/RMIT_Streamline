@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, CheckCircle2, FileDown, History, LoaderCircle, LogIn, MessageSquareQuote, UserRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Copy, ExternalLink, FileDown, History, LoaderCircle, LogIn, MessageSquareQuote, UserRound } from "lucide-react";
 import * as React from "react";
 import { InlineRichText } from "@/components/shared/inline-rich-text";
 import { toast } from "sonner";
@@ -810,6 +810,7 @@ function Receipt({
           </p>
         </div>
       )}
+      {receipt.taskLink && <TaskLinkRow path={receipt.taskLink} />}
       {past && (past.sample ? <PastBookingsList rows={past.sample} /> : <PastBookings email={past.email} load={past.load} exclude={receipt.itemId} />)}
       <div className="flex flex-wrap gap-2">
         {request && (
@@ -827,6 +828,36 @@ function Receipt({
             <a href={href}>Open on {receipt.boardName}</a>
           </Button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** The task's own link: keep it to follow the request, whatever happens to it. */
+function TaskLinkRow({ path }: { path: string }) {
+  const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Could not copy. Select the link and copy it yourself.");
+    }
+  };
+  return (
+    <div className="rounded-xl border border-border/60 bg-card p-4 text-[13px]" data-testid="booking-task-link">
+      <p className="font-medium">Follow your request</p>
+      <p className="mt-0.5 text-muted-foreground">This link always opens this task, wherever it gets to.</p>
+      <div className="mt-2.5 flex items-center gap-1.5">
+        <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 font-mono text-2xs" aria-label="Link to your request" data-testid="booking-task-link-url" />
+        <Button type="button" size="sm" variant="outline" onClick={() => void copy()}>
+          <Copy /> Copy
+        </Button>
+        <Button type="button" size="sm" variant="outline" asChild>
+          <a href={url} target="_blank" rel="noreferrer">
+            <ExternalLink /> Open
+          </a>
+        </Button>
       </div>
     </div>
   );

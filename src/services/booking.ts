@@ -291,6 +291,7 @@ export const bookingFormTemplateSchema = z
       offerPdf: z.boolean().optional(),
       pdfLabel: z.string().trim().max(60).optional(),
       showPastBookings: z.boolean().optional(),
+      shareTaskLink: z.boolean().optional(),
     }),
   })
   .superRefine((template, ctx) => {

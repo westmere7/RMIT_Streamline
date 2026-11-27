@@ -906,6 +906,22 @@ describe("booking a task", () => {
     expect(receipt.teamName).toBeNull();
   });
 
+  it("two people allocating the same request at once: one moves it, the other is told, nothing doubles", async () => {
+    const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
+    const boards = (await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID)).filter((b) => !b.system && !b.archivedAt);
+    const [a, b] = [boards[0]!, boards[1]!];
+    const results = await Promise.allSettled([services.booking.allocate(receipt.itemId, a.id, owner), services.booking.allocate(receipt.itemId, b.id, owner)]);
+    const won = results.filter((r) => r.status === "fulfilled");
+    const lost = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expect(String(lost[0]!.reason?.message)).toMatch(/moved this task a moment ago|Only requests on the Task Allocation board/);
+    const item = (await services.repos.items.getById(receipt.itemId))!;
+    expect([a.id, b.id]).toContain(item.boardId);
+    const moves = (await services.repos.activities.listByItem(receipt.itemId)).filter((x) => x.eventType === "ITEM_MOVED");
+    expect(moves).toHaveLength(1);
+  });
+
   it("keeps the booking's brief on the task, and a Brief column added later fills itself with it", async () => {
     const receipt = await services.booking.submit({ workspaceSlug: "rmit", key: null, request: request() });
     const boards = await services.repos.boards.listByWorkspace(SEED_WORKSPACE_ID);

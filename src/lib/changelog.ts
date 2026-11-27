@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.169.0",
+    date: "2026-11-27",
+    title: "A link to the task on the receipt; safer with many at once",
+    changes: [
+      "The booking form can give requesters a link to their task: switch on Link to the task in the form editor's last step. The receipt shows it beside the PDF.",
+      "The link opens the task read-only with no sign-in, stays the same for the life of the task, and still opens once it is allocated or archived. It cannot be guessed, and it closes while the switch is off.",
+      "Two people allocating the same booking at once: one wins, the other is told it moved a moment ago. Two sending back the same task: the second is told it already waits.",
+      "Tasks added at the same moment keep the same order for everyone.",
+    ],
+  },
+  {
     version: "0.168.1",
     date: "2026-11-27",
     title: "Clickable profiles, Send back in the task menu",

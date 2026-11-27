@@ -6,6 +6,7 @@ import { BoardTemplateService } from "./board-template-service";
 import { BoardShareService, type PublicShareTransport } from "./board-share-service";
 import { BookingService, type BookingTransport } from "./booking-service";
 import { BookingSendBackService, type SendBackTransport } from "./booking-send-back-service";
+import { BookingTaskLinkService, type TaskLinkTransport } from "./booking-task-link-service";
 import { BugReportService, type BugReportTransport } from "./bug-report-service";
 import { CommentService } from "./comment-service";
 import { DashboardService, type PublicDashboardTransport } from "./dashboard-service";
@@ -60,6 +61,8 @@ export interface Services {
   booking: BookingService;
   /** Booked tasks sent back to their requester for missing information. */
   bookingSendBacks: BookingSendBackService;
+  /** The link a booking's receipt gives to its task. */
+  taskLinks: BookingTaskLinkService;
   /** Bug reports, onto the App development board. */
   bugReports: BugReportService;
   portals: StakeholderPortalService;
@@ -71,6 +74,8 @@ export interface ServiceOptions {
   bookingTransport?: BookingTransport | null;
   /** How sending a task back, and the requester's answer, reach the server (Supabase). */
   sendBackTransport?: SendBackTransport | null;
+  /** How a booking's task link is opened (Supabase): the server checks its signature. */
+  taskLinkTransport?: TaskLinkTransport | null;
   /** How re-allocating reaches the server, which alone may clear a task's history (Supabase). */
   reallocationTransport?: ReallocationTransport | null;
   /** How a bug report reaches the board its reporter cannot see (Supabase). */
@@ -103,6 +108,8 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
   const assets = new ItemAssetService(repos, items);
   const tickets = new TicketService(repos, links);
   const booking = new BookingService(repos, workspace, items, assets, notifications, tickets, options.bookingTransport ?? null);
+  const taskLinks = new BookingTaskLinkService(repos, options.taskLinkTransport ?? null);
+  booking.useTaskLinks(taskLinks);
   const portals = new StakeholderPortalService(repos, options.portalTransport ?? null, (workspaceId) => booking.buildForm(workspaceId));
   booking.useDepartments((workspaceId) => portals.ensureDepartments(workspaceId));
   const comments = new CommentService(repos, notifications, links);
@@ -131,6 +138,7 @@ export function createServices(base: Repositories, options: ServiceOptions = {})
     assets,
     booking,
     bookingSendBacks: new BookingSendBackService(repos, booking, items, assets, comments, options.sendBackTransport ?? null),
+    taskLinks,
     /** Moving a task to another board, columns mapped and losses reported first. */
     itemMoves: new ItemMoveService(repos, assets),
     /** Sending a task back to Task Allocation, reset as if just booked. */
@@ -173,6 +181,8 @@ export type { DepartmentOverview, InternalPortalPayload, PortalGrant, PortalTran
 export type { BookingSubmission, BookingTransport } from "./booking-service";
 export type { ResubmitForm, SendBackTransport } from "./booking-send-back-service";
 export { SendBackLinkError } from "./booking-send-back-service";
+export type { TaskLinkSigner, TaskLinkTransport } from "./booking-task-link-service";
+export { hmacHex } from "./booking-task-link-service";
 export type { PublicShareTransport, ShareFailure, ShareSettings, ShareViewer } from "./board-share-service";
 export type { PublicItemTransport } from "./item-share-service";
 export type { DashboardShareSettings, PublicDashboardTransport } from "./dashboard-service";

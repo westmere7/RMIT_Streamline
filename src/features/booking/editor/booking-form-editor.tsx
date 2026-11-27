@@ -1309,6 +1309,10 @@ function ReviewPane({ draft, update, ticketPrefix }: { draft: BookingFormTemplat
               <Switch size="sm" checked={draft.review.showPastBookings === true} aria-label="Show past bookings of the same email on the ticket" onCheckedChange={(on) => update((t) => (t.review.showPastBookings = on))} data-testid="editor-show-past" />
               Past bookings of this email
             </label>
+            <label className="flex items-center gap-1.5" title="Public to whoever has the link, for as long as the task exists; switching it off closes every link it gave out">
+              <Switch size="sm" checked={draft.review.shareTaskLink === true} aria-label="Show a link to the task on the ticket" onCheckedChange={(on) => update((t) => (t.review.shareTaskLink = on))} data-testid="editor-share-task-link" />
+              Link to the task
+            </label>
           </span>
         }
         testId="editor-review-reply"

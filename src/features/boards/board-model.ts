@@ -3,7 +3,7 @@ import type { BoardColumn, BoardGroup, ColumnRoleMap, ColumnType, ColumnValue, I
 import { intakeGroupOf, resolveColumnRoles, shownColumns } from "@/domain";
 import type { BoardSnapshot } from "@/services";
 import type { BoardFilters, BoardSort } from "@/stores/board-ui-store";
-import { filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
+import { byPosition, filterItems, primaryDueDate, sortItems, type ValueLookup } from "./board-filtering";
 
 export interface BoardModel {
   snapshot: BoardSnapshot;
@@ -95,7 +95,7 @@ export function buildBoardModel(snapshot: BoardSnapshot, options: BoardModelOpti
     list.push(item);
     subitemsByParent.set(item.parentItemId, list);
   }
-  for (const list of subitemsByParent.values()) list.sort((a, b) => a.position - b.position);
+  for (const list of subitemsByParent.values()) list.sort(byPosition);
   const linksByItem = new Map<string, ItemLink[]>();
   for (const link of snapshot.links ?? []) {
     for (const id of [link.itemAId, link.itemBId]) {

@@ -195,6 +195,8 @@ export interface BookingReceipt {
   submittedAt: string;
   /** How many asset lines became subitems. */
   assetCount: number;
+  /** The task's own link, when the form gives one on its receipt (review.shareTaskLink): a path under the site. */
+  taskLink?: string | null;
 }
 
 /** The public link is /book/<workspace slug>/<key>; the key is the only secret. */

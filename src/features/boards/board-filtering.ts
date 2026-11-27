@@ -233,7 +233,17 @@ export function compareItems(a: Item, b: Item, sort: BoardSort, ctx: Pick<Filter
   }
 }
 
+/**
+ * A task's place in its group, the same on every screen. Two people moving
+ * tasks into a group at the same moment can leave them sharing a position;
+ * without the tie-break each screen could show those in its own order, and a
+ * drag made from one would reorder against an order nobody else sees.
+ */
+export function byPosition(a: Pick<Item, "position" | "createdAt" | "id">, b: Pick<Item, "position" | "createdAt" | "id">): number {
+  return a.position - b.position || a.createdAt.localeCompare(b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 export function sortItems(items: Item[], sort: BoardSort | null, ctx: Pick<FilterContext, "columns" | "getValue" | "userName">): Item[] {
-  if (!sort) return [...items].sort((a, b) => a.position - b.position);
-  return [...items].sort((a, b) => compareItems(a, b, sort, ctx) || a.position - b.position);
+  if (!sort) return [...items].sort(byPosition);
+  return [...items].sort((a, b) => compareItems(a, b, sort, ctx) || byPosition(a, b));
 }

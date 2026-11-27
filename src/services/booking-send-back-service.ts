@@ -1,5 +1,6 @@
 import type { ActivityMetadata, Board, BoardColumn, BookingForm, BookingReceipt, BookingRequest, BookingSendBack, ColumnValue, EntityId, Item, User } from "@/domain";
 import {
+  ALREADY_WAITING,
   RESUBMIT_REPLY_MAX,
   RefusedError,
   SEND_BACK_NOTE_MAX,
@@ -96,7 +97,7 @@ export class BookingSendBackService {
     const { item, board, columns, status } = await this.taskOf(itemId);
     const refusal = sendBackRefusal(item, status.column, status.labelId);
     if (refusal) throw new RefusedError(refusal);
-    if (await this.repos.bookingSendBacks.openFor(itemId)) throw new RefusedError("This task is already waiting on its requester.");
+    if (await this.repos.bookingSendBacks.openFor(itemId)) throw new RefusedError(ALREADY_WAITING);
 
     const sendBack = await this.repos.bookingSendBacks.create({ workspaceId: board.workspaceId, itemId, note, token: newSendBackToken(), sentBy: actorId, expiresAt: sendBackExpiry() });
     const users = await this.repos.users.list();
@@ -236,7 +237,7 @@ export class BookingSendBackService {
       const status = statusOf(columns, values);
       await this.restoreStatus(item, board, status, users, actorId);
       const fresh = (await this.repos.items.getById(item.id)) ?? item;
-      return { itemId: item.id, itemName: fresh.name, boardId: board.id, boardName: board.name, boardSlug: board.slug, teamName: null, ticket: fresh.ticket ?? "", submittedAt: at, assetCount: request.assets.length };
+      return { itemId: item.id, itemName: fresh.name, boardId: board.id, boardName: board.name, boardSlug: board.slug, teamName: null, ticket: fresh.ticket ?? "", submittedAt: at, assetCount: request.assets.length, taskLink: await this.booking.taskLinkFor(workspaceId, item.id) };
     } catch (error) {
       // Nothing half-sent stays claimed: the link works again for another try.
       await this.repos.bookingSendBacks.update(sendBack.id, { resubmittedAt: null }).catch(() => undefined);

@@ -331,7 +331,13 @@ export interface ItemRepository {
    * and links pointing at it still resolve. That is the whole reason this is a
    * move rather than a copy and a delete.
    */
-  moveToBoard(itemId: EntityId, input: { boardId: EntityId; groupId: EntityId; position: number }): Promise<Item>;
+  /**
+   * Moves a task (and its own subitems) to another board. With `onlyFromBoardId`
+   * the move happens only while the task is still there, decided by the task's
+   * own row in one step: of two people moving it at once, one moves it and the
+   * other is refused (MOVED_MEANWHILE) before anything of theirs is written.
+   */
+  moveToBoard(itemId: EntityId, input: { boardId: EntityId; groupId: EntityId; position: number; onlyFromBoardId?: EntityId }): Promise<Item>;
   /** Deletes items, their subitems, values and comments. */
   deleteMany(ids: EntityId[]): Promise<void>;
 

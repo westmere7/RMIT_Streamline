@@ -1,5 +1,7 @@
 import type { ArchivePage, ArchiveQuery, ArchiveSortField, ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
+import { MOVED_MEANWHILE, RefusedError } from "@/domain";
 import type { ItemRepository } from "@/data/repositories";
+import { NotFoundError } from "@/data/repositories";
 import { assertOk, chunk, db, unwrap, unwrapAll, unwrapList, unwrapMaybe } from "../client";
 import { fromItemPatch, toItem, toItemColumnValue, type ItemColumnValueRow, type ItemRow } from "../rows";
 
@@ -275,7 +277,7 @@ export class SupabaseItemRepository implements ItemRepository {
     return updated;
   }
 
-  async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number }): Promise<Item> {
+  async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number; onlyFromBoardId?: string }): Promise<Item> {
     // Subitems come along: they are part of the task, and a subitem left on the
     // old board would be an orphan row its parent no longer lists. Only those on
     // the task's own board: a row planted under it from elsewhere stays put.
@@ -286,8 +288,15 @@ export class SupabaseItemRepository implements ItemRepository {
     // The task row first. Its update policy checks the right to edit the board
     // it leaves and the board it lands on, so a move that is not allowed stops
     // here, before any value has been deleted.
-    const result = await db().from("items").update({ board_id: input.boardId, group_id: input.groupId, position: input.position }).eq("id", itemId).select(ITEM).single();
-    const movedItem = toItem(unwrap<ItemRow>(result, "items.moveToBoard"));
+    let update = db().from("items").update({ board_id: input.boardId, group_id: input.groupId, position: input.position }).eq("id", itemId);
+    // Conditional on where it is, in the same statement: a race has one winner.
+    if (input.onlyFromBoardId) update = update.eq("board_id", input.onlyFromBoardId);
+    const rows = unwrapList<ItemRow>(await update.select(ITEM), "items.moveToBoard");
+    if (rows.length === 0) {
+      if (input.onlyFromBoardId) throw new RefusedError(MOVED_MEANWHILE);
+      throw new NotFoundError("Item", itemId);
+    }
+    const movedItem = toItem(rows[0]!);
     const subitemIds = moving.slice(1);
     for (const part of chunk(subitemIds)) {
       if (part.length) assertOk(await db().from("items").update({ board_id: input.boardId, group_id: input.groupId }).in("id", part), "items.moveToBoard.subitems");

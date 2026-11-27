@@ -653,6 +653,12 @@ export interface BookingReviewStep {
    * switched on: anyone who types a colleague's email sees their bookings.
    */
   showPastBookings?: boolean;
+  /**
+   * The receipt gives a link to the task, read-only and public to whoever has
+   * it, for as long as the task exists (src/domain/booking/task-link.ts). Off
+   * unless switched on; switching it off closes every such link.
+   */
+  shareTaskLink?: boolean;
 }
 
 export interface BookingFormTemplate {

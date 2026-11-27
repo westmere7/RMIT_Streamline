@@ -184,8 +184,14 @@ test("ten people at once: nothing lost, nothing doubled, every screen agrees", a
     })));
     await expect.poll(async () => ((await db.from("items").select("id").like("name", `${TAG} A%`).eq("group_id", away.id)).data ?? []).length, CONVERGE).toBe(10);
     expect(((await db.from("items").select("id").like("name", `${TAG} A%`)).data ?? []).length).toBe(10);
-    const positions = ((await db.from("items").select("position").eq("group_id", away.id)).data ?? []).map((r) => r.position);
-    expect(new Set(positions).size, "two tasks share a position in the group they were moved to").toBe(positions.length);
+    const positions = ((await db.from("items").select("position").eq("group_id", away.id).is("parent_item_id", null)).data ?? []).map((r) => r.position);
+    console.log(`moves: ${positions.length} tasks in the group, ${new Set(positions).size} distinct positions`);
+    // Tasks moved in at the same moment may share a position; every screen must still show one order.
+    const orderOn = (page: Page) => page.locator(`[data-testid="item-row"][data-item-name^="${TAG} A"]`).evaluateAll((els) => els.map((e) => e.getAttribute("data-item-name")));
+    await clock("6 converge", async () => {
+      await expect.poll(async () => new Set(await Promise.all(pages.map(async (page) => JSON.stringify(await orderOn(page))))).size, CONVERGE).toBe(1);
+    });
+    expect((await orderOn(pages[0]!)).length).toBe(10);
   } finally {
     console.log("TIMINGS (ms)", JSON.stringify(timings));
     await Promise.all(pages.map((page) => page.context().close().catch(() => undefined)));

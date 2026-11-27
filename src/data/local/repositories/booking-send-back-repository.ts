@@ -1,5 +1,5 @@
 import type { BookingSendBack, StoredBookingRequest } from "@/domain";
-import { isOpenSendBack } from "@/domain";
+import { ALREADY_WAITING, RefusedError, isOpenSendBack } from "@/domain";
 import type { BookingRequestRepository, BookingSendBackRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -42,7 +42,7 @@ export class LocalBookingSendBackRepository implements BookingSendBackRepository
   async create(input: Omit<BookingSendBack, "id" | "sentAt" | "resubmittedAt" | "cancelledAt">): Promise<BookingSendBack> {
     const db = await this.conn.getDb();
     // One open per task, as the database's unique index says on Supabase.
-    if ((await this.openFor(input.itemId)) !== null) throw new Error("This task is already waiting on its requester.");
+    if ((await this.openFor(input.itemId)) !== null) throw new RefusedError(ALREADY_WAITING);
     const row: BookingSendBack = { ...input, id: newId(), sentAt: nowIso(), resubmittedAt: null, cancelledAt: null };
     await db.put("bookingSendBacks", row);
     return row;

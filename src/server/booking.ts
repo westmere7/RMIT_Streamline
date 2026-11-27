@@ -9,6 +9,7 @@ import { BookingValidationError } from "@/services/booking-service";
 import { bookingRequestSchema } from "@/services/booking";
 import { HttpError } from "./http";
 import { formNameFor, serverRequesterDirectory } from "./requesters";
+import { serverTaskLinkSigner } from "./task-link-signer";
 
 /**
  * Task booking for the Supabase provider.
@@ -72,6 +73,7 @@ function serverServices(): Services {
   const services = createServices(createSupabaseRepositories());
   // A requester the workspace does not have yet is added as a pending member, which needs the service role.
   services.booking.useRequesters(serverRequesterDirectory());
+  services.taskLinks.useSigner(serverTaskLinkSigner());
   return services;
 }
 

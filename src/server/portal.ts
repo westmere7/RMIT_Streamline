@@ -1,4 +1,5 @@
 import { serverRequesterDirectory } from "./requesters";
+import { serverTaskLinkSigner } from "./task-link-signer";
 import { z } from "zod";
 import { DEFAULT_PORTAL_RANGE, formatPortalRange, parsePortalRange, type PortalScope } from "@/domain";
 import { createSupabaseRepositories } from "@/data/supabase";
@@ -126,6 +127,8 @@ export function portalServices(): Services {
   const services = createServices(createSupabaseRepositories());
   // A requester the workspace does not have yet is added as a pending member, which needs the service role.
   services.booking.useRequesters(serverRequesterDirectory());
+  // A receipt's task link, signed with the server's secret.
+  services.taskLinks.useSigner(serverTaskLinkSigner());
   return services;
 }
 

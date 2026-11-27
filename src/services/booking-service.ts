@@ -178,6 +178,26 @@ export class BookingService {
     return (this.requesterDirectory ??= localRequesterDirectory(this.repos));
   }
 
+  private taskLinks: { linkFor(itemId: EntityId, workspaceSlug: string): Promise<string> } | null = null;
+
+  /** Where a receipt's task link comes from (BookingTaskLinkService). */
+  useTaskLinks(links: { linkFor(itemId: EntityId, workspaceSlug: string): Promise<string> }): void {
+    this.taskLinks = links;
+  }
+
+  /**
+   * The task's own link for its receipt, when the workspace's form gives one
+   * (review.shareTaskLink, as the form is now), else null.
+   */
+  async taskLinkFor(workspaceId: EntityId, itemId: EntityId): Promise<string | null> {
+    if (!this.taskLinks) return null;
+    const workspace = await this.repos.workspaces.getById(workspaceId);
+    if (!workspace) return null;
+    const live = await bookingFormForSubmission(this.repos, workspace, null);
+    if (live.template.review.shareTaskLink !== true) return null;
+    return this.taskLinks.linkFor(itemId, workspace.slug).catch(() => null);
+  }
+
   /** This workspace's person for an email, by whichever directory is in use. */
   async requesterOf(workspaceId: EntityId, email: string): Promise<{ userId: EntityId; name: string } | null> {
     const clean = email.trim().toLowerCase();
@@ -433,7 +453,7 @@ export class BookingService {
   }
 
   async book(workspaceId: EntityId, rawRequest: BookingRequest, memberId: EntityId | null = null, stakeholder: string | null = null): Promise<BookingReceipt> {
-    const { request, template, service, team, allocation, teams, department } = await this.prepareRequest(workspaceId, rawRequest, stakeholder);
+    const { request, template, service, team, allocation, teams, department, workspace } = await this.prepareRequest(workspaceId, rawRequest, stakeholder);
 
     // Where it goes: the service's own rules when it has them switched on, else
     // the team's nominated board. A board a rule names that has gone (archived,
@@ -541,6 +561,7 @@ export class BookingService {
       ticket: item.ticket ?? ticket,
       submittedAt: item.createdAt,
       assetCount: request.assets.length,
+      taskLink: template.review.shareTaskLink === true && this.taskLinks ? await this.taskLinks.linkFor(item.id, workspace.slug).catch(() => null) : null,
     };
   }
 
@@ -891,13 +912,15 @@ export class BookingService {
     // carried across as a value, with its formatting on it.
     const briefValue = briefColumn ? sourceValues.find((v) => v.columnId === briefColumn.id)?.value : undefined;
     const brief = briefValue && "text" in briefValue ? richTextToPlain(briefValue.text ?? "").trim() : "";
+    // Claimed first, and only while it is still on Task Allocation: of two
+    // people allocating it at once, one moves it and the other is told so,
+    // before anything of theirs is written.
+    const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
+    await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position, onlyFromBoardId: source.id });
     if (brief && !briefCarried && !(item.description ?? "").includes(brief)) {
       const description = item.description?.trim() ? `${brief}\n\n${item.description.trim()}` : brief;
       await this.repos.items.update(item.id, { description });
     }
-
-    const position = targetItems.filter((i) => i.groupId === group.id && i.parentItemId === null).length;
-    await this.repos.items.moveToBoard(item.id, { boardId: target.id, groupId: group.id, position });
     // When it reached the team (allocating again after a re-allocation sets it again).
     const moved = await this.repos.items.update(item.id, { allocatedAt: new Date().toISOString() });
     if (carried.length) await this.repos.items.setValues(carried);

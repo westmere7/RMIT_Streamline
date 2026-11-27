@@ -1,5 +1,5 @@
 import type { ArchivePage, ArchiveQuery, ColumnValue, Item, ItemColumnValue, ItemInput } from "@/domain";
-import { compareArchived, matchesArchiveQuery, withTicketPrefix } from "@/domain";
+import { MOVED_MEANWHILE, RefusedError, compareArchived, matchesArchiveQuery, withTicketPrefix } from "@/domain";
 import type { ItemRepository } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { newId, nowIso } from "@/lib/ids";
@@ -223,10 +223,22 @@ export class LocalItemRepository implements ItemRepository {
     return results.map((r) => r.updated);
   }
 
-  async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number }): Promise<Item> {
+  async moveToBoard(itemId: string, input: { boardId: string; groupId: string; position: number; onlyFromBoardId?: string }): Promise<Item> {
     const db = await this.conn.getDb();
-    const item = await db.get("items", itemId);
-    if (!item) throw new NotFoundError("Item", itemId);
+    // The task row read and moved in one transaction, as the database's
+    // conditional update is one statement: of two moves at once, one wins.
+    const claim = db.transaction("items", "readwrite");
+    const item = await claim.store.get(itemId);
+    if (!item) {
+      await claim.done;
+      throw new NotFoundError("Item", itemId);
+    }
+    if (input.onlyFromBoardId && item.boardId !== input.onlyFromBoardId) {
+      await claim.done;
+      throw new RefusedError(MOVED_MEANWHILE);
+    }
+    await claim.store.put({ ...item, boardId: input.boardId, groupId: input.groupId, position: input.position, updatedAt: nowIso() });
+    await claim.done;
     // Only subitems on the task's own board come along.
     const subitems = (await db.getAllFromIndex("items", "byParent", itemId)).filter((sub) => sub.boardId === item.boardId);
     const moving = [item, ...subitems];
