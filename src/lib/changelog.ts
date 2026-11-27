@@ -18,6 +18,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.169.1",
+    date: "2026-11-27",
+    title: "Booked by Form, held by the database too",
+    changes: ["The database itself now refuses any move back into Booked by Form, so no screen, old or new, can put a task there."],
+  },
+  {
     version: "0.169.0",
     date: "2026-11-27",
     title: "A link to the task on the receipt; safer with many at once",
