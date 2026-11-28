@@ -172,6 +172,8 @@ export function DayDetail({ day, data, actions, summary = false }: { day: ISODat
   const keyDates = data.showKeyDates ? keyDatesOn(data.keyDates, day) : [];
   const away = leaveOn(data.leave, day);
   const tasks = tasksOn(data.tasks, day, data.spans);
+  // Under way that day without being due on it: listed under the deadlines, so a busy day never reads as empty.
+  const runningTasks = data.spans ? [] : data.tasks.filter((t) => t.startsOn <= day && day <= t.endsOn && (t.dueOn ?? t.endsOn) !== day);
   const running = summary ? data.tasks.filter((t) => t.startsOn <= day && day <= t.endsOn).length : 0;
   return (
     <div className="grid gap-2" data-testid="calendar-day-detail">
@@ -213,7 +215,18 @@ export function DayDetail({ day, data, actions, summary = false }: { day: ISODat
         {tasks.map((t) => (
           <TaskChip key={t.itemId} task={t} data={data} actions={actions} day={day} />
         ))}
-        {!tasks.length && !away.length && !holidays.length && <p className="text-[12.5px] text-muted-foreground">Nothing on.</p>}
+        {runningTasks.length > 0 && (
+          <>
+            <div className="pt-1 text-[11.5px] font-medium text-muted-foreground" data-testid="calendar-day-running">
+              Running · {runningTasks.length}
+            </div>
+            {runningTasks.slice(0, 8).map((t) => (
+              <TaskChip key={t.itemId} task={t} data={data} actions={actions} day={day} compact />
+            ))}
+            {runningTasks.length > 8 && <span className="px-1 text-[11.5px] text-muted-foreground">+{runningTasks.length - 8} more</span>}
+          </>
+        )}
+        {!tasks.length && !runningTasks.length && !away.length && !holidays.length && <p className="text-[12.5px] text-muted-foreground">Nothing on.</p>}
       </div>
       <div className="flex flex-wrap gap-1 border-t border-border/60 pt-2">
         <AddButton label="Leave" onClick={() => actions.addLeave(day)} testId="day-add-leave" />

@@ -151,6 +151,29 @@ describe("automations", () => {
     expect(await valueOf(item.id, "Due Date")).toEqual({ type: "DATE", date: "2026-09-21" });
   });
 
+  it("moves a Start day by working days, skipping the weekend", async () => {
+    const status = await column("Status");
+    const start = (await columns()).find((c) => c.type === "START_DATE");
+    if (!start) throw new Error("The seed board has no Start day column");
+    const item = await firstItem();
+    await addRule({ kind: "column_set_to", columnId: status.id, labelId: labelIdFor(status, "Done") }, [{ kind: "shift_date", columnId: start.id, days: 1, working: true }]);
+    // Friday 18 September 2026; one working day on is Monday the 21st.
+    await setValue(item.id, start.name, { type: "START_DATE", date: "2026-09-18" });
+    await setValue(item.id, "Status", { type: "STATUS", labelId: labelIdFor(status, "Done") });
+    await engineAt(new Date("2026-09-21T03:00:00Z")).drain(100);
+    expect(await valueOf(item.id, start.name)).toEqual({ type: "START_DATE", date: "2026-09-21" });
+  });
+
+  it("sets a Start day from today", async () => {
+    const status = await column("Status");
+    const start = (await columns()).find((c) => c.type === "START_DATE")!;
+    const item = await firstItem();
+    await addRule({ kind: "column_set_to", columnId: status.id, labelId: labelIdFor(status, "Done") }, [{ kind: "set_date_relative", columnId: start.id, days: 2 }]);
+    await setValue(item.id, "Status", { type: "STATUS", labelId: labelIdFor(status, "Done") });
+    await engineAt(new Date("2026-09-21T03:00:00Z")).drain(100);
+    expect(await valueOf(item.id, start.name)).toEqual({ type: "START_DATE", date: "2026-09-23" });
+  });
+
   it("leaves a rule alone when its trigger value is not the one that landed", async () => {
     const status = await column("Status");
     const item = await firstItem();

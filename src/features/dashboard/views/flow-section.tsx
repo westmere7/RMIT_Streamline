@@ -4,7 +4,7 @@ import * as React from "react";
 import { BRAND_RED, ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
 import { KineticNumber, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
-import { finishedIn, formatDays, formatPercent, inAndOut, onTime, productionTime, sentBack, turnaround, waitingTime, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import { finishedIn, formatDays, formatPercent, formatWholeDays, inAndOut, onTime, productionTime, sentBack, turnaround, waitingTime, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
 import type { TaskFact } from "@/features/dashboard/analytics";
 import { useDrill, type DrillRequest } from "@/features/dashboard/drill/drill";
 import type { HelpTopic } from "@/features/dashboard/help";
@@ -59,7 +59,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
           subtitle="Median days, start to done"
           help="production"
           figure={making}
-          format={formatDays}
+          format={formatWholeDays}
           better="lower"
           countLabel="finished"
           comparisonLabel={period.comparisonLabel}
@@ -72,7 +72,7 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
           subtitle="Median days, booked to start"
           help="waiting"
           figure={queue}
-          format={formatDays}
+          format={formatWholeDays}
           better="lower"
           countLabel="finished"
           comparisonLabel={period.comparisonLabel}

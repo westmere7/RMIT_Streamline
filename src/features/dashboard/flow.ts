@@ -235,6 +235,11 @@ export function formatDays(days: number): string {
   return `${days < 10 ? days.toFixed(1).replace(/\.0$/, "") : Math.round(days)} d`;
 }
 
+/** For figures counted in whole calendar days (production, waiting): nought is "0 d", not "<1 h". */
+export function formatWholeDays(days: number): string {
+  return days < 1 ? "0 d" : formatDays(days);
+}
+
 export function formatPercent(value: number): string {
   return `${Math.round(value)}%`;
 }

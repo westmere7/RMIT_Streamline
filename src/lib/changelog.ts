@@ -18,8 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.177.1",
+    date: "2026-11-28",
+    title: "Start day touch-ups",
+    changes: [
+      "A day on the Calendar lists the tasks running through it, not only the ones due.",
+      "Production time and Waiting read 0 d, not <1 h, for work started or finished the same day.",
+    ],
+  },
+  {
     version: "0.177.0",
-    date: "2026-11-29",
+    date: "2026-11-28",
     title: "Start day",
     changes: [
       "Every board has a Start day column: the day the team begins, set by the team.",
