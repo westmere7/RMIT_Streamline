@@ -146,6 +146,7 @@ function cellSortKey(column: BoardColumn, value: ColumnValue | undefined, ctx: P
       return names.length ? names.join(", ") : null;
     }
     case "DATE":
+    case "START_DATE":
       return value.date;
     case "TIMELINE":
       return value.start ?? value.end;

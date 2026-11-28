@@ -4,7 +4,7 @@ import * as React from "react";
 import { BRAND_RED, ChartTooltip, compactCount, formatCount, niceScale, useSize } from "@/features/dashboard/charts/chart-utils";
 import { KineticNumber, useSprings } from "@/features/dashboard/charts/motion";
 import { ChartEmpty, RankedBars } from "@/features/dashboard/charts/ranked-bars";
-import { finishedIn, formatDays, formatPercent, inAndOut, onTime, sentBack, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import { finishedIn, formatDays, formatPercent, inAndOut, onTime, productionTime, sentBack, turnaround, waitingTime, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
 import type { TaskFact } from "@/features/dashboard/analytics";
 import { useDrill, type DrillRequest } from "@/features/dashboard/drill/drill";
 import type { HelpTopic } from "@/features/dashboard/help";
@@ -28,6 +28,8 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
   const current = period.current;
   const finished = React.useMemo(() => finishedIn(facts, current, teamIds), [facts, current, teamIds]);
   const speed = React.useMemo(() => turnaround(facts, period, teamIds), [facts, period, teamIds]);
+  const making = React.useMemo(() => productionTime(facts, period, teamIds), [facts, period, teamIds]);
+  const queue = React.useMemo(() => waitingTime(facts, period, teamIds), [facts, period, teamIds]);
   const punctual = React.useMemo(() => onTime(facts, period, teamIds), [facts, period, teamIds]);
   const returned = React.useMemo(() => sentBack(facts, period, teamIds), [facts, period, teamIds]);
   const flow = React.useMemo(() => inAndOut(facts, period, teamIds, today), [facts, period, teamIds, today]);
@@ -51,6 +53,32 @@ export function FlowSection({ facts, report, prefs, today, links }: DashboardVie
           teamHref={teamHref}
           drill={drill ? { tasks: finished, subtitle: `Finished in ${period.label}`, open: drill } : undefined}
           testId="dashboard-turnaround"
+        />
+        <RatePanel
+          title="Production time"
+          subtitle="Median days, start to done"
+          help="production"
+          figure={making}
+          format={formatDays}
+          better="lower"
+          countLabel="finished"
+          comparisonLabel={period.comparisonLabel}
+          teamHref={teamHref}
+          drill={drill ? { tasks: finished, subtitle: `Finished in ${period.label}`, open: drill } : undefined}
+          testId="dashboard-production"
+        />
+        <RatePanel
+          title="Waiting"
+          subtitle="Median days, booked to start"
+          help="waiting"
+          figure={queue}
+          format={formatDays}
+          better="lower"
+          countLabel="finished"
+          comparisonLabel={period.comparisonLabel}
+          teamHref={teamHref}
+          drill={drill ? { tasks: finished, subtitle: `Finished in ${period.label}`, open: drill } : undefined}
+          testId="dashboard-waiting"
         />
         <RatePanel
           title="On time"

@@ -3,7 +3,7 @@ import { formatHours, hasAnyRate } from "@/domain";
 import { assetEffortMix, assetMix, priorityMix, sizeMix, teamHex, type NamedCount } from "@/features/dashboard/analytics";
 import { formatCount, niceScale } from "@/features/dashboard/charts/chart-utils";
 import { treemapLayout } from "@/features/dashboard/charts/treemap";
-import { formatDays, formatPercent, inAndOut, onTime, sentBack, turnaround, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
+import { formatDays, formatPercent, inAndOut, onTime, productionTime, sentBack, turnaround, waitingTime, type FlowBucket, type RateFigure } from "@/features/dashboard/flow";
 import { DASHBOARD_HELP, type HelpTopic } from "@/features/dashboard/help";
 import {
   assignedWorkload,
@@ -771,6 +771,8 @@ export function reportSections(props: DashboardViewProps): Section[] {
 
   const details = operationsDetails(ops);
   const speed = turnaround(facts, period, prefs.teamIds);
+  const making = productionTime(facts, period, prefs.teamIds);
+  const queue = waitingTime(facts, period, prefs.teamIds);
   const punctual = onTime(facts, period, prefs.teamIds);
   const returned = sentBack(facts, period, prefs.teamIds);
   const flow = inAndOut(facts, period, prefs.teamIds, today);
@@ -832,6 +834,8 @@ export function reportSections(props: DashboardViewProps): Section[] {
   }
   sections.push(
     { topic: "turnaround", title: "Turnaround", subtitle: "Median days, made to done", figure: ratePanel(speed, formatDays, "lower", "finished", period.comparisonLabel) },
+    { topic: "production", title: "Production time", subtitle: "Median days, start to done", figure: ratePanel(making, formatDays, "lower", "finished", period.comparisonLabel) },
+    { topic: "waiting", title: "Waiting", subtitle: "Median days, booked to start", figure: ratePanel(queue, formatDays, "lower", "finished", period.comparisonLabel) },
     { topic: "onTime", title: "On time", subtitle: "Finished by the due date", figure: ratePanel(punctual, formatPercent, "higher", "with a due date", period.comparisonLabel, 100) },
     { topic: "sentBack", title: "Sent back", subtitle: `Reopened, or returned from review · ${formatCount(returned.times)} ${returned.times === 1 ? "time" : "times"}`, figure: ratePanel(returned, formatPercent, "lower", "finished", period.comparisonLabel, 100) },
     { topic: "inAndOut", title: "In and out", subtitle: `New and finished tasks by ${flow.weekly ? "week" : "month"} · ${period.label}`, figure: inOutColumns(flow.buckets), wide: true },

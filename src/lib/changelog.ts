@@ -18,6 +18,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.177.0",
+    date: "2026-11-29",
+    title: "Start day",
+    changes: [
+      "Every board has a Start day column: the day the team begins, set by the team.",
+      "Start day and Due date fill an empty Timeline; when they'd change one that says something else, you're asked first.",
+      "The first time a task moves to In progress, an empty Start day is set to today.",
+      "Dashboard: Production time (start to done) and Waiting (booked to start) beside Turnaround. With no Start day, the start is the day the task reached the team.",
+      "The Calendar draws a task from its Start day to its deadline.",
+    ],
+  },
+  {
     version: "0.176.0",
     date: "2026-11-28",
     title: "Calendar layouts, density and lines",

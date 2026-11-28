@@ -394,7 +394,7 @@ export class AutomationEngine {
       values
         .filter((v) => {
           const value = v.value;
-          if (value.type === "DATE") return value.date === date;
+          if (value.type === "DATE" || value.type === "START_DATE") return value.date === date;
           if (value.type === "TIMELINE") return value.end === date;
           return false;
         })
@@ -659,7 +659,7 @@ export class AutomationEngine {
         if (action.kind === "set_date_relative") {
           next = shift(this.clock().date);
         } else {
-          const from = current?.type === "DATE" ? current.date : current?.type === "TIMELINE" ? current.end : null;
+          const from = current?.type === "DATE" || current?.type === "START_DATE" ? current.date : current?.type === "TIMELINE" ? current.end : null;
           // Nothing to move. Said rather than guessed: a rule that pushes a
           // deadline back a week should not invent one for a task that has none.
           if (!from) return `${column.name} is empty, so there was nothing to move`;
@@ -668,7 +668,9 @@ export class AutomationEngine {
         const value: ColumnValue =
           column.type === "TIMELINE"
             ? { type: "TIMELINE", start: current?.type === "TIMELINE" ? current.start : next, end: next }
-            : { type: "DATE", date: next };
+            : column.type === "START_DATE"
+              ? { type: "START_DATE", date: next }
+              : { type: "DATE", date: next };
         await this.items.setValue(item!.id, column.id, value, { column, item: item!, board, users }, actorFor(context));
         return `Set ${column.name} to ${next}`;
       }

@@ -78,7 +78,7 @@ describe("Task Linking", () => {
     const views = await services.links.listForItem(sem1.id);
     expect(views[0]?.board.id).toBe(SEED_BOARD_IDS.dooh);
     // Every board holds the special columns, so those always line up; a plain one only by name.
-    expect(views[0]?.mapping.mapped.map((m) => m.source.name)).toEqual(["Owner", "Status", "Priority", "Timeline", "Due Date", "Requester", "Department", "Size", "Brief"]);
+    expect(views[0]?.mapping.mapped.map((m) => m.source.name)).toEqual(["Owner", "Status", "Priority", "Timeline", "Due Date", "Requester", "Start day", "Department", "Size", "Brief"]);
     expect(views[0]?.mapping.unmapped.map((c) => c.name)).toEqual(["Channel"]);
   });
 
@@ -119,7 +119,8 @@ describe("Task Linking", () => {
       labelId: "working",
     });
     expect(await valueOf(target.id, SEED_BOARD_IDS.alwayson, "Status")).toEqual({ type: "STATUS", labelId: "working" });
-    const mirrored = (await services.repos.activities.listByItem(target.id)).find((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED");
+    // Moving into progress also gives the empty Start day today's date, so the Status change is picked out by name.
+    const mirrored = (await services.repos.activities.listByItem(target.id)).find((a) => a.eventType === "ITEM_COLUMN_VALUE_UPDATED" && a.metadata?.columnName === "Status");
     expect(mirrored?.metadata).toMatchObject({
       columnName: "Status",
       to: "In Progress",

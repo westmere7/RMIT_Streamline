@@ -24,6 +24,8 @@ export type HelpTopic =
   | "workload"
   | "matrix"
   | "turnaround"
+  | "production"
+  | "waiting"
   | "onTime"
   | "sentBack"
   | "inAndOut"
@@ -119,6 +121,19 @@ export const DASHBOARD_HELP: Record<HelpTopic, PanelHelpText> = {
     counted: "The same work as the bars above, in the chosen measure, with a column per department; the departments with the least work share a final column.",
     read: "It shows who the go-to person is for each department. One name carrying most of a department's work is a risk: when they are away, that department's work stalls.",
     act: "Spread knowledge of the biggest departments across at least two people, and use it to decide who joins which stakeholder meeting.",
+  },
+  production: {
+    shows: "How long the making takes: from the day production began to the day the work was done, as the middle value for work finished in the period.",
+    counted:
+      "Days from a task's start to its last move into Done. The start is the task's timeline start, else its Start day, else the day it reached the team, else the day it was booked. The middle value (median), compared with the same stretch last year.",
+    read: "Turnaround minus waiting, roughly: the part the team controls. Rising production time with steady sizes means the work itself is getting harder, or people are spread too thin.",
+    act: "Compare teams and departments. Ask the team to set a Start day when they begin, so this reads their real start rather than the day work arrived.",
+  },
+  waiting: {
+    shows: "How long work waits before the team starts it: from booked to the day production began, as the middle value for work finished in the period.",
+    counted: "Days from a task being booked or made to its start (timeline start, else Start day, else the day it reached the team). The middle value (median).",
+    read: "The queue. A long wait with a short production time means there is enough skill but not enough hands, or work is booked far ahead.",
+    act: "If the wait grows, look at intake: what arrives with no deadline, and what sits in Task Allocation before it reaches a team.",
   },
   turnaround: {
     shows: "How long work takes, from the task being created to being done, as the middle value for work finished in the period.",

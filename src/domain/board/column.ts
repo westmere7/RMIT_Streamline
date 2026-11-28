@@ -17,6 +17,7 @@ export const COLUMN_TYPES = [
   "REQUESTER",
   "PEOPLE",
   "DATE",
+  "START_DATE",
   "TIMELINE",
   "NUMBER",
   "PLAIN_DATE",
@@ -253,6 +254,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   PEOPLE: "People",
   REQUESTER: "Requester",
   DATE: "Due date",
+  START_DATE: "Start day",
   TIMELINE: "Timeline",
   NUMBER: "Number",
   PLAIN_DATE: "Date",
@@ -284,6 +286,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<ColumnType, number> = {
   PEOPLE: 130,
   REQUESTER: 130,
   DATE: 130,
+  START_DATE: 130,
   TIMELINE: 190,
   NUMBER: 110,
   PLAIN_DATE: 120,
@@ -434,7 +437,7 @@ export function hasEditableLabels(column: BoardColumn): boolean {
  * Naming is still the board's business: a team that calls its PIC column
  * "Designer" is understood perfectly well.
  */
-export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "REQUESTER", "DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "PROGRESS", "BRIEF", "BOOKED_AT"];
+export const SYSTEM_COLUMN_TYPES: readonly ColumnType[] = ["STATUS", "PERSON", "REQUESTER", "DATE", "START_DATE", "TIMELINE", "PRIORITY", "STAKEHOLDER", "SIZE", "ASSETS_RECAP", "PROGRESS", "BRIEF", "BOOKED_AT"];
 
 /**
  * What each type is for, shown when the type is hovered in the picker.
@@ -464,6 +467,7 @@ export const COLUMN_TYPE_PURPOSE: Record<ColumnType, string> = {
   STATUS: "How the work is going. Drives completion, My Work and the dashboard.",
   PERSON: "Who is doing the work. Feeds workload and My Work.",
   DATE: "The deadline. Overdue and the calendar read it.",
+  START_DATE: "When the team begins the work. Production time on the dashboard runs from it; with the deadline it fills the timeline.",
   TIMELINE: "Start and end. Drives the Gantt and timeline views.",
   PRIORITY: "Four fixed steps, the same on every board.",
   STAKEHOLDER: "Who the work is for, from Settings → Departments.",

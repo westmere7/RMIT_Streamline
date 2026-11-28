@@ -240,7 +240,7 @@ function validate(
     case "date_arrives": {
       const found = column(trigger.columnId);
       if (!found) throw new AutomationError("Pick a date column for the trigger.");
-      if (found.type !== "DATE" && found.type !== "TIMELINE") throw new AutomationError(`${found.name} does not hold a date.`);
+      if (found.type !== "DATE" && found.type !== "START_DATE" && found.type !== "TIMELINE") throw new AutomationError(`${found.name} does not hold a date.`);
       assertHour(trigger.atHour);
       break;
     }
@@ -278,7 +278,7 @@ function validate(
       case "set_subitems_value": {
         const found = column(action.columnId);
         if (!found) throw new AutomationError("Pick a column for every action.");
-        if ((action.kind === "shift_date" || action.kind === "set_date_relative") && found.type !== "DATE" && found.type !== "TIMELINE") {
+        if ((action.kind === "shift_date" || action.kind === "set_date_relative") && found.type !== "DATE" && found.type !== "START_DATE" && found.type !== "TIMELINE") {
           throw new AutomationError(`${found.name} does not hold a date.`);
         }
         if ((action.kind === "assign_person" || action.kind === "unassign_person") && found.type !== "PERSON" && found.type !== "PEOPLE") {
@@ -585,6 +585,7 @@ function labelOrPlain(column: BoardColumn | undefined, value: ColumnValue): stri
     case "CHECKBOX":
       return value.checked ? "ticked" : "unticked";
     case "DATE":
+    case "START_DATE":
       return value.date ?? "";
     case "TIMELINE":
       return [value.start, value.end].filter(Boolean).join(" to ");

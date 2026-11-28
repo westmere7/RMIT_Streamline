@@ -39,6 +39,8 @@ function task(overrides: Partial<TaskFact> = {}): TaskFact {
     createdAt: "2026-03-01",
     dueDate: "2026-03-15",
     startDate: null,
+    productionStart: overrides.createdAt ?? "2026-03-01",
+    startSet: false,
     completedAt: null,
     status: "other",
     statusLabel: "Working",

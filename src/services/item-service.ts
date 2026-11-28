@@ -16,7 +16,7 @@ import type {
   NotificationInput,
   User,
 } from "@/domain";
-import { EMPTY_ARCHIVE_LINK_IMPACT, INTAKE_MANUAL_MESSAGE, INTAKE_MOVE_MESSAGE, emptyValueFor, intakeGroupOf, normaliseTicket, otherEndOf } from "@/domain";
+import { EMPTY_ARCHIVE_LINK_IMPACT, INTAKE_MANUAL_MESSAGE, INTAKE_MOVE_MESSAGE, dateTrio, emptyValueFor, intakeGroupOf, normaliseTicket, otherEndOf, planDateSync, readDateState, resolveColumnRoles, statusLabelRole, trioPart } from "@/domain";
 import type { Repositories } from "@/data/repositories";
 import { NotFoundError } from "@/data/repositories";
 import { richTextToPlain } from "@/lib/rich-text";
@@ -95,6 +95,12 @@ export interface SetValueContext {
   users: readonly User[];
   /** The write puts a Brief back to the brief as booked; the log says so. */
   reverted?: boolean;
+  /**
+   * False when the caller keeps Start day, Due date and Timeline in step itself
+   * (the board, which asks before overwriting). Otherwise the empty ones are
+   * filled here.
+   */
+  dateSync?: boolean;
 }
 
 export interface MoveItemInput {
@@ -313,6 +319,7 @@ export class ItemService {
     const existing = (await this.repos.items.listValuesByItem(itemId)).find((v) => v.columnId === columnId);
     const result = await this.repos.items.setValue(itemId, columnId, value);
     await this.links.propagate(itemId, { kind: "value", columnId, value }, actorId);
+    await this.followDates(itemId, columnId, value, ctx, actorId);
 
     // Compared in full and quoted short: two briefs that differ in their last
     // paragraph read the same for eighty characters, and clipping before the
@@ -391,6 +398,44 @@ export class ItemService {
     await this.repos.activities.create(activity);
     if (notifications.length) await this.notifications.deliver(notifications);
     return result;
+  }
+
+  /**
+   * What a date or status write sets off: the first move into an "under way"
+   * status gives an empty Start day today's date (Vietnam), and a date write
+   * fills whichever of Start day, Due date and Timeline is empty. Never
+   * overwrites: a date someone set is theirs.
+   */
+  private async followDates(itemId: EntityId, columnId: EntityId, value: ColumnValue, ctx: SetValueContext, actorId: EntityId): Promise<void> {
+    const type = value.type;
+    if (type !== "STATUS" && type !== "DATE" && type !== "START_DATE" && type !== "TIMELINE") return;
+    if (type !== "STATUS" && ctx.dateSync === false) return;
+    try {
+      const columns = await this.repos.boards.listColumns(ctx.board.id);
+      const trio = dateTrio(columns);
+      const values = await this.repos.items.listValuesByItem(itemId);
+      const valueOf = (id: string) => values.find((v) => v.columnId === id)?.value;
+      const follow = { ...ctx, dateSync: false };
+
+      if (type === "STATUS") {
+        const status = resolveColumnRoles(columns.filter((c) => !c.removed)).status;
+        if (!trio.start || status?.id !== columnId || status.settings.kind !== "status") return;
+        if (statusLabelRole(status.settings, value.labelId) !== "progress") return;
+        const now = readDateState(trio, valueOf);
+        if (now.start) return;
+        const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+        await this.setValue(itemId, trio.start.id, { type: "START_DATE", date: today }, { ...follow, column: trio.start }, actorId);
+        for (const fill of planDateSync(trio, { ...now, start: today }, "start").fills) await this.setValue(itemId, fill.column.id, fill.value, { ...follow, column: fill.column }, actorId);
+        return;
+      }
+
+      const part = trioPart(trio, columnId);
+      if (!part) return;
+      for (const fill of planDateSync(trio, readDateState(trio, valueOf), part).fills) await this.setValue(itemId, fill.column.id, fill.value, { ...follow, column: fill.column }, actorId);
+    } catch (error) {
+      // The write itself stood; keeping the others in step is a courtesy.
+      console.warn("Could not keep the task's dates in step", error);
+    }
   }
 
   private async ownersOf(itemId: EntityId, boardId: EntityId): Promise<EntityId[]> {

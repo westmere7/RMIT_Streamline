@@ -11,6 +11,7 @@ export * from "./team/team";
 export * from "./board/board";
 export * from "./board/column";
 export * from "./board/column-role";
+export * from "./board/date-sync";
 export * from "./board/date-time-format";
 export * from "./board/countdown";
 export * from "./board/progress";

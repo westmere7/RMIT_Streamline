@@ -1,6 +1,6 @@
 import type { AssetRates, Board, BoardColumn, ColorToken, ColumnRoleMap, ColumnValue, DashboardSnapshot, ISODate, ISODateTime, ItemAsset, StatusChange, StatusColumnSettings, StatusLabelRole, Team, TShirtSize, User } from "@/domain";
 import { localDateOf } from "./local-date";
-import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, resolveColumnRoles, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
+import { assetCount, BOOKING_ASSET_TYPES, effortHours as sumEffortHours, formatHours, productionStart, resolveColumnRoles, statusLabelRole, T_SHIRT_SIZES } from "@/domain";
 import { colorClasses, tagColorFor } from "@/lib/colors";
 
 /**
@@ -132,6 +132,13 @@ export interface TaskFact {
   createdAt: ISODate;
   dueDate: ISODate | null;
   startDate: ISODate | null;
+  /**
+   * The day production began: the timeline's start, else the Start day, else
+   * the day the task reached its team, else the day it was booked or made.
+   */
+  productionStart: ISODate;
+  /** True when the team set the start (a Start day or a timeline), not a fallback. */
+  startSet: boolean;
   /** The day the work was finished, for done tasks: the last asset ticked off, else the item's last change. */
   completedAt: ISODate | null;
   status: StatusBucket;
@@ -371,6 +378,12 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
         if (v.end && dueDate === null) dueDate = v.end;
       }
     }
+    // The Start day the team set, and with it the day production began.
+    const startColumn = columns.find((c) => c.type === "START_DATE" && !c.removed);
+    const startValue = startColumn ? getValue(item.id, startColumn.id) : undefined;
+    const startDay = startValue?.type === "START_DATE" ? startValue.date : null;
+    const begun = productionStart({ timelineStart: startDate, startDate: startDay, allocatedOn: item.allocatedAt ? dateOf(item.allocatedAt) : null, createdOn: dateOf(item.createdAt) });
+    if (startDate === null) startDate = startDay;
 
     let priority: string | null = null;
     let size: TShirtSize | null = null;
@@ -481,6 +494,8 @@ export function buildFacts(snapshot: DashboardSnapshot): DashboardFacts {
       createdAt: dateOf(item.createdAt),
       dueDate,
       startDate,
+      productionStart: begun.day,
+      startSet: begun.set,
       completedAt,
       status,
       statusLabel,

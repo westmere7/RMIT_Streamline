@@ -1,12 +1,14 @@
 "use client";
 
+import type { DateWrite } from "@/domain";
+import { askDateSync } from "@/features/boards/date-sync-confirm";
 import { useQueryClient } from "@tanstack/react-query";
 import { askLeaveIntake } from "@/features/booking/leave-intake-confirm";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst, intakeGroupOf } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst, intakeGroupOf, dateTrio, planDateSync, readDateState, trioPart } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -187,9 +189,35 @@ export function useBoardMutations(boardId: string) {
    * cell's saves go one after another: a slow first one cannot land after
    * the second and leave the older value stored.
    */
+  /** The latest setValue, for the date follow-ups below to call. */
+  const setValueRef = useRef<((item: Item, column: BoardColumn, value: ColumnValue, options?: { reverted?: boolean; sync?: boolean }) => Promise<unknown>) | null>(null);
+
+  /**
+   * Start day, Due date and Timeline kept in step after one of them changes:
+   * the empty ones are filled at once; ones holding another date are offered
+   * (date-sync-confirm), and kept as they are on "Keep".
+   */
+  const followDates = useCallback(
+    (item: Item, column: BoardColumn, value: ColumnValue) => {
+      if (value.type !== "DATE" && value.type !== "START_DATE" && value.type !== "TIMELINE") return;
+      const snapshot = queryClient.getQueryData<BoardSnapshot>(key);
+      if (!snapshot) return;
+      const trio = dateTrio(snapshot.columns);
+      const part = trioPart(trio, column.id);
+      if (!part) return;
+      const valueOf = (id: string) => (id === column.id ? value : snapshot.values.find((v) => v.itemId === item.id && v.columnId === id)?.value);
+      const plan = planDateSync(trio, readDateState(trio, valueOf), part);
+      const write = (w: DateWrite) => void setValueRef.current?.(item, w.column, w.value, { sync: false });
+      plan.fills.forEach(write);
+      if (plan.conflicts.length) void askDateSync(item.name, plan.conflicts).then((yes) => yes && plan.conflicts.forEach(write));
+    },
+    [queryClient, key],
+  );
+
   const setValue = useCallback(
-    (item: Item, column: BoardColumn, value: ColumnValue, options?: { reverted?: boolean }) => {
+    (item: Item, column: BoardColumn, value: ColumnValue, options?: { reverted?: boolean; sync?: boolean }) => {
       if (completesTask(item, column, value)) celebrate();
+      if (options?.sync !== false) followDates(item, column, value);
       const id = `${item.id}:${column.id}`;
       const waiting = cellWrites.current.get(id);
       if (waiting && !waiting.sent) {
@@ -212,7 +240,8 @@ export function useBoardMutations(boardId: string) {
           // The cell's previous save first, however it ended.
           await before.catch(() => undefined);
           if (sameValue(write.value, original)) return undefined;
-          return services.items.setValue(item.id, column.id, write.value, { column, item, board: ws.boardById(boardId)!, users: ws.users, reverted: write.reverted }, user.id);
+          // The board keeps the dates in step itself (followDates), asking first; the server only fills when nobody can be asked.
+          return services.items.setValue(item.id, column.id, write.value, { column, item, board: ws.boardById(boardId)!, users: ws.users, reverted: write.reverted, dateSync: false }, user.id);
         },
         "Could not save the change",
       );
@@ -223,8 +252,11 @@ export function useBoardMutations(boardId: string) {
       });
       return write.promise;
     },
-    [run, services, ws, boardId, user.id, completesTask, queryClient, key],
+    [run, services, ws, boardId, user.id, completesTask, queryClient, key, followDates],
   );
+  useEffect(() => {
+    setValueRef.current = setValue;
+  }, [setValue]);
 
 
   const writeName = useCallback(

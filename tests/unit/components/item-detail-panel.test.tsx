@@ -79,7 +79,8 @@ describe("ItemDetailPanel", () => {
     await user.click(await screen.findByRole("option", { name: "In Progress" }));
     await waitFor(() => expect(within(panel).getByRole("gridcell", { name: /Status: In Progress/ })).toBeInTheDocument());
     await user.click(screen.getByRole("tab", { name: "Activity" }));
-    expect(await screen.findByText(/changed/)).toBeInTheDocument();
+    // The status change, and the Start day the move into progress filled in.
+    expect((await screen.findAllByText(/changed/)).length).toBeGreaterThan(0);
     expect(screen.getByText("In Progress", { selector: "span" })).toBeInTheDocument();
   });
 
@@ -103,8 +104,8 @@ describe("ItemDetailPanel", () => {
     // Assets are always shared, then name and description count as two fields,
     // then Owner, Status, Priority and Due Date, and the special columns every
     // board holds: Timeline, Department, Size and Brief, and the updates.
-    expect(linked).toHaveTextContent("Syncs 13 fields");
-    expect(within(linked).getByTitle(/Syncs assets, name, description, updates and replies, Owner, Status, Priority, Timeline, Due Date, Requester, Department, Size, Brief/)).toBeInTheDocument();
+    expect(linked).toHaveTextContent("Syncs 14 fields");
+    expect(within(linked).getByTitle(/Syncs assets, name, description, updates and replies, Owner, Status, Priority, Timeline, Due Date, Requester, Start day, Department, Size, Brief/)).toBeInTheDocument();
 
     await user.click(within(section).getByTestId("link-item-button"));
     const dialog = await screen.findByTestId("link-item-dialog");

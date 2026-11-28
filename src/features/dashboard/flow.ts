@@ -91,6 +91,48 @@ export function turnaround(facts: DashboardFacts, period: ResolvedPeriod, teamId
   };
 }
 
+const dayGap = (from: ISODate, to: ISODate) => Math.max(0, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS));
+
+/** Days from production beginning (Start day, else reaching the team, else booked) to done. */
+export function productionDays(task: TaskFact): number | null {
+  if (!task.flow.finishedAt) return null;
+  return dayGap(task.productionStart, dayOf(task.flow.finishedAt));
+}
+
+/** Days the work waited before production began: booked or made, to the start. */
+export function waitingDays(task: TaskFact): number {
+  return dayGap(task.createdAt, task.productionStart);
+}
+
+export const medianProduction = (tasks: TaskFact[]) => median(tasks.map(productionDays).filter((d): d is number => d !== null));
+export const medianWaiting = (tasks: TaskFact[]) => median(tasks.map(waitingDays));
+
+/** Median days from the start of production to done, for the work finished in the period. */
+export function productionTime(facts: DashboardFacts, period: ResolvedPeriod, teamIds: string[] | null): RateFigure {
+  const now = finishedIn(facts, period.current, teamIds);
+  const then = comparisonRange(facts, period);
+  return {
+    value: medianProduction(now),
+    comparison: then ? medianProduction(finishedIn(facts, then, teamIds)) : null,
+    count: now.length,
+    byTeam: grouped(now, byTeam, medianProduction, "task"),
+    byDepartment: grouped(now, byDepartment, medianProduction, "task"),
+  };
+}
+
+/** Median days finished work waited before production began. */
+export function waitingTime(facts: DashboardFacts, period: ResolvedPeriod, teamIds: string[] | null): RateFigure {
+  const now = finishedIn(facts, period.current, teamIds);
+  const then = comparisonRange(facts, period);
+  return {
+    value: medianWaiting(now),
+    comparison: then ? medianWaiting(finishedIn(facts, then, teamIds)) : null,
+    count: now.length,
+    byTeam: grouped(now, byTeam, medianWaiting, "task"),
+    byDepartment: grouped(now, byDepartment, medianWaiting, "task"),
+  };
+}
+
 /** Of the finished work that had a due date, the share done by it, in per cent. */
 export function onTimeShare(tasks: TaskFact[]): number | null {
   const dated = tasks.filter((t) => t.dueDate !== null);

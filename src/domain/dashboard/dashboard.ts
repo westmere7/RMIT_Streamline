@@ -330,6 +330,7 @@ function isPublishableColumn(column: BoardColumn): boolean {
     case "STATUS":
     case "PRIORITY":
     case "DATE":
+    case "START_DATE":
     case "TIMELINE":
     case "TAGS":
     case "SIZE":

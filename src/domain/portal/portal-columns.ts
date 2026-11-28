@@ -60,7 +60,7 @@ const BUILT_IN_NAMES: Record<PortalBuiltInKey, string> = { ...PORTAL_COLUMN_LABE
  * a button is staff's to press, and Last updated is worked out on the board
  * from activity a visitor never sees.
  */
-const NOT_CARRIED: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "TIMELINE", "ASSETS_RECAP", "BRIEF", "STAKEHOLDER", "BOOKED_AT", "DEPENDENCY", "LAST_UPDATED", "BUTTON"]);
+const NOT_CARRIED: ReadonlySet<ColumnType> = new Set<ColumnType>(["STATUS", "PRIORITY", "PERSON", "DATE", "START_DATE", "TIMELINE", "ASSETS_RECAP", "BRIEF", "STAKEHOLDER", "BOOKED_AT", "DEPENDENCY", "LAST_UPDATED", "BUTTON"]);
 
 export function isPortalBuiltInKey(key: string): key is PortalBuiltInKey {
   return (PORTAL_BUILT_IN_ORDER as readonly string[]).includes(key);

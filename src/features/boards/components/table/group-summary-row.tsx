@@ -87,6 +87,12 @@ function ColumnSummary({ column, items }: { column: BoardColumn; items: readonly
       return <DateSpan from={dates[0]!} to={dates[dates.length - 1]!} late={late} />;
     }
 
+    case "START_DATE": {
+      const dates = values.map((v) => (v?.type === "START_DATE" ? v.date : null)).filter((d): d is string => !!d).sort();
+      if (dates.length === 0) return <Faint>no dates</Faint>;
+      return <DateSpan from={dates[0]!} to={dates[dates.length - 1]!} late={0} />;
+    }
+
     case "TIMELINE": {
       const starts = values.map((v) => (v?.type === "TIMELINE" ? v.start : null)).filter((d): d is string => !!d).sort();
       const ends = values.map((v) => (v?.type === "TIMELINE" ? v.end : null)).filter((d): d is string => !!d).sort();

@@ -33,7 +33,7 @@ function People({ ids, users, links }: { ids: readonly string[]; users: readonly
  */
 function formatValue(columnType: string | undefined, value: string | null | undefined): string {
   if (!value) return "empty";
-  if (columnType === "DATE") return formatShortDate(value) || value;
+  if (columnType === "DATE" || columnType === "START_DATE") return formatShortDate(value) || value;
   return clipActivityValue(value) ?? "empty";
 }
 

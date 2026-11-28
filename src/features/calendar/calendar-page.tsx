@@ -17,7 +17,8 @@ import type { Board, CalendarKeyDate, CalendarTaskRow, ColumnValue, DateConflict
 import { createFocusStore } from "@/features/calendar/focus";
 import { DetailsPanel, HeadsUp, MiniMonth } from "@/features/calendar/panel";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { addDaysIso, dayCapacity, daysBetween, dueDateConflicts, isoToUtc, normaliseAssetRates, weeklyHoursOf } from "@/domain";
+import { addDaysIso, dateTrio, dayCapacity, daysBetween, dueDateConflicts, isoToUtc, normaliseAssetRates, planDateSync, readDateState, trioPart, weeklyHoursOf } from "@/domain";
+import { askDateSync } from "@/features/boards/date-sync-confirm";
 import { useServices } from "@/features/data/data-context";
 import { FeedDialog, HolidayDialog, KeyDateDialog, LeaveDialog } from "@/features/calendar/dialogs";
 import { calendarKeys, useCalendarColumns, useCalendarRealtime, useCalendarTasks, useHolidays, useKeyDates, useLeave } from "@/features/calendar/hooks";
@@ -211,13 +212,23 @@ export function CalendarPage() {
         } else value = { type: "DATE", date: addDaysIso(t.dueOn ?? t.endsOn, shift) };
         await services.items.setValue(item.id, column.id, value, { column, item, board, users: ws.users }, me);
         toast.success(`${t.name} moved to ${shortDay(addDaysIso(t.dueOn ?? t.endsOn, shift))}`);
+        // The empty dates were filled by the write; ones holding another date are offered.
+        const trio = dateTrio((columns.data ?? []).filter((c) => c.boardId === board.id));
+        const part = trioPart(trio, column.id);
+        if (part) {
+          const after = await services.repos.items.listValuesByItem(item.id);
+          const conflicts = planDateSync(trio, readDateState(trio, (id) => after.find((v) => v.columnId === id)?.value), part).conflicts;
+          if (await askDateSync(t.name, conflicts)) {
+            for (const w of conflicts) await services.items.setValue(item.id, w.column.id, w.value, { column: w.column, item, board, users: ws.users, dateSync: false }, me);
+          }
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Could not move the task");
       } finally {
         void queryClient.invalidateQueries({ queryKey: [...calendarKeys.all(ws.workspace.id), "tasks"] });
       }
     },
-    [ws, services, me, queryClient, canMove],
+    [ws, services, me, queryClient, canMove, columns.data],
   );
 
   // ---- the open task ----

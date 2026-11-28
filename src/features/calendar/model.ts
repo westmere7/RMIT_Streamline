@@ -88,6 +88,11 @@ export function buildTaskEvents(rows: readonly CalendarTaskRow[], columns: reado
       const e = iso(timeline.end) ?? s;
       if (s && e) span = { startsOn: s, endsOn: e < s ? s : e, column: timelineColumn };
     }
+    // No timeline, but a Start day: the task runs from it to the deadline.
+    const startColumn = byBoard.get(row.boardId)?.find((c) => c.type === "START_DATE") ?? null;
+    const startValue = value(startColumn);
+    const startDay = startValue?.type === "START_DATE" ? iso(startValue.date) : null;
+    if (!span && dueOn && dueColumn && startDay && startDay <= dueOn) span = { startsOn: startDay, endsOn: dueOn, column: dueColumn };
     if (!span && dueOn && dueColumn) span = { startsOn: dueOn, endsOn: dueOn, column: dueColumn };
     if (!span) continue;
 

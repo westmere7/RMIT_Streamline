@@ -37,6 +37,7 @@ export function displayValue(column: BoardColumn, value: ColumnValue | undefined
       return label?.name ?? null;
     }
     case "DATE":
+    case "START_DATE":
       return value.date ? formatShortDate(value.date) : null;
     case "TIMELINE":
       return value.start || value.end ? `${formatShortDate(value.start)} – ${formatShortDate(value.end)}` : null;

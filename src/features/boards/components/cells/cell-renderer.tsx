@@ -65,6 +65,8 @@ export function CellRenderer(props: CellProps) {
       return <PersonCell {...props} />;
     case "DATE":
       return <DateCell {...props} />;
+    case "START_DATE":
+      return <StartDateCell {...props} />;
     case "TIMELINE":
       return <TimelineCell {...props} />;
     case "TEXT":
@@ -643,6 +645,23 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
       }
     >
       {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "DATE", date })} onDone={close} />}
+    </PopoverCell>
+  );
+}
+
+/** The day the team begins: a date like the deadline, with no overdue colour. */
+export function StartDateCell({ item, column, value, onChange, readOnly, isDone, width }: CellProps) {
+  const v = valueOf("START_DATE", value);
+  return (
+    <PopoverCell
+      width={width ?? column.width}
+      disabled={readOnly}
+      align={columnAlign(column.type)}
+      ariaLabel={`${column.name}: ${v.date ? formatShortDate(v.date) : "not set"} for ${item.name}`}
+      testId="start-date-cell"
+      trigger={v.date ? <span className={cn("text-xs tabular", isDone && "text-muted-foreground")}>{formatShortDate(v.date)}</span> : <span className="text-2xs text-muted-foreground/60">—</span>}
+    >
+      {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "START_DATE", date })} onDone={close} />}
     </PopoverCell>
   );
 }

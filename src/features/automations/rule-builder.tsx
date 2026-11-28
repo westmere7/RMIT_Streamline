@@ -120,7 +120,7 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const hourWord = (hour: number) => (hour === 0 ? "midnight" : hour === 12 ? "midday" : hour < 12 ? `${hour}am` : `${hour - 12}pm`);
-const isDateColumn = (column: BoardColumn) => column.type === "DATE" || column.type === "TIMELINE";
+const isDateColumn = (column: BoardColumn) => column.type === "DATE" || column.type === "START_DATE" || column.type === "TIMELINE";
 const isPeopleColumn = (column: BoardColumn) => column.type === "PERSON" || column.type === "PEOPLE";
 const hasLabels = (column: BoardColumn) => column.type === "STATUS" || column.type === "DROPDOWN" || column.type === "PRIORITY";
 
@@ -1263,12 +1263,13 @@ function ValueEditor({
     );
   }
 
-  if (column.type === "DATE") {
+  if (column.type === "DATE" || column.type === "START_DATE") {
+    const type = column.type;
     return (
       <Input
         type="date"
-        value={value?.type === "DATE" ? (value.date ?? "") : ""}
-        onChange={(e) => onChange({ type: "DATE", date: e.target.value || null })}
+        value={value?.type === type ? (value.date ?? "") : ""}
+        onChange={(e) => onChange({ type, date: e.target.value || null })}
         aria-label="Value"
         className="h-8 w-40"
         data-testid="action-value"

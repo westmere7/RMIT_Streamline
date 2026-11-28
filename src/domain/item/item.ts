@@ -70,6 +70,8 @@ export type ColumnValue =
   /** Who asked for the work: a member, or the pending member a public booking made of them. */
   | { type: "REQUESTER"; userIds: EntityId[] }
   | { type: "DATE"; date: ISODate | null }
+  /** When the team begins the work: theirs to set, apart from the day it was booked. */
+  | { type: "START_DATE"; date: ISODate | null }
   | { type: "TIMELINE"; start: ISODate | null; end: ISODate | null }
   | { type: "NUMBER"; number: number | null }
   /** A calendar day, meaning nothing to deadlines. */
@@ -138,6 +140,7 @@ export function emptyValueFor(type: ColumnType): ColumnValue {
     case "REQUESTER":
       return { type, userIds: [] };
     case "DATE":
+    case "START_DATE":
       return { type, date: null };
     case "TIMELINE":
       return { type, start: null, end: null };
@@ -195,6 +198,7 @@ export function isEmptyValue(value: ColumnValue | undefined): boolean {
     case "REQUESTER":
       return value.userIds.length === 0;
     case "DATE":
+    case "START_DATE":
       return value.date === null;
     case "TIMELINE":
       return value.start === null && value.end === null;
