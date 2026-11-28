@@ -1,6 +1,28 @@
 import { expect, test } from "@playwright/test";
 import { openBoard, resetLocalData, row, signInAs, switchView } from "./helpers";
 
+/**
+ * Room for a drag from Backlog into Design with both rows on screen, as a
+ * person sees them. In the default 900 px window the target sits below the
+ * fold, the board scrolls itself mid-drag and the drop lands somewhere else.
+ */
+async function roomToDrag(page: import("@playwright/test").Page) {
+  await page.setViewportSize({ width: 1440, height: 1600 });
+  // The table lays itself out again for the taller window (its rows are
+  // virtualised); measure only once the Design rows have stopped moving.
+  const design = page.getByTestId("group-Design").getByTestId("item-row").first();
+  await expect(design).toBeInViewport();
+  let last = -1;
+  await expect
+    .poll(async () => {
+      const top = Math.round((await design.boundingBox())?.y ?? -2);
+      const still = top === last;
+      last = top;
+      return still;
+    }, { intervals: [150, 150, 150, 250, 250, 500] })
+    .toBe(true);
+}
+
 test.describe("board interactions", () => {
   test.beforeEach(async ({ page }) => {
     await resetLocalData(page);
@@ -77,6 +99,9 @@ test.describe("board interactions", () => {
   });
 
   test("moves an item between groups with drag and drop", async ({ page }) => {
+    await roomToDrag(page);
+    // A drag, a reload and the board read twice: past the default 30 s on a dev server.
+    test.setTimeout(60_000);
     const source = row(page, "Accessibility review of PDF export");
     const handle = source.getByTestId("item-drag-area");
     const target = row(page, "RMITinerary Independent");
@@ -96,6 +121,9 @@ test.describe("board interactions", () => {
   });
 
   test("previews the landing slot in the group being dragged over", async ({ page }) => {
+    await roomToDrag(page);
+    // The line is measured through polls while the board scrolls itself: ~33 s on a dev server.
+    test.setTimeout(60_000);
     const source = row(page, "Accessibility review of PDF export");
     const handle = source.getByTestId("item-drag-area");
     const target = row(page, "RMITinerary Independent");
@@ -172,6 +200,7 @@ test.describe("board interactions", () => {
   });
 
   test("keeps the drop line the same weight at the top of a group", async ({ page }) => {
+    await roomToDrag(page);
     // The line at the very first row sits level with the sticky column header,
     // which used to paint over most of it and make it look thinner there.
     const source = row(page, "Accessibility review of PDF export");

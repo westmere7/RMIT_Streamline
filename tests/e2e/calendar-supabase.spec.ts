@@ -32,25 +32,36 @@ test("the Calendar shows the workspace's tasks and holidays, and leave saves und
   test.setTimeout(180_000);
   const db = service();
   await signIn(page);
-  await page.goto("/workspace/rmit/calendar?view=month&d=2026-11-01");
-  await expect(page.getByTestId("calendar-month")).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("calendar-task").first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('[data-day="2026-11-24"] [data-testid="calendar-holiday"]')).toContainText("Vietnam Culture Day");
+  await page.goto("/workspace/rmit/calendar?view=year&d=2026-11-01");
+  await expect(page.getByTestId("calendar-year")).toBeVisible({ timeout: 60_000 });
+  // Every day of the year is a tile; busy ones are shaded, holidays marked.
+  await expect(page.getByTestId("heat-day")).toHaveCount(365);
+  await expect(page.locator('[data-testid="heat-day"]:not([data-level="0"])').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-testid="heat-day"][data-day="2026-11-24"] [data-testid="heat-public-holiday"]')).toHaveCount(1);
+  // No words on the days: the panel says what is on.
+  await expect(page.getByTestId("calendar-task")).toHaveCount(0);
 
-  // Each view draws.
-  for (const view of ["week", "agenda", "density", "lines", "roster", "year"] as const) {
-    await page.getByTestId(`calendar-view-${view}`).click();
-    await expect(page.getByTestId(`calendar-${view}`)).toBeVisible({ timeout: 15_000 });
-  }
+  // Hover a day for its tasks; click to pin it, and it stays when the pointer leaves.
+  await page.locator('[data-testid="heat-day"][data-day="2026-11-24"]').hover();
+  await expect(page.getByTestId("calendar-day-panel")).toHaveAttribute("data-day", "2026-11-24");
+  await expect(page.getByTestId("calendar-panel-holiday")).toContainText("Vietnam Culture Day");
+  const busy = page.locator('[data-testid="heat-day"]:not([data-level="0"])').first();
+  const busyDay = (await busy.getAttribute("data-day"))!;
+  await busy.click();
+  await page.getByTestId("calendar-period").hover();
+  await expect(page.getByTestId("calendar-day-panel")).toHaveAttribute("data-day", busyDay);
+  await expect(page.getByTestId("calendar-day-task").first()).toBeVisible();
 
-  // Hovering a day reads it in the details panel; hovering a line reads its task.
-  await page.getByTestId("calendar-view-lines").click();
-  await page.locator('[data-testid="lines-day"]').nth(9).hover();
-  await expect(page.getByTestId("calendar-details")).toHaveAttribute("data-day", /2026-11-10/);
-  await page.getByTestId("calendar-line").first().hover({ force: true });
-  await expect(page.getByTestId("calendar-task-detail")).toBeVisible();
-  await page.locator('[data-testid="mini-day"][data-day="2026-11-24"]').hover();
-  await expect(page.getByTestId("calendar-details")).toContainText("Vietnam Culture Day");
+  // The week: seven tiles, the same panel.
+  await page.getByTestId("calendar-view-week").click();
+  await expect(page.getByTestId("calendar-week").getByTestId("heat-day")).toHaveCount(7, { timeout: 15_000 });
+  await page.getByTestId("calendar-view-year").click();
+
+  // A task in the panel opens in the task pop-up.
+  await page.getByTestId("calendar-day-task").first().click();
+  await expect(page).toHaveURL(/task=/);
+  await page.goto("/workspace/rmit/calendar?view=year&d=2026-11-01");
+  await expect(page.getByTestId("calendar-year")).toBeVisible({ timeout: 60_000 });
 
   // Leave, through the dialog.
   const admin = (await db.from("profiles").select("id").eq("email", "admin@rmit.local").single()).data!;
@@ -66,38 +77,10 @@ test("the Calendar shows the workspace's tasks and holidays, and leave saves und
   await expect(dialog).toHaveCount(0, { timeout: 15_000 });
   const saved = (await db.from("leave_entries").select("id, starts_on, ends_on, kind, created_by").eq("workspace_id", ws.id).eq("note", "E2E leave").single()).data!;
   expect(saved).toMatchObject({ starts_on: "2026-12-07", ends_on: "2026-12-09", kind: "ANNUAL", created_by: admin.id });
-  await page.goto("/workspace/rmit/calendar?view=roster&d=2026-12-07");
-  await expect(page.locator(`[data-user-id="${admin.id}"] [data-testid="roster-leave"]`)).toHaveCount(3, { timeout: 30_000 });
+  await page.goto("/workspace/rmit/calendar?view=year&d=2026-12-07");
+  await page.locator('[data-testid="heat-day"][data-day="2026-12-08"]').click();
+  await expect(page.getByTestId("calendar-panel-leave")).toContainText("Admin", { timeout: 30_000 });
   await db.from("leave_entries").delete().eq("id", saved.id);
-});
-
-test("a task dragged to another day moves its deadline", async ({ page }) => {
-  test.setTimeout(180_000);
-  const db = service();
-  await signIn(page);
-  await page.goto("/workspace/rmit/calendar?view=month&d=2026-12-01");
-  await expect(page.getByTestId("calendar-task").first()).toBeVisible({ timeout: 60_000 });
-
-  // A task with a plain deadline, on a weekday with an empty weekday after it.
-  const chip = page.locator('[data-testid="calendar-day"] [data-testid="calendar-task"][draggable="true"]').first();
-  const itemId = (await chip.getAttribute("data-item-id"))!;
-  const fromDay = (await chip.locator("xpath=ancestor::*[@data-testid='calendar-day']").getAttribute("data-day"))!;
-  const rows = (await db.from("item_column_values").select("id, column_id, value_json").eq("item_id", itemId)).data!;
-  // The deadline moves where there is one; a timeline only where there is not.
-  const before = rows.find((r) => (r.value_json as { date?: string }).date === fromDay) ?? rows.find((r) => (r.value_json as { end?: string }).end === fromDay)!;
-  expect(before).toBeTruthy();
-  const toDay = new Date(Date.parse(`${fromDay}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10);
-  try {
-    await chip.dragTo(page.locator(`[data-testid="calendar-day"][data-day="${toDay}"]`));
-    await expect
-      .poll(async () => {
-        const v = (await db.from("item_column_values").select("value_json").eq("id", before.id).single()).data!.value_json as { date?: string; end?: string };
-        return v.date ?? v.end;
-      }, { timeout: 20_000 })
-      .toBe(toDay);
-  } finally {
-    await db.from("item_column_values").update({ value_json: before.value_json }).eq("id", before.id);
-  }
 });
 
 test("the private feed serves iCalendar and stops when replaced", async ({ page, request }) => {

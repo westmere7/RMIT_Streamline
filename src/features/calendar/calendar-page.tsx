@@ -1,32 +1,25 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Filter, Flag, LayoutPanelLeft, Link2, Palmtree, Plus } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Filter, Flag, Link2, Palmtree, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SkeletonLine } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import type { Board, CalendarKeyDate, CalendarTaskRow, ColumnValue, DateConflict, EntityId, ISODate, LeaveEntry, User, WorkingCalendar, WorkspaceHoliday } from "@/domain";
-import { createFocusStore } from "@/features/calendar/focus";
-import { DetailsPanel, HeadsUp, MiniMonth } from "@/features/calendar/panel";
-import { useMediaQuery } from "@/hooks/use-media-query";
-import { addDaysIso, dateTrio, dayCapacity, daysBetween, dueDateConflicts, isoToUtc, normaliseAssetRates, planDateSync, readDateState, trioPart, weeklyHoursOf } from "@/domain";
-import { askDateSync } from "@/features/boards/date-sync-confirm";
-import { useServices } from "@/features/data/data-context";
+import type { Board, CalendarKeyDate, CalendarTaskRow, ColorToken, DateConflict, EntityId, ISODate, LeaveEntry, User, WorkingCalendar, WorkspaceHoliday } from "@/domain";
+import { dueDateConflicts, normaliseAssetRates } from "@/domain";
 import { FeedDialog, HolidayDialog, KeyDateDialog, LeaveDialog } from "@/features/calendar/dialogs";
+import { createFocusStore, useFocus, type FocusStore } from "@/features/calendar/focus";
 import { calendarKeys, useCalendarColumns, useCalendarRealtime, useCalendarTasks, useHolidays, useKeyDates, useLeave } from "@/features/calendar/hooks";
 import {
   CALENDAR_LAYERS,
   CALENDAR_LAYER_LABELS,
-  CALENDAR_LAYOUTS,
-  CALENDAR_LAYOUT_LABELS,
   CALENDAR_VIEWS,
   CALENDAR_VIEW_LABELS,
   DEFAULT_FILTERS,
@@ -36,23 +29,24 @@ import {
   filterLeave,
   filterTasks,
   leaveOn,
-  loadByPersonDay,
   periodLabel,
+  readView,
   shortDay,
   stepAnchor,
+  taskCountByDay,
   todayInVietnam,
   viewRange,
   type CalendarFilters,
-  type CalendarLayout,
-  type CalendarView,
-  type TaskEvent,
 } from "@/features/calendar/model";
-import { AgendaView, DensityView, LinesView, MonthView, RosterView, WeekView, YearView, type CalendarActions, type CalendarData } from "@/features/calendar/views";
+import { DayPanel, HeatLegend, HeatWeek, HeatYear, type DayPanelProps, type HeatProps } from "@/features/calendar/views";
+import { useServices } from "@/features/data/data-context";
 import { TaskPanelHost } from "@/features/items/task-panel-host";
 import { prefetchTaskPanel } from "@/features/items/task-prefetch";
+import { useWorkspaceList } from "@/features/workspace/list-hooks";
 import { useWorkspace } from "@/features/workspace/workspace-context";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { canEditBoard, canViewBoard, isWorkspaceAdmin } from "@/lib/permissions/permissions";
+import { canViewBoard, isWorkspaceAdmin } from "@/lib/permissions/permissions";
 import { cn } from "@/lib/utils";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -75,17 +69,11 @@ type DialogState =
   | { kind: "feed" }
   | null;
 
-const LAYOUT_KEY = "streamline.calendar.layout";
-
-function readLayout(): CalendarLayout {
-  try {
-    const raw = window.localStorage.getItem(LAYOUT_KEY);
-    return (CALENDAR_LAYOUTS as readonly string[]).includes(raw ?? "") ? (raw as CalendarLayout) : "left";
-  } catch {
-    return "left";
-  }
-}
-
+/**
+ * The workspace Calendar: the year (or a week) as heat, each day shaded by the
+ * tasks active on it, holidays and closures marked; beside it the day under
+ * the pointer, or the one clicked, with its tasks. No text on the days.
+ */
 export function CalendarPage() {
   const ws = useWorkspace();
   const services = useServices();
@@ -93,26 +81,17 @@ export function CalendarPage() {
   const router = useRouter();
   const params = useSearchParams();
   const isMobile = useIsMobile();
+  // The panel sits beside the calendar from 1024 px; below that it stacks under it.
+  const wide = useMediaQuery("(min-width: 1024px)");
   const me = ws.currentUser.id;
   const isAdmin = isWorkspaceAdmin(ws.permissions);
   const [today] = React.useState(() => todayInVietnam());
-  // Three columns from 1024 px; below that the panel stacks under the calendar.
-  const wide = useMediaQuery("(min-width: 1024px)");
   const [focusStore] = React.useState(createFocusStore);
-  const [selected, setSelected] = React.useState<ISODate>(today);
-  const [layout, setLayoutState] = React.useState<CalendarLayout>(() => (typeof window === "undefined" ? "left" : readLayout()));
-  const setLayout = (next: CalendarLayout) => {
-    setLayoutState(next);
-    try {
-      window.localStorage.setItem(LAYOUT_KEY, next);
-    } catch {
-      // Kept for the page only.
-    }
-  };
-  const detailsRef = React.useRef<HTMLDivElement>(null);
+  const [pinned, setPinned] = React.useState<ISODate>(today);
+  const panelRef = React.useRef<HTMLDivElement>(null);
 
   // ---- where we are: in the address, so a link opens the same view ----
-  const view: CalendarView = (CALENDAR_VIEWS as readonly string[]).includes(params.get("view") ?? "") ? (params.get("view") as CalendarView) : isMobile ? "agenda" : "month";
+  const view = readView(params.get("view"), isMobile ? "week" : "year");
   const anchorParam = params.get("d");
   const anchor: ISODate = anchorParam && ISO.test(anchorParam) ? anchorParam : today;
   const replaceParams = React.useCallback(
@@ -147,17 +126,14 @@ export function CalendarPage() {
   const boardIds = React.useMemo(() => boards.map((b) => b.id), [boards]);
   const visibleBoards = React.useMemo(() => new Set(boardIds), [boardIds]);
   const range = viewRange(view, anchor);
-  // The view and the whole of its month, so the mini month and the details always have their tasks.
-  const monthGrid = viewRange("month", anchor);
-  const fetchFrom = range.from < monthGrid.from ? range.from : monthGrid.from;
-  const fetchTo = range.to > monthGrid.to ? range.to : monthGrid.to;
   const showTasks = filters.layers.includes("tasks");
   const columns = useCalendarColumns(ws.workspace.id, boardIds);
-  const taskRows = useCalendarTasks(ws.workspace.id, fetchFrom, fetchTo, showTasks);
+  const taskRows = useCalendarTasks(ws.workspace.id, range.from, range.to, showTasks);
   const holidaysQ = useHolidays(ws.workspace.id);
   const leaveQ = useLeave(ws.workspace.id);
   const keyDatesQ = useKeyDates(ws.workspace.id);
   useCalendarRealtime(ws.workspace.id);
+  const departments = useWorkspaceList(ws.workspace.id, "STAKEHOLDER_GROUPS");
 
   const rates = React.useMemo(() => normaliseAssetRates(ws.workspace.assetRates), [ws.workspace.assetRates]);
   const allTasks = React.useMemo(() => (taskRows.data && columns.data ? buildTaskEvents(taskRows.data, columns.data, rates) : []), [taskRows.data, columns.data, rates]);
@@ -167,69 +143,18 @@ export function CalendarPage() {
   const allLeave = React.useMemo(() => leaveQ.data ?? [], [leaveQ.data]);
   const leave = React.useMemo(() => filterLeave(allLeave, filters, me), [allLeave, filters, me]);
   const keyDates = React.useMemo(() => keyDatesQ.data ?? [], [keyDatesQ.data]);
-  // Working days count every holiday and everyone's leave, whatever is shown.
   const cal = React.useMemo<WorkingCalendar>(() => ({ holidays, leave: allLeave.filter((l) => l.status === "PLANNED") }), [holidays, allLeave]);
-
-  const people = React.useMemo(() => {
-    const list = [...ws.activeUsers].sort((a, b) => a.displayName.localeCompare(b.displayName));
-    return filters.personIds.length ? list.filter((u) => filters.personIds.includes(u.id)) : filters.mine ? list.filter((u) => u.id === me) : list;
-  }, [ws.activeUsers, filters.personIds, filters.mine, me]);
-  const hoursOf = React.useMemo(() => {
-    const byUser = new Map(ws.members.map((m) => [m.userId, weeklyHoursOf(m)]));
-    return (id: EntityId) => byUser.get(id) ?? 40;
-  }, [ws.members]);
   const nameOf = React.useCallback((id: EntityId) => ws.userById(id)?.displayName ?? "Someone", [ws]);
-
   const conflicts = React.useMemo(() => {
     const map = new Map<EntityId, DateConflict[]>();
     for (const t of allTasks) if (t.dueOn && !t.done) map.set(t.itemId, dueDateConflicts(cal, t.dueOn, t.peopleIds, nameOf));
     return map;
   }, [allTasks, cal, nameOf]);
 
-  const canMove = React.useCallback(
-    (t: TaskEvent) => {
-      const board = ws.boardById(t.boardId);
-      return !!board && canEditBoard(ws.permissions, board) && (t.dateColumn.type === "DATE" || t.dateColumn.type === "TIMELINE");
-    },
-    [ws],
-  );
-
-  const moveTask = React.useCallback(
-    async (t: TaskEvent, fromDay: ISODate, toDay: ISODate) => {
-      const board = ws.boardById(t.boardId) as Board | undefined;
-      if (!board || !canMove(t)) return;
-      const shift = Math.round((isoToUtc(toDay) - isoToUtc(fromDay)) / 86_400_000);
-      if (!shift) return;
-      const column = t.dateColumn;
-      try {
-        const item = await services.repos.items.getById(t.itemId);
-        if (!item) throw new Error("The task is gone");
-        const current = (await services.repos.items.listValuesByItem(t.itemId)).find((v) => v.columnId === column.id)?.value;
-        let value: ColumnValue;
-        if (column.type === "TIMELINE") {
-          if (current?.type !== "TIMELINE") throw new Error("The task's dates changed. Try again.");
-          value = { type: "TIMELINE", start: current.start ? addDaysIso(current.start, shift) : null, end: current.end ? addDaysIso(current.end, shift) : null };
-        } else value = { type: "DATE", date: addDaysIso(t.dueOn ?? t.endsOn, shift) };
-        await services.items.setValue(item.id, column.id, value, { column, item, board, users: ws.users }, me);
-        toast.success(`${t.name} moved to ${shortDay(addDaysIso(t.dueOn ?? t.endsOn, shift))}`);
-        // The empty dates were filled by the write; ones holding another date are offered.
-        const trio = dateTrio((columns.data ?? []).filter((c) => c.boardId === board.id));
-        const part = trioPart(trio, column.id);
-        if (part) {
-          const after = await services.repos.items.listValuesByItem(item.id);
-          const conflicts = planDateSync(trio, readDateState(trio, (id) => after.find((v) => v.columnId === id)?.value), part).conflicts;
-          if (await askDateSync(t.name, conflicts)) {
-            for (const w of conflicts) await services.items.setValue(item.id, w.column.id, w.value, { column: w.column, item, board, users: ws.users, dateSync: false }, me);
-          }
-        }
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not move the task");
-      } finally {
-        void queryClient.invalidateQueries({ queryKey: [...calendarKeys.all(ws.workspace.id), "tasks"] });
-      }
-    },
-    [ws, services, me, queryClient, canMove, columns.data],
-  );
+  // Every task counts on every day it runs: the day's shade is what the team is carrying then.
+  const counts = React.useMemo(() => taskCountByDay(tasks, range.from, range.to, true), [tasks, range.from, range.to]);
+  const max = React.useMemo(() => Math.max(0, ...counts.values()), [counts]);
+  const shownHolidays = filters.layers.includes("holidays") ? holidays : [];
 
   // ---- the open task ----
   const openTaskId = params.get("task");
@@ -242,107 +167,40 @@ export function CalendarPage() {
   const [dialog, setDialog] = React.useState<DialogState>(null);
   const close = () => setDialog(null);
 
-  const actions: CalendarActions = {
-    openTask: (t) => replaceParams({ task: t.itemId, board: t.boardId }),
-    prefetchTask: (t) => prefetchTaskPanel(queryClient, services, t.itemId),
-    moveTask: (t, from, to) => void moveTask(t, from, to),
-    openLeave: (entry) => setDialog({ kind: "leave", entry }),
-    addLeave: (day, userId) => (isAdmin || !userId || userId === me ? setDialog({ kind: "leave", day, userId }) : undefined),
-    openHoliday: (holiday) => setDialog({ kind: "holiday", holiday }),
-    openKeyDate: (keyDate) => setDialog({ kind: "keyDate", keyDate }),
-    addHoliday: isAdmin ? (day) => setDialog({ kind: "holiday", day }) : undefined,
-    addKeyDate: isAdmin ? (day) => setDialog({ kind: "keyDate", day }) : undefined,
-    showDay: (day) => {
-      setSelected(day);
-      focusStore.set({ day: null, task: null });
-      // Stacked under the calendar, the details are below the fold: bring them up.
-      if (!wide) requestAnimationFrame(() => detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
-    },
-    focusDay: (day) => focusStore.set({ day }),
-    focusTask: (task) => focusStore.set({ task }),
+  const pin = (day: ISODate) => {
+    setPinned(day);
+    focusStore.set({ day: null });
+    // Stacked (a phone), the panel is below the calendar: bring it up.
+    if (!wide) requestAnimationFrame(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
+  const heat: HeatProps = { today, pinned, counts, max, holidays: shownHolidays, onHover: (day) => focusStore.set({ day }), onPin: pin };
 
-  const load = React.useMemo(() => (view === "year" ? new Map<EntityId, Map<ISODate, number>>() : loadByPersonDay(tasks, cal, range.from, range.to)), [view, tasks, cal, range.from, range.to]);
-  // The whole team's day: every person's hours of work against what they have.
-  const teamLoad = React.useMemo(() => {
-    const out = new Map<ISODate, { demand: number; capacity: number }>();
-    if (view !== "month" && view !== "week") return out;
-    let any = false;
-    for (const days of load.values()) for (const [d, h] of days) {
-      const cur = out.get(d) ?? { demand: 0, capacity: 0 };
-      cur.demand += h;
-      out.set(d, cur);
-      any = any || h > 0;
-    }
-    if (!any) return new Map<ISODate, { demand: number; capacity: number }>();
-    for (const d of daysBetween(range.from, range.to)) {
-      const cur = out.get(d) ?? { demand: 0, capacity: 0 };
-      cur.capacity = people.reduce((sum, u) => sum + dayCapacity(cal, hoursOf(u.id), d, u.id), 0);
-      out.set(d, cur);
-    }
-    return out;
-  }, [view, load, range.from, range.to, people, cal, hoursOf]);
-
-  const data: CalendarData = {
+  const departmentColor = React.useCallback((name: string): ColorToken => departments.find((d) => d.name.toLowerCase() === name.toLowerCase())?.color ?? "gray", [departments]);
+  const panel: Omit<DayPanelProps, "day"> = {
     today,
-    anchor,
     tasks,
     leave,
-    holidays,
-    keyDates,
-    cal,
-    people,
+    holidays: shownHolidays,
+    keyDates: filters.layers.includes("keyDates") ? keyDates : [],
     userById: ws.userById,
-    weeklyHours: hoursOf,
+    boardName: (id) => ws.boardById(id)?.name ?? "",
+    boardColor: (id) => (ws.boardById(id)?.color as ColorToken | undefined) ?? "gray",
+    departmentColor,
     conflictsOf: (t) => conflicts.get(t.itemId) ?? [],
-    canMove,
-    showHolidays: filters.layers.includes("holidays"),
-    showKeyDates: filters.layers.includes("keyDates"),
-    spans: filters.spans,
-    teamLoad,
-    selected,
-    compact: isMobile,
+    openTask: (t) => replaceParams({ task: t.itemId, board: t.boardId }),
+    prefetchTask: (t) => prefetchTaskPanel(queryClient, services, t.itemId),
+    openLeave: (entry) => setDialog({ kind: "leave", entry }),
+    openHoliday: (holiday) => setDialog({ kind: "holiday", holiday }),
+    openKeyDate: (keyDate) => setDialog({ kind: "keyDate", keyDate }),
+    addLeave: (day) => setDialog({ kind: "leave", day }),
+    addHoliday: isAdmin ? (day) => setDialog({ kind: "holiday", day }) : undefined,
+    addKeyDate: isAdmin ? (day) => setDialog({ kind: "keyDate", day }) : undefined,
   };
 
   const awayToday = leaveOn(allLeave, today);
-  const loading = holidaysQ.isLoading || leaveQ.isLoading || (showTasks && (taskRows.isLoading || columns.isLoading));
+  const loading = !holidaysQ.data || (showTasks && (taskRows.isLoading || columns.isLoading));
   const filterCount = activeFilterCount(filters);
-
-  const mini = <MiniMonth key={anchor.slice(0, 7)} data={data} actions={actions} selected={selected} onPick={(day) => (actions.showDay(day), replaceParams({ d: day }))} />;
-  const boardName = (id: EntityId) => ws.boardById(id)?.name ?? "";
-  const details = (
-    <div ref={detailsRef} className="scroll-mt-4">
-      <DetailsPanel store={focusStore} data={data} actions={actions} selected={selected} boardName={boardName} />
-    </div>
-  );
-  const headsUp = <HeadsUp data={data} actions={actions} conflicts={conflicts} today={today} onMove={(t, to) => void moveTask(t, t.dueOn ?? t.endsOn, to)} />;
-  const loadingView = loading && !taskRows.data && !holidaysQ.data;
-  const main = (
-    <div className={cn("flex min-w-0 flex-1 flex-col", wide ? "min-h-0" : view === "roster" || view === "lines" ? "h-[60vh]" : view === "agenda" ? "max-h-[70vh]" : "")} data-testid="calendar-main">
-      {loadingView ? (
-        <div className="grid gap-2 rounded-xl border border-border/70 p-4">
-          <SkeletonLine className="w-1/3" />
-          <SkeletonLine className="w-2/3" />
-          <SkeletonLine className="w-1/2" />
-        </div>
-      ) : view === "month" ? (
-        <MonthView data={data} actions={actions} />
-      ) : view === "week" ? (
-        <WeekView data={data} actions={actions} />
-      ) : view === "agenda" ? (
-        <AgendaView data={data} actions={actions} />
-      ) : view === "density" ? (
-        <DensityView data={data} actions={actions} />
-      ) : view === "lines" ? (
-        <LinesView data={data} actions={actions} />
-      ) : view === "roster" ? (
-        <RosterView data={data} actions={actions} load={load} />
-      ) : (
-        <YearView data={data} actions={actions} onMonth={(d) => replaceParams({ view: "month", d })} />
-      )}
-    </div>
-  );
-
+  const year = anchor.slice(0, 4);
 
   return (
     <div className={cn("flex h-full min-h-0 flex-col", !wide && "overflow-y-auto")} data-testid="calendar-page">
@@ -376,16 +234,16 @@ export function CalendarPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setDialog({ kind: "leave", day: today })} data-testid="calendar-add-leave">
+                <DropdownMenuItem onSelect={() => setDialog({ kind: "leave", day: pinned })} data-testid="calendar-add-leave">
                   <CalendarPlus /> Leave
                 </DropdownMenuItem>
                 {isAdmin && (
-                  <DropdownMenuItem onSelect={() => setDialog({ kind: "holiday", day: today })} data-testid="calendar-add-holiday">
+                  <DropdownMenuItem onSelect={() => setDialog({ kind: "holiday", day: pinned })} data-testid="calendar-add-holiday">
                     <Palmtree /> Holiday
                   </DropdownMenuItem>
                 )}
                 {isAdmin && (
-                  <DropdownMenuItem onSelect={() => setDialog({ kind: "keyDate", day: today })} data-testid="calendar-add-key-date">
+                  <DropdownMenuItem onSelect={() => setDialog({ kind: "keyDate", day: pinned })} data-testid="calendar-add-key-date">
                     <Flag /> Key date
                   </DropdownMenuItem>
                 )}
@@ -400,26 +258,26 @@ export function CalendarPage() {
           <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={() => replaceParams({ d: stepAnchor(view, anchor, -1) })} data-testid="calendar-prev">
             <ChevronLeft />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => replaceParams({ d: null })} data-testid="calendar-today">
+          <Button variant="outline" size="sm" onClick={() => (replaceParams({ d: null }), setPinned(today))} data-testid="calendar-today">
             Today
           </Button>
           <Button variant="ghost" size="icon-sm" aria-label="On" onClick={() => replaceParams({ d: stepAnchor(view, anchor, 1) })} data-testid="calendar-next">
             <ChevronRight />
           </Button>
         </div>
-        <h2 className="min-w-36 px-1 text-[15px] font-semibold" data-testid="calendar-period">
+        <h2 className="min-w-28 px-1 text-[15px] font-semibold" data-testid="calendar-period">
           {periodLabel(view, anchor)}
         </h2>
-        <div className="ml-auto flex flex-wrap items-center gap-1.5">
-          <div role="tablist" aria-label="View" className="flex max-w-full overflow-x-auto rounded-lg border border-border/70 bg-surface p-0.5 scrollbar-none">
+        <div className="ml-auto flex items-center gap-1.5">
+          <div role="tablist" aria-label="View" className="flex rounded-lg border border-border/70 bg-surface p-0.5">
             {CALENDAR_VIEWS.map((v) => (
               <button
                 key={v}
                 type="button"
                 role="tab"
                 aria-selected={view === v}
-                onClick={() => replaceParams({ view: v })}
-                className={cn("shrink-0 rounded-md px-2.5 py-1 text-[12.5px] font-medium text-muted-foreground max-md:py-2", view === v && "bg-card text-foreground shadow-xs")}
+                onClick={() => replaceParams({ view: v, d: v === "week" ? pinned : null })}
+                className={cn("shrink-0 rounded-md px-3 py-1 text-[12.5px] font-medium text-muted-foreground max-md:py-2", view === v && "bg-card text-foreground shadow-xs")}
                 data-testid={`calendar-view-${v}`}
               >
                 {CALENDAR_VIEW_LABELS[v]}
@@ -427,52 +285,34 @@ export function CalendarPage() {
             ))}
           </div>
           <FilterButton filters={filters} count={filterCount} boards={boards} users={ws.activeUsers} onChange={setFilters} onPatch={patchFilters} />
-          {wide && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon-sm" aria-label="Layout" data-testid="calendar-layout">
-                  <LayoutPanelLeft />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Layout</DropdownMenuLabel>
-                {CALENDAR_LAYOUTS.map((l) => (
-                  <DropdownMenuItem key={l} onSelect={() => setLayout(l)} data-testid={`calendar-layout-${l}`}>
-                    <Check className={cn(layout !== l && "invisible")} /> {CALENDAR_LAYOUT_LABELS[l]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
         </div>
       </div>
 
-      {wide ? (
-        <div className="flex min-h-0 flex-1 gap-3 px-4 pb-4 sm:px-7" data-testid="calendar-layout-wide" data-layout={layout}>
-          {layout !== "right" && (
-            <aside className="scrollbar-thin flex w-64 shrink-0 flex-col gap-3 overflow-y-auto xl:w-72" data-testid="calendar-side-left">
-              {mini}
-              {layout === "left" && details}
-              {headsUp}
-            </aside>
+      <div className={cn("flex gap-3 px-4 pb-4 sm:px-7", wide ? "min-h-0 flex-1" : "flex-col")} data-testid="calendar-body">
+        <section className={cn("flex min-w-0 flex-1 flex-col gap-4 rounded-xl border border-border/70 bg-card p-4", wide && "min-h-0 overflow-y-auto")} data-testid="calendar-main" data-view={view}>
+          <div>
+            <h3 className="text-[14px] font-semibold">{view === "year" ? `${year} workload` : `Week of ${shortDay(range.from)}`}</h3>
+            <p className="text-[12px] text-muted-foreground">Shaded by tasks active that day. Hover a day for its tasks, click to pin it.</p>
+          </div>
+          {loading && !taskRows.data ? (
+            <div className="grid gap-2">
+              <SkeletonLine className="w-1/3" />
+              <SkeletonLine className="w-2/3" />
+              <SkeletonLine className="w-1/2" />
+            </div>
+          ) : view === "year" ? (
+            <HeatYear year={year} props={heat} />
+          ) : (
+            <HeatWeek from={range.from} props={heat} />
           )}
-          {main}
-          {layout !== "left" && (
-            <aside className="scrollbar-thin flex w-64 shrink-0 flex-col gap-3 overflow-y-auto xl:w-72" data-testid="calendar-side-right">
-              {layout === "right" && mini}
-              {details}
-              {layout === "right" && headsUp}
-            </aside>
-          )}
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3 px-4 pb-6 sm:px-7" data-testid="calendar-layout-stacked">
-          {mini}
-          {main}
-          {details}
-          {headsUp}
-        </div>
-      )}
+          <div className="mt-auto border-t border-border/60 pt-3">
+            <HeatLegend />
+          </div>
+        </section>
+        <aside ref={panelRef} className={cn("scroll-mt-4 rounded-xl border border-border/70 bg-card p-4", wide ? "scrollbar-thin w-[22rem] shrink-0 overflow-y-auto xl:w-[24rem]" : "")} data-testid="calendar-panel">
+          <PanelDay store={focusStore} pinned={pinned} panel={panel} />
+        </aside>
+      </div>
 
       {openTaskId && openBoardId && <TaskPanelHost key={openBoardId} boardId={openBoardId} itemId={openTaskId} onOpen={(id) => replaceParams({ task: id })} onClose={closeTask} popup />}
 
@@ -483,7 +323,7 @@ export function CalendarPage() {
         me={me}
         defaultUserId={dialog?.kind === "leave" ? dialog.userId : undefined}
         toEvents={toEvents}
-        onOpenTask={(t) => (close(), actions.openTask(t))}
+        onOpenTask={(t) => (close(), panel.openTask(t))}
         isAdmin={isAdmin}
         people={ws.activeUsers}
         entry={dialog?.kind === "leave" ? dialog.entry : null}
@@ -494,6 +334,12 @@ export function CalendarPage() {
       <FeedDialog open={dialog?.kind === "feed"} onOpenChange={(o) => !o && close()} workspaceId={ws.workspace.id} userId={me} />
     </div>
   );
+}
+
+/** The day under the pointer, else the pinned one. Reads the hover store, so only the panel re-renders on hover. */
+function PanelDay({ store, pinned, panel }: { store: FocusStore; pinned: ISODate; panel: Omit<DayPanelProps, "day"> }) {
+  const focus = useFocus(store);
+  return <DayPanel {...panel} day={focus.day ?? pinned} />;
 }
 
 // ---- filters -----------------------------------------------------------------------
@@ -529,14 +375,8 @@ function FilterButton({ filters, count, boards, users, onChange, onPatch }: { fi
           <Switch id="cal-mine" checked={filters.mine} onCheckedChange={(mine) => onPatch({ mine })} />
         </div>
         <div className="flex items-center justify-between text-[13px]">
-          <Label htmlFor="cal-spans" className="font-normal">
-            Whole timelines
-          </Label>
-          <Switch id="cal-spans" checked={filters.spans} onCheckedChange={(spans) => onPatch({ spans })} />
-        </div>
-        <div className="flex items-center justify-between text-[13px]">
           <Label htmlFor="cal-done" className="font-normal">
-            Show done
+            Count done work
           </Label>
           <Switch id="cal-done" checked={filters.showDone} onCheckedChange={(showDone) => onPatch({ showDone })} />
         </div>

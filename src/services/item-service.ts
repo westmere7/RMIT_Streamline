@@ -425,6 +425,8 @@ export class ItemService {
         if (now.start) return;
         const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
         await this.setValue(itemId, trio.start.id, { type: "START_DATE", date: today }, { ...follow, column: trio.start }, actorId);
+        // The board offers the timeline itself (it asks before filling one); anyone else gets it filled.
+        if (ctx.dateSync === false) return;
         for (const fill of planDateSync(trio, { ...now, start: today }, "start").fills) await this.setValue(itemId, fill.column.id, fill.value, { ...follow, column: fill.column }, actorId);
         return;
       }

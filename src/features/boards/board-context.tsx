@@ -122,6 +122,11 @@ export function useCanEditUnlocked(): boolean {
 
 export const BoardContextProvider = BoardContext.Provider;
 
+/** The board around a cell, or null where there is none (a shared page, a portal). */
+export function useBoardContextMaybe(): BoardContextValue | null {
+  return useContext(BoardContext);
+}
+
 export function useBoardContext(): BoardContextValue {
   const ctx = useContext(BoardContext);
   if (!ctx) throw new Error("useBoardContext must be used inside a board");

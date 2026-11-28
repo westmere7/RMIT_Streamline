@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.178.0",
+    date: "2026-11-28",
+    title: "A cleaner Calendar",
+    changes: [
+      "The Calendar is now the year as a heat map (or one week): each day shaded by the tasks active on it, with holidays and closures marked. No text on the days.",
+      "Hover a day to see its tasks in the panel beside it; click to pin the day.",
+      "Date pickers offer the task's other dates: the timeline's start for Start day, its end for Due date, and Start day to Due date for the Timeline.",
+      "Filling an empty Timeline is asked first, like any change to a date that's already set.",
+    ],
+  },
+  {
     version: "0.177.1",
     date: "2026-11-28",
     title: "Start day touch-ups",

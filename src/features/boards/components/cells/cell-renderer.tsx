@@ -4,8 +4,8 @@ import { Check, ExternalLink, FileText, Link2, Pencil, Undo2 } from "lucide-reac
 import * as React from "react";
 import { PriorityPill, PrioritySignal } from "@/components/shared/priority-signal";
 import { AvatarStack, PersonHover, UserAvatar } from "@/components/shared/user-avatar";
-import type { BoardColumn, ColumnValue, ColumnValueOf, Item } from "@/domain";
-import { assetsRecapSettings, columnLabels, columnTagOptions, formatHours, dropdownStyle, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, formatProgressNumber, progressColumnValue, progressCounts, progressPercent, progressSettings, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
+import type { BoardColumn, ColumnValue, ColumnValueOf, DateState, Item } from "@/domain";
+import { dateTrio, readDateState, assetsRecapSettings, columnLabels, columnTagOptions, formatHours, dropdownStyle, countdownRemaining, countdownSettings, dateTimeSettings, emptyValueFor, formatAssetsRecap, formatDateTime, formatProgress, formatProgressNumber, progressColumnValue, progressCounts, progressPercent, progressSettings, formatPlainDate, formatTimeOfDay, isProgressLabel, isStuckLabel, priorityStrength, readCountdown, recapAssets, statusRoleIds, type CountdownTone } from "@/domain";
 import { LabelPicker } from "@/features/boards/components/pickers/label-picker";
 import { PersonPicker } from "@/features/boards/components/pickers/person-picker";
 import { DatePicker, TimelinePicker } from "@/features/boards/components/pickers/date-picker";
@@ -16,7 +16,8 @@ import { SizePicker, SizePill } from "@/features/boards/components/pickers/size-
 import { itemHours } from "@/features/boards/components/views/workload-hours";
 import { sizeEvidence, useAssetRates, useSizeScale } from "@/features/boards/size-fit";
 import { routes } from "@/lib/routes";
-import { useBoardContext, useItemSpecialStatus, type SpecialStatus } from "@/features/boards/board-context";
+import { useBoardContext, useBoardContextMaybe, useItemSpecialStatus, type SpecialStatus } from "@/features/boards/board-context";
+import type { DateSuggestion } from "@/features/boards/components/pickers/date-picker";
 import { SPECIAL_STATUSES } from "@/features/booking/sent-back-pill";
 import { BRIEF_TEXT_WIDTH, columnAlign, columnAlignAt } from "@/features/boards/board-model";
 import { formatTag, normalizeTagName, tagColor, tagOptionsFor } from "@/features/boards/tag-palette";
@@ -44,6 +45,17 @@ export interface CellProps {
   /** Item is done → de-emphasise dates. */
   isDone?: boolean;
   width?: number;
+}
+
+/**
+ * The task's Start day, Due date and Timeline as the board holds them now, for
+ * the pickers to offer one from another. Null outside a board.
+ */
+function useTaskDates(itemId: string): DateState | null {
+  const ctx = useBoardContextMaybe();
+  if (!ctx) return null;
+  const trio = dateTrio(ctx.model.columns);
+  return readDateState(trio, (id) => ctx.model.getValue(itemId, id));
 }
 
 function valueOf<T extends ColumnValue["type"]>(type: T, value: ColumnValue | undefined): ColumnValueOf<T> {
@@ -624,6 +636,8 @@ export function PersonCell({ item, column, value, onChange, readOnly, width }: C
 
 export function DateCell({ item, column, value, onChange, readOnly, isDone, width }: CellProps) {
   const v = valueOf("DATE", value);
+  const dates = useTaskDates(item.id);
+  const suggestions: DateSuggestion[] = dates?.timelineEnd && dates.timelineEnd !== v.date ? [{ label: `Timeline end · ${formatShortDate(dates.timelineEnd)}`, onPick: () => onChange({ type: "DATE", date: dates.timelineEnd }) }] : [];
   const overdue = !isDone && isOverdue(v.date);
   const today = !isDone && isToday(v.date);
   return (
@@ -644,7 +658,7 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
         )
       }
     >
-      {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "DATE", date })} onDone={close} />}
+      {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "DATE", date })} onDone={close} suggestions={suggestions} />}
     </PopoverCell>
   );
 }
@@ -652,6 +666,8 @@ export function DateCell({ item, column, value, onChange, readOnly, isDone, widt
 /** The day the team begins: a date like the deadline, with no overdue colour. */
 export function StartDateCell({ item, column, value, onChange, readOnly, isDone, width }: CellProps) {
   const v = valueOf("START_DATE", value);
+  const dates = useTaskDates(item.id);
+  const suggestions: DateSuggestion[] = dates?.timelineStart && dates.timelineStart !== v.date ? [{ label: `Timeline start · ${formatShortDate(dates.timelineStart)}`, onPick: () => onChange({ type: "START_DATE", date: dates.timelineStart }) }] : [];
   return (
     <PopoverCell
       width={width ?? column.width}
@@ -661,7 +677,7 @@ export function StartDateCell({ item, column, value, onChange, readOnly, isDone,
       testId="start-date-cell"
       trigger={v.date ? <span className={cn("text-xs tabular", isDone && "text-muted-foreground")}>{formatShortDate(v.date)}</span> : <span className="text-2xs text-muted-foreground/60">—</span>}
     >
-      {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "START_DATE", date })} onDone={close} />}
+      {(close) => <DatePicker value={v.date} onChange={(date) => onChange({ type: "START_DATE", date })} onDone={close} suggestions={suggestions} />}
     </PopoverCell>
   );
 }
@@ -782,6 +798,15 @@ export function BookedAtCell({ item, column, width }: CellProps) {
 
 export function TimelineCell({ item, column, value, onChange, readOnly, isDone, width }: CellProps) {
   const v = valueOf("TIMELINE", value);
+  const dates = useTaskDates(item.id);
+  const suggestions: DateSuggestion[] = [];
+  if (dates?.start && dates.due && dates.start <= dates.due) {
+    if (dates.start !== v.start || dates.due !== v.end) suggestions.push({ label: `Start day → Due date · ${formatDateRange(dates.start, dates.due)}`, onPick: () => onChange({ type: "TIMELINE", start: dates.start, end: dates.due }) });
+  } else if (dates?.start && dates.start !== v.start) {
+    suggestions.push({ label: `From Start day · ${formatShortDate(dates.start)}`, onPick: () => onChange({ type: "TIMELINE", start: dates.start, end: v.end && v.end >= dates.start! ? v.end : dates.start }) });
+  } else if (dates?.due && dates.due !== v.end) {
+    suggestions.push({ label: `Until Due date · ${formatShortDate(dates.due)}`, onPick: () => onChange({ type: "TIMELINE", start: v.start && v.start <= dates.due! ? v.start : dates.due, end: dates.due }) });
+  }
   const overdue = !isDone && isOverdue(v.end);
   return (
     <PopoverCell
@@ -804,7 +829,7 @@ export function TimelineCell({ item, column, value, onChange, readOnly, isDone, 
         )
       }
     >
-      {() => <TimelinePicker start={v.start} end={v.end} onChange={(range) => onChange({ type: "TIMELINE", ...range })} />}
+      {(close) => <TimelinePicker start={v.start} end={v.end} onChange={(range) => onChange({ type: "TIMELINE", ...range })} suggestions={suggestions} onDone={close} />}
     </PopoverCell>
   );
 }

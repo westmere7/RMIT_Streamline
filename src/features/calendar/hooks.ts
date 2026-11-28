@@ -27,7 +27,7 @@ export function useCalendarTasks(workspaceId: EntityId, from: ISODate, to: ISODa
     queryKey: calendarKeys.tasks(workspaceId, from, to),
     queryFn: () => services.calendar.listTasks(workspaceId, from, to),
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: 60_000,
     enabled,
   });
 }
@@ -135,5 +135,6 @@ export function useCalendarRealtime(workspaceId: EntityId) {
   // Their writes bump the workspace revision (0162), so a catch-up is one probe, not three reads.
   useRealtime(`calendar:${workspaceId}`, own, { coalesceMs: 400, catchUp: { workspaceId } });
   // Board edits come in bursts; the tasks are read again once one settles.
-  useRealtime(`calendar-tasks:${workspaceId}`, boards, { coalesceMs: 1_500, minIntervalMs: 10_000, catchUp: { workspaceId } });
+  // A year of tasks is a large read (about a megabyte on a busy workspace): at most every 30 s.
+  useRealtime(`calendar-tasks:${workspaceId}`, boards, { coalesceMs: 2_000, minIntervalMs: 30_000, catchUp: { workspaceId } });
 }

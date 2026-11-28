@@ -70,9 +70,17 @@ test("Start day and Due date keep the Timeline in step, asking before they overw
     await expect(row(page, task!.name)).toBeVisible({ timeout: 60_000 });
     await expect(row(page, task!.name).getByTestId("start-date-cell")).toBeVisible();
 
-    // Both ends set: the empty timeline fills itself, nobody is asked.
+    // Both ends set: filling the empty timeline is offered, not done unasked.
     await pick(page, task!.name, "start-date-cell", "Today");
     await pick(page, task!.name, "date-cell", "Tomorrow");
+    await expect(page.getByTestId("date-sync-confirm")).toContainText("empty", { timeout: 10_000 });
+    await page.getByRole("button", { name: "Leave empty" }).click();
+    await expect.poll(async () => (await valuesOf(db, task!.id, cols)).due, { timeout: 20_000 }).toBe(TOMORROW);
+    expect((await valuesOf(db, task!.id, cols)).timeline).toBeNull();
+    // The Timeline picker then offers the two dates, and the question comes again from a new start.
+    await row(page, task!.name).locator('[aria-label^="Timeline"]').first().click();
+    await expect(page.getByTestId("timeline-picker").getByTestId("date-suggestion")).toContainText("Start day → Due date");
+    await page.getByTestId("timeline-picker").getByTestId("date-suggestion").click();
     await expect.poll(async () => (await valuesOf(db, task!.id, cols)).timeline, { timeout: 20_000 }).toBe(`${TODAY}|${TOMORROW}`);
     await expect(page.getByTestId("date-sync-confirm")).toHaveCount(0);
 
@@ -110,7 +118,9 @@ test("the first move into progress sets an empty Start day, and the dashboard an
     await expect(row(page, task.name)).toBeVisible({ timeout: 60_000 });
     await row(page, task.name).getByTestId("status-cell").click();
     await page.getByRole("option", { name: "In Progress" }).click();
-    await page.keyboard.press("Escape");
+    // With a deadline already set, the timeline that would follow is offered; left empty here.
+    const offer = page.getByRole("button", { name: "Leave empty" });
+    await offer.click({ timeout: 10_000 }).catch(() => undefined);
     await expect.poll(async () => (await valuesOf(db, task.id, cols)).start, { timeout: 30_000 }).not.toBeNull();
     const start = (await valuesOf(db, task.id, cols)).start!;
     const vietnam = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
@@ -122,15 +132,17 @@ test("the first move into progress sets an empty Start day, and the dashboard an
     await expect(page.getByTestId("dashboard-production")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("dashboard-waiting")).toBeVisible();
 
-    // A start and a later deadline with no timeline: a line on the calendar from one to the other.
+    // A start and a later deadline with no timeline: the calendar runs the task from one to the other.
     await db.from("item_column_values").delete().eq("item_id", task.id).eq("column_id", cols.timeline.id);
     const due = new Date(Date.parse(`${start}T00:00:00Z`) + 3 * 86_400_000).toISOString().slice(0, 10);
     await db.from("item_column_values").upsert({ item_id: task.id, column_id: cols.due.id, board_id: cols.boardId, value_json: { type: "DATE", date: due } }, { onConflict: "item_id,column_id" });
-    await page.goto(`/workspace/rmit/calendar?view=lines&d=${start}`);
-    const line = page.locator(`[data-testid="calendar-line"][data-item-id="${task.id}"]`);
-    await expect(line).toHaveCount(1, { timeout: 30_000 });
-    await line.hover({ force: true });
-    await expect(page.getByTestId("calendar-task-detail")).toContainText("working days");
+    await page.goto(`/workspace/rmit/calendar?view=year&d=${start}`);
+    // Active on every day from its start to its deadline: in the panel of a day in between.
+    const middle = new Date(Date.parse(`${start}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10);
+    await page.locator(`[data-testid="heat-day"][data-day="${middle}"]`).click();
+    const panelRow = page.locator(`[data-testid="calendar-day-task"][data-item-id="${task.id}"]`);
+    await expect(panelRow).toBeVisible({ timeout: 30_000 });
+    await expect(panelRow).toContainText("4 days");
   } finally {
     await db.from("item_column_values").delete().eq("item_id", task.id).in("column_id", [cols.start.id, cols.status.id, cols.timeline.id, cols.due.id]);
     if (kept.length) await db.from("item_column_values").insert(kept.map(({ id: _id, ...rest }) => rest));

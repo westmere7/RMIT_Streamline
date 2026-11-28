@@ -8,7 +8,7 @@ import { useCallback, useMemo, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { celebrate } from "@/components/shared/confetti";
 import type { ArchiveLinkPolicy, BoardColumn, BoardGroup, ColumnRole, ColumnSettings, ColumnType, ColumnValue, Item, ItemColumnValue, TagOption } from "@/domain";
-import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst, intakeGroupOf, dateTrio, planDateSync, readDateState, trioPart } from "@/domain";
+import { defaultSettingsFor, DEFAULT_COLUMN_WIDTHS, isSystemColumnType, pinIntakeFirst, intakeGroupOf, dateTrio, planDateSync, readDateState, trioPart, resolveColumnRoles, statusLabelRole } from "@/domain";
 import { useCurrentUser } from "@/features/auth/auth-context";
 import { useServices } from "@/features/data/data-context";
 import { useWorkspace } from "@/features/workspace/workspace-context";
@@ -199,17 +199,37 @@ export function useBoardMutations(boardId: string) {
    */
   const followDates = useCallback(
     (item: Item, column: BoardColumn, value: ColumnValue) => {
-      if (value.type !== "DATE" && value.type !== "START_DATE" && value.type !== "TIMELINE") return;
       const snapshot = queryClient.getQueryData<BoardSnapshot>(key);
       if (!snapshot) return;
       const trio = dateTrio(snapshot.columns);
-      const part = trioPart(trio, column.id);
-      if (!part) return;
       const valueOf = (id: string) => (id === column.id ? value : snapshot.values.find((v) => v.itemId === item.id && v.columnId === id)?.value);
-      const plan = planDateSync(trio, readDateState(trio, valueOf), part);
       const write = (w: DateWrite) => void setValueRef.current?.(item, w.column, w.value, { sync: false });
-      plan.fills.forEach(write);
-      if (plan.conflicts.length) void askDateSync(item.name, plan.conflicts).then((yes) => yes && plan.conflicts.forEach(write));
+      // Nothing changes another date without asking, an empty one included:
+      // one question lists every change the edit would bring.
+      const offer = (writes: DateWrite[]) => {
+        if (writes.length) void askDateSync(item.name, writes).then((yes) => yes && writes.forEach(write));
+      };
+
+      // The first move into an under-way status: the server gives an empty
+      // Start day today's date, and the board shows it at once. Nobody touched
+      // a date, so nothing is asked; the Timeline picker offers the span later.
+      if (value.type === "STATUS") {
+        const status = resolveColumnRoles(snapshot.columns.filter((c) => !c.removed)).status;
+        if (!trio.start || status?.id !== column.id || status.settings.kind !== "status" || statusLabelRole(status.settings, value.labelId) !== "progress") return;
+        if (readDateState(trio, valueOf).start) return;
+        const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+        const startColumn = trio.start;
+        queryClient.setQueryData<BoardSnapshot>(key, (s) => (s ? upsertValue(s, item.id, startColumn.id, { type: "START_DATE", date: today }) : s));
+        return;
+      }
+
+      // Only a Start day or Due date edit asks about the Timeline. A Timeline
+      // edit asks nothing: the Start day and Due date pickers offer its ends.
+      if (value.type !== "DATE" && value.type !== "START_DATE") return;
+      const part = trioPart(trio, column.id);
+      if (part !== "start" && part !== "due") return;
+      const plan = planDateSync(trio, readDateState(trio, valueOf), part);
+      offer([...plan.fills, ...plan.conflicts]);
     },
     [queryClient, key],
   );

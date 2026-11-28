@@ -46,7 +46,7 @@ export function DateSyncConfirm() {
     <ConfirmDialog
       open={!!open}
       onOpenChange={(o) => !o && answer(false)}
-      title={`Update ${names.join(" and ")}?`}
+      title={`${open?.writes.every((w) => w.from === null) ? "Fill" : "Update"} ${names.join(" and ")}?`}
       description={
         <span className="grid gap-1" data-testid="date-sync-confirm">
           {open?.writes.map((w) => (
@@ -56,8 +56,8 @@ export function DateSyncConfirm() {
           ))}
         </span>
       }
-      confirmLabel="Update"
-      cancelLabel="Keep"
+      confirmLabel={open?.writes.every((w) => w.from === null) ? "Fill" : "Update"}
+      cancelLabel={open?.writes.every((w) => w.from === null) ? "Leave empty" : "Keep"}
       onConfirm={() => answer(true)}
     />
   );

@@ -22,16 +22,24 @@ export interface TaskEvent {
   peopleIds: EntityId[];
   /** What the deliverables take at the workspace's rates. */
   hours: number;
+  /** How many deliverables, by quantity. */
+  units: number;
+  /** Who the work is for (the board's Department column), for the badge. */
+  department: string | null;
 }
 
-export type CalendarView = "month" | "week" | "agenda" | "density" | "lines" | "roster" | "year";
-export const CALENDAR_VIEWS: readonly CalendarView[] = ["month", "week", "agenda", "density", "lines", "roster", "year"];
-export const CALENDAR_VIEW_LABELS: Record<CalendarView, string> = { month: "Month", week: "Week", agenda: "Agenda", density: "Density", lines: "Lines", roster: "Roster", year: "Year" };
+/** The stretch of time on screen: the year as heat, or one week. */
+export type CalendarView = "year" | "week";
+export const CALENDAR_VIEWS: readonly CalendarView[] = ["year", "week"];
+export const CALENDAR_VIEW_LABELS: Record<CalendarView, string> = { year: "Year", week: "Week" };
 
-/** Where the mini month and the details sit around the main calendar. */
-export type CalendarLayout = "left" | "right" | "split";
-export const CALENDAR_LAYOUTS: readonly CalendarLayout[] = ["left", "right", "split"];
-export const CALENDAR_LAYOUT_LABELS: Record<CalendarLayout, string> = { left: "Panel left", right: "Panel right", split: "Either side" };
+/** Ranges the model can lay out: the two views, and a month grid (Monday to Sunday). */
+export type RangeKind = CalendarView | "month";
+
+/** ?view= from an older address (month, agenda, roster, density…) lands on the year. */
+export function readView(view: string | null, fallback: CalendarView): CalendarView {
+  return (CALENDAR_VIEWS as readonly string[]).includes(view ?? "") ? (view as CalendarView) : fallback;
+}
 
 export type CalendarLayer = "tasks" | "leave" | "holidays" | "keyDates";
 export const CALENDAR_LAYERS: readonly CalendarLayer[] = ["tasks", "leave", "holidays", "keyDates"];
@@ -41,15 +49,14 @@ export interface CalendarFilters {
   boardIds: EntityId[];
   personIds: EntityId[];
   layers: CalendarLayer[];
+  /** Done work counts too: a past day shows what was being worked on then. */
   showDone: boolean;
   mine: boolean;
-  /** Draw a timeline on every day it covers, not only on its deadline. */
-  spans: boolean;
 }
-export const DEFAULT_FILTERS: CalendarFilters = { boardIds: [], personIds: [], layers: [...CALENDAR_LAYERS], showDone: false, mine: false, spans: false };
+export const DEFAULT_FILTERS: CalendarFilters = { boardIds: [], personIds: [], layers: [...CALENDAR_LAYERS], showDone: true, mine: false };
 
 export function activeFilterCount(f: CalendarFilters): number {
-  return (f.boardIds.length ? 1 : 0) + (f.personIds.length ? 1 : 0) + (f.layers.length < CALENDAR_LAYERS.length ? 1 : 0) + (f.showDone ? 1 : 0) + (f.mine ? 1 : 0) + (f.spans ? 1 : 0);
+  return (f.boardIds.length ? 1 : 0) + (f.personIds.length ? 1 : 0) + (f.layers.length < CALENDAR_LAYERS.length ? 1 : 0) + (!f.showDone ? 1 : 0) + (f.mine ? 1 : 0);
 }
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
@@ -109,6 +116,8 @@ export function buildTaskEvents(rows: readonly CalendarTaskRow[], columns: reado
       done = role === "done";
       stuck = role === "stuck";
     }
+    const departmentValue = value(r.stakeholder);
+    const department = departmentValue?.type === "STAKEHOLDER" ? departmentValue.group : null;
     const people = value(r.pic);
     const peopleIds = new Set(people && "userIds" in people ? people.userIds : []);
     for (const a of row.assets) for (const id of a.assigneeIds) peopleIds.add(id);
@@ -129,6 +138,8 @@ export function buildTaskEvents(rows: readonly CalendarTaskRow[], columns: reado
       stuck,
       peopleIds: [...peopleIds],
       hours: itemHours(row.assets.map((a) => ({ assetType: a.assetType, quantity: a.quantity })), rates),
+      units: row.assets.reduce((n, a) => n + (a.quantity && a.quantity > 0 ? a.quantity : 1), 0),
+      department,
     });
   }
   return out.sort((a, b) => a.startsOn.localeCompare(b.startsOn) || Number(a.done) - Number(b.done) || a.name.localeCompare(b.name));
@@ -176,12 +187,9 @@ export function addMonths(day: ISODate, n: number): ISODate {
 }
 
 /** The days a view shows, first to last. */
-export function viewRange(view: CalendarView, anchor: ISODate): { from: ISODate; to: ISODate } {
+export function viewRange(view: RangeKind, anchor: ISODate): { from: ISODate; to: ISODate } {
   switch (view) {
-    case "lines":
-      return { from: startOfMonth(anchor), to: endOfMonth(anchor) };
-    case "month":
-    case "density": {
+    case "month": {
       const from = startOfWeek(startOfMonth(anchor));
       const lastWeek = startOfWeek(endOfMonth(anchor));
       return { from, to: addDaysIso(lastWeek, 6) };
@@ -190,29 +198,18 @@ export function viewRange(view: CalendarView, anchor: ISODate): { from: ISODate;
       const from = startOfWeek(anchor);
       return { from, to: addDaysIso(from, 6) };
     }
-    case "agenda":
-      return { from: anchor, to: addDaysIso(anchor, 27) };
-    case "roster": {
-      const from = startOfWeek(anchor);
-      return { from, to: addDaysIso(from, 27) };
-    }
     case "year":
       return { from: `${anchor.slice(0, 4)}-01-01`, to: `${anchor.slice(0, 4)}-12-31` };
   }
 }
 
 /** The anchor one step back or on. */
-export function stepAnchor(view: CalendarView, anchor: ISODate, dir: -1 | 1): ISODate {
+export function stepAnchor(view: RangeKind, anchor: ISODate, dir: -1 | 1): ISODate {
   switch (view) {
     case "month":
-    case "density":
-    case "lines":
       return addMonths(anchor, dir);
     case "week":
       return addDaysIso(anchor, 7 * dir);
-    case "agenda":
-    case "roster":
-      return addDaysIso(anchor, 28 * dir);
     case "year":
       return `${Number(anchor.slice(0, 4)) + dir}-01-01`;
   }
@@ -239,9 +236,9 @@ export function spanLabel(startsOn: ISODate, endsOn: ISODate): string {
   return startsOn === endsOn ? shortDay(startsOn) : `${shortDay(startsOn)} – ${shortDay(endsOn)}`;
 }
 
-export function periodLabel(view: CalendarView, anchor: ISODate): string {
+export function periodLabel(view: RangeKind, anchor: ISODate): string {
   const { from, to } = viewRange(view, anchor);
-  if (view === "month" || view === "density" || view === "lines") return `${monthName(anchor)} ${anchor.slice(0, 4)}`;
+  if (view === "month") return `${monthName(anchor)} ${anchor.slice(0, 4)}`;
   if (view === "year") return anchor.slice(0, 4);
   return `${spanLabel(from, to)} ${to.slice(0, 4)}`;
 }
@@ -316,22 +313,4 @@ export function taskCountByDay(events: readonly TaskEvent[], from: ISODate, to: 
 export function densityLevel(count: number, max: number): 0 | 1 | 2 | 3 | 4 | 5 {
   if (count <= 0 || max <= 0) return 0;
   return Math.max(1, Math.min(5, Math.ceil((count / max) * 5))) as 1 | 2 | 3 | 4 | 5;
-}
-
-/**
- * Tasks laid out as lines across [from, to], each in the first lane free when
- * it starts: a busy day is one with many lanes running through it.
- */
-export function packLanes(events: readonly TaskEvent[], from: ISODate, to: ISODate): { task: TaskEvent; lane: number; start: ISODate; end: ISODate }[] {
-  const shown = events
-    .filter((e) => e.startsOn <= to && e.endsOn >= from)
-    .map((task) => ({ task, start: task.startsOn < from ? from : task.startsOn, end: task.endsOn > to ? to : task.endsOn }))
-    .sort((a, b) => a.start.localeCompare(b.start) || b.end.localeCompare(a.end) || a.task.name.localeCompare(b.task.name));
-  const laneEnds: ISODate[] = [];
-  return shown.map((s) => {
-    let lane = laneEnds.findIndex((end) => end < s.start);
-    if (lane === -1) lane = laneEnds.push(s.end) - 1;
-    else laneEnds[lane] = s.end;
-    return { ...s, lane };
-  });
 }
